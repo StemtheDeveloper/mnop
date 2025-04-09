@@ -1,30 +1,35 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getAnalytics } from 'firebase/analytics';
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getFirestore, serverTimestamp } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut,
+  updateProfile,
+  GoogleAuthProvider,
+} from "firebase/auth";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import "firebase/firestore";
 
-// Temporary direct config for testing
+// Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyDZCJD2k6B4cJbCg-lbygmhTrsiFccErS8",
-    authDomain: "m-nop-39b2f.firebaseapp.com",
-    projectId: "m-nop-39b2f",
-    storageBucket: "m-nop-39b2f.firebasestorage.app",
-    messagingSenderId: "796565177927",
-    appId: "1:796565177927:web:38dd184cc05ead5e545362",
-    measurementId: "G-JVKGPTSMZH"
-  };
+  apiKey: import.meta.env.VITE_APP_API_KEY,
+  authDomain: import.meta.env.VITE_APP_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_APP_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_APP_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_APP_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_APP_ID,
+  measurementId: import.meta.env.VITE_APP_MEASUREMENT_ID,
+};
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
-const storage = getStorage(app);
-const auth = getAuth(app);
-const firestore = getFirestore(app);
-
-// Initialize services
-const db = getFirestore(app);
-
-// Export services
-export { auth, db, storage };
-export default app;
+export const storage = getStorage(app);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const timestamp = serverTimestamp();
+const googleProvider = new GoogleAuthProvider();
+export { onAuthStateChanged, signOut, updateProfile, googleProvider };
