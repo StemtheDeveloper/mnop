@@ -1,0 +1,165 @@
+1. Pages
+Landing Page
+
+High-level pitch of the platform’s purpose (connecting designers, manufacturers, and investors).
+Prominent “Sign In” / “Register” buttons.
+Highlights of featured products or success stories.
+Sign In / Register Page
+
+User authentication (Email/Password, Google sign-in, etc.).
+Role selection or role assignment (designer, manufacturer, investor).
+Home / Dashboard Page
+
+Personalized dashboard based on user role(s).
+Overview of recent product updates, user achievements, active tasks, and possibly new badges.
+Product Listing Page
+
+Displays all products (filter and search).
+Shows live user presence indicators (e.g., “5 other users are currently viewing products”).
+Product Details Page
+
+Shows detailed information about a single product (images, videos, specs, funding goals).
+Allows role-based actions (invest, request manufacturing quote, comment, etc.).
+Real-time user cursors or presence: see icons of other users currently viewing the same product.
+Ideas Page
+
+Specifically for designers to share early-stage concepts (before they become full products).
+Collaborative area where other roles can leave feedback or potential interest.
+Gamification possibilities: awarding badges for idea contributions or upvotes.
+Achievements & Badges Page
+
+Overview of all badges and achievements a user can earn or has unlocked.
+Clicking on each badge provides details on how it was earned or how to earn it.
+Profile Page
+
+Personal Profile: shows user’s uploaded products, achievements/badges, transaction history, role, etc.
+Public View for other users to see a limited profile (public achievements, user’s expertise).
+Manufacturing Management / Quotes Page (for Manufacturer Role)
+
+List of product designs they’ve quoted or accepted.
+Tools for finalizing production details or contacting designers.
+Investment Portfolio Page (for Investor Role)
+
+Shows virtual currency balance, current product investments, interest accrued, achievements for investing milestones.
+Admin / Moderator Dashboard (optional if you plan advanced controls)
+
+Manage users, moderate listings, handle support tickets.
+Oversee system logs or analytics (active users, concurrency, etc.).
+Notifications / Inbox Page
+
+Central hub for messages about new funding, quotes, collaboration requests, or badges earned.
+User Settings Page
+
+Account details (email, password changes, notification preferences).
+Privacy controls, role management if multiple roles are allowed.
+Help & Documentation Page
+
+Basic usage instructions, FAQs, and links to user manual PDF or embedded docs.
+2. Components
+Navbar / Top Menu
+
+Links to Dashboard, Products, Ideas, Achievements, Profile, etc.
+Responsive design for desktop/tablet/mobile.
+Footer
+
+Contact info, copyright, social links.
+Sidebar (Optional)
+
+Quick navigation links, role-based shortcuts.
+Product Card
+
+Reusable component to display product images, brief info, real-time indicators (viewers online).
+Live Cursor Overlay
+
+Displays miniature cursor icons for other active users on a given page.
+Possibly shows user’s name or profile pic on hover.
+Active User Count Indicator
+
+A small badge or icon showing how many people are viewing the page or product listing in real time.
+Achievement / Badge Display
+
+A visual component for awarding or displaying badges.
+Possibly an animated pop-up when a new badge is earned.
+Toast / Notification Popup
+
+Alerts users to new messages, funding, or achievement unlocks in real time.
+Comment / Chat Box (optional for real-time collaboration)
+
+A place for immediate feedback on products or ideas.
+Loading / Spinner
+
+Common loading component for asynchronous data fetches.
+Auth-Guarded Components
+Higher-order components or hooks ensuring only authenticated users with the correct role can see certain pages.
+3. Assets
+Logos and Branding
+
+M’NOP brand logo (header, splash screen).
+Favicon for browser tabs.
+Icons
+
+Role icons (designer, manufacturer, investor).
+Achievement badge icons (gold star, lightbulb, trophy, etc.).
+Misc. icons (search, cart, notifications).
+Images / Illustrations
+
+Stock images or custom illustrations for the landing page.
+Generic placeholders for product images if a user hasn’t uploaded any.
+Style Guide / Theme
+
+Primary and secondary color palettes.
+Typography guidelines (fonts, headings, body text).
+User Avatars
+
+Default avatar images for new accounts.
+Possibly user-uploaded profile photos stored in Firebase Storage.
+Animated Badges (if going for extra flair)
+
+Short animations or PNG/GIF sequences to highlight new achievements.
+4. Features
+Role-Based Access Control
+
+Different access levels for designers, manufacturers, investors, and possibly admin roles.
+Users can switch roles if needed or hold multiple roles.
+Virtual Currency & Transactions
+
+Realistic simulation of funding or purchasing flow.
+Display user’s virtual wallet/balance, transaction history, interest accrual.
+Product Lifecycle
+
+Product listings can be created, funded, and archived if not meeting funding goals.
+Use popularity and funding progress to dynamically set listing lifespans.
+Real-Time Collaboration
+
+Live cursors on product detail pages or shared idea boards.
+Active user count: “X users are viewing this product right now.”
+Possibly a small chat or inline commenting system for feedback.
+Achievements & Badges
+
+Automated awarding of badges when users hit certain milestones (e.g., “First Product Created,” “Funded 10 Products,” “Super Reviewer,” etc.).
+Achievements can be purely cosmetic or give minor privileges.
+User Ideas Section
+
+A lightweight concept area for designers to post half-baked ideas.
+Investors/Manufacturers can follow or show interest early.
+Gamification for frequent or well-rated idea posters (e.g., “Innovator Badge”).
+Interactive Feedback / Ratings
+
+Users can rate products or give feedback.
+Possibly an aggregated “score” for each idea/product that affects listing.
+Notifications System
+
+Real-time push or email notifications for funding, new quotes, collaboration requests, and achievement unlocks.
+User Profiles & Public Pages
+
+Publicly viewable achievements or roles.
+Social aspects (e.g., follow or friend designers, if desired).
+Security & Data Protection
+
+Firebase Authentication + Firestore security rules to keep user data safe.
+Encrypted user sessions, minimal personal info stored.
+Admin / Moderator Controls (If required)
+Approve or remove products, moderate content, or block abusive users.
+Responsive Design
+Works seamlessly on desktops, tablets, and mobile devices.
+Possibly a progressive web app (PWA) approach if offline usage or installable features are desired.
