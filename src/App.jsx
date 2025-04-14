@@ -7,37 +7,57 @@ import ShopPage from './pages/ShopPage';
 import AdminPage from './pages/AdminPage.jsx';
 import AboutPage from './pages/AboutPage.jsx';
 import ContactPage from './pages/ContactPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
+import CartPage from './pages/CartPage.jsx';
+import ProductsPage from './pages/ProductsPage.jsx';
+import CheckoutPage from './pages/CheckoutPage.jsx';
 import Navbar from "./components/Navbar";
-
-
-
-
-import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import reactLogo from './assets/react.svg'
+import ProtectedRoute from './components/ProtectedRoute';
+import { UserProvider } from './context/UserContext';
 
 import { CookiesProvider } from 'react-cookie';
-
-import './App.css'
-
+import './App.css';
 
 function App() {
   return (
+    <UserProvider>
+      <div className="App">
+        <Navbar />
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/signin" element={<SignInRegisterPage />} />
+          <Route path="/register" element={<SignInRegisterPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/shop" element={<ShopPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/cart" element={<CartPage />} />
 
-    <div className="App">
-      <Navbar></Navbar>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/signin" element={<SignInRegisterPage />} />
-        <Route path="/register" element={<SignInRegisterPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/shop" element={<ShopPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/home" element={<HomeDashboardPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-      </Routes>
-    </div>
-
+          {/* Protected routes */}
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/home" element={
+            <ProtectedRoute>
+              <HomeDashboardPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/checkout" element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute>
+              <AdminPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/products" element={<ProductsPage />} />
+        </Routes>
+      </div>
+    </UserProvider>
   );
 }
 

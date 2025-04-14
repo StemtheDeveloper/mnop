@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import "../styles/Navbar.css";
-import { FiMenu, FiX } from "react-icons/fi";
 import Logo from "../assets/logos/Logo full black_1.svg";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../config/firebase.js";
@@ -18,8 +17,22 @@ const AdminEmails = [
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 912);
   const menuRef = useRef(null);
   const location = useLocation();
+
+  // Update isMobile state when window is resized
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 912);
+      if (window.innerWidth > 912) {
+        setIsOpen(false); // Close mobile menu when switching to desktop
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -50,6 +63,33 @@ const Navbar = () => {
     return path !== '/' && location.pathname === path;
   };
 
+  // Navigation links component that's used in both desktop and mobile
+  const NavLinks = ({ isMobileMenu = false }) => (
+    <>
+      <li className="nav-item home-link">
+        <Link to="/" className={isActive('/') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Home</Link>
+      </li>
+      <li className="nav-item shop-link">
+        <Link to="/shop" className={isActive('/shop') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Shop</Link>
+      </li>
+      <li className="nav-item about-link">
+        <Link to="/about" className={isActive('/about') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>About</Link>
+      </li>
+      <li className="nav-item contact-link">
+        <Link to="/contact" className={isActive('/contact') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Contact</Link>
+      </li>
+      <li className="nav-item profile-link">
+        <Link to="/profile" className={isActive('/profile') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Profile</Link>
+      </li>
+
+      {user && AdminEmails.includes(user.email) && (
+        <li className="nav-item admin-link">
+          <Link to="/admin" className={isActive('/admin') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Admin</Link>
+        </li>
+      )}
+    </>
+  );
+
   return (
     <>
       <nav className="navbar">
@@ -60,94 +100,97 @@ const Navbar = () => {
             </Link>
           </div>
 
-          <ul className="quick-links-desktop-container">
-            <div className="quick-links-desktop">
-              <li className="nav-item navbar-icons">
-                <Link to="/messages">
-                  <img src={MessageIcon} alt="Message icon" />
-                </Link>
-              </li>
-
-              <li className="nav-item navbar-icons">
-                <Link to="/notifications">
-                  <img src={NotificationsIcon} alt="Notifications icon" />
-                </Link>
-              </li>
-
-              <li className="nav-item navbar-icons">
-                <Link to="/cart">
-                  <img src={CartIcon} alt="Cart icon" />
-                </Link>
-              </li>
-            </div>
-          </ul>
-
-          <ul ref={menuRef} className={`nav-links ${isOpen ? "active" : ""}`}>
-            <li className="nav-item home-link">
-              <Link to="/" className={isActive('/') ? 'active' : ''}>Home</Link>
-            </li>
-            <li className="nav-item shop-link">
-              <Link to="/shop" className={isActive('/shop') ? 'active' : ''}>Shop</Link>
-            </li>
-            <li className="nav-item about-link">
-              <Link to="/about" className={isActive('/about') ? 'active' : ''}>About</Link>
-            </li>
-            <li className="nav-item contact-link">
-              <Link to="/contact" className={isActive('/contact') ? 'active' : ''}>Contact</Link>
-            </li>
+          {/* Desktop Navigation - only visible on larger screens */}
+          <div className="desktop-nav">
+            <ul className="nav-links-desktop">
+              <NavLinks />
+            </ul>
 
             <div className="quick-links">
-              <li className="nav-item navbar-icons">
+              <ul><li className="nav-item navbar-icons">
                 <Link to="/messages">
                   <img src={MessageIcon} alt="Message icon" />
                 </Link>
               </li>
+                <div className="c-h-r"></div>
+                <li className="nav-item navbar-icons">
+                  <Link to="/notifications">
+                    <img src={NotificationsIcon} alt="Notifications icon" />
+                  </Link>
+                </li>
+                <div className="c-h-r"></div>
+                <li className="nav-item navbar-icons">
+                  <Link to="/cart">
+                    <img src={CartIcon} alt="Cart icon" />
+                  </Link>
+                </li>
+              </ul>
               <div className="c-h-r"></div>
-              <li className="nav-item navbar-icons">
-                <Link to="/notifications">
-                  <img src={NotificationsIcon} alt="Notifications icon" />
-                </Link>
-              </li>
-              <div className="c-h-r"></div>
-              <li className="nav-item navbar-icons">
-                <Link to="/cart">
-                  <img src={CartIcon} alt="Cart icon" />
-                </Link>
-              </li>
+              {user && AdminEmails.includes(user.email) ? (
+                <li className="nav-item">
+                  <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
+                </li>
+              ) : (
+                <li className="nav-item">
+                  <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
+                </li>
+              )}
             </div>
+          </div>
 
-            {user && AdminEmails.includes(user.email) ? (
-              <>
-                <li>
-                  <Link to="/admin" className={isActive('/admin') ? 'active' : ''}>Admin</Link>
-                </li>
-                <li>
-                  <button onClick={handleSignOut}>Sign Out</button>
-                </li>
-              </>
-            ) : (
-              <li>
-                <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
-              </li>
-            )}
+          {/* Mobile Quick Links - always visible on mobile */}
+          <ul className="quick-links-mobile">
+            <li className="nav-item navbar-icons">
+              <Link to="/messages">
+                <img src={MessageIcon} alt="Message icon" />
+              </Link>
+            </li>
+            <li className="nav-item navbar-icons">
+              <Link to="/notifications">
+                <img src={NotificationsIcon} alt="Notifications icon" />
+              </Link>
+            </li>
+            <li className="nav-item navbar-icons">
+              <Link to="/cart">
+                <img src={CartIcon} alt="Cart icon" />
+              </Link>
+            </li>
           </ul>
 
-          <div className="menu-icons">
-            <img
-              id="burger-icon"
-              className={`menu-icon ${isOpen ? "open" : ""}`}
-              onClick={() => setIsOpen(true)}
-              src={Burger}
-              alt="A juicy looking burger icon"
-            />
+          {/* Mobile Navigation Menu */}
+          <div className="mobile-nav">
+            {/* Burger Menu Icons */}
+            <div className="menu-icons">
+              <img
+                id="burger-icon"
+                className={`menu-icon ${isOpen ? "open" : ""}`}
+                onClick={() => setIsOpen(true)}
+                src={Burger}
+                alt="A juicy looking burger icon"
+              />
+              <img
+                id="close-burger-icon"
+                className={`menu-icon ${isOpen ? "" : "open"}`}
+                onClick={() => setIsOpen(false)}
+                src={CloseBurger}
+                alt="Two burger 3D burger patties arranged to form an X"
+              />
+            </div>
 
-            <img
-              id="close-burger-icon"
-              className={`menu-icon ${isOpen ? "" : "open"}`}
-              onClick={() => setIsOpen(false)}
-              src={CloseBurger}
-              alt="Two burger 3D burger patties arranged to form an X"
-            />
+            {/* Mobile Menu */}
+            <ul ref={menuRef} className={`nav-links-mobile ${isOpen ? "active" : ""}`}>
+              <NavLinks isMobileMenu={true} />
+
+              {user && AdminEmails.includes(user.email) ? (
+                <li className="nav-item">
+                  <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
+                </li>
+              ) : (
+                <li className="nav-item">
+                  <Link to="/signin" className={isActive('/signin') ? 'active' : ''} onClick={() => setIsOpen(false)}>Sign In</Link>
+                </li>
+              )}
+            </ul>
           </div>
         </div>
       </nav>

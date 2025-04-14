@@ -1,15 +1,34 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../config/firebase.js";
-import { useNavigate } from "react-router-dom";
 import "../styles/SignIn.css";
 
 const SignInRegisterPage = () => {
+  const [user, setUser] = useState(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
+  const auth = getAuth();
+
+  // Get the previous location from state, or default to the home page
+  const from = location.state?.from || '/';
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+
+      // If user is authenticated, redirect them to the page they were trying to access
+      if (currentUser) {
+        navigate(from, { replace: true });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [auth, navigate, from]);
 
   const handleSignIn = async (e) => {
     e.preventDefault();
@@ -31,9 +50,15 @@ const SignInRegisterPage = () => {
   };
 
   return (
-    <div className="page">
-      <h2>Sign In</h2>
-      <p>Create an email and password</p>
+    <div className="signin-register-container">
+      <h1>{location.pathname === '/register' ? 'Create an Account' : 'Sign In'}</h1>
+
+      {location.state?.from && (
+        <p className="redirect-message">
+          Please sign in to access {location.state.from}
+        </p>
+      )}
+
       {error && <p>{error}</p>}
       <form onSubmit={handleSignIn}>
         <input
