@@ -11,6 +11,8 @@ function LandingPage() {
       <div>
         <h2>Featured Products</h2>
         {/* Highlights of featured products or success stories */}
+
+
       </div>
     </div>
   );

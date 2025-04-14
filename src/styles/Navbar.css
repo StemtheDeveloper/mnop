@@ -1,0 +1,379 @@
+a {
+  text-decoration: none;
+  color: black;
+}
+
+.navbar {
+  position: fixed;
+  align-items: center;
+  top: 0;
+  background-color: rgb(255, 255, 255); /* Dark background color */
+  box-shadow: 5px 5px 5px rgba(0, 0, 0, 0.1);
+  z-index: 11;
+  width: 100%;
+  min-height: 80px; /* Reduced height for better responsiveness */
+  max-height: 110px;
+}
+
+.navbar-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem; /* Simplified padding */
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box; /* Ensure padding is included in width calculation */
+}
+
+ul {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0; /* Prevent logo from shrinking */
+  max-width: 30%; /* Limit maximum width */
+}
+
+.logo img {
+  width: auto; /* Allow width to adjust */
+  max-width: 200px; /* Maximum width */
+  height: auto;
+  margin-left: 10px; /* Reduced margin */
+  min-width: 150px; /* Ensure logo doesn't get too small */
+}
+
+.logo h1 {
+  color: white;
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.menu-icon {
+  display: none;
+  align-items: center;
+  cursor: pointer;
+  font-size: 2rem;
+  color: white;
+  margin-right: 1rem;
+}
+
+.menu-icons {
+  padding: 0.5rem 1rem;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#burger-icon {
+  display: none;
+}
+
+#close-burger-icon {
+  display: none;
+}
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  transition: transform 0.3s ease;
+}
+
+.nav-links li {
+  margin: 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: black;
+  font-size: 1.2rem;
+  position: relative;
+}
+
+.home-link a {
+  color: #ef3c23;
+}
+.shop-link a {
+  color: #ffd108;
+}
+.about-link a {
+  color: #3f97d3;
+}
+.contact-link a {
+  color: #000;
+}
+
+/* Hover effects with proper underlines */
+.home-link a:hover,
+.home-link a.active {
+  color: #ef3c23;
+  text-decoration: none;
+}
+.shop-link a:hover,
+.shop-link a.active {
+  color: #ffd108;
+  text-decoration: none;
+}
+.about-link a:hover,
+.about-link a.active {
+  color: #3f97d3;
+  text-decoration: none;
+}
+.contact-link a:hover,
+.contact-link a.active {
+  color: #000;
+  text-decoration: none;
+}
+
+/* Common underline style for all nav links */
+.nav-links a:after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -4px;
+  left: 0;
+  transition: width 0.3s ease;
+}
+
+/* Custom underline colors for each link */
+.home-link a:after {
+  background-color: #ef3c23;
+}
+.shop-link a:after {
+  background-color: #ffd108;
+}
+.about-link a:after {
+  background-color: #3f97d3;
+}
+.contact-link a:after {
+  background-color: #000;
+}
+
+/* Underline width on hover and active state */
+.nav-links a:hover:after,
+.nav-links a.active:after {
+  width: 100%;
+}
+
+.nav-links.active {
+  position: absolute;
+  top: 100%;
+  left: 70%;
+  right: 0;
+  width: 30%;
+  background-color: rgb(255, 255, 255); /* Dark background color */
+
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.9);
+  z-index: 10;
+}
+
+.c-h-r {
+  background-color: #ef3c23;
+  height: 30px;
+
+  font-weight: bold;
+  margin: 0 0.3rem;
+}
+
+.quick-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0; /* Prevent shrinking */
+}
+
+.quick-links-desktop {
+  display: none;
+  flex-shrink: 0; /* Prevent shrinking */
+}
+
+.nav-links.active li {
+  margin: 1rem 0;
+}
+
+.navbar-icons {
+  height: auto; /* Allow height to adjust */
+  max-height: 50px; /* Maximum height */
+  transition: transform 0.2s ease;
+  flex-shrink: 0; /* Prevent icons from shrinking */
+}
+
+.navbar-icons img {
+  max-width: 100%; /* Ensure images don't overflow container */
+  max-height: 40px; /* Limit height */
+  width: auto;
+  height: auto;
+  display: block; /* Remove any extra space below image */
+}
+
+/* Bounce animation for navbar icons */
+@keyframes iconBounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Apply bounce animation on hover */
+.navbar-icons:hover img {
+  animation: iconBounce 0.5s ease infinite;
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(5px);
+  z-index: 5;
+}
+
+/* Media Query for Responsive Design */
+@media (max-width: 768px) {
+  .quick-links {
+    display: none;
+  }
+
+  .quick-links-desktop {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    flex-wrap: nowrap; /* Prevent wrapping */
+  }
+
+  .menu-icon {
+    display: flex;
+  }
+
+  .nav-links {
+    display: none;
+  }
+
+  .nav-links.active {
+    display: flex;
+  }
+
+  #burger-icon {
+    display: block;
+    width: 60px;
+    margin: 5px auto;
+    transition: all 0.3s ease;
+  }
+
+  #burger-icon.open {
+    display: none;
+  }
+
+  #close-burger-icon {
+    display: block;
+    width: 60px;
+    margin: 5px auto;
+    transition: all 0.3s ease;
+  }
+
+  #close-burger-icon.open {
+    display: none;
+  }
+
+  .navbar-icons img {
+    max-height: 30px; /* Slightly smaller on mobile */
+  }
+
+  .logo img {
+    min-width: 150px; /* Smaller minimum width on mobile */
+  }
+}
+
+/* Media Query for Responsive Design */
+@media (max-width: 912px) {
+  .quick-links {
+    display: none;
+  }
+  .quick-links-desktop {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+
+    justify-content: space-between;
+    gap: 10px;
+
+    width: auto;
+    max-width: 180px;
+    height: auto;
+    margin: 10px 0 0 20px;
+  }
+  .navbar-container {
+    flex-wrap: nowrap;
+  }
+
+  .nav-links {
+    display: none;
+  }
+
+  .navLink {
+    flex-wrap: nowrap;
+  }
+
+  #burger-icon {
+    display: block;
+    width: 60px;
+    margin: 5px auto;
+    transition: all 0.3s ease;
+  }
+
+  #burger-icon.open {
+    display: none;
+  }
+
+  #close-burger-icon {
+    display: block;
+    width: 60px;
+    margin: 5px auto;
+    transition: all 0.3s ease;
+  }
+
+  #close-burger-icon.open {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo img {
+    min-width: 100px;
+    margin-left: 5px;
+  }
+
+  .navbar-icons img {
+    max-height: 25px;
+  }
+
+  .quick-links-desktop {
+    margin: 5px 0 0 10px;
+  }
+
+  .menu-icons img {
+    width: 20px;
+  }
+}

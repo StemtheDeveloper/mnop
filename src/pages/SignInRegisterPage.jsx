@@ -1,67 +1,67 @@
-import React, { useState } from 'react';
-import { auth, db } from '../config/firebase';
 
-function SignInRegisterPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isRegister, setIsRegister] = useState(false);
-  const [role, setRole] = useState('designer');
+import React, { useState } from "react";
+import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "../config/firebase.js";
+import { useNavigate } from "react-router-dom";
+import "../styles/SignIn.css";
+
+const SignInRegisterPage = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleSignIn = async (e) => {
     e.preventDefault();
     try {
-      await auth.signInWithEmailAndPassword(email, password);
-      // Redirect to home page or dashboard
-    } catch (error) {
-      console.error("Error signing in: ", error);
+      await signInWithEmailAndPassword(auth, email, password);
+      navigate("/"); // Redirect to home page or any other page after successful sign-in
+    } catch (err) {
+      setError(err.message);
     }
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
+  const handleGoogleSignIn = async () => {
     try {
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-      const user = userCredential.user;
-      await db.collection('users').doc(user.uid).set({
-        email,
-        role,
-      });
-      // Redirect to home page or dashboard
-    } catch (error) {
-      console.error("Error registering: ", error);
+      await signInWithPopup(auth, googleProvider);
+      navigate("/"); // Redirect to home page or any other page after successful sign-in
+    } catch (err) {
+      setError(err.message);
     }
   };
 
   return (
-    <div>
-      <h1>{isRegister ? 'Register' : 'Sign In'}</h1>
-      <form onSubmit={isRegister ? handleRegister : handleSignIn}>
+    <div className="page">
+      <h2>Sign In</h2>
+      <p>Create an email and password</p>
+      {error && <p>{error}</p>}
+      <form onSubmit={handleSignIn}>
         <input
           type="email"
+          placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
+          required
         />
         <input
           type="password"
+          placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
+          required
         />
-        {isRegister && (
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="designer">Designer</option>
-            <option value="manufacturer">Manufacturer</option>
-            <option value="investor">Investor</option>
-          </select>
-        )}
-        <button type="submit">{isRegister ? 'Register' : 'Sign In'}</button>
+        <button id="signInBTN" type="submit">
+          Sign In
+        </button>
       </form>
-      <button onClick={() => setIsRegister(!isRegister)}>
-        {isRegister ? 'Already have an account? Sign In' : 'Don\'t have an account? Register'}
+
+      <h3>-------------- OR --------------</h3>
+      <p>This is the recommended signin method</p>
+      <button id="signInGoogle" onClick={handleGoogleSignIn}>
+        Sign in with Google
       </button>
     </div>
   );
-}
+};
 
 export default SignInRegisterPage;
