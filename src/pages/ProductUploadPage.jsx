@@ -1,0 +1,446 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { doc, collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../config/firebase';
+import { useUser } from '../context/UserContext';
+import LoadingSpinner from '../components/LoadingSpinner';
+import ImageCropper from '../components/ImageCropper';
+import useAchievements from '../hooks/useAchievements';
+import '../styles/ProductUpload.css';
+
+const ProductUploadPage = () => {
+    const navigate = useNavigate();
+    const { currentUser, userRole, userProfile } = useUser();
+    const { checkProductAchievements } = useAchievements();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState(false);
+
+    // Product form state
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        price: '',
+        category: '',
+        fundingGoal: '',
+    });
+
+    // Image handling state
+    const [productImage, setProductImage] = useState(null);
+    const [imagePreview, setImagePreview] = useState('');
+    const [showImageCropper, setShowImageCropper] = useState(false);
+    const [cropImageSrc, setCropImageSrc] = useState('');
+    const imageInputRef = useRef(null);
+
+    // Categories state
+    const [categories, setCategories] = useState([]);
+    const [loadingCategories, setLoadingCategories] = useState(true);
+
+    // Check if user has designer role
+    const isDesigner = userRole && (
+        typeof userRole === 'string' ?
+            userRole === 'designer' :
+            Array.isArray(userRole) && userRole.includes('designer')
+    );
+
+    // Fetch categories on component mount
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const categoriesRef = collection(db, 'categories');
+                const snapshot = await getDocs(categoriesRef);
+                const categoriesData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                setCategories(categoriesData);
+            } catch (err) {
+                console.error('Error fetching categories:', err);
+            } finally {
+                setLoadingCategories(false);
+            }
+        };
+
+        fetchCategories();
+    }, []);
+
+    // Handle form input changes
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        // Special handling for price and fundingGoal to ensure they're numeric
+        if (name === 'price' || name === 'fundingGoal') {
+            // Allow only numbers and decimal point
+            const numericValue = value.replace(/[^0-9.]/g, '');
+            // Ensure only one decimal point
+            const parts = numericValue.split('.');
+            const formattedValue = parts.length > 1
+                ? `${parts[0]}.${parts.slice(1).join('')}`
+                : numericValue;
+
+            setFormData({ ...formData, [name]: formattedValue });
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
+    };
+
+    // Handle image selection
+    const handleImageChange = (e) => {
+        if (e.target.files[0]) {
+            const file = e.target.files[0];
+
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setError('Image size exceeds 5MB limit');
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.match('image.*')) {
+                setError('Only image files are allowed');
+                return;
+            }
+
+            // Clear previous error
+            setError('');
+
+            // Create URL for the cropper
+            const imageUrl = URL.createObjectURL(file);
+            setCropImageSrc(imageUrl);
+            setShowImageCropper(true);
+        }
+    };
+
+    // Handle image crop completion
+    const handleCropComplete = async (blob) => {
+        try {
+            setShowImageCropper(false);
+
+            // Create a File from the blob
+            const croppedFile = new File([blob], `product-image-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            setProductImage(croppedFile);
+
+            // Create preview URL
+            const previewUrl = URL.createObjectURL(blob);
+            setImagePreview(previewUrl);
+        } catch (error) {
+            console.error("Error processing cropped image:", error);
+            setError('Error processing the cropped image');
+        }
+    };
+
+    // Validate form before submission
+    const validateForm = () => {
+        if (!formData.name.trim()) {
+            setError('Product name is required');
+            return false;
+        }
+
+        if (!formData.description.trim()) {
+            setError('Product description is required');
+            return false;
+        }
+
+        if (!formData.price || isNaN(parseFloat(formData.price)) || parseFloat(formData.price) <= 0) {
+            setError('Please enter a valid price');
+            return false;
+        }
+
+        if (!formData.category) {
+            setError('Please select a category');
+            return false;
+        }
+
+        if (!formData.fundingGoal || isNaN(parseFloat(formData.fundingGoal)) || parseFloat(formData.fundingGoal) <= 0) {
+            setError('Please enter a valid funding goal');
+            return false;
+        }
+
+        if (!productImage) {
+            setError('Product image is required');
+            return false;
+        }
+
+        return true;
+    };
+
+    // Handle form submission
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        // Reset error and success states
+        setError('');
+        setSuccess(false);
+
+        // Validate form
+        if (!validateForm()) {
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            // 1. Upload image to Storage with properly structured path
+            // Use a structured path: products/{userId}/{timestamp}-{filename}
+            const timestamp = Date.now();
+            const fileName = `${timestamp}-product.jpg`;
+            const storageRef = ref(storage, `products/${currentUser.uid}/${fileName}`);
+
+            // Log the upload process
+            console.log('Uploading product image to:', storageRef.fullPath);
+
+            // Upload the file
+            const uploadTaskSnapshot = await uploadBytes(storageRef, productImage);
+            console.log('Upload completed:', uploadTaskSnapshot);
+
+            // Get the download URL
+            const imageUrl = await getDownloadURL(storageRef);
+            console.log('Image URL obtained:', imageUrl);
+
+            // 2. Create product document in Firestore with the image URL
+            const productData = {
+                name: formData.name,
+                description: formData.description,
+                price: parseFloat(formData.price),
+                fundingGoal: parseFloat(formData.fundingGoal),
+                category: formData.category,
+                imageUrl: imageUrl, // Store the image URL from Firebase Storage
+                designerId: currentUser.uid,
+                designerName: userProfile?.displayName || 'Designer',
+                status: 'pending', // Initial product status
+                currentFunding: 0, // Initial funding amount
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                storagePath: storageRef.fullPath // Store the path for future reference
+            };
+
+            console.log('Creating Firestore document with data:', { ...productData, imageUrl: 'URL logged above' });
+            const docRef = await addDoc(collection(db, 'products'), productData);
+            console.log('Firestore document created with ID:', docRef.id);
+
+            // Success! Reset form and show success message
+            setSuccess(true);
+            setFormData({
+                name: '',
+                description: '',
+                price: '',
+                category: '',
+                fundingGoal: '',
+            });
+            setProductImage(null);
+            setImagePreview('');
+
+            // On successful upload, check for achievements
+            await checkProductAchievements();
+
+            // Redirect to the new product page after a delay
+            setTimeout(() => {
+                navigate(`/products/${docRef.id}`);
+            }, 2000);
+
+        } catch (error) {
+            console.error('Error creating product:', error);
+
+            // More detailed error handling
+            let errorMessage = 'Failed to create product. Please try again.';
+
+            // Check for specific Firebase errors
+            if (error.code) {
+                if (error.code.includes('storage/unauthorized')) {
+                    errorMessage = 'You do not have permission to upload images. Please check your account permissions.';
+                } else if (error.code.includes('storage/quota-exceeded')) {
+                    errorMessage = 'Storage quota exceeded. Please contact support.';
+                } else if (error.code.includes('storage/')) {
+                    errorMessage = `Storage error: ${error.message}`;
+                } else if (error.code.includes('firestore/')) {
+                    errorMessage = `Database error: ${error.message}`;
+                }
+            }
+
+            setError(errorMessage);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Redirect if user is not a designer
+    if (userRole !== null && !isDesigner) {
+        return (
+            <div className="role-error-container">
+                <h2>Designer Access Only</h2>
+                <p>You need to have the designer role to upload products.</p>
+                <button
+                    className="back-button"
+                    onClick={() => navigate('/profile')}
+                >
+                    Go to Profile
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="product-upload-page">
+            <div className="product-upload-container">
+                <h1>Upload New Product</h1>
+
+                {error && <div className="error-message">{error}</div>}
+                {success && <div className="success-message">Product created successfully! Redirecting...</div>}
+
+                {showImageCropper && (
+                    <ImageCropper
+                        imageUrl={cropImageSrc}
+                        aspect={1}
+                        onCropComplete={handleCropComplete}
+                        onCancel={() => {
+                            setShowImageCropper(false);
+                            URL.revokeObjectURL(cropImageSrc);
+                        }}
+                    />
+                )}
+
+                <form onSubmit={handleSubmit} className="product-form">
+                    <div className="form-layout">
+                        <div className="form-left">
+                            <div className="form-group">
+                                <label htmlFor="name">Product Name*</label>
+                                <input
+                                    type="text"
+                                    id="name"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    placeholder="Enter product name"
+                                    disabled={loading}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="description">Description*</label>
+                                <textarea
+                                    id="description"
+                                    name="description"
+                                    value={formData.description}
+                                    onChange={handleChange}
+                                    placeholder="Describe your product"
+                                    disabled={loading}
+                                    rows="6"
+                                ></textarea>
+                            </div>
+
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label htmlFor="price">Price ($)*</label>
+                                    <input
+                                        type="text"
+                                        id="price"
+                                        name="price"
+                                        value={formData.price}
+                                        onChange={handleChange}
+                                        placeholder="0.00"
+                                        disabled={loading}
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label htmlFor="fundingGoal">Funding Goal ($)*</label>
+                                    <input
+                                        type="text"
+                                        id="fundingGoal"
+                                        name="fundingGoal"
+                                        value={formData.fundingGoal}
+                                        onChange={handleChange}
+                                        placeholder="0.00"
+                                        disabled={loading}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="category">Category*</label>
+                                <select
+                                    id="category"
+                                    name="category"
+                                    value={formData.category}
+                                    onChange={handleChange}
+                                    disabled={loading || loadingCategories}
+                                >
+                                    <option value="">Select a category</option>
+                                    {categories.map(category => (
+                                        <option key={category.id} value={category.id}>
+                                            {category.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {loadingCategories && <span className="loading-text">Loading categories...</span>}
+                            </div>
+                        </div>
+
+                        <div className="form-right">
+                            <div className="form-group image-upload">
+                                <label>Product Image*</label>
+                                <div
+                                    className="image-upload-area"
+                                    onClick={() => !loading && imageInputRef.current.click()}
+                                >
+                                    {imagePreview ? (
+                                        <img src={imagePreview} alt="Product Preview" className="image-preview" />
+                                    ) : (
+                                        <div className="upload-placeholder">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                                <polyline points="21 15 16 10 5 21"></polyline>
+                                            </svg>
+                                            <p>Click to upload image</p>
+                                            <span>(Max size: 5MB)</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <input
+                                    type="file"
+                                    ref={imageInputRef}
+                                    onChange={handleImageChange}
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    disabled={loading}
+                                />
+                                {imagePreview && (
+                                    <button
+                                        type="button"
+                                        className="change-image-btn"
+                                        onClick={() => !loading && imageInputRef.current.click()}
+                                        disabled={loading}
+                                    >
+                                        Change Image
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="form-actions">
+                        <button
+                            type="button"
+                            className="cancel-button"
+                            onClick={() => navigate(-1)}
+                            disabled={loading}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="submit-button"
+                            disabled={loading}
+                        >
+                            {loading ? <LoadingSpinner /> : 'Upload Product'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+export default ProductUploadPage;

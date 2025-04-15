@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc } from 'firebase/firestore';
-import { db, auth } from '../config/firebase';
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import '../styles/CheckoutPage.css';
 
 const CheckoutPage = () => {
-    const navigate = useNavigate();
     const { currentUser, userProfile } = useUser();
+    const { showSuccess, showError } = useToast();
+    const navigate = useNavigate();
+
     const [cartItems, setCartItems] = useState([]);
     const [cartId, setCartId] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -182,8 +185,10 @@ const CheckoutPage = () => {
                 shipping: shipping,
                 total: total,
                 status: 'processing',
-                createdAt: new Date(),
-                paymentMethod: 'credit card' // Don't store actual card details for security
+                createdAt: serverTimestamp(),
+                paymentMethod: 'credit card', // Don't store actual card details for security
+                paymentStatus: 'paid',
+                estimatedDelivery: calculateEstimatedDelivery(formData.shippingMethod)
             };
 
             // Add order to Firestore
@@ -195,12 +200,28 @@ const CheckoutPage = () => {
                 // For authenticated users, clear Firestore cart
                 await updateDoc(doc(db, 'carts', cartId), {
                     items: [],
-                    updatedAt: new Date()
+                    updatedAt: serverTimestamp()
                 });
             } else {
                 // For guest users, clear localStorage
                 localStorage.removeItem('cart');
             }
+
+            // Create notification for order confirmation
+            if (currentUser) {
+                await addDoc(collection(db, 'notifications'), {
+                    userId: currentUser.uid,
+                    title: 'Order Confirmed',
+                    message: `Your order #${orderRef.id.slice(-6)} has been placed successfully.`,
+                    type: 'order_status',
+                    orderId: orderRef.id,
+                    read: false,
+                    createdAt: serverTimestamp()
+                });
+            }
+
+            // Show success message
+            showSuccess('Your order has been placed successfully!');
 
             // Simulate payment processing
             setTimeout(() => {
@@ -212,6 +233,7 @@ const CheckoutPage = () => {
             console.error("Error processing order:", err);
             setError("We couldn't process your order. Please try again.");
             setProcessing(false);
+            showError("Order processing failed. Please try again.");
         }
     };
 
@@ -221,6 +243,27 @@ const CheckoutPage = () => {
             style: 'currency',
             currency: 'USD'
         }).format(price);
+    };
+
+    // Calculate estimated delivery date based on shipping method
+    const calculateEstimatedDelivery = (method) => {
+        const today = new Date();
+        const deliveryDays = method === 'express' ? 3 : 7;
+
+        // Add delivery days to current date
+        const deliveryDate = new Date(today);
+        deliveryDate.setDate(today.getDate() + deliveryDays);
+
+        return deliveryDate;
+    };
+
+    // Format date for display
+    const formatDate = (date) => {
+        return new Date(date).toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+        });
     };
 
     // Render loading state
@@ -271,15 +314,18 @@ const CheckoutPage = () => {
                             </svg>
                         </div>
                         <h1>Order Confirmed!</h1>
-                        <p className="order-id">Order #{orderId}</p>
+                        <p className="order-id">Order #{orderId.slice(-6)}</p>
                         <p className="thankyou-message">
                             Thank you for your order. We've received your payment and will process your items shortly.
+                        </p>
+                        <p className="delivery-estimate">
+                            Estimated delivery: <strong>{formatDate(calculateEstimatedDelivery(formData.shippingMethod))}</strong>
                         </p>
                         <p className="confirmation-email">
                             A confirmation email has been sent to <strong>{formData.email}</strong>
                         </p>
                         <div className="order-next-steps">
-                            <Link to="/" className="btn-primary">Return to Home</Link>
+                            <Link to="/orders" className="btn-primary">View My Orders</Link>
                             <Link to="/shop" className="btn-secondary">Continue Shopping</Link>
                         </div>
                     </div>

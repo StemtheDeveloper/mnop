@@ -10,7 +10,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['admin']);
     }
     
     function belongsToUser(userId) {
@@ -21,6 +21,24 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(requiredFields);
     }
     
+    function hasDesignerRole() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['designer']);
+    }
+    
+    function hasManufacturerRole() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['manufacturer']);
+    }
+    
+    function hasInvestorRole() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['investor']);
+    }
+    
     // Users collection rules
     match /users/{userId} {
       // Allow users to read their own profile or admins to read any profile
@@ -28,10 +46,17 @@ service cloud.firestore {
       
       // Allow users to create and update only their own profile
       allow create, update: if belongsToUser(userId) &&
-        (!request.resource.data.keys().hasAny(['role']) || isAdmin());
+        (!request.resource.data.keys().hasAny(['roles']) || isAdmin());
       
       // Only admins can delete user profiles
       allow delete: if isAdmin();
+      
+      // Wallet subcollection rules
+      // Only the user can access their own wallet
+      match /wallet/{document=**} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if isSignedIn() && request.auth.uid == userId || isAdmin();
+      }
     }
     
     // Products collection rules
@@ -39,11 +64,61 @@ service cloud.firestore {
       // Anyone can read product data
       allow read: if true;
       
-      // Only admins and designers can create, update, or delete products
-      allow create, update, delete: if isSignedIn() && 
+      // Only designers can create products
+      allow create: if isSignedIn() && 
+        hasDesignerRole() &&
+        hasValidFields(['name', 'description', 'price', 'fundingGoal', 'imageUrl', 'designerId']) &&
+        request.resource.data.designerId == request.auth.uid;
+      
+      // Product creators (designers) and admins can update products
+      allow update: if isSignedIn() && 
         (isAdmin() || 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'designer' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manufacturer');
+         resource.data.designerId == request.auth.uid);
+      
+      // Only admins or the designer who created the product can delete
+      allow delete: if isSignedIn() && 
+        (isAdmin() || resource.data.designerId == request.auth.uid);
+    }
+    
+    // Investments collection rules
+    match /investments/{investmentId} {
+      // Investors can read their own investments, product creators can see investments in their products
+      allow read: if isSignedIn() && 
+        (resource.data.userId == request.auth.uid || 
+         isAdmin() || 
+         getProduct(resource.data.productId).designerId == request.auth.uid);
+      
+      // Only investors can create investments
+      allow create: if isSignedIn() && 
+        hasInvestorRole() && 
+        request.resource.data.userId == request.auth.uid &&
+        hasValidFields(['userId', 'productId', 'amount', 'status']);
+      
+      // Investors can only update limited fields
+      allow update: if isSignedIn() && 
+        (resource.data.userId == request.auth.uid && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notes'])) || isAdmin();
+      
+      // Only admins can delete
+      allow delete: if isAdmin();
+      
+      // Helper function to get a product document
+      function getProduct(productId) {
+        return get(/databases/$(database)/documents/products/$(productId)).data;
+      }
+    }
+    
+    // Transactions collection rules
+    match /transactions/{transactionId} {
+      // Users can read only their own transactions
+      allow read: if isSignedIn() && 
+        resource.data.userId == request.auth.uid || isAdmin();
+      
+      // Only system and admins can create transactions
+      allow create: if isAdmin();
+      
+      // Transactions are immutable once created
+      allow update, delete: if false;
     }
     
     // Orders collection rules
@@ -110,6 +185,80 @@ service cloud.firestore {
       
       // Only admins can write to categories
       allow write: if isAdmin();
+    }
+    
+    // Quote Requests collection rules
+    match /quoteRequests/{requestId} {
+      // Only designers who own the product can read their quote requests
+      // Manufacturers can read open quote requests to submit quotes
+      allow read: if isSignedIn() && 
+        (resource.data.designerId == request.auth.uid || 
+         hasManufacturerRole() || 
+         isAdmin());
+      
+      // Only designers can create quote requests for their own products
+      allow create: if isSignedIn() &&
+        hasDesignerRole() &&
+        request.resource.data.designerId == request.auth.uid &&
+        hasValidFields(['designerId', 'productId', 'status']);
+      
+      // Only the designer who created the request can update it
+      allow update: if isSignedIn() &&
+        (resource.data.designerId == request.auth.uid ||
+         isAdmin());
+      
+      // Only designer who created the request or admin can delete
+      allow delete: if isSignedIn() &&
+        (resource.data.designerId == request.auth.uid ||
+         isAdmin());
+    }
+    
+    // Manufacturer Quotes collection rules
+    match /manufacturerQuotes/{quoteId} {
+      // Designers can read quotes for their products
+      // Manufacturers can read quotes they've submitted
+      allow read: if isSignedIn() && 
+        (resource.data.designerId == request.auth.uid || 
+         resource.data.manufacturerId == request.auth.uid ||
+         isAdmin());
+      
+      // Only manufacturers can create quotes
+      allow create: if isSignedIn() &&
+        hasManufacturerRole() &&
+        request.resource.data.manufacturerId == request.auth.uid &&
+        hasValidFields(['requestId', 'designerId', 'manufacturerId', 'status', 'price']);
+      
+      // Quotes can be updated by either the manufacturer who created them or the designer who received them
+      allow update: if isSignedIn() &&
+        (resource.data.manufacturerId == request.auth.uid ||
+         resource.data.designerId == request.auth.uid ||
+         isAdmin());
+      
+      // Only admins can delete quotes
+      allow delete: if isAdmin();
+    }
+    
+    // Quote Negotiations collection rules
+    match /quoteNegotiations/{negotiationId} {
+      // Only the users involved in the negotiation can read
+      allow read: if isSignedIn() &&
+        (resource.data.fromUserId == request.auth.uid ||
+         resource.data.toUserId == request.auth.uid ||
+         isAdmin());
+      
+      // Users can create negotiations they are part of
+      allow create: if isSignedIn() &&
+        (request.resource.data.fromUserId == request.auth.uid) &&
+        hasValidFields(['quoteId', 'message', 'fromUserId', 'toUserId']);
+      
+      // Only negotiation participants can mark as read
+      allow update: if isSignedIn() &&
+        (resource.data.fromUserId == request.auth.uid ||
+         resource.data.toUserId == request.auth.uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      
+      // No one can delete negotiations for audit trail purposes
+      allow delete: if isAdmin();
     }
     
     // Default deny all other collections

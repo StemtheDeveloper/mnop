@@ -1,7 +1,7 @@
 import React from 'react';
 import './ProductCard.css';
 
-const ProductCard = ({ image, title, description, price, rating, reviewCount, viewers }) => {
+const ProductCard = ({ image, title, description, price, rating, reviewCount, viewers, fundingProgress, fundingGoal }) => {
   // Function to render stars based on rating
   const renderStars = (rating) => {
     const stars = [];
@@ -35,6 +35,9 @@ const ProductCard = ({ image, title, description, price, rating, reviewCount, vi
     }).format(price);
   };
 
+  // Calculate funding progress percentage with bounds checking
+  const progressPercentage = Math.min(Math.max(fundingProgress || 0, 0), 100);
+
   return (
     <div className="product-card">
       <div className="product-image">
@@ -47,6 +50,23 @@ const ProductCard = ({ image, title, description, price, rating, reviewCount, vi
         <h3>{title}</h3>
         <div className="product-price">{formatPrice(price)}</div>
         <p>{description}</p>
+
+        {/* Funding progress bar */}
+        {fundingGoal > 0 && (
+          <div className="funding-container">
+            <div className="funding-progress">
+              <div
+                className="funding-bar"
+                style={{ width: `${progressPercentage}%` }}
+              ></div>
+            </div>
+            <div className="funding-info">
+              <span className="funding-percentage">{Math.round(progressPercentage)}%</span>
+              <span className="funding-goal">of {formatPrice(fundingGoal)}</span>
+            </div>
+          </div>
+        )}
+
         {rating > 0 && (
           <div className="product-rating">
             <div className="stars">{renderStars(rating)}</div>

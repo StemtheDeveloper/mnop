@@ -19,4 +19,26 @@
   word-break: break-word;
 }
 
+/* Role selection dropdown styling */
+.role-select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background-color: #fff;
+  font-size: 16px;
+  color: #333;
+  appearance: auto;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.role-select:focus {
+  border-color: #ef3c23;
+}
+
+.role-select option {
+  padding: 10px;
+}
+
 /* ... existing code ... */

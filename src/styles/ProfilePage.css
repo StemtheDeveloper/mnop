@@ -29,7 +29,7 @@
   inset: 0;
   z-index: -1;
   padding: 4px;
-  background: linear-gradient(45deg, red, orange, yellow, green, blue, purple);
+  background: linear-gradient(45deg, #ef3c23, #ff9b59, #ffcf9c, #ef3c23);
   border-radius: 20px;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -65,26 +65,27 @@
 }
 
 .profile-avatar {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid black;
+  border: 3px solid white;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  margin-bottom: 10px;
+  margin-bottom: 15px;
 }
 
 .roles-list {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 8px;
   justify-content: center;
+  margin-top: 10px;
 }
 
 @media (min-width: 992px) {
   .roles-list {
-    flex-direction: column;
+    flex-direction: row;
   }
 }
 
@@ -95,23 +96,23 @@
   font-weight: 600;
   font-size: 12px;
   text-align: center;
-  width: 100px;
+  min-width: 90px;
 }
 
-.designer {
+.role-pill.designer {
   background: #ef3c23;
 }
-.manufacturer {
+.role-pill.manufacturer {
   background: #3498db;
 }
-.investor {
+.role-pill.investor {
   background: #f39c12;
 }
-.customer {
+.role-pill.customer {
   background: #2ecc71;
 }
-.promoter {
-  background: #000;
+.role-pill.admin {
+  background: #9b59b6;
 }
 
 .designer-form {
@@ -119,12 +120,13 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-top: 20px;
 }
 
 .designer-form h2 {
   text-align: center;
   margin-bottom: 10px;
+  font-size: 18px;
 }
 
 .designer-form input,
@@ -164,8 +166,8 @@
 .action-buttons {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 20px;
+  gap: 12px;
+  margin-top: 25px;
   width: 100%;
 }
 
@@ -184,6 +186,10 @@
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  width: 100%;
 }
 
 .earnings {
@@ -205,18 +211,19 @@
 .profile-right h2 {
   font-size: 22px;
   margin-bottom: 16px;
+  color: #333;
 }
 
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px;
 }
 
 @media (min-width: 576px) {
   .product-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 25px;
   }
 }
 
@@ -224,18 +231,33 @@
   background: #f9f9f9;
   border-radius: 12px;
   text-align: center;
-  padding: 10px;
+  padding: 15px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   width: 100%;
+  transition: transform 0.2s;
+}
+
+.product-card:hover {
+  transform: translateY(-5px);
 }
 
 .product-img {
   height: 0;
   padding-bottom: 100%; /* Creates a square aspect ratio */
-  background: #ddd;
+  background: #eee;
   border-radius: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   position: relative;
+  overflow: hidden;
+}
+
+.product-img img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .product-name {
@@ -250,10 +272,10 @@
 .product-price {
   font-size: 13px;
   color: #666;
-  margin: 2px 0 0;
+  margin: 6px 0 0;
 }
 
-/* New TabView Profile Page Styles */
+/* Tab View Profile Page Styles */
 .profile-page {
   padding: 120px 20px 60px;
   max-width: 1000px;
@@ -263,7 +285,7 @@
   overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
-/* Ensure the profile header properly displays the cover photo */
+/* Profile header with cover photo */
 .profile-header {
   position: relative;
   background-color: #e0e0e0; /* Fallback color if no image */
@@ -292,6 +314,7 @@
   align-items: center;
   justify-content: center;
   z-index: 10; /* Higher z-index to ensure it's above everything */
+  transition: all 0.3s ease;
 }
 
 .profile-photo {
@@ -306,36 +329,35 @@
   right: 0;
   width: 30px;
   height: 30px;
-  background-color: #ef3c23;
+  background-color: rgba(239, 60, 35, 0.9);
   color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
   transition: background-color 0.3s;
-  z-index: 1;
+  z-index: 11;
 }
 
 .photo-upload-button:hover {
-  background-color: #d43418;
+  background-color: rgba(239, 60, 35, 1);
 }
 
-/* Style the background upload button */
 .background-upload {
   position: absolute;
   bottom: 10px;
   right: 10px;
-  z-index: 2; /* Above header but below profile photo */
+  z-index: 2;
 }
 
 .upload-button {
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.5);
   color: white;
   border: none;
-  padding: 8px 15px;
+  padding: 8px 12px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
@@ -371,6 +393,7 @@
   margin-bottom: 20px;
   color: #333;
   font-size: 20px;
+  font-weight: 600;
 }
 
 .form-group {
@@ -414,6 +437,14 @@
   font-size: 16px;
   background-color: #fff;
   box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: #ef3c23;
+  outline: none;
 }
 
 .form-group textarea {
@@ -455,7 +486,6 @@
   border: 1px solid #f5c6cb;
 }
 
-/* Add warning message styling */
 .message.warning {
   background-color: #fff3cd;
   color: #856404;
@@ -521,7 +551,7 @@
 
 /* Role-specific styling */
 .admin-role .current-role {
-  background-color: #2ecc71;
+  background-color: #9b59b6;
   color: white;
 }
 
@@ -531,7 +561,7 @@
 }
 
 .designer-role .current-role {
-  background-color: #9b59b6;
+  background-color: #ef3c23;
   color: white;
 }
 
@@ -541,7 +571,7 @@
 }
 
 .customer-role .current-role {
-  background-color: #e74c3c;
+  background-color: #2ecc71;
   color: white;
 }
 
@@ -552,6 +582,9 @@
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: #ddd #f5f5f5;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 5px;
 }
 
 .profile-tabs::-webkit-scrollbar {
@@ -569,14 +602,15 @@
 
 .profile-tab {
   padding: 12px 25px;
-  background-color: #fff;
-  border: 1px solid #ddd;
+  background-color: transparent;
+  border: none;
   border-radius: 4px 4px 0 0;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
   margin-right: 5px;
   font-weight: 500;
+  color: #666;
 }
 
 .profile-tab.active {
@@ -586,7 +620,8 @@
 }
 
 .profile-tab:hover:not(.active) {
-  background-color: #f5f5f5;
+  background-color: #f0f0f0;
+  color: #333;
 }
 
 /* Responsive styling */
@@ -662,7 +697,7 @@
   .photo-upload-button {
     width: 25px;
     height: 25px;
-    font-size: 16px;
+    font-size: 14px;
   }
 
   .background-upload {
@@ -690,7 +725,7 @@
 
   .form-group input,
   .form-group select,
-  ..form-group textarea {
+  .form-group textarea {
     font-size: 14px;
     padding: 8px;
   }
@@ -698,5 +733,104 @@
   .submit-button {
     font-size: 14px;
     padding: 10px 0;
+  }
+}
+
+/* Role Upgrade Section */
+.role-upgrade-section {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #ef3c23;
+}
+
+.role-upgrade-section label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.role-upgrade-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.role-upgrade-controls select {
+  flex: 1;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background-color: white;
+  font-size: 16px;
+  min-width: 150px;
+}
+
+.role-request-button {
+  padding: 10px 15px;
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.role-request-button:hover {
+  background-color: #d43418;
+}
+
+.role-request-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.role-info {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Section header with view all link */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+.view-all-link {
+  color: #ef3c23;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.view-all-link:hover {
+  text-decoration: underline;
+}
+
+/* Achievements section */
+.profile-section {
+  margin-top: 30px;
+}
+
+/* Adjust for responsiveness */
+@media (max-width: 576px) {
+  .role-upgrade-controls {
+    flex-direction: column;
+  }
+
+  .role-upgrade-controls select,
+  .role-request-button {
+    width: 100%;
   }
 }

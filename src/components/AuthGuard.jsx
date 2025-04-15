@@ -30,26 +30,28 @@ const AuthGuard = ({ children, allowedRoles }) => {
 
   // If user is not authenticated, redirect to sign in with return path
   if (!currentUser) {
-    return <Navigate to="/signin" state={{ from: location.pathname, message: "Please sign in to access this page." }} replace />;
+    return <Navigate to="/signin" state={{ from: location.pathname }} replace />;
   }
 
-  // If no specific roles are required, allow access
-  if (!allowedRoles) {
-    return children;
+  // If specific roles are required, check if user has one of them
+  if (allowedRoles) {
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+
+    // Check if user has any of the required roles
+    const hasAllowedRole = roles.some(role =>
+      userRole && (typeof userRole === 'string'
+        ? userRole === role
+        : userRole.includes(role))
+    );
+
+    if (!hasAllowedRole) {
+      // Redirect to unauthorized page with info about required roles
+      return <Navigate to="/unauthorized" state={{ requiredRoles: roles }} replace />;
+    }
   }
 
-  // Check if user has one of the allowed roles
-  const hasRequiredRole = Array.isArray(allowedRoles)
-    ? allowedRoles.includes(userRole)
-    : allowedRoles === userRole;
-
-  // If user doesn't have the required role, redirect to unauthorized page
-  if (!hasRequiredRole) {
-    return <Navigate to="/unauthorized" replace />;
-  }
-
-  // User is authenticated and authorized
+  // User is authenticated and has required role(s)
   return children;
-};
+}
 
 export default AuthGuard;

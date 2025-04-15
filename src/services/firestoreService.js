@@ -21,13 +21,15 @@ import { db } from "../config/firebase";
 
 /**
  * Firestore Database Service
- * Handles database operations for users, products, orders, and achievements
+ * Handles database operations for users, products, investments, and transactions
  */
 class FirestoreService {
   // Collection names
   collections = {
     USERS: "users",
     PRODUCTS: "products",
+    INVESTMENTS: "investments",
+    TRANSACTIONS: "transactions",
     ORDERS: "orders",
     ACHIEVEMENTS: "achievements",
     CATEGORIES: "categories",

@@ -1,0 +1,190 @@
+.investment-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.investment-modal {
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 30px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.investment-modal h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 24px;
+  color: #333;
+  text-align: center;
+}
+
+.close-button {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+  transition: color 0.2s;
+}
+
+.close-button:hover {
+  color: #333;
+}
+
+.product-funding-info {
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.product-funding-info p {
+  margin: 8px 0;
+  font-size: 15px;
+  color: #444;
+}
+
+.funding-progress-container {
+  width: 100%;
+  height: 8px;
+  background-color: #ddd;
+  border-radius: 4px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.funding-progress-bar {
+  height: 100%;
+  background: linear-gradient(to right, #ef3c23, #ff8158);
+  transition: width 0.3s ease;
+}
+
+.wallet-balance {
+  text-align: center;
+  margin-bottom: 20px;
+  font-size: 16px;
+}
+
+.wallet-balance strong {
+  color: #ef3c23;
+  font-size: 18px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #444;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px 15px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  font-size: 18px;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #ef3c23;
+}
+
+.error-message {
+  background-color: #ffecec;
+  color: #e63333;
+  padding: 12px 15px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  border-left: 4px solid #e63333;
+}
+
+.success-message {
+  background-color: #ecffe7;
+  color: #2a9d1b;
+  padding: 12px 15px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  border-left: 4px solid #2a9d1b;
+}
+
+.investment-benefits {
+  background-color: #fff8e9;
+  border-radius: 8px;
+  padding: 15px 20px;
+  margin-bottom: 25px;
+}
+
+.investment-benefits h3 {
+  font-size: 16px;
+  color: #755f00;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.investment-benefits ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.investment-benefits li {
+  margin-bottom: 5px;
+  font-size: 14px;
+  color: #755f00;
+}
+
+.invest-button {
+  width: 100%;
+  padding: 14px;
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.invest-button:hover:not(:disabled) {
+  background-color: #d43418;
+}
+
+.invest-button:disabled {
+  background-color: #f3a396;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .investment-modal {
+    padding: 20px 15px;
+  }
+
+  .investment-modal h2 {
+    font-size: 20px;
+  }
+}

@@ -322,6 +322,32 @@ li {
   z-index: 5;
 }
 
+/* Add these styles to your existing Navbar.css file */
+
+.wallet-icon-container {
+  position: relative;
+}
+
+.wallet-balance-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: #ef3c23;
+  color: white;
+  border-radius: 12px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* Ensure wallet icon is the right size */
+.wallet-icon-container img {
+  width: 22px;
+  height: auto;
+}
+
 /* Media Query for Responsive Design */
 @media (max-width: 912px) {
   /* Hide desktop navigation */
@@ -404,3 +430,105 @@ li {
     padding: 0.5rem;
   }
 }
+
+/* ... existing styles ... */
+
+.icon-container {
+  position: relative;
+  cursor: pointer;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #ef3c23;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+/* ... existing styles ... */
+
+.dropdown-user-info {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 8px;
+}
+
+.dropdown-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f0f0;
+}
+
+.dropdown-user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.default-avatar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ef3c23;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.dropdown-user-name {
+  flex: 1;
+}
+
+.dropdown-user-name p {
+  margin: 0 0 5px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #333;
+}
+
+/* ... existing styles ... */
+
+.notification-icon-wrapper {
+  position: relative;
+  cursor: pointer;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #ef3c23;
+  color: white;
+  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  font-weight: bold;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ... existing CSS ... */

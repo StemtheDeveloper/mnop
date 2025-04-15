@@ -111,6 +111,41 @@
   color: #666;
 }
 
+/* Funding progress styles */
+.funding-container {
+  margin: 12px 0;
+}
+
+.funding-progress {
+  height: 8px;
+  background-color: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.funding-bar {
+  height: 100%;
+  background-color: #ef3c23;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.funding-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.funding-percentage {
+  color: #ef3c23;
+  font-weight: 600;
+}
+
+.funding-goal {
+  color: #666;
+}
+
 @media (max-width: 768px) {
   .product-image {
     height: 180px;
@@ -126,5 +161,9 @@
 
   .product-info p {
     font-size: 13px;
+  }
+
+  .funding-info {
+    font-size: 12px;
   }
 }

@@ -52,14 +52,18 @@ const ShopPage = () => {
                 let productsRef = collection(db, 'products');
                 let productsQuery;
 
-                // Apply category filter if not 'all'
+                // Apply category filter and status filter (only active products)
                 if (category !== 'all') {
                     productsQuery = query(
                         productsRef,
-                        where('category', '==', category)
+                        where('category', '==', category),
+                        where('status', '==', 'active') // Only fetch active products
                     );
                 } else {
-                    productsQuery = productsRef;
+                    productsQuery = query(
+                        productsRef,
+                        where('status', '==', 'active') // Only fetch active products
+                    );
                 }
 
                 // Apply sorting
@@ -71,7 +75,7 @@ const ShopPage = () => {
                         productsQuery = query(productsQuery, orderBy('price', 'desc'));
                         break;
                     case 'popular':
-                        productsQuery = query(productsQuery, orderBy('viewCount', 'desc'));
+                        productsQuery = query(productsQuery, orderBy('reviewCount', 'desc'));
                         break;
                     case 'rating':
                         productsQuery = query(productsQuery, orderBy('averageRating', 'desc'));
@@ -122,14 +126,18 @@ const ShopPage = () => {
             let productsRef = collection(db, 'products');
             let moreProductsQuery;
 
-            // Apply category filter if not 'all'
+            // Apply category filter and status filter (only active products)
             if (category !== 'all') {
                 moreProductsQuery = query(
                     productsRef,
-                    where('category', '==', category)
+                    where('category', '==', category),
+                    where('status', '==', 'active') // Only fetch active products
                 );
             } else {
-                moreProductsQuery = productsRef;
+                moreProductsQuery = query(
+                    productsRef,
+                    where('status', '==', 'active') // Only fetch active products
+                );
             }
 
             // Apply sorting
@@ -141,7 +149,7 @@ const ShopPage = () => {
                     moreProductsQuery = query(moreProductsQuery, orderBy('price', 'desc'));
                     break;
                 case 'popular':
-                    moreProductsQuery = query(moreProductsQuery, orderBy('viewCount', 'desc'));
+                    moreProductsQuery = query(moreProductsQuery, orderBy('reviewCount', 'desc'));
                     break;
                 case 'rating':
                     moreProductsQuery = query(moreProductsQuery, orderBy('averageRating', 'desc'));
@@ -347,6 +355,8 @@ const ShopPage = () => {
                                     rating={product.averageRating || 0}
                                     reviewCount={product.reviewCount || 0}
                                     viewers={product.activeViewers || 0}
+                                    fundingProgress={product.currentFunding ? (product.currentFunding / product.fundingGoal) * 100 : 0}
+                                    fundingGoal={product.fundingGoal || 0}
                                 />
                             </Link>
                         ))}

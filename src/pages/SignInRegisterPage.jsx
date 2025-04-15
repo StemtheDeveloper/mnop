@@ -1,24 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
-  getAuth,
-  onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  updateProfile
 } from "firebase/auth";
-import { doc, setDoc, getFirestore } from "firebase/firestore";
-import { auth, googleProvider } from "../config/firebase.js";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db, googleProvider } from "../config/firebase.js";
+import { USER_ROLES } from "../context/UserContext";
 import "../styles/SignIn.css";
 
 const SignInRegisterPage = () => {
-  // State for both sign in and registration
-  const [user, setUser] = useState(null);
+  // State for form fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [selectedRole, setSelectedRole] = useState(USER_ROLES.CUSTOMER);
+
+  // State for UI management
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,35 +29,20 @@ const SignInRegisterPage = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const auth = getAuth();
-  const db = getFirestore();
 
   // Determine if we're in register mode based on URL path
   useEffect(() => {
     setIsRegisterMode(location.pathname === '/register');
-    // Clear any previous errors when switching modes
+    // Clear any previous messages when switching modes
     setError("");
     setSuccess("");
   }, [location.pathname]);
 
   // Get the previous location from state, or default to the home page
-  const from = location.state?.from || '/';
-  const redirectMessage = location.state?.message;
+  const from = location?.state?.from || '/';
+  const redirectMessage = location?.state?.message;
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-
-      // If user is authenticated, redirect them to the page they were trying to access
-      if (currentUser) {
-        // Don't use replace: true here to allow back button to work
-        navigate(from);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [auth, navigate, from]);
-
+  // Form validation
   const validateForm = () => {
     // Reset previous errors
     setError("");
@@ -89,6 +76,7 @@ const SignInRegisterPage = () => {
     return true;
   };
 
+  // Handle sign in with email/password
   const handleSignIn = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -98,7 +86,8 @@ const SignInRegisterPage = () => {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Redirect handled by onAuthStateChanged
+      // Redirect will happen automatically via auth state change in App component
+      navigate(from);
     } catch (err) {
       console.error("Sign in error:", err);
       setError(getAuthErrorMessage(err.code));
@@ -106,6 +95,7 @@ const SignInRegisterPage = () => {
     }
   };
 
+  // Handle user registration with email/password
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -118,17 +108,23 @@ const SignInRegisterPage = () => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Create a user document in Firestore
+      // Update profile with display name
+      await updateProfile(user, { displayName });
+
+      // Create a user document in Firestore with selected role
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         email: email,
         displayName: displayName,
-        createdAt: new Date(),
-        role: "customer" // Default role
+        photoURL: user.photoURL || null,
+        roles: [selectedRole], // Store roles as an array for future expansion
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
 
       setSuccess("Account created successfully!");
-      // Redirect will be handled by onAuthStateChanged
+      // Redirect will happen automatically
+      navigate(from);
     } catch (err) {
       console.error("Registration error:", err);
       setError(getAuthErrorMessage(err.code));
@@ -136,6 +132,7 @@ const SignInRegisterPage = () => {
     }
   };
 
+  // Handle Google sign in
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError("");
@@ -144,8 +141,7 @@ const SignInRegisterPage = () => {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
-      // Check if this is a new user or existing user
-      // If the user was just created, isNewUser will be true
+      // Check if this is a new user
       const isNewUser = result._tokenResponse?.isNewUser;
 
       if (isNewUser) {
@@ -154,13 +150,25 @@ const SignInRegisterPage = () => {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || "Google User",
-          photoURL: user.photoURL,
-          createdAt: new Date(),
-          role: "customer" // Default role
+          photoURL: user.photoURL || null,
+          roles: [USER_ROLES.CUSTOMER], // Default role for Google sign-ins
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
+      } else {
+        // For existing users, update the last login time
+        const userRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userRef);
+
+        if (userDoc.exists()) {
+          await setDoc(userRef, {
+            lastLogin: serverTimestamp()
+          }, { merge: true });
+        }
       }
 
-      // Redirect handled by onAuthStateChanged
+      // Redirect handled by auth state change
+      navigate(from);
     } catch (err) {
       console.error("Google sign in error:", err);
       setError(getAuthErrorMessage(err.code));
@@ -168,6 +176,7 @@ const SignInRegisterPage = () => {
     }
   };
 
+  // Handle password reset
   const handlePasswordReset = async (e) => {
     e.preventDefault();
 
@@ -262,6 +271,7 @@ const SignInRegisterPage = () => {
     );
   }
 
+  // Main signin/register form
   return (
     <div className="signin-register-container">
       <h1>{isRegisterMode ? 'Create an Account' : 'Sign In to Your Account'}</h1>
@@ -298,7 +308,7 @@ const SignInRegisterPage = () => {
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your name"
+              placeholder="Your full name"
               required={isRegisterMode}
             />
           </div>
@@ -329,17 +339,34 @@ const SignInRegisterPage = () => {
         </div>
 
         {isRegisterMode && (
-          <div className="form-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm your password"
-              required={isRegisterMode}
-            />
-          </div>
+          <>
+            <div className="form-group">
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
+                required={isRegisterMode}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="role">I am a:</label>
+              <select
+                id="role"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="role-select"
+              >
+                <option value={USER_ROLES.CUSTOMER}>Customer</option>
+                <option value={USER_ROLES.DESIGNER}>Designer</option>
+                <option value={USER_ROLES.MANUFACTURER}>Manufacturer</option>
+                <option value={USER_ROLES.INVESTOR}>Investor</option>
+              </select>
+            </div>
+          </>
         )}
 
         <button
