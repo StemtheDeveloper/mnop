@@ -1,665 +1,504 @@
-import React, { useState, useEffect } from 'react';
-import { useUser, USER_ROLES } from '../context/UserContext';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc, getFirestore } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { useUser } from '../context/UserContext';
+import { updateProfile } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from '../config/firebase';
 import '../styles/ProfilePage.css';
+import '../styles/ImageCropper.css';
+import ImageCropper from '../components/ImageCropper';
 
 const ProfilePage = () => {
-    const { currentUser, userProfile, userRole, updateUserProfile } = useUser();
+    const { currentUser, userProfile, updateUserProfile } = useUser();
+    const [activeTab, setActiveTab] = useState('personal');
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState({ text: '', type: '' });
-    const [profileData, setProfileData] = useState({
+    const [message, setMessage] = useState({ type: '', text: '' });
+    const [formData, setFormData] = useState({
         displayName: '',
-        bio: '',
+        email: '',
         phone: '',
-        address: '',
-        company: '',
+        bio: '',
+        location: '',
         website: '',
-        socialLinks: {
-            linkedin: '',
-            twitter: '',
-            instagram: '',
-        },
-        preferences: {
-            notifications: true,
-            newsletter: true,
-            marketing: false,
-        },
-        profilePhoto: '',
-        backgroundPhoto: '',
+        birthday: '',
+        notifications: true,
     });
 
-    // Role-specific settings
-    const [roleSettings, setRoleSettings] = useState({
-        // Admin settings
-        admin: {
-            accessLevel: 'full',
-            canManageUsers: true,
-            canManageContent: true,
-        },
-        // Investor settings
-        investor: {
-            investmentPreferences: [],
-            investmentAmount: '',
-            investmentPortfolio: [],
-        },
-        // Designer settings
-        designer: {
-            specializations: [],
-            portfolio: [],
-            availability: 'full-time',
-            hourlyRate: '',
-        },
-        // Manufacturer settings
-        manufacturer: {
-            facilities: [],
-            capabilities: [],
-            certifications: [],
-            productionCapacity: '',
-        },
-        // Customer settings
-        customer: {
-            shippingAddresses: [],
-            paymentMethods: [],
-            orderPreferences: {
-                giftWrapping: false,
-                saveShippingInfo: true,
-            },
-        },
-    });
+    // Refs for file inputs
+    const profilePhotoRef = useRef(null);
+    const headerPhotoRef = useRef(null);
 
-    const storage = getStorage();
-    const db = getFirestore();
+    // State for image files and URLs
+    const [profilePhotoFile, setProfilePhotoFile] = useState(null);
+    const [headerPhotoURL, setHeaderPhotoURL] = useState('');
 
-    // Load user data when component mounts
+    // State for cropping
+    const [showProfileCropper, setShowProfileCropper] = useState(false);
+    const [showHeaderCropper, setShowHeaderCropper] = useState(false);
+    const [cropImageSrc, setCropImageSrc] = useState('');
+
+    // Temporary preview states
+    const [profilePhotoPreview, setProfilePhotoPreview] = useState('');
+
+    // Load user data into form
     useEffect(() => {
         if (userProfile) {
-            setProfileData({
+            setFormData({
                 displayName: userProfile.displayName || '',
-                bio: userProfile.bio || '',
+                email: currentUser?.email || '',
                 phone: userProfile.phone || '',
-                address: userProfile.address || '',
-                company: userProfile.company || '',
+                bio: userProfile.bio || '',
+                location: userProfile.location || '',
                 website: userProfile.website || '',
-                socialLinks: userProfile.socialLinks || {
-                    linkedin: '',
-                    twitter: '',
-                    instagram: '',
-                },
-                preferences: userProfile.preferences || {
-                    notifications: true,
-                    newsletter: true,
-                    marketing: false,
-                },
-                profilePhoto: userProfile.profilePhoto || '',
-                backgroundPhoto: userProfile.backgroundPhoto || '',
+                birthday: userProfile.birthday || '',
+                notifications: userProfile.notifications !== false,
+            });
+            setHeaderPhotoURL(userProfile.headerPhotoURL || '');
+        }
+    }, [userProfile, currentUser]);
+
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData({
+            ...formData,
+            [name]: type === 'checkbox' ? checked : value,
+        });
+    };
+
+    const handleProfilePhotoClick = () => {
+        profilePhotoRef.current.click();
+    };
+
+    const handleHeaderPhotoClick = () => {
+        headerPhotoRef.current.click();
+    };
+
+    // Handle profile photo selection
+    const handleProfilePhotoChange = (e) => {
+        if (e.target.files[0]) {
+            const file = e.target.files[0];
+
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setMessage({ type: 'error', text: 'File size exceeds 5MB limit' });
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.match('image.*')) {
+                setMessage({ type: 'error', text: 'Only image files are allowed' });
+                return;
+            }
+
+            // Create URL for the cropper
+            const imageUrl = URL.createObjectURL(file);
+            setCropImageSrc(imageUrl);
+            setShowProfileCropper(true);
+        }
+    };
+
+    // Handle header photo selection
+    const handleHeaderPhotoChange = (e) => {
+        if (e.target.files[0]) {
+            const file = e.target.files[0];
+
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setMessage({ type: 'error', text: 'File size exceeds 5MB limit' });
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.match('image.*')) {
+                setMessage({ type: 'error', text: 'Only image files are allowed' });
+                return;
+            }
+
+            // Create URL for the cropper
+            const imageUrl = URL.createObjectURL(file);
+            setCropImageSrc(imageUrl);
+            setShowHeaderCropper(true);
+        }
+    };
+
+    // Handle profile photo crop completion
+    const handleProfileCropComplete = async (blob) => {
+        try {
+            setShowProfileCropper(false);
+
+            // Create a File from the blob
+            const croppedFile = new File([blob], 'profile-photo.jpg', { type: 'image/jpeg' });
+            setProfilePhotoFile(croppedFile);
+
+            // Create a preview
+            const previewUrl = URL.createObjectURL(blob);
+            setProfilePhotoPreview(previewUrl);
+
+            // If you want to upload immediately
+            await uploadProfilePhoto(croppedFile);
+
+        } catch (error) {
+            console.error("Error processing cropped profile photo:", error);
+            setMessage({ type: 'error', text: 'Error processing cropped image.' });
+        }
+    };
+
+    // Handle header photo crop completion
+    const handleHeaderCropComplete = async (blob) => {
+        try {
+            setShowHeaderCropper(false);
+
+            // Create a File from the blob
+            const croppedFile = new File([blob], 'header-photo.jpg', { type: 'image/jpeg' });
+
+            // Upload the cropped header photo
+            await uploadHeaderPhoto(croppedFile);
+
+        } catch (error) {
+            console.error("Error processing cropped header photo:", error);
+            setMessage({ type: 'error', text: 'Error processing cropped image.' });
+        }
+    };
+
+    // Upload profile photo
+    const uploadProfilePhoto = async (file) => {
+        try {
+            setLoading(true);
+
+            const storageRef = ref(storage, `users/${currentUser.uid}/profile`);
+            await uploadBytes(storageRef, file);
+            const photoURL = await getDownloadURL(storageRef);
+
+            // Update Auth profile
+            await updateProfile(auth.currentUser, {
+                photoURL: photoURL
             });
 
-            if (userProfile.roleSettings) {
-                setRoleSettings(prev => ({
-                    ...prev,
-                    ...userProfile.roleSettings
-                }));
-            }
-        }
-    }, [userProfile]);
+            // Update Firestore photoURL
+            await updateDoc(doc(db, 'users', currentUser.uid), {
+                photoURL: photoURL
+            });
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setProfileData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
+            // Clear the file selection
+            setProfilePhotoFile(null);
 
-    const handlePreferenceChange = (e) => {
-        const { name, checked } = e.target;
-        setProfileData(prev => ({
-            ...prev,
-            preferences: {
-                ...prev.preferences,
-                [name]: checked
-            }
-        }));
-    };
-
-    const handleSocialLinkChange = (e) => {
-        const { name, value } = e.target;
-        setProfileData(prev => ({
-            ...prev,
-            socialLinks: {
-                ...prev.socialLinks,
-                [name]: value
-            }
-        }));
-    };
-
-    const handleRoleSettingChange = (role, setting, value) => {
-        setRoleSettings(prev => ({
-            ...prev,
-            [role]: {
-                ...prev[role],
-                [setting]: value
-            }
-        }));
-    };
-
-    const handleArraySettingChange = (role, setting, value) => {
-        // Split comma-separated string into array
-        const arrayValue = value.split(',').map(item => item.trim());
-        setRoleSettings(prev => ({
-            ...prev,
-            [role]: {
-                ...prev[role],
-                [setting]: arrayValue
-            }
-        }));
-    };
-
-    const handleFileUpload = async (file, field) => {
-        if (!file) return null;
-
-        try {
-            const storageRef = ref(storage, `users/${currentUser.uid}/${field}/${file.name}`);
-            await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(storageRef);
-            return downloadURL;
+            setMessage({ type: 'success', text: 'Profile photo updated successfully!' });
         } catch (error) {
-            console.error(`Error uploading ${field}:`, error);
-            setMessage({ text: `Error uploading ${field}. Please try again.`, type: 'error' });
-            return null;
-        }
-    };
-
-    const handlePhotoChange = async (e, field) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // Show preview immediately
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setProfileData(prev => ({
-                ...prev,
-                [field]: reader.result // This is for preview only
-            }));
-        };
-        reader.readAsDataURL(file);
-
-        // Store the file for upload on save
-        setProfileData(prev => ({
-            ...prev,
-            [`${field}File`]: file
-        }));
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setMessage({ text: '', type: '' });
-
-        try {
-            let updatedData = { ...profileData };
-            delete updatedData.profilePhotoFile;
-            delete updatedData.backgroundPhotoFile;
-
-            // Upload photos if they exist
-            if (profileData.profilePhotoFile) {
-                const profilePhotoURL = await handleFileUpload(profileData.profilePhotoFile, 'profilePhoto');
-                if (profilePhotoURL) {
-                    updatedData.profilePhoto = profilePhotoURL;
-                }
-            }
-
-            if (profileData.backgroundPhotoFile) {
-                const backgroundPhotoURL = await handleFileUpload(profileData.backgroundPhotoFile, 'backgroundPhoto');
-                if (backgroundPhotoURL) {
-                    updatedData.backgroundPhoto = backgroundPhotoURL;
-                }
-            }
-
-            // Add role-specific settings
-            updatedData.roleSettings = roleSettings;
-
-            // Update in Firestore
-            const success = await updateUserProfile(updatedData);
-
-            if (success) {
-                setMessage({ text: 'Profile updated successfully!', type: 'success' });
-            } else {
-                setMessage({ text: 'Failed to update profile. Please try again.', type: 'error' });
-            }
-        } catch (error) {
-            console.error('Error updating profile:', error);
-            setMessage({ text: 'An error occurred. Please try again.', type: 'error' });
+            console.error("Error uploading profile photo:", error);
+            setMessage({ type: 'error', text: 'Failed to upload profile photo. Please try again.' });
         } finally {
             setLoading(false);
         }
     };
 
-    // Render role-specific settings based on current user role
-    const renderRoleSettings = () => {
-        switch (userRole) {
-            case USER_ROLES.ADMIN:
-                return (
-                    <div className="settings-section">
-                        <h3>Admin Settings</h3>
-                        <div className="form-group">
-                            <label>Access Level:</label>
-                            <select
-                                value={roleSettings.admin.accessLevel}
-                                onChange={(e) => handleRoleSettingChange('admin', 'accessLevel', e.target.value)}
-                            >
-                                <option value="full">Full Access</option>
-                                <option value="limited">Limited Access</option>
-                                <option value="readonly">Read Only</option>
-                            </select>
-                        </div>
-                        <div className="form-group checkbox">
-                            <input
-                                type="checkbox"
-                                id="canManageUsers"
-                                checked={roleSettings.admin.canManageUsers}
-                                onChange={(e) => handleRoleSettingChange('admin', 'canManageUsers', e.target.checked)}
-                            />
-                            <label htmlFor="canManageUsers">Can Manage Users</label>
-                        </div>
-                        <div className="form-group checkbox">
-                            <input
-                                type="checkbox"
-                                id="canManageContent"
-                                checked={roleSettings.admin.canManageContent}
-                                onChange={(e) => handleRoleSettingChange('admin', 'canManageContent', e.target.checked)}
-                            />
-                            <label htmlFor="canManageContent">Can Manage Content</label>
-                        </div>
-                    </div>
-                );
+    // Upload header photo
+    const uploadHeaderPhoto = async (file) => {
+        try {
+            setLoading(true);
 
-            case USER_ROLES.INVESTOR:
-                return (
-                    <div className="settings-section">
-                        <h3>Investor Settings</h3>
-                        <div className="form-group">
-                            <label>Investment Preferences (comma separated):</label>
-                            <input
-                                type="text"
-                                value={roleSettings.investor.investmentPreferences.join(', ')}
-                                onChange={(e) => handleArraySettingChange('investor', 'investmentPreferences', e.target.value)}
-                                placeholder="Real Estate, Tech, Renewable Energy"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Investment Amount Range:</label>
-                            <input
-                                type="text"
-                                value={roleSettings.investor.investmentAmount}
-                                onChange={(e) => handleRoleSettingChange('investor', 'investmentAmount', e.target.value)}
-                                placeholder="$10,000 - $50,000"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Current Portfolio (comma separated):</label>
-                            <textarea
-                                value={roleSettings.investor.investmentPortfolio.join(', ')}
-                                onChange={(e) => handleArraySettingChange('investor', 'investmentPortfolio', e.target.value)}
-                                placeholder="Company A, Project B, Startup C"
-                            />
-                        </div>
-                    </div>
-                );
+            const storageRef = ref(storage, `users/${currentUser.uid}/header`);
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
 
-            case USER_ROLES.DESIGNER:
-                return (
-                    <div className="settings-section">
-                        <h3>Designer Settings</h3>
-                        <div className="form-group">
-                            <label>Specializations (comma separated):</label>
-                            <input
-                                type="text"
-                                value={roleSettings.designer.specializations.join(', ')}
-                                onChange={(e) => handleArraySettingChange('designer', 'specializations', e.target.value)}
-                                placeholder="Interior, Furniture, Lighting"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Portfolio Links (comma separated):</label>
-                            <textarea
-                                value={roleSettings.designer.portfolio.join(', ')}
-                                onChange={(e) => handleArraySettingChange('designer', 'portfolio', e.target.value)}
-                                placeholder="https://example.com/project1, https://example.com/project2"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Availability:</label>
-                            <select
-                                value={roleSettings.designer.availability}
-                                onChange={(e) => handleRoleSettingChange('designer', 'availability', e.target.value)}
-                            >
-                                <option value="full-time">Full Time</option>
-                                <option value="part-time">Part Time</option>
-                                <option value="contract">Contract</option>
-                                <option value="not-available">Not Available</option>
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label>Hourly Rate (if applicable):</label>
-                            <input
-                                type="text"
-                                value={roleSettings.designer.hourlyRate}
-                                onChange={(e) => handleRoleSettingChange('designer', 'hourlyRate', e.target.value)}
-                                placeholder="$75/hour"
-                            />
-                        </div>
-                    </div>
-                );
+            setHeaderPhotoURL(url);
 
-            case USER_ROLES.MANUFACTURER:
-                return (
-                    <div className="settings-section">
-                        <h3>Manufacturer Settings</h3>
-                        <div className="form-group">
-                            <label>Facilities (comma separated):</label>
-                            <input
-                                type="text"
-                                value={roleSettings.manufacturer.facilities.join(', ')}
-                                onChange={(e) => handleArraySettingChange('manufacturer', 'facilities', e.target.value)}
-                                placeholder="New York, Shanghai, London"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Manufacturing Capabilities (comma separated):</label>
-                            <textarea
-                                value={roleSettings.manufacturer.capabilities.join(', ')}
-                                onChange={(e) => handleArraySettingChange('manufacturer', 'capabilities', e.target.value)}
-                                placeholder="Wood Furniture, Metal Fabrication, Plastic Injection"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Certifications (comma separated):</label>
-                            <input
-                                type="text"
-                                value={roleSettings.manufacturer.certifications.join(', ')}
-                                onChange={(e) => handleArraySettingChange('manufacturer', 'certifications', e.target.value)}
-                                placeholder="ISO 9001, Fair Trade, Eco-Friendly"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Production Capacity:</label>
-                            <input
-                                type="text"
-                                value={roleSettings.manufacturer.productionCapacity}
-                                onChange={(e) => handleRoleSettingChange('manufacturer', 'productionCapacity', e.target.value)}
-                                placeholder="500 units/week"
-                            />
-                        </div>
-                    </div>
-                );
+            // Update user profile in Firestore
+            await updateDoc(doc(db, 'users', currentUser.uid), {
+                headerPhotoURL: url
+            });
 
-            case USER_ROLES.CUSTOMER:
-                return (
-                    <div className="settings-section">
-                        <h3>Customer Settings</h3>
-                        <div className="form-group">
-                            <label>Shipping Addresses:</label>
-                            <textarea
-                                value={roleSettings.customer.shippingAddresses.join('\n')}
-                                onChange={(e) => handleArraySettingChange('customer', 'shippingAddresses', e.target.value.replace(/\n/g, ', '))}
-                                placeholder="123 Main St, New York, NY 10001"
-                            />
-                            <button
-                                type="button"
-                                className="add-button"
-                                onClick={() => {
-                                    // Add new empty address field
-                                    setRoleSettings(prev => ({
-                                        ...prev,
-                                        customer: {
-                                            ...prev.customer,
-                                            shippingAddresses: [...prev.customer.shippingAddresses, '']
-                                        }
-                                    }));
-                                }}
-                            >
-                                + Add Address
-                            </button>
-                        </div>
-                        <div className="form-group checkbox">
-                            <input
-                                type="checkbox"
-                                id="giftWrapping"
-                                checked={roleSettings.customer.orderPreferences.giftWrapping}
-                                onChange={(e) => setRoleSettings(prev => ({
-                                    ...prev,
-                                    customer: {
-                                        ...prev.customer,
-                                        orderPreferences: {
-                                            ...prev.customer.orderPreferences,
-                                            giftWrapping: e.target.checked
-                                        }
-                                    }
-                                }))}
-                            />
-                            <label htmlFor="giftWrapping">Default to Gift Wrapping</label>
-                        </div>
-                        <div className="form-group checkbox">
-                            <input
-                                type="checkbox"
-                                id="saveShippingInfo"
-                                checked={roleSettings.customer.orderPreferences.saveShippingInfo}
-                                onChange={(e) => setRoleSettings(prev => ({
-                                    ...prev,
-                                    customer: {
-                                        ...prev.customer,
-                                        orderPreferences: {
-                                            ...prev.customer.orderPreferences,
-                                            saveShippingInfo: e.target.checked
-                                        }
-                                    }
-                                }))}
-                            />
-                            <label htmlFor="saveShippingInfo">Save Shipping Information</label>
-                        </div>
-                    </div>
-                );
-
-            default:
-                return null;
+            setMessage({ type: 'success', text: 'Header photo updated successfully!' });
+        } catch (error) {
+            console.error("Error uploading header photo:", error);
+            if (error.code === 'storage/unauthorized') {
+                setMessage({ type: 'error', text: 'Permission denied: You may need to sign in again' });
+            } else if (error.code === 'storage/quota-exceeded') {
+                setMessage({ type: 'error', text: 'Storage quota exceeded. Please contact support.' });
+            } else if (error.message) {
+                setMessage({ type: 'error', text: error.message });
+            } else {
+                setMessage({ type: 'error', text: 'Failed to update header photo. Please try again.' });
+            }
+        } finally {
+            setLoading(false);
         }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            // Update Firestore profile
+            await updateUserProfile({
+                displayName: formData.displayName,
+                phone: formData.phone,
+                bio: formData.bio,
+                location: formData.location,
+                website: formData.website,
+                birthday: formData.birthday,
+                notifications: formData.notifications,
+            });
+
+            setMessage({ type: 'success', text: 'Profile updated successfully!' });
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            setMessage({ type: 'error', text: 'Failed to update profile. Please try again.' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getRoleClass = () => {
+        if (!userProfile || !userProfile.role) return 'customer-role';
+        return `${userProfile.role.toLowerCase()}-role`;
     };
 
     return (
         <div className="profile-page">
-            <div
-                className="profile-header"
-                style={{ backgroundImage: profileData.backgroundPhoto ? `url(${profileData.backgroundPhoto})` : 'none' }}
-            >
+            {showProfileCropper && (
+                <ImageCropper
+                    imageUrl={cropImageSrc}
+                    aspect={1}
+                    circularCrop={true}
+                    onCropComplete={handleProfileCropComplete}
+                    onCancel={() => {
+                        setShowProfileCropper(false);
+                        URL.revokeObjectURL(cropImageSrc);
+                    }}
+                />
+            )}
+
+            {showHeaderCropper && (
+                <ImageCropper
+                    imageUrl={cropImageSrc}
+                    aspect={3 / 1}
+                    circularCrop={false}
+                    onCropComplete={handleHeaderCropComplete}
+                    onCancel={() => {
+                        setShowHeaderCropper(false);
+                        URL.revokeObjectURL(cropImageSrc);
+                    }}
+                />
+            )}
+
+            <div className="profile-header" style={{
+                backgroundImage: headerPhotoURL ? `url(${headerPhotoURL})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+            }}>
                 <div className="profile-photo-container">
-                    {profileData.profilePhoto && (
-                        <img src={profileData.profilePhoto} alt="Profile" className="profile-photo" />
-                    )}
-                    <label className="photo-upload-button">
-                        <span>+</span>
-                        <input
-                            type="file"
-                            onChange={(e) => handlePhotoChange(e, 'profilePhoto')}
-                            accept="image/*"
-                            hidden
-                        />
-                    </label>
+                    <img
+                        src={profilePhotoPreview || currentUser?.photoURL || 'https://via.placeholder.com/120?text=Profile'}
+                        alt="Profile"
+                        className="profile-photo"
+                    />
+                    <div className="photo-upload-button" onClick={handleProfilePhotoClick}>
+                        +
+                    </div>
+                    <input
+                        type="file"
+                        ref={profilePhotoRef}
+                        onChange={handleProfilePhotoChange}
+                        style={{ display: 'none' }}
+                        accept="image/*"
+                    />
                 </div>
                 <div className="background-upload">
-                    <label className="upload-button">
-                        Change Cover Photo
-                        <input
-                            type="file"
-                            onChange={(e) => handlePhotoChange(e, 'backgroundPhoto')}
-                            accept="image/*"
-                            hidden
-                        />
-                    </label>
+                    <button className="upload-button" onClick={handleHeaderPhotoClick}>
+                        Change Cover
+                    </button>
+                    <input
+                        type="file"
+                        ref={headerPhotoRef}
+                        onChange={handleHeaderPhotoChange}
+                        style={{ display: 'none' }}
+                        accept="image/*"
+                    />
                 </div>
             </div>
 
-            {message.text && (
-                <div className={`message ${message.type}`}>
-                    {message.text}
+            <div className="profile-tabs">
+                <div
+                    className={`profile-tab ${activeTab === 'personal' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('personal')}
+                >
+                    Personal Info
                 </div>
-            )}
+                <div
+                    className={`profile-tab ${activeTab === 'account' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('account')}
+                >
+                    Account Settings
+                </div>
+                <div
+                    className={`profile-tab ${activeTab === 'preferences' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('preferences')}
+                >
+                    Preferences
+                </div>
+            </div>
 
-            <form onSubmit={handleSubmit} className="profile-form">
-                <div className="profile-content">
-                    <div className="settings-section">
-                        <h3>Basic Information</h3>
-                        <div className="form-group">
-                            <label>Name:</label>
-                            <input
-                                type="text"
-                                name="displayName"
-                                value={profileData.displayName}
-                                onChange={handleInputChange}
-                                placeholder="Your Name"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Bio:</label>
-                            <textarea
-                                name="bio"
-                                value={profileData.bio}
-                                onChange={handleInputChange}
-                                placeholder="Tell us about yourself..."
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Phone:</label>
-                            <input
-                                type="tel"
-                                name="phone"
-                                value={profileData.phone}
-                                onChange={handleInputChange}
-                                placeholder="Your Phone Number"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Address:</label>
-                            <textarea
-                                name="address"
-                                value={profileData.address}
-                                onChange={handleInputChange}
-                                placeholder="Your Address"
-                            />
-                        </div>
+            <div className="profile-content">
+                {message.text && (
+                    <div className={`message ${message.type}`}>
+                        {message.text}
                     </div>
+                )}
 
-                    <div className="settings-section">
-                        <h3>Professional Information</h3>
-                        <div className="form-group">
-                            <label>Company/Organization:</label>
-                            <input
-                                type="text"
-                                name="company"
-                                value={profileData.company}
-                                onChange={handleInputChange}
-                                placeholder="Your Company"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Website:</label>
-                            <input
-                                type="url"
-                                name="website"
-                                value={profileData.website}
-                                onChange={handleInputChange}
-                                placeholder="https://example.com"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>LinkedIn:</label>
-                            <input
-                                type="url"
-                                name="linkedin"
-                                value={profileData.socialLinks.linkedin}
-                                onChange={handleSocialLinkChange}
-                                placeholder="https://linkedin.com/in/yourprofile"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Twitter:</label>
-                            <input
-                                type="url"
-                                name="twitter"
-                                value={profileData.socialLinks.twitter}
-                                onChange={handleSocialLinkChange}
-                                placeholder="https://twitter.com/yourusername"
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Instagram:</label>
-                            <input
-                                type="url"
-                                name="instagram"
-                                value={profileData.socialLinks.instagram}
-                                onChange={handleSocialLinkChange}
-                                placeholder="https://instagram.com/yourusername"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="settings-section">
-                        <h3>Account Preferences</h3>
-                        <div className="form-group checkbox">
-                            <input
-                                type="checkbox"
-                                id="notifications"
-                                name="notifications"
-                                checked={profileData.preferences.notifications}
-                                onChange={handlePreferenceChange}
-                            />
-                            <label htmlFor="notifications">Receive Notifications</label>
-                        </div>
-                        <div className="form-group checkbox">
-                            <input
-                                type="checkbox"
-                                id="newsletter"
-                                name="newsletter"
-                                checked={profileData.preferences.newsletter}
-                                onChange={handlePreferenceChange}
-                            />
-                            <label htmlFor="newsletter">Subscribe to Newsletter</label>
-                        </div>
-                        <div className="form-group checkbox">
-                            <input
-                                type="checkbox"
-                                id="marketing"
-                                name="marketing"
-                                checked={profileData.preferences.marketing}
-                                onChange={handlePreferenceChange}
-                            />
-                            <label htmlFor="marketing">Receive Marketing Emails</label>
-                        </div>
-                    </div>
-
-                    {/* Render role-specific settings */}
-                    {renderRoleSettings()}
-
-                    {/* Current Role Display */}
-                    <div className="settings-section role-display">
-                        <h3>Current Role</h3>
-                        <div className="current-role">
-                            {userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : 'Loading...'}
-                        </div>
+                <div className={`role-display ${getRoleClass()}`}>
+                    <div className="current-role">
+                        {userProfile?.role || 'Customer'}
                     </div>
                 </div>
 
-                <div className="form-actions">
-                    <button
-                        type="submit"
-                        className="submit-button"
-                        disabled={loading}
-                    >
-                        {loading ? 'Saving...' : 'Save Changes'}
-                    </button>
-                </div>
-            </form>
+                <form onSubmit={handleSubmit}>
+                    {activeTab === 'personal' && (
+                        <div className="settings-section">
+                            <h3>Personal Information</h3>
+
+                            <div className="form-row">
+                                <div className="form-group form-field-half">
+                                    <label htmlFor="displayName">Full Name</label>
+                                    <input
+                                        type="text"
+                                        id="displayName"
+                                        name="displayName"
+                                        value={formData.displayName}
+                                        onChange={handleChange}
+                                        placeholder="Your full name"
+                                    />
+                                </div>
+
+                                <div className="form-group form-field-half">
+                                    <label htmlFor="email">Email Address</label>
+                                    <input
+                                        type="email"
+                                        id="email"
+                                        name="email"
+                                        value={formData.email}
+                                        readOnly
+                                        disabled
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-row">
+                                <div className="form-group form-field-half">
+                                    <label htmlFor="phone">Phone Number</label>
+                                    <input
+                                        type="tel"
+                                        id="phone"
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleChange}
+                                        placeholder="Your phone number"
+                                    />
+                                </div>
+
+                                <div className="form-group form-field-half">
+                                    <label htmlFor="birthday">Birthday</label>
+                                    <input
+                                        type="date"
+                                        id="birthday"
+                                        name="birthday"
+                                        value={formData.birthday}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="location">Location</label>
+                                <input
+                                    type="text"
+                                    id="location"
+                                    name="location"
+                                    value={formData.location}
+                                    onChange={handleChange}
+                                    placeholder="City, Country"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="bio">Bio</label>
+                                <textarea
+                                    id="bio"
+                                    name="bio"
+                                    value={formData.bio}
+                                    onChange={handleChange}
+                                    placeholder="Tell us about yourself"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'account' && (
+                        <div className="settings-section">
+                            <h3>Account Information</h3>
+
+                            <div className="form-group">
+                                <label htmlFor="website">Website</label>
+                                <input
+                                    type="url"
+                                    id="website"
+                                    name="website"
+                                    value={formData.website}
+                                    onChange={handleChange}
+                                    placeholder="https://yourwebsite.com"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Account Type</label>
+                                <p>Your account is registered as: <strong>{userProfile?.role || 'Customer'}</strong></p>
+                                <p>To request a role change, please contact support.</p>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Account Status</label>
+                                <p>Your account is <strong>Active</strong></p>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'preferences' && (
+                        <div className="settings-section">
+                            <h3>Preferences</h3>
+
+                            <div className="form-group checkbox">
+                                <input
+                                    type="checkbox"
+                                    id="notifications"
+                                    name="notifications"
+                                    checked={formData.notifications}
+                                    onChange={handleChange}
+                                />
+                                <label htmlFor="notifications">Receive email notifications</label>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Email Preferences</label>
+                                <p>Manage your email preferences and subscriptions.</p>
+                                <button type="button" className="add-button">
+                                    Manage Email Preferences
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="form-actions">
+                        <button
+                            type="submit"
+                            className="submit-button"
+                            disabled={loading}
+                        >
+                            {loading ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 };

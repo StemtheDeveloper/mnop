@@ -1,27 +1,666 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc } from 'firebase/firestore';
+import { db, auth } from '../config/firebase';
+import { useUser } from '../context/UserContext';
+import LoadingSpinner from '../components/LoadingSpinner';
+import '../styles/CheckoutPage.css';
 
 const CheckoutPage = () => {
+    const navigate = useNavigate();
+    const { currentUser, userProfile } = useUser();
+    const [cartItems, setCartItems] = useState([]);
+    const [cartId, setCartId] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [processing, setProcessing] = useState(false);
+    const [error, setError] = useState(null);
+    const [subtotal, setSubtotal] = useState(0);
+    const [shipping, setShipping] = useState(10);
+    const [total, setTotal] = useState(0);
+    const [step, setStep] = useState(1);
+    const [orderComplete, setOrderComplete] = useState(false);
+    const [orderId, setOrderId] = useState('');
+
+    const [formData, setFormData] = useState({
+        // Shipping info
+        fullName: userProfile?.displayName || '',
+        email: currentUser?.email || '',
+        phone: userProfile?.phone || '',
+        address: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: 'United States',
+
+        // Payment info
+        cardName: '',
+        cardNumber: '',
+        expMonth: '',
+        expYear: '',
+        cvv: '',
+
+        // Order notes
+        notes: '',
+
+        // Shipping method
+        shippingMethod: 'standard'
+    });
+
+    // Calculate subtotal and total
+    const calculateTotals = (items) => {
+        const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        setSubtotal(itemsTotal);
+        setTotal(itemsTotal + shipping);
+    };
+
+    // Fetch cart items
+    useEffect(() => {
+        let unsubscribe = () => { };
+
+        const fetchCart = async () => {
+            setLoading(true);
+            try {
+                // Handle guest users with local storage
+                if (!currentUser) {
+                    const localCart = JSON.parse(localStorage.getItem('cart') || '[]');
+                    setCartItems(localCart);
+                    calculateTotals(localCart);
+                    setLoading(false);
+                    return;
+                }
+
+                // For authenticated users, get cart from Firestore
+                const cartsRef = collection(db, 'carts');
+                const q = query(cartsRef, where('userId', '==', currentUser.uid));
+
+                unsubscribe = onSnapshot(q, (snapshot) => {
+                    if (snapshot.empty) {
+                        setCartItems([]);
+                        calculateTotals([]);
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Get cart data
+                    const cartDoc = snapshot.docs[0];
+                    setCartId(cartDoc.id);
+                    const cart = cartDoc.data();
+
+                    const items = cart.items || [];
+                    setCartItems(items);
+                    calculateTotals(items);
+                    setLoading(false);
+                }, (err) => {
+                    console.error("Error fetching cart:", err);
+                    setError("Could not load your cart. Please try again.");
+                    setLoading(false);
+                });
+
+            } catch (err) {
+                console.error("Error setting up cart listener:", err);
+                setError("Could not access your cart. Please try again later.");
+                setLoading(false);
+            }
+        };
+
+        fetchCart();
+
+        // Clean up subscription
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    // Update form data
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+
+        // Update shipping cost based on method
+        if (name === 'shippingMethod') {
+            const shippingCost = value === 'express' ? 25 : 10;
+            setShipping(shippingCost);
+            setTotal(subtotal + shippingCost);
+        }
+    };
+
+    // Handle form submission for shipping info
+    const handleShippingSubmit = (e) => {
+        e.preventDefault();
+        // Validate shipping information
+        if (!formData.fullName || !formData.email || !formData.phone ||
+            !formData.address || !formData.city || !formData.state || !formData.zipCode) {
+            setError("Please fill in all required shipping fields");
+            return;
+        }
+
+        setStep(2);
+        setError(null);
+    };
+
+    // Handle payment form submission
+    const handlePaymentSubmit = async (e) => {
+        e.preventDefault();
+
+        // Validate payment information
+        if (!formData.cardName || !formData.cardNumber || !formData.expMonth ||
+            !formData.expYear || !formData.cvv) {
+            setError("Please fill in all required payment fields");
+            return;
+        }
+
+        // Simulate card validation
+        if (formData.cardNumber.replace(/\s/g, '').length !== 16) {
+            setError("Please enter a valid 16-digit card number");
+            return;
+        }
+
+        if (formData.cvv.length !== 3) {
+            setError("Please enter a valid 3-digit CVV");
+            return;
+        }
+
+        setProcessing(true);
+        setError(null);
+
+        try {
+            // Create order in database
+            const orderData = {
+                userId: currentUser?.uid || 'guest',
+                items: cartItems,
+                shippingInfo: {
+                    fullName: formData.fullName,
+                    email: formData.email,
+                    phone: formData.phone,
+                    address: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    zipCode: formData.zipCode,
+                    country: formData.country,
+                    shippingMethod: formData.shippingMethod
+                },
+                notes: formData.notes,
+                subtotal: subtotal,
+                shipping: shipping,
+                total: total,
+                status: 'processing',
+                createdAt: new Date(),
+                paymentMethod: 'credit card' // Don't store actual card details for security
+            };
+
+            // Add order to Firestore
+            const orderRef = await addDoc(collection(db, 'orders'), orderData);
+            setOrderId(orderRef.id);
+
+            // Clear cart after successful order
+            if (currentUser && cartId) {
+                // For authenticated users, clear Firestore cart
+                await updateDoc(doc(db, 'carts', cartId), {
+                    items: [],
+                    updatedAt: new Date()
+                });
+            } else {
+                // For guest users, clear localStorage
+                localStorage.removeItem('cart');
+            }
+
+            // Simulate payment processing
+            setTimeout(() => {
+                setProcessing(false);
+                setOrderComplete(true);
+            }, 2000);
+
+        } catch (err) {
+            console.error("Error processing order:", err);
+            setError("We couldn't process your order. Please try again.");
+            setProcessing(false);
+        }
+    };
+
+    // Format price as currency
+    const formatPrice = (price) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(price);
+    };
+
+    // Render loading state
+    if (loading) {
+        return (
+            <div className="checkout-page">
+                <div className="checkout-container loading">
+                    <LoadingSpinner />
+                    <p className="loading-text">Loading checkout...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Render error state if no items in cart
+    if (cartItems.length === 0 && !orderComplete) {
+        return (
+            <div className="checkout-page">
+                <div className="checkout-container">
+                    <h1>Checkout</h1>
+                    <div className="empty-checkout">
+                        <div className="empty-checkout-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="9" cy="21" r="1"></circle>
+                                <circle cx="20" cy="21" r="1"></circle>
+                                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                            </svg>
+                        </div>
+                        <p>Your cart is empty</p>
+                        <p>You need to add items to your cart before checkout.</p>
+                        <Link to="/shop" className="btn-secondary">Browse Products</Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Render order confirmation
+    if (orderComplete) {
+        return (
+            <div className="checkout-page">
+                <div className="checkout-container">
+                    <div className="order-complete">
+                        <div className="success-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                        <h1>Order Confirmed!</h1>
+                        <p className="order-id">Order #{orderId}</p>
+                        <p className="thankyou-message">
+                            Thank you for your order. We've received your payment and will process your items shortly.
+                        </p>
+                        <p className="confirmation-email">
+                            A confirmation email has been sent to <strong>{formData.email}</strong>
+                        </p>
+                        <div className="order-next-steps">
+                            <Link to="/" className="btn-primary">Return to Home</Link>
+                            <Link to="/shop" className="btn-secondary">Continue Shopping</Link>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div style={{
-            padding: '160px 20px 60px',
-            maxWidth: '800px',
-            margin: '0 auto',
-            textAlign: 'center'
-        }}>
-            <h1>Checkout Page</h1>
-            <p>This is a placeholder for the checkout functionality.</p>
-            <Link to="/cart" style={{
-                display: 'inline-block',
-                marginTop: '20px',
-                padding: '10px 20px',
-                background: '#3f97d3',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '4px'
-            }}>
-                Return to Cart
-            </Link>
+        <div className="checkout-page">
+            <div className="checkout-container">
+                <h1>Checkout</h1>
+
+                <div className="checkout-progress">
+                    <div className={`progress-step ${step >= 1 ? 'active' : ''}`}>
+                        <div className="step-number">1</div>
+                        <div className="step-label">Shipping</div>
+                    </div>
+                    <div className="progress-line"></div>
+                    <div className={`progress-step ${step >= 2 ? 'active' : ''}`}>
+                        <div className="step-number">2</div>
+                        <div className="step-label">Payment</div>
+                    </div>
+                    <div className="progress-line"></div>
+                    <div className={`progress-step ${step >= 3 ? 'active' : ''}`}>
+                        <div className="step-number">3</div>
+                        <div className="step-label">Confirmation</div>
+                    </div>
+                </div>
+
+                {error && (
+                    <div className="checkout-error">
+                        <p>{error}</p>
+                    </div>
+                )}
+
+                <div className="checkout-content">
+                    {/* Step 1: Shipping Information */}
+                    {step === 1 && (
+                        <div className="checkout-form">
+                            <h2>Shipping Information</h2>
+                            <form onSubmit={handleShippingSubmit}>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="fullName">Full Name*</label>
+                                        <input
+                                            type="text"
+                                            id="fullName"
+                                            name="fullName"
+                                            value={formData.fullName}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="email">Email*</label>
+                                        <input
+                                            type="email"
+                                            id="email"
+                                            name="email"
+                                            value={formData.email}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="phone">Phone*</label>
+                                        <input
+                                            type="tel"
+                                            id="phone"
+                                            name="phone"
+                                            value={formData.phone}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="address">Street Address*</label>
+                                        <input
+                                            type="text"
+                                            id="address"
+                                            name="address"
+                                            value={formData.address}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="city">City*</label>
+                                        <input
+                                            type="text"
+                                            id="city"
+                                            name="city"
+                                            value={formData.city}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="state">State*</label>
+                                        <input
+                                            type="text"
+                                            id="state"
+                                            name="state"
+                                            value={formData.state}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="zipCode">ZIP Code*</label>
+                                        <input
+                                            type="text"
+                                            id="zipCode"
+                                            name="zipCode"
+                                            value={formData.zipCode}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="country">Country*</label>
+                                        <select
+                                            id="country"
+                                            name="country"
+                                            value={formData.country}
+                                            onChange={handleChange}
+                                            required
+                                        >
+                                            <option value="United States">United States</option>
+                                            <option value="Canada">Canada</option>
+                                            <option value="United Kingdom">United Kingdom</option>
+                                            <option value="Australia">Australia</option>
+                                            <option value="New Zealand">New Zealand</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group shipping-methods">
+                                        <label>Shipping Method*</label>
+                                        <div className="shipping-options">
+                                            <div className="shipping-option">
+                                                <input
+                                                    type="radio"
+                                                    id="standard"
+                                                    name="shippingMethod"
+                                                    value="standard"
+                                                    checked={formData.shippingMethod === 'standard'}
+                                                    onChange={handleChange}
+                                                />
+                                                <label htmlFor="standard">
+                                                    <div className="option-name">Standard Shipping</div>
+                                                    <div className="option-price">$10.00</div>
+                                                    <div className="option-duration">5-7 business days</div>
+                                                </label>
+                                            </div>
+                                            <div className="shipping-option">
+                                                <input
+                                                    type="radio"
+                                                    id="express"
+                                                    name="shippingMethod"
+                                                    value="express"
+                                                    checked={formData.shippingMethod === 'express'}
+                                                    onChange={handleChange}
+                                                />
+                                                <label htmlFor="express">
+                                                    <div className="option-name">Express Shipping</div>
+                                                    <div className="option-price">$25.00</div>
+                                                    <div className="option-duration">2-3 business days</div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="notes">Order Notes (Optional)</label>
+                                        <textarea
+                                            id="notes"
+                                            name="notes"
+                                            value={formData.notes}
+                                            onChange={handleChange}
+                                            placeholder="Special instructions for delivery"
+                                        ></textarea>
+                                    </div>
+                                </div>
+
+                                <div className="form-actions">
+                                    <Link to="/cart" className="btn-secondary">Back to Cart</Link>
+                                    <button type="submit" className="btn-primary">Continue to Payment</button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Step 2: Payment Information */}
+                    {step === 2 && (
+                        <div className="checkout-form">
+                            <h2>Payment Information</h2>
+                            <form onSubmit={handlePaymentSubmit}>
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="cardName">Name on Card*</label>
+                                        <input
+                                            type="text"
+                                            id="cardName"
+                                            name="cardName"
+                                            value={formData.cardName}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="cardNumber">Card Number*</label>
+                                        <input
+                                            type="text"
+                                            id="cardNumber"
+                                            name="cardNumber"
+                                            value={formData.cardNumber}
+                                            onChange={handleChange}
+                                            placeholder="1234 5678 9012 3456"
+                                            required
+                                            maxLength="19"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label htmlFor="expMonth">Expiration Month*</label>
+                                        <select
+                                            id="expMonth"
+                                            name="expMonth"
+                                            value={formData.expMonth}
+                                            onChange={handleChange}
+                                            required
+                                        >
+                                            <option value="">Month</option>
+                                            {[...Array(12)].map((_, i) => (
+                                                <option key={i + 1} value={i + 1}>
+                                                    {(i + 1).toString().padStart(2, '0')}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label htmlFor="expYear">Expiration Year*</label>
+                                        <select
+                                            id="expYear"
+                                            name="expYear"
+                                            value={formData.expYear}
+                                            onChange={handleChange}
+                                            required
+                                        >
+                                            <option value="">Year</option>
+                                            {[...Array(10)].map((_, i) => {
+                                                const year = new Date().getFullYear() + i;
+                                                return (
+                                                    <option key={year} value={year}>
+                                                        {year}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+                                    <div className="form-group cvv-group">
+                                        <label htmlFor="cvv">CVV*</label>
+                                        <input
+                                            type="text"
+                                            id="cvv"
+                                            name="cvv"
+                                            value={formData.cvv}
+                                            onChange={handleChange}
+                                            required
+                                            maxLength="3"
+                                            placeholder="123"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="payment-secure-note">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                    <span>Your payment information is encrypted and secure.</span>
+                                </div>
+
+                                <div className="billing-address-note">
+                                    <label>
+                                        <input type="checkbox" checked disabled />
+                                        Billing address same as shipping
+                                    </label>
+                                </div>
+
+                                <div className="form-actions">
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        onClick={() => setStep(1)}
+                                        disabled={processing}
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn-primary"
+                                        disabled={processing}
+                                    >
+                                        {processing ? (
+                                            <>
+                                                <span className="btn-spinner"></span>
+                                                Processing...
+                                            </>
+                                        ) : (
+                                            `Place Order • ${formatPrice(total)}`
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Order Summary */}
+                    <div className="order-summary">
+                        <h2>Order Summary</h2>
+                        <div className="summary-items">
+                            {cartItems.map(item => (
+                                <div key={item.id} className="summary-item">
+                                    <div className="item-image">
+                                        <img
+                                            src={item.imageUrl || 'https://via.placeholder.com/60?text=Product'}
+                                            alt={item.name}
+                                        />
+                                        <span className="item-quantity">{item.quantity}</span>
+                                    </div>
+                                    <div className="item-details">
+                                        <h4>{item.name}</h4>
+                                        <div className="item-price">{formatPrice(item.price)}</div>
+                                    </div>
+                                    <div className="item-subtotal">
+                                        {formatPrice(item.price * item.quantity)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="summary-totals">
+                            <div className="summary-row">
+                                <span>Subtotal</span>
+                                <span>{formatPrice(subtotal)}</span>
+                            </div>
+                            <div className="summary-row">
+                                <span>Shipping</span>
+                                <span>{formatPrice(shipping)}</span>
+                            </div>
+                            <div className="summary-row total">
+                                <span>Total</span>
+                                <span>{formatPrice(total)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
