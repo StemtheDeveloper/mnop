@@ -20,6 +20,7 @@ export const UserProvider = ({ children }) => {
     const [userRole, setUserRole] = useState(null);
     const [loading, setLoading] = useState(true);
     const [userProfile, setUserProfile] = useState(null);
+    const [authInitialized, setAuthInitialized] = useState(false);
     const auth = getAuth();
     const db = getFirestore();
 
@@ -62,6 +63,7 @@ export const UserProvider = ({ children }) => {
             }
 
             setLoading(false);
+            setAuthInitialized(true);
         });
 
         return unsubscribe;
@@ -102,10 +104,16 @@ export const UserProvider = ({ children }) => {
 
     // Check if user has specific role
     const hasRole = (role) => {
+        if (!currentUser) return false;
         if (role === USER_ROLES.ADMIN && userRole === USER_ROLES.ADMIN) {
             return true;
         }
         return userRole === role;
+    };
+
+    // Check if user is authenticated
+    const isAuthenticated = () => {
+        return !!currentUser;
     };
 
     const value = {
@@ -113,9 +121,11 @@ export const UserProvider = ({ children }) => {
         userRole,
         userProfile,
         loading,
+        authInitialized,
         updateUserRole,
         updateUserProfile,
         hasRole,
+        isAuthenticated,
         isAdmin: userRole === USER_ROLES.ADMIN,
         isInvestor: userRole === USER_ROLES.INVESTOR,
         isDesigner: userRole === USER_ROLES.DESIGNER,

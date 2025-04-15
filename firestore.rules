@@ -2,8 +2,119 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions for validation and authorization
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function belongsToUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function hasValidFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+    
+    // Users collection rules
+    match /users/{userId} {
+      // Allow users to read their own profile or admins to read any profile
+      allow read: if belongsToUser(userId) || isAdmin();
+      
+      // Allow users to create and update only their own profile
+      allow create, update: if belongsToUser(userId) &&
+        (!request.resource.data.keys().hasAny(['role']) || isAdmin());
+      
+      // Only admins can delete user profiles
+      allow delete: if isAdmin();
+    }
+    
+    // Products collection rules
+    match /products/{productId} {
+      // Anyone can read product data
+      allow read: if true;
+      
+      // Only admins and designers can create, update, or delete products
+      allow create, update, delete: if isSignedIn() && 
+        (isAdmin() || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'designer' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manufacturer');
+    }
+    
+    // Orders collection rules
+    match /orders/{orderId} {
+      // Users can only read their own orders, admins can read all
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Any signed-in user can create orders
+      allow create: if isSignedIn() && 
+        hasValidFields(['userId', 'items', 'status']) &&
+        request.resource.data.userId == request.auth.uid;
+      
+      // Only order owners can update their status to canceled, admins can update any field
+      allow update: if isSignedIn() &&
+        ((resource.data.userId == request.auth.uid && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+          request.resource.data.status == 'canceled') ||
+         isAdmin());
+      
+      // Only admins can delete orders
+      allow delete: if isAdmin();
+    }
+    
+    // Achievements collection rules
+    match /achievements/{achievementId} {
+      // Anyone can read achievement definitions
+      allow read: if true;
+      
+      // Only admins can create, update, or delete achievements
+      allow write: if isAdmin();
+    }
+    
+    // Carts collection rules
+    match /carts/{cartId} {
+      // Users can only access their own cart
+      allow read, write: if isSignedIn() &&
+        resource.data.userId == request.auth.uid;
+      
+      // New cart creation must include the user's ID
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Reviews collection rules
+    match /reviews/{reviewId} {
+      // Anyone can read reviews
+      allow read: if true;
+      
+      // Signed-in users can create reviews
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        hasValidFields(['userId', 'productId', 'rating', 'comment']);
+      
+      // Users can only update or delete their own reviews
+      allow update, delete: if isSignedIn() &&
+        resource.data.userId == request.auth.uid;
+    }
+    
+    // Categories collection rules
+    match /categories/{categoryId} {
+      // Anyone can read categories
+      allow read: if true;
+      
+      // Only admins can write to categories
+      allow write: if isAdmin();
+    }
+    
+    // Default deny all other collections
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
