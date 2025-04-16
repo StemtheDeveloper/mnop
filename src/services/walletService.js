@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   increment,
   Timestamp,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 
@@ -260,65 +261,163 @@ class WalletService {
   /**
    * Get transaction history for a user
    * @param {string} userId - User ID
-   * @param {number} maxResults - Maximum number of transactions to retrieve
-   * @returns {Promise<Array>} Transaction history
+   * @param {number} limit - Maximum number of transactions to return
+   * @returns {Promise<Array>} - Transaction history
    */
-  async getTransactionHistory(userId, maxResults = 50) {
+  async getTransactionHistory(userId, limitCount = 50) {
     try {
       const transactionsRef = collection(db, "transactions");
 
-      // First try using the ordered query with fallback logic
+      // Try using a simpler query first, then sort client-side to avoid index issues
+      let q = query(
+        transactionsRef,
+        where("userId", "==", userId),
+        limit(limitCount)
+      );
+
       try {
-        const q = query(
+        const snapshot = await getDocs(q);
+
+        // Sort on client side
+        const transactions = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        // Sort by createdAt in descending order (newest first)
+        return transactions.sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(0);
+          const dateB = b.createdAt?.toDate?.() || new Date(0);
+          return dateB - dateA;
+        });
+      } catch (error) {
+        // If there's an index error, log it and try without sorting
+        console.error(
+          "Index error for transactions. Falling back to unordered query:",
+          error
+        );
+
+        // Simpler query without ordering
+        q = query(
           transactionsRef,
           where("userId", "==", userId),
-          orderBy("createdAt", "desc"),
-          limit(maxResults)
+          limit(limitCount)
         );
 
         const snapshot = await getDocs(q);
 
-        return snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date(),
-        }));
-      } catch (indexError) {
-        // If index error occurs, fall back to unordered query
-        console.warn(
-          "Index error for transactions. Falling back to unordered query:",
-          indexError.message
-        );
-
-        const fallbackQuery = query(
-          transactionsRef,
-          where("userId", "==", userId),
-          limit(maxResults * 2) // Get more results since we'll sort client-side
-        );
-
-        const snapshot = await getDocs(fallbackQuery);
-
-        // Process transactions and sort client-side
+        // Sort on client side
         const transactions = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-          createdAt:
-            doc.data().createdAt instanceof Timestamp
-              ? doc.data().createdAt.toDate()
-              : doc.data().createdAt
-              ? new Date(doc.data().createdAt)
-              : new Date(),
         }));
 
-        // Sort by date (most recent first)
-        transactions.sort((a, b) => b.createdAt - a.createdAt);
-
-        // Return limited results
-        return transactions.slice(0, maxResults);
+        // Sort by createdAt in descending order (newest first)
+        return transactions.sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(0);
+          const dateB = b.createdAt?.toDate?.() || new Date(0);
+          return dateB - dateA;
+        });
       }
     } catch (error) {
       console.error("Error getting transaction history:", error);
       return [];
+    }
+  }
+
+  /**
+   * Fund a product (invest in it)
+   * @param {string} userId - Investor's user ID
+   * @param {string} productId - Product ID
+   * @param {number} amount - Amount to invest
+   * @param {Object} productData - Product data
+   * @returns {Promise<Object>} - Result of investment
+   */
+  async fundProduct(userId, productId, amount, productData) {
+    try {
+      // Check if user has sufficient funds
+      const walletDoc = await this.getUserWallet(userId);
+
+      if (!walletDoc || walletDoc.balance < amount) {
+        return {
+          success: false,
+          error: "Insufficient funds for this investment",
+        };
+      }
+
+      // Get full product data if designerId is missing
+      let designerId;
+      if (!productData.designerId) {
+        try {
+          const productRef = doc(db, "products", productId);
+          const productDoc = await getDoc(productRef);
+          if (productDoc.exists()) {
+            designerId = productDoc.data().designerId;
+          }
+        } catch (err) {
+          console.error("Error fetching complete product data:", err);
+        }
+      } else {
+        designerId = productData.designerId;
+      }
+
+      // Begin transaction to update wallet, add investment, and update product funding
+      const batch = writeBatch(db);
+
+      // 1. Deduct from wallet
+      const walletRef = doc(db, "wallets", userId);
+      batch.update(walletRef, {
+        balance: increment(-amount),
+      });
+
+      // 2. Create investment record
+      const investmentRef = doc(collection(db, "investments"));
+      batch.set(investmentRef, {
+        userId,
+        productId,
+        designerId, // This might still be undefined, but at least we tried to get it
+        amount,
+        createdAt: serverTimestamp(),
+        status: "completed",
+        transactionId: investmentRef.id,
+        productName: productData.name || "Unknown Product",
+      });
+
+      // 3. Update product funding
+      const productRef = doc(db, "products", productId);
+      batch.update(productRef, {
+        currentFunding: increment(amount),
+        investorCount: increment(1),
+        lastFundedAt: serverTimestamp(),
+      });
+
+      // 4. Add transaction record
+      const transactionRef = doc(collection(db, "transactions"));
+      batch.set(transactionRef, {
+        userId,
+        amount: -amount,
+        type: "investment",
+        description: `Investment in ${productData.name || "product"}`,
+        productId,
+        createdAt: serverTimestamp(),
+        status: "completed",
+      });
+
+      // Commit all changes
+      await batch.commit();
+
+      return {
+        success: true,
+        message: `Successfully invested $${amount} in ${productData.name}`,
+        investmentId: investmentRef.id,
+        newTotal: amount, // Return the amount to indicate new funding total
+      };
+    } catch (error) {
+      console.error("Error funding product:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to process investment",
+      };
     }
   }
 }

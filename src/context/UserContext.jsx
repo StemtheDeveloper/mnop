@@ -135,8 +135,8 @@ export const UserProvider = ({ children }) => {
             const result = await walletService.fundProduct(
                 currentUser.uid,
                 productId,
-                productName,
-                parseFloat(amount)
+                parseFloat(amount),
+                { name: productName } // Pass product data as an object containing the name
             );
 
             // Update wallet state after funding
