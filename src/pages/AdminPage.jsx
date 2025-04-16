@@ -8,6 +8,7 @@ import InterestRateAdminPanel from '../components/admin/InterestRateAdminPanel';
 import MarketRatesPanel from '../components/admin/MarketRatesPanel';
 import ProductArchivePanel from '../components/admin/ProductArchivePanel';
 import TrendingProductsPanel from '../components/admin/TrendingProductsPanel';
+import ProductApprovalPanel from '../components/admin/ProductApprovalPanel';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -876,6 +877,7 @@ const AdminPage = () => {
                         {activeTab === 'products' && (
                             <div className="products-tab">
                                 <h2>Products Management</h2>
+                                <ProductApprovalPanel />
                                 <TrendingProductsPanel />
                                 <ProductArchivePanel />
                                 {/* Other product management components */}

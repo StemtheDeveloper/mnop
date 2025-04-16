@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
@@ -9,6 +9,18 @@ import ImageCropper from '../components/ImageCropper';
 import useAchievements from '../hooks/useAchievements';
 import '../styles/ProductUpload.css';
 
+// Default categories in case Firestore fetch fails
+const DEFAULT_CATEGORIES = [
+    { id: 'furniture', name: 'Furniture' },
+    { id: 'electronics', name: 'Electronics' },
+    { id: 'clothing', name: 'Clothing' },
+    { id: 'kitchenware', name: 'Kitchenware' },
+    { id: 'toys', name: 'Toys & Games' },
+    { id: 'decor', name: 'Home Decor' },
+    { id: 'gadgets', name: 'Gadgets' },
+    { id: 'outdoor', name: 'Outdoor' }
+];
+
 const ProductUploadPage = () => {
     const navigate = useNavigate();
     const { currentUser, userRole, userProfile } = useUser();
@@ -16,6 +28,8 @@ const ProductUploadPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [requireApproval, setRequireApproval] = useState(true);
+    const [successMessage, setSuccessMessage] = useState('');
 
     // Product form state
     const [formData, setFormData] = useState({
@@ -24,6 +38,7 @@ const ProductUploadPage = () => {
         price: '',
         category: '',
         fundingGoal: '',
+        customCategory: '',  // New field for custom category
     });
 
     // Image handling state
@@ -36,6 +51,7 @@ const ProductUploadPage = () => {
     // Categories state
     const [categories, setCategories] = useState([]);
     const [loadingCategories, setLoadingCategories] = useState(true);
+    const [useCustomCategory, setUseCustomCategory] = useState(false);
 
     // Check if user has designer role
     const isDesigner = userRole && (
@@ -54,15 +70,44 @@ const ProductUploadPage = () => {
                     id: doc.id,
                     ...doc.data()
                 }));
-                setCategories(categoriesData);
+
+                // Use fetched categories if available, otherwise use defaults
+                if (categoriesData.length > 0) {
+                    setCategories(categoriesData);
+                } else {
+                    setCategories(DEFAULT_CATEGORIES);
+                    console.log('Using default categories as fallback');
+                }
             } catch (err) {
                 console.error('Error fetching categories:', err);
+                // Use default categories as fallback
+                setCategories(DEFAULT_CATEGORIES);
+                console.log('Using default categories due to fetch error');
             } finally {
                 setLoadingCategories(false);
             }
         };
 
         fetchCategories();
+    }, []);
+
+    // Fetch approval setting on component mount
+    useEffect(() => {
+        const fetchApprovalSetting = async () => {
+            try {
+                const settingsRef = doc(db, 'settings', 'productSettings');
+                const settingsSnap = await getDoc(settingsRef);
+
+                if (settingsSnap.exists()) {
+                    setRequireApproval(settingsSnap.data().requireApproval ?? true);
+                }
+            } catch (err) {
+                console.error('Error fetching approval settings:', err);
+                // Default to requiring approval if there's an error
+            }
+        };
+
+        fetchApprovalSetting();
     }, []);
 
     // Handle form input changes
@@ -80,8 +125,30 @@ const ProductUploadPage = () => {
                 : numericValue;
 
             setFormData({ ...formData, [name]: formattedValue });
-        } else {
+        }
+        // Handle category selection with special case for 'custom'
+        else if (name === 'category') {
+            if (value === 'custom') {
+                setUseCustomCategory(true);
+                setFormData({ ...formData, [name]: value });
+            } else {
+                setUseCustomCategory(false);
+                setFormData({ ...formData, [name]: value });
+            }
+        }
+        else {
             setFormData({ ...formData, [name]: value });
+        }
+    };
+
+    // Toggle custom category
+    const toggleCustomCategory = () => {
+        const newValue = !useCustomCategory;
+        setUseCustomCategory(newValue);
+        if (newValue) {
+            setFormData(prev => ({ ...prev, category: 'custom' }));
+        } else {
+            setFormData(prev => ({ ...prev, category: '', customCategory: '' }));
         }
     };
 
@@ -147,7 +214,13 @@ const ProductUploadPage = () => {
             return false;
         }
 
-        if (!formData.category) {
+        // Validate category: either regular category is selected or custom category is provided
+        if (useCustomCategory) {
+            if (!formData.customCategory.trim()) {
+                setError('Please enter a custom category');
+                return false;
+            }
+        } else if (!formData.category) {
             setError('Please select a category');
             return false;
         }
@@ -204,11 +277,12 @@ const ProductUploadPage = () => {
                 description: formData.description,
                 price: parseFloat(formData.price),
                 fundingGoal: parseFloat(formData.fundingGoal),
-                category: formData.category,
+                category: useCustomCategory ? formData.customCategory.trim() : formData.category,
+                categoryType: useCustomCategory ? 'custom' : 'standard',
                 imageUrl: imageUrl, // Store the image URL from Firebase Storage
                 designerId: currentUser.uid,
                 designerName: userProfile?.displayName || 'Designer',
-                status: 'pending', // Initial product status
+                status: requireApproval ? 'pending' : 'active', // Set status based on approval setting
                 currentFunding: 0, // Initial funding amount
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
@@ -216,20 +290,52 @@ const ProductUploadPage = () => {
             };
 
             console.log('Creating Firestore document with data:', { ...productData, imageUrl: 'URL logged above' });
+
+            // If it's a custom category, add it to the categories collection
+            if (useCustomCategory && formData.customCategory.trim()) {
+                const customCategoryData = {
+                    name: formData.customCategory.trim(),
+                    createdAt: serverTimestamp(),
+                    createdBy: currentUser.uid,
+                    type: 'user-created'
+                };
+
+                try {
+                    const categoryRef = await addDoc(collection(db, 'categories'), customCategoryData);
+                    console.log('Added custom category with ID:', categoryRef.id);
+
+                    // Use the new category ID instead
+                    productData.category = categoryRef.id;
+                    productData.categoryType = 'standard'; // now it's stored in the database
+                } catch (categoryError) {
+                    console.error('Failed to add custom category, using text value instead:', categoryError);
+                }
+            }
+
             const docRef = await addDoc(collection(db, 'products'), productData);
             console.log('Firestore document created with ID:', docRef.id);
 
+            // Success message based on approval setting
+            if (requireApproval) {
+                setSuccess(true);
+                setSuccessMessage("Product submitted for approval! It will appear in the shop once approved.");
+            } else {
+                setSuccess(true);
+                setSuccessMessage("Product created successfully! It is now live in the shop.");
+            }
+
             // Success! Reset form and show success message
-            setSuccess(true);
             setFormData({
                 name: '',
                 description: '',
                 price: '',
                 category: '',
+                customCategory: '',
                 fundingGoal: '',
             });
             setProductImage(null);
             setImagePreview('');
+            setUseCustomCategory(false);
 
             // On successful upload, check for achievements
             await checkProductAchievements();
@@ -286,7 +392,9 @@ const ProductUploadPage = () => {
                 <h1>Upload New Product</h1>
 
                 {error && <div className="error-message">{error}</div>}
-                {success && <div className="success-message">Product created successfully! Redirecting...</div>}
+                {success && <div className="success-message">
+                    {successMessage || "Product created successfully! Redirecting..."}
+                </div>}
 
                 {showImageCropper && (
                     <ImageCropper
@@ -358,22 +466,66 @@ const ProductUploadPage = () => {
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="category">Category*</label>
-                                <select
-                                    id="category"
-                                    name="category"
-                                    value={formData.category}
-                                    onChange={handleChange}
-                                    disabled={loading || loadingCategories}
-                                >
-                                    <option value="">Select a category</option>
-                                    {categories.map(category => (
-                                        <option key={category.id} value={category.id}>
-                                            {category.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                {loadingCategories && <span className="loading-text">Loading categories...</span>}
+                                <div className="category-selection">
+                                    <div className="category-toggle">
+                                        <label htmlFor="useExistingCategory">
+                                            <input
+                                                type="radio"
+                                                id="useExistingCategory"
+                                                name="categoryToggle"
+                                                checked={!useCustomCategory}
+                                                onChange={() => toggleCustomCategory()}
+                                                disabled={loading}
+                                            />
+                                            Use existing category
+                                        </label>
+                                        <label htmlFor="useCustomCategory">
+                                            <input
+                                                type="radio"
+                                                id="useCustomCategory"
+                                                name="categoryToggle"
+                                                checked={useCustomCategory}
+                                                onChange={() => toggleCustomCategory()}
+                                                disabled={loading}
+                                            />
+                                            Create custom category
+                                        </label>
+                                    </div>
+
+                                    {!useCustomCategory ? (
+                                        <>
+                                            <label htmlFor="category">Category*</label>
+                                            <select
+                                                id="category"
+                                                name="category"
+                                                value={formData.category}
+                                                onChange={handleChange}
+                                                disabled={loading || loadingCategories || useCustomCategory}
+                                            >
+                                                <option value="">Select a category</option>
+                                                {categories.map(category => (
+                                                    <option key={category.id} value={category.id}>
+                                                        {category.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {loadingCategories && <span className="loading-text">Loading categories...</span>}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <label htmlFor="customCategory">Custom Category*</label>
+                                            <input
+                                                type="text"
+                                                id="customCategory"
+                                                name="customCategory"
+                                                value={formData.customCategory}
+                                                onChange={handleChange}
+                                                placeholder="Enter a new category name"
+                                                disabled={loading || !useCustomCategory}
+                                            />
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
