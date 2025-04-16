@@ -4,6 +4,7 @@ import { collection, getDocs, query, where, orderBy, limit, startAfter } from 'f
 import { db } from '../config/firebase';
 import ProductCard from '../components/ProductCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useNavigate } from 'react-router-dom';
 import '../styles/ShopPage.css';
 
 const ShopPage = () => {
@@ -13,6 +14,7 @@ const ShopPage = () => {
     const [lastVisible, setLastVisible] = useState(null);
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const navigate = useNavigate();
 
     // Filter and sort states
     const [category, setCategory] = useState('all');
@@ -237,6 +239,11 @@ const ShopPage = () => {
         setSortBy('newest');
     };
 
+    // Product navigation handler
+    const handleProductClick = (productId) => {
+        navigate(`/product/${productId}`);
+    };
+
     // Display loading state
     if (loading && !loadingMore) {
         return (
@@ -342,12 +349,12 @@ const ShopPage = () => {
                 {products.length > 0 ? (
                     <div className="products-grid">
                         {products.map(product => (
-                            <Link
-                                to={`/products/${product.id}`}
+                            <div
                                 key={product.id}
                                 className="product-link"
                             >
                                 <ProductCard
+                                    id={product.id}
                                     image={product.imageUrl || 'https://via.placeholder.com/300'}
                                     title={product.name || 'Unnamed Product'}
                                     description={product.description?.slice(0, 100) || 'No description'}
@@ -356,9 +363,13 @@ const ShopPage = () => {
                                     reviewCount={product.reviewCount || 0}
                                     viewers={product.activeViewers || 0}
                                     fundingProgress={product.currentFunding ? (product.currentFunding / product.fundingGoal) * 100 : 0}
+                                    currentFunding={product.currentFunding || 0}
                                     fundingGoal={product.fundingGoal || 0}
+                                    status={product.status}
+                                    designerId={product.designerId}
+                                    onClick={() => handleProductClick(product.id)}
                                 />
-                            </Link>
+                            </div>
                         ))}
                     </div>
                 ) : (

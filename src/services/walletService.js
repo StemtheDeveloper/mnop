@@ -1,362 +1,324 @@
 import {
+  collection,
   doc,
   getDoc,
-  setDoc,
-  updateDoc,
-  increment,
-  collection,
+  getDocs,
   addDoc,
+  updateDoc,
+  setDoc,
   query,
   where,
   orderBy,
-  getDocs,
+  limit,
   serverTimestamp,
+  increment,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 
 class WalletService {
   /**
-   * Initialize or get a user's wallet
-   * @param {string} userId - The user's ID
-   * @returns {Promise<Object>} - The wallet data or error
+   * Get a user's wallet
+   * @param {string} userId - User ID
+   * @returns {Promise<Object|null>} Wallet data or null if not found
    */
-  async initializeWallet(userId) {
+  async getUserWallet(userId) {
     try {
-      // Check if wallet already exists
-      const walletRef = doc(db, "users", userId);
-      const userDoc = await getDoc(walletRef);
+      const walletRef = doc(db, "wallets", userId);
+      const walletDoc = await getDoc(walletRef);
 
-      if (userDoc.exists() && userDoc.data().wallet) {
-        // Wallet already exists, return it
-        return {
-          success: true,
-          data: userDoc.data().wallet,
-        };
-      }
-
-      // Create new wallet with default values
-      const newWallet = {
-        balance: 1000, // Starting amount (1000 credits)
-        lastUpdated: serverTimestamp(),
-        transactions: [],
-      };
-
-      // Update the user document with the new wallet
-      await updateDoc(walletRef, {
-        wallet: newWallet,
-        updatedAt: serverTimestamp(),
-      });
-
-      // Create first transaction
-      await this.recordTransaction(userId, {
-        type: "credit",
-        amount: 1000,
-        description: "Welcome bonus",
-        status: "completed",
-      });
-
-      return {
-        success: true,
-        data: newWallet,
-      };
-    } catch (error) {
-      console.error("Error initializing wallet:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * Get a user's wallet balance
-   * @param {string} userId - The user's ID
-   * @returns {Promise<Object>} - The wallet data or error
-   */
-  async getWalletBalance(userId) {
-    try {
-      const walletRef = doc(db, "users", userId);
-      const userDoc = await getDoc(walletRef);
-
-      if (!userDoc.exists() || !userDoc.data().wallet) {
-        // Initialize wallet if it doesn't exist
+      if (!walletDoc.exists()) {
         return await this.initializeWallet(userId);
       }
 
-      return {
-        success: true,
-        data: userDoc.data().wallet,
+      return walletDoc.data();
+    } catch (error) {
+      console.error("Error getting wallet:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize a wallet for a new user
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} The initialized wallet
+   */
+  async initializeWallet(userId) {
+    try {
+      const walletData = {
+        balance: 1000, // Starting balance for new users
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
+
+      const walletRef = doc(db, "wallets", userId);
+      await setDoc(walletRef, walletData);
+
+      // Create an initial transaction record
+      await this.recordTransaction(userId, {
+        type: "deposit",
+        amount: 1000,
+        description: "Welcome bonus!",
+        status: "completed",
+      });
+
+      return walletData;
+    } catch (error) {
+      console.error("Error initializing wallet:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get wallet balance
+   * @param {string} userId - User ID
+   * @returns {Promise<number>} Wallet balance
+   */
+  async getWalletBalance(userId) {
+    try {
+      const wallet = await this.getUserWallet(userId);
+      return wallet ? wallet.balance : 0;
     } catch (error) {
       console.error("Error getting wallet balance:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      return 0;
     }
   }
 
   /**
-   * Add credits to a user's wallet
-   * @param {string} userId - The user's ID
-   * @param {number} amount - The amount to add
-   * @param {string} description - Description of the transaction
-   * @returns {Promise<Object>} - The updated wallet data or error
-   */
-  async addCredits(userId, amount, description) {
-    try {
-      // Make sure amount is positive
-      if (amount <= 0) {
-        throw new Error("Amount must be greater than zero");
-      }
-
-      // Get wallet reference
-      const walletRef = doc(db, "users", userId);
-      const userDoc = await getDoc(walletRef);
-
-      if (!userDoc.exists() || !userDoc.data().wallet) {
-        // Initialize wallet if it doesn't exist
-        await this.initializeWallet(userId);
-      }
-
-      // Update the wallet balance with the increment function
-      await updateDoc(walletRef, {
-        "wallet.balance": increment(amount),
-        "wallet.lastUpdated": serverTimestamp(),
-      });
-
-      // Record the transaction
-      await this.recordTransaction(userId, {
-        type: "credit",
-        amount,
-        description,
-        status: "completed",
-      });
-
-      // Get updated wallet
-      const updatedDoc = await getDoc(walletRef);
-
-      return {
-        success: true,
-        data: updatedDoc.data().wallet,
-      };
-    } catch (error) {
-      console.error("Error adding credits:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * Subtract credits from a user's wallet
-   * @param {string} userId - The user's ID
-   * @param {number} amount - The amount to subtract
-   * @param {string} description - Description of the transaction
-   * @returns {Promise<Object>} - The updated wallet data or error
-   */
-  async subtractCredits(userId, amount, description) {
-    try {
-      // Make sure amount is positive
-      if (amount <= 0) {
-        throw new Error("Amount must be greater than zero");
-      }
-
-      // Get wallet
-      const {
-        success,
-        data: wallet,
-        error,
-      } = await this.getWalletBalance(userId);
-
-      if (!success) {
-        throw new Error(error || "Could not get wallet");
-      }
-
-      // Check if there are sufficient funds
-      if (wallet.balance < amount) {
-        return {
-          success: false,
-          error: "Insufficient funds in wallet",
-        };
-      }
-
-      // Update the wallet balance with the increment function (negative amount)
-      const walletRef = doc(db, "users", userId);
-      await updateDoc(walletRef, {
-        "wallet.balance": increment(-amount),
-        "wallet.lastUpdated": serverTimestamp(),
-      });
-
-      // Record the transaction
-      await this.recordTransaction(userId, {
-        type: "debit",
-        amount,
-        description,
-        status: "completed",
-      });
-
-      // Get updated wallet
-      const updatedDoc = await getDoc(walletRef);
-
-      return {
-        success: true,
-        data: updatedDoc.data().wallet,
-      };
-    } catch (error) {
-      console.error("Error subtracting credits:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * Transfer credits from one user to another
-   * @param {string} fromUserId - The sender's user ID
-   * @param {string} toUserId - The recipient's user ID
-   * @param {number} amount - The amount to transfer
-   * @param {string} description - Description of the transaction
-   * @returns {Promise<Object>} - Result of the transfer operation
-   */
-  async transferCredits(fromUserId, toUserId, amount, description) {
-    try {
-      // Make sure amount is positive
-      if (amount <= 0) {
-        throw new Error("Amount must be greater than zero");
-      }
-
-      // Check if sender has sufficient funds
-      const {
-        success,
-        data: senderWallet,
-        error,
-      } = await this.getWalletBalance(fromUserId);
-
-      if (!success) {
-        throw new Error(error || "Could not get sender's wallet");
-      }
-
-      if (senderWallet.balance < amount) {
-        return {
-          success: false,
-          error: "Insufficient funds for transfer",
-        };
-      }
-
-      // Subtract from sender
-      const subtractResult = await this.subtractCredits(
-        fromUserId,
-        amount,
-        `Transfer to user: ${description}`
-      );
-
-      if (!subtractResult.success) {
-        return subtractResult;
-      }
-
-      // Add to recipient
-      const addResult = await this.addCredits(
-        toUserId,
-        amount,
-        `Transfer from user: ${description}`
-      );
-
-      if (!addResult.success) {
-        // If adding to recipient fails, refund the sender
-        await this.addCredits(fromUserId, amount, "Refund: Failed transfer");
-        return addResult;
-      }
-
-      return {
-        success: true,
-        data: {
-          from: subtractResult.data,
-          to: addResult.data,
-        },
-      };
-    } catch (error) {
-      console.error("Error transferring credits:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-
-  /**
-   * Record a transaction in the transactions collection
-   * @param {string} userId - The user's ID
-   * @param {Object} transactionData - Transaction details
-   * @returns {Promise<Object>} - The transaction record or error
+   * Record a transaction in the user's history
+   * @param {string} userId - User ID
+   * @param {Object} transactionData - Transaction data
+   * @returns {Promise<Object>} Transaction document
    */
   async recordTransaction(userId, transactionData) {
     try {
-      // Create transaction record
+      const transactionRef = collection(db, "transactions");
+
       const transaction = {
         userId,
         ...transactionData,
         createdAt: serverTimestamp(),
       };
 
-      // Add to transactions collection
-      const transactionsRef = collection(db, "transactions");
-      const docRef = await addDoc(transactionsRef, transaction);
+      const docRef = await addDoc(transactionRef, transaction);
 
       return {
-        success: true,
-        data: {
-          id: docRef.id,
-          ...transaction,
-        },
+        id: docRef.id,
+        ...transaction,
       };
     } catch (error) {
       console.error("Error recording transaction:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      throw error;
+    }
+  }
+
+  /**
+   * Transfer funds to another user
+   * @param {string} fromUserId - Sender user ID
+   * @param {string} toEmail - Recipient email address
+   * @param {number} amount - Amount to transfer
+   * @param {string} note - Transfer note
+   * @returns {Promise<Object>} Result with success status
+   */
+  async transferFunds(fromUserId, toEmail, amount, note = "") {
+    try {
+      // First find the recipient by email
+      const usersRef = collection(db, "users");
+      const recipientQuery = query(usersRef, where("email", "==", toEmail));
+      const recipientSnapshot = await getDocs(recipientQuery);
+
+      if (recipientSnapshot.empty) {
+        return { success: false, error: "Recipient not found" };
+      }
+
+      // Get recipient user ID
+      const recipient = recipientSnapshot.docs[0];
+      const toUserId = recipient.id;
+
+      // Don't allow transfers to self
+      if (fromUserId === toUserId) {
+        return { success: false, error: "Cannot transfer to yourself" };
+      }
+
+      // Check sender balance
+      const fromWallet = await this.getUserWallet(fromUserId);
+      if (!fromWallet || fromWallet.balance < amount) {
+        return { success: false, error: "Insufficient funds" };
+      }
+
+      // Initialize recipient wallet if needed
+      await this.getUserWallet(toUserId);
+
+      // Update sender's wallet (deduct amount)
+      const fromWalletRef = doc(db, "wallets", fromUserId);
+      await updateDoc(fromWalletRef, {
+        balance: increment(-amount),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Record debit transaction
+      await this.recordTransaction(fromUserId, {
+        type: "transfer",
+        amount: -amount,
+        description: `Transfer to ${toEmail}${note ? ": " + note : ""}`,
+        status: "completed",
+        recipientId: toUserId,
+        recipientEmail: toEmail,
+      });
+
+      // Update recipient's wallet (add amount)
+      const toWalletRef = doc(db, "wallets", toUserId);
+      await updateDoc(toWalletRef, {
+        balance: increment(amount),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Record credit transaction for recipient
+      await this.recordTransaction(toUserId, {
+        type: "transfer",
+        amount: amount,
+        description: `Transfer from ${fromUserId}${note ? ": " + note : ""}`,
+        status: "completed",
+        senderId: fromUserId,
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error transferring funds:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Simulate depositing funds into a wallet (for demo purposes)
+   * @param {string} userId - User ID
+   * @param {number} amount - Amount to deposit
+   * @param {string} description - Transaction description
+   * @returns {Promise<Object>} Result with success status
+   */
+  async simulateDeposit(userId, amount, description = "Deposit") {
+    try {
+      // Update the wallet balance
+      const walletRef = doc(db, "wallets", userId);
+      await updateDoc(walletRef, {
+        balance: increment(amount),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Record the transaction
+      await this.recordTransaction(userId, {
+        type: "deposit",
+        amount: amount,
+        description,
+        status: "completed",
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error simulating deposit:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Deduct funds from a user's wallet (for payments, etc.)
+   * @param {string} userId - User ID
+   * @param {number} amount - Amount to deduct
+   * @param {string} description - Transaction description
+   * @returns {Promise<Object>} Result with success status
+   */
+  async deductFunds(userId, amount, description = "Payment") {
+    try {
+      // Check wallet balance first
+      const wallet = await this.getUserWallet(userId);
+      if (wallet.balance < amount) {
+        return { success: false, error: "Insufficient funds" };
+      }
+
+      // Update the wallet balance
+      const walletRef = doc(db, "wallets", userId);
+      await updateDoc(walletRef, {
+        balance: increment(-amount),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Record the transaction
+      await this.recordTransaction(userId, {
+        type: "purchase",
+        amount: -amount,
+        description,
+        status: "completed",
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error deducting funds:", error);
+      throw error;
     }
   }
 
   /**
    * Get transaction history for a user
-   * @param {string} userId - The user's ID
-   * @param {number} limit - Number of transactions to fetch (default: 20)
-   * @returns {Promise<Object>} - The transaction history or error
+   * @param {string} userId - User ID
+   * @param {number} maxResults - Maximum number of transactions to retrieve
+   * @returns {Promise<Array>} Transaction history
    */
-  async getTransactionHistory(userId, limit = 20) {
+  async getTransactionHistory(userId, maxResults = 50) {
     try {
       const transactionsRef = collection(db, "transactions");
-      const q = query(
-        transactionsRef,
-        where("userId", "==", userId),
-        orderBy("createdAt", "desc"),
-        limit(limit)
-      );
 
-      const snapshot = await getDocs(q);
-      const transactions = [];
+      // First try using the ordered query with fallback logic
+      try {
+        const q = query(
+          transactionsRef,
+          where("userId", "==", userId),
+          orderBy("createdAt", "desc"),
+          limit(maxResults)
+        );
 
-      snapshot.forEach((doc) => {
-        transactions.push({
+        const snapshot = await getDocs(q);
+
+        return snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        });
-      });
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+        }));
+      } catch (indexError) {
+        // If index error occurs, fall back to unordered query
+        console.warn(
+          "Index error for transactions. Falling back to unordered query:",
+          indexError.message
+        );
 
-      return {
-        success: true,
-        data: transactions,
-      };
+        const fallbackQuery = query(
+          transactionsRef,
+          where("userId", "==", userId),
+          limit(maxResults * 2) // Get more results since we'll sort client-side
+        );
+
+        const snapshot = await getDocs(fallbackQuery);
+
+        // Process transactions and sort client-side
+        const transactions = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt:
+            doc.data().createdAt instanceof Timestamp
+              ? doc.data().createdAt.toDate()
+              : doc.data().createdAt
+              ? new Date(doc.data().createdAt)
+              : new Date(),
+        }));
+
+        // Sort by date (most recent first)
+        transactions.sort((a, b) => b.createdAt - a.createdAt);
+
+        // Return limited results
+        return transactions.slice(0, maxResults);
+      }
     } catch (error) {
-      console.error("Error fetching transaction history:", error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      console.error("Error getting transaction history:", error);
+      return [];
     }
   }
 }

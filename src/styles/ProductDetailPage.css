@@ -295,6 +295,132 @@
   gap: 20px;
 }
 
+/* Funding section */
+.product-funding {
+  margin: 25px 0;
+  padding: 20px;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.funding-stats {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.funding-goal {
+  color: #666;
+}
+
+.funding-progress-bar {
+  height: 10px;
+  background-color: #e0e0e0;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.funding-progress-bar .progress {
+  height: 100%;
+  background-color: #4caf50;
+  transition: width 0.3s ease;
+}
+
+.funding-percentage {
+  text-align: center;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.funding-form {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px dashed #ddd;
+}
+
+.funding-form h4 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.funding-input-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.funding-input-wrapper {
+  position: relative;
+  flex-grow: 1;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+}
+
+.funding-input-wrapper input {
+  width: 100%;
+  padding: 10px 10px 10px 25px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.fund-button {
+  background-color: #4a6cf7;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.fund-button:hover {
+  background-color: #3a5ce5;
+}
+
+.fund-button:disabled {
+  background-color: #a0a0a0;
+  cursor: not-allowed;
+}
+
+.funding-wallet-balance {
+  font-size: 0.9rem;
+  color: #666;
+  text-align: right;
+  margin-top: 5px;
+}
+
+.funding-complete-message {
+  background-color: #e8f5e9;
+  color: #1b5e20;
+  padding: 12px;
+  border-radius: 4px;
+  text-align: center;
+  font-weight: 500;
+  margin-top: 15px;
+}
+
+.add-to-cart-button.disabled {
+  background-color: #e0e0e0;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.add-to-cart-button.disabled:hover {
+  background-color: #e0e0e0;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .product-actions {

@@ -9,6 +9,8 @@ import MarketRatesPanel from '../components/admin/MarketRatesPanel';
 import ProductArchivePanel from '../components/admin/ProductArchivePanel';
 import TrendingProductsPanel from '../components/admin/TrendingProductsPanel';
 import ProductApprovalPanel from '../components/admin/ProductApprovalPanel';
+import PaymentSettingsPanel from '../components/admin/PaymentSettingsPanel';
+import FirestoreIndexHelper from '../components/admin/FirestoreIndexHelper';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -644,6 +646,12 @@ const AdminPage = () => {
                         >
                             Settings
                         </button>
+                        <button
+                            className={`tab-button ${activeTab === 'database' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('database')}
+                        >
+                            Database
+                        </button>
                     </div>
 
                     <div className="tab-content">
@@ -888,6 +896,7 @@ const AdminPage = () => {
                             <div className="finance-tab">
                                 <h2>Financial Management</h2>
 
+                                <PaymentSettingsPanel />
                                 <MarketRatesPanel />
                                 <InterestRateAdminPanel />
 
@@ -898,6 +907,60 @@ const AdminPage = () => {
                         {activeTab === 'settings' && (
                             <div className="settings-tab">
                                 {/* Existing Settings Content */}
+                            </div>
+                        )}
+
+                        {activeTab === 'database' && (
+                            <div className="database-tab">
+                                <h2>Database Management</h2>
+                                <FirestoreIndexHelper />
+
+                                <div className="admin-section">
+                                    <h2>Database Maintenance</h2>
+                                    <div className="admin-card">
+                                        <h3>Role Structure Migration</h3>
+                                        <p>
+                                            Update user documents to convert from single "role" field to an array of "roles".
+                                            This is recommended for enabling users to have multiple roles.
+                                        </p>
+                                        <button
+                                            className="admin-button"
+                                            onClick={updateRoleStructure}
+                                            disabled={loading}
+                                        >
+                                            {loading && operation === 'role-migration' ? 'Processing...' : 'Migrate Role Structure'}
+                                        </button>
+                                    </div>
+
+                                    <div className="admin-card">
+                                        <h3>Cleanup Orphaned Data</h3>
+                                        <p>
+                                            Scan for and remove orphaned data such as roles for non-existent users
+                                            or references to deleted documents.
+                                        </p>
+                                        <button
+                                            className="admin-button secondary"
+                                            onClick={cleanupOrphanedData}
+                                            disabled={loading}
+                                        >
+                                            {loading && operation === 'cleanup' ? 'Processing...' : 'Cleanup Data'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {result.message && (
+                                    <div className={`result-panel ${result.success ? 'success' : 'error'}`}>
+                                        <h3>{result.success ? 'Success' : 'Error'}</h3>
+                                        <p>{result.message}</p>
+
+                                        {result.details && (
+                                            <div className="details-section">
+                                                <h4>Operation Details:</h4>
+                                                <pre>{JSON.stringify(result.details, null, 2)}</pre>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

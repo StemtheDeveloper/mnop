@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import InvestmentModal from '../components/InvestmentModal';
 import TrendingExtensionButton from '../components/TrendingExtensionButton';
@@ -11,60 +12,139 @@ import '../styles/ProductDetailPage.css';
 
 const ProductDetailPage = () => {
     const { productId } = useParams();
-    const { currentUser, hasRole } = useUser();
+    const { currentUser, hasRole, userWallet, fundProduct } = useUser();
+    const { showSuccess, showError } = useToast();
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showInvestModal, setShowInvestModal] = useState(false);
+    const [fundAmount, setFundAmount] = useState('');
+    const [isFunding, setIsFunding] = useState(false);
+
+    // Calculate if product is fully funded
+    const isFullyFunded = product && product.currentFunding >= product.fundingGoal;
+
+    // Calculate remaining funding needed
+    const remainingFunding = product ? Math.max(0, product.fundingGoal - product.currentFunding) : 0;
 
     useEffect(() => {
         // Track product view when component mounts
         const trackView = async () => {
-            if (productId && (!currentUser || currentUser.uid !== product?.designerId)) {
-                await productTrendingService.trackProductView(
-                    productId,
-                    currentUser ? currentUser.uid : null
-                );
+            if (productId && currentUser && product && currentUser.uid !== product.designerId) {
+                try {
+                    await productTrendingService.trackProductView(productId);
+                } catch (err) {
+                    console.error('Error tracking product view:', err);
+                }
             }
         };
 
-        if (product) {
-            trackView();
-        }
-    }, [productId, product, currentUser]);
+        // Get product details
+        const fetchProduct = async () => {
+            try {
+                const productRef = doc(db, 'products', productId);
+                const productDoc = await getDoc(productRef);
 
-    useEffect(() => {
-        if (!productId) return;
-
-        setLoading(true);
-        setError(null);
-
-        // Set up real-time listener for product updates
-        const productRef = doc(db, 'products', productId);
-
-        const unsubscribe = onSnapshot(
-            productRef,
-            (doc) => {
-                if (doc.exists()) {
-                    setProduct({ id: doc.id, ...doc.data() });
-                } else {
+                if (!productDoc.exists()) {
                     setError('Product not found');
+                    setLoading(false);
+                    return;
                 }
+
+                setProduct({
+                    id: productDoc.id,
+                    ...productDoc.data()
+                });
                 setLoading(false);
-            },
-            (err) => {
+            } catch (err) {
                 console.error('Error fetching product:', err);
-                setError('Error loading product');
+                setError('Error loading product details');
                 setLoading(false);
             }
-        );
+        };
 
-        // Clean up listener on unmount
-        return () => unsubscribe();
-    }, [productId]);
+        if (productId) {
+            fetchProduct();
+
+            // Set up real-time listener for product updates
+            const productRef = doc(db, 'products', productId);
+            const unsubscribe = onSnapshot(productRef, (doc) => {
+                if (doc.exists()) {
+                    setProduct({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                    setLoading(false);
+                } else {
+                    setError('Product not found');
+                    setLoading(false);
+                }
+            }, (error) => {
+                console.error("Error listening to product:", error);
+                setError('Error loading product details');
+                setLoading(false);
+            });
+
+            if (currentUser && product) {
+                trackView();
+            }
+
+            return () => unsubscribe();
+        }
+    }, [productId, currentUser, product?.designerId]);
+
+    // Handle funding amount change
+    const handleFundAmountChange = (e) => {
+        const value = e.target.value;
+        // Allow only numbers and decimal points
+        if (/^\d*\.?\d*$/.test(value)) {
+            setFundAmount(value);
+        }
+    };
+
+    // Handle funding submission
+    const handleFundProduct = async () => {
+        if (!currentUser) {
+            showError("Please sign in to fund this product");
+            return;
+        }
+
+        const amount = parseFloat(fundAmount);
+
+        if (isNaN(amount) || amount <= 0) {
+            showError("Please enter a valid funding amount");
+            return;
+        }
+
+        // Check if user has sufficient wallet balance
+        if (!userWallet || amount > userWallet.balance) {
+            showError("Insufficient wallet balance");
+            return;
+        }
+
+        setIsFunding(true);
+
+        try {
+            const result = await fundProduct(productId, product.name, amount);
+            showSuccess(`Successfully funded ${amount.toFixed(2)} credits`);
+            setFundAmount(''); // Clear the input field
+
+            // Update the product's funding in the UI
+            setProduct(prev => ({
+                ...prev,
+                currentFunding: result.newTotal,
+            }));
+
+        } catch (err) {
+            console.error('Error funding product:', err);
+            showError(err.message || 'Failed to fund product');
+        } finally {
+            setIsFunding(false);
+        }
+    };
 
     const handleInvestSuccess = (amount, updatedFundingProgress) => {
-        // Update the local product data with the new investment
+        showSuccess(`Successfully invested ${amount.toFixed(2)} credits`);
         setProduct(prev => ({
             ...prev,
             fundingProgress: updatedFundingProgress || (prev.fundingProgress || 0) + amount
@@ -116,7 +196,7 @@ const ProductDetailPage = () => {
 
     // Calculate funding progress percentage
     const fundingPercentage = product.fundingGoal
-        ? Math.min(((product.fundingProgress || 0) / product.fundingGoal) * 100, 100)
+        ? Math.min(((product.currentFunding || 0) / product.fundingGoal) * 100, 100)
         : 0;
 
     return (
@@ -170,24 +250,63 @@ const ProductDetailPage = () => {
                         <div className="product-funding">
                             <h3>Funding Progress</h3>
                             <div className="funding-stats">
-                                <span>{formatPrice(product.fundingProgress || 0)} raised</span>
+                                <span>{formatPrice(product.currentFunding || 0)} raised</span>
                                 <span className="funding-goal">Goal: {formatPrice(product.fundingGoal)}</span>
                             </div>
                             <div className="funding-progress-bar">
                                 <div className="progress" style={{ width: `${fundingPercentage}%` }}></div>
                             </div>
                             <div className="funding-percentage">{Math.round(fundingPercentage)}% funded</div>
+
+                            {/* Funding Form */}
+                            {!isFullyFunded && currentUser && (
+                                <div className="funding-form">
+                                    <h4>Help fund this product</h4>
+                                    <div className="funding-input-group">
+                                        <div className="funding-input-wrapper">
+                                            <span className="currency-symbol">$</span>
+                                            <input
+                                                type="text"
+                                                value={fundAmount}
+                                                onChange={handleFundAmountChange}
+                                                placeholder={`Up to ${formatPrice(remainingFunding)}`}
+                                                disabled={isFunding}
+                                            />
+                                        </div>
+                                        <button
+                                            className="fund-button"
+                                            onClick={handleFundProduct}
+                                            disabled={isFunding || !fundAmount}
+                                        >
+                                            {isFunding ? 'Processing...' : 'Fund Now'}
+                                        </button>
+                                    </div>
+                                    <div className="funding-wallet-balance">
+                                        Your wallet balance: {formatPrice(userWallet?.balance || 0)}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* If fully funded, show success message */}
+                            {isFullyFunded && (
+                                <div className="funding-complete-message">
+                                    This product has been fully funded! 🎉
+                                </div>
+                            )}
                         </div>
                     )}
 
                     <div className="product-actions">
-                        {/* Add to Cart Button */}
-                        <button className="add-to-cart-button">
-                            Add to Cart
+                        {/* Add to Cart Button - only enabled if product is fully funded */}
+                        <button
+                            className={`add-to-cart-button ${!isFullyFunded ? 'disabled' : ''}`}
+                            disabled={!isFullyFunded}
+                        >
+                            {isFullyFunded ? 'Add to Cart' : 'Funding Required'}
                         </button>
 
                         {/* Investment Button - only show for users with investor role */}
-                        {currentUser && hasRole('investor') && product.fundingGoal && (
+                        {currentUser && hasRole('investor') && product.fundingGoal && !isFullyFunded && (
                             <button
                                 className="invest-button"
                                 onClick={() => setShowInvestModal(true)}

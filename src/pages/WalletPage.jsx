@@ -1,191 +1,205 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import InterestRatesPanel from '../components/InterestRatesPanel';
-import InterestHistory from '../components/InterestHistory';
+import walletService from '../services/walletService';
+import interestService from '../services/interestService';
+import { formatCurrency, formatDate } from '../utils/formatters';
 import '../styles/WalletPage.css';
 
 const WalletPage = () => {
-    const {
-        currentUser,
-        walletBalance,
-        walletLoading,
-        getWalletBalance,
-        addCredits,
-        subtractCredits,
-        transferCredits,
-        getTransactionHistory
-    } = useUser();
+    const { currentUser, userWallet } = useUser();
+    const { showSuccess, showError } = useToast();
 
-    const [loading, setLoading] = useState(true);
+    // Wallet state
+    const [balance, setBalance] = useState(0);
     const [transactions, setTransactions] = useState([]);
-    const [activeTab, setActiveTab] = useState('overview');
-    const [transferData, setTransferData] = useState({
-        recipientId: '',
-        amount: '',
-        description: ''
-    });
-    const [depositData, setDepositData] = useState({
-        amount: '',
-        description: ''
-    });
+    const [interestTransactions, setInterestTransactions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [transactionLoading, setTransactionLoading] = useState(true);
+
+    // UI state
+    const [activeTab, setActiveTab] = useState('summary');
+    const [activeTransactionType, setActiveTransactionType] = useState('all');
+
+    // Transfer state
+    const [transferTo, setTransferTo] = useState('');
+    const [transferAmount, setTransferAmount] = useState('');
+    const [transferNote, setTransferNote] = useState('');
+    const [transferLoading, setTransferLoading] = useState(false);
     const [transferError, setTransferError] = useState('');
     const [transferSuccess, setTransferSuccess] = useState('');
+
+    // Deposit state
+    const [depositAmount, setDepositAmount] = useState('');
+    const [isDepositing, setIsDepositing] = useState(false);
     const [depositError, setDepositError] = useState('');
     const [depositSuccess, setDepositSuccess] = useState('');
 
-    // Load wallet data on component mount
     useEffect(() => {
+        const loadWalletData = async () => {
+            setLoading(true);
+            if (!currentUser) return;
+
+            try {
+                // Set balance from UserContext if available
+                if (userWallet && userWallet.balance !== undefined) {
+                    setBalance(userWallet.balance);
+                } else {
+                    const walletData = await walletService.getUserWallet(currentUser.uid);
+                    if (walletData) {
+                        setBalance(walletData.balance || 0);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading wallet:', error);
+                showError('Failed to load wallet information');
+            } finally {
+                setLoading(false);
+            }
+        };
+
         loadWalletData();
-    }, [currentUser]);
+    }, [currentUser, userWallet, showError]);
 
-    const loadWalletData = async () => {
-        setLoading(true);
-        try {
-            // Refresh wallet balance
-            await getWalletBalance();
+    useEffect(() => {
+        const loadTransactions = async () => {
+            if (!currentUser) return;
 
-            // Get transaction history
-            const history = await getTransactionHistory(10);
-            setTransactions(history);
-        } catch (error) {
-            console.error("Error loading wallet data:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
+            setTransactionLoading(true);
+            try {
+                // Load regular transactions
+                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
+                setTransactions(txData || []);
 
-    // Handle transfer form input changes
-    const handleTransferChange = (e) => {
-        const { name, value } = e.target;
-        setTransferData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
+                // Load interest transactions
+                const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 20);
+                setInterestTransactions(interestTxData || []);
+            } catch (error) {
+                console.error('Error loading transactions:', error);
+                // Don't show an error toast here to avoid duplicate errors
+            } finally {
+                setTransactionLoading(false);
+            }
+        };
 
-    // Handle deposit form input changes
-    const handleDepositChange = (e) => {
-        const { name, value } = e.target;
-        setDepositData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
+        loadTransactions();
+    }, [currentUser, showError]);
 
     // Handle transfer submission
     const handleTransfer = async (e) => {
         e.preventDefault();
+
+        // Reset status messages
         setTransferError('');
         setTransferSuccess('');
 
-        // Validate input
-        if (!transferData.recipientId || !transferData.amount || !transferData.description) {
-            setTransferError('Please fill out all fields');
+        // Validate inputs
+        if (!transferTo.trim()) {
+            setTransferError('Please enter a recipient email address');
             return;
         }
 
-        // Validate amount is a positive number
-        const amount = parseFloat(transferData.amount);
+        const amount = parseFloat(transferAmount);
         if (isNaN(amount) || amount <= 0) {
-            setTransferError('Please enter a valid positive amount');
+            setTransferError('Please enter a valid amount greater than 0');
             return;
         }
 
-        // Check if recipient is the same as sender
-        if (transferData.recipientId === currentUser.uid) {
-            setTransferError('You cannot transfer credits to yourself');
+        if (amount > balance) {
+            setTransferError('Insufficient funds for this transfer');
             return;
         }
+
+        setTransferLoading(true);
 
         try {
-            const success = await transferCredits(
-                transferData.recipientId,
+            const result = await walletService.transferFunds(
+                currentUser.uid,
+                transferTo,
                 amount,
-                transferData.description
+                transferNote
             );
 
-            if (success) {
+            if (result.success) {
                 setTransferSuccess('Transfer completed successfully!');
-                // Reset form
-                setTransferData({
-                    recipientId: '',
-                    amount: '',
-                    description: ''
-                });
-                // Reload wallet data
-                loadWalletData();
+                // Update local balance
+                setBalance(prevBalance => prevBalance - amount);
+                // Clear form
+                setTransferTo('');
+                setTransferAmount('');
+                setTransferNote('');
+                // Show success toast
+                showSuccess(`Successfully transferred ${formatCurrency(amount)} to ${transferTo}`);
             } else {
-                setTransferError('Transfer failed. Please check recipient ID and try again.');
+                setTransferError(result.error || 'Transfer failed. Please try again.');
             }
         } catch (error) {
-            setTransferError(error.message || 'An error occurred during the transfer');
+            console.error('Transfer error:', error);
+            setTransferError(error.message || 'An error occurred during transfer');
+        } finally {
+            setTransferLoading(false);
         }
     };
 
-    // Handle deposit submission (for demonstration)
+    // Handle deposit submission
     const handleDeposit = async (e) => {
         e.preventDefault();
+
+        // Reset status messages
         setDepositError('');
         setDepositSuccess('');
 
         // Validate input
-        if (!depositData.amount || !depositData.description) {
-            setDepositError('Please fill out all fields');
+        const amount = parseFloat(depositAmount);
+        if (isNaN(amount) || amount <= 0) {
+            setDepositError('Please enter a valid amount greater than 0');
             return;
         }
 
-        // Validate amount is a positive number
-        const amount = parseFloat(depositData.amount);
-        if (isNaN(amount) || amount <= 0) {
-            setDepositError('Please enter a valid positive amount');
-            return;
-        }
+        setIsDepositing(true);
 
         try {
-            // In a real app, this would likely integrate with a payment gateway
-            // For demo purposes, we're just adding credits directly
-            const success = await addCredits(amount, depositData.description);
+            // For demo, we'll simulate a successful deposit
+            // In production, this would integrate with a payment processor
+            const result = await walletService.simulateDeposit(
+                currentUser.uid,
+                amount,
+                'Credit card deposit'
+            );
 
-            if (success) {
-                setDepositSuccess('Credits added successfully!');
-                // Reset form
-                setDepositData({
-                    amount: '',
-                    description: ''
-                });
-                // Reload wallet data
-                loadWalletData();
+            if (result.success) {
+                // Update local balance
+                setBalance(prevBalance => prevBalance + amount);
+                // Clear form
+                setDepositAmount('');
+                // Set success message
+                setDepositSuccess(`Successfully added ${formatCurrency(amount)} to your wallet`);
+                // Show success toast
+                showSuccess(`Added ${formatCurrency(amount)} to your wallet`);
             } else {
-                setDepositError('Failed to add credits. Please try again.');
+                setDepositError(result.error || 'Deposit failed. Please try again.');
             }
         } catch (error) {
-            setDepositError(error.message || 'An error occurred while adding credits');
+            console.error('Deposit error:', error);
+            setDepositError(error.message || 'An error occurred during deposit');
+        } finally {
+            setIsDepositing(false);
         }
     };
 
-    // Format timestamp
-    const formatDate = (timestamp) => {
-        if (!timestamp || !timestamp.seconds) return 'N/A';
-        const date = new Date(timestamp.seconds * 1000);
-        return date.toLocaleString();
+    // Filter transactions based on active type
+    const filteredTransactions = () => {
+        if (activeTransactionType === 'all') return transactions;
+        return transactions.filter(tx => tx.type === activeTransactionType);
     };
 
-    // Format amount with currency symbol
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 2
-        }).format(amount);
-    };
-
-    if (loading || walletLoading) {
+    if (loading) {
         return (
             <div className="wallet-page">
-                <div className="loading-container">
+                <div className="wallet-container loading">
                     <LoadingSpinner />
-                    <p>Loading wallet data...</p>
+                    <p>Loading your wallet...</p>
                 </div>
             </div>
         );
@@ -194,28 +208,32 @@ const WalletPage = () => {
     return (
         <div className="wallet-page">
             <div className="wallet-container">
-                <h1>Virtual Wallet</h1>
-
-                <div className="balance-card">
-                    <div className="balance-header">Your Balance</div>
-                    <div className="balance-amount">{formatCurrency(walletBalance || 0)}</div>
-                    <button
-                        className="refresh-button"
-                        onClick={loadWalletData}
-                        aria-label="Refresh wallet data"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                        </svg>
-                    </button>
+                <div className="wallet-header">
+                    <h1>My Wallet</h1>
+                    <div className="wallet-balance">
+                        <h2>Current Balance</h2>
+                        <div className="balance-amount">{formatCurrency(balance)}</div>
+                    </div>
                 </div>
 
                 <div className="wallet-tabs">
                     <button
-                        className={`tab-button ${activeTab === 'overview' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('overview')}
+                        className={`tab-button ${activeTab === 'summary' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('summary')}
                     >
-                        Overview
+                        Summary
+                    </button>
+                    <button
+                        className={`tab-button ${activeTab === 'transfer' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('transfer')}
+                    >
+                        Transfer Funds
+                    </button>
+                    <button
+                        className={`tab-button ${activeTab === 'add' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('add')}
+                    >
+                        Add Credits
                     </button>
                     <button
                         className={`tab-button ${activeTab === 'interest' ? 'active' : ''}`}
@@ -223,177 +241,258 @@ const WalletPage = () => {
                     >
                         Interest
                     </button>
-                    <button
-                        className={`tab-button ${activeTab === 'transfer' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('transfer')}
-                    >
-                        Transfer
-                    </button>
-                    <button
-                        className={`tab-button ${activeTab === 'deposit' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('deposit')}
-                    >
-                        Add Credits
-                    </button>
                 </div>
 
                 <div className="tab-content">
-                    {activeTab === 'overview' && (
-                        <div className="overview-tab">
-                            <h2>Recent Transactions</h2>
+                    {activeTab === 'summary' && (
+                        <div className="summary-tab">
+                            <div className="transaction-filters">
+                                <h3>Transaction History</h3>
+                                <div className="filter-buttons">
+                                    <button
+                                        className={activeTransactionType === 'all' ? 'active' : ''}
+                                        onClick={() => setActiveTransactionType('all')}
+                                    >
+                                        All
+                                    </button>
+                                    <button
+                                        className={activeTransactionType === 'deposit' ? 'active' : ''}
+                                        onClick={() => setActiveTransactionType('deposit')}
+                                    >
+                                        Deposits
+                                    </button>
+                                    <button
+                                        className={activeTransactionType === 'transfer' ? 'active' : ''}
+                                        onClick={() => setActiveTransactionType('transfer')}
+                                    >
+                                        Transfers
+                                    </button>
+                                    <button
+                                        className={activeTransactionType === 'purchase' ? 'active' : ''}
+                                        onClick={() => setActiveTransactionType('purchase')}
+                                    >
+                                        Purchases
+                                    </button>
+                                </div>
+                            </div>
 
-                            {transactions.length === 0 ? (
+                            {transactionLoading ? (
+                                <div className="loading-transactions">
+                                    <LoadingSpinner size="small" />
+                                    <p>Loading transactions...</p>
+                                </div>
+                            ) : filteredTransactions().length === 0 ? (
                                 <div className="no-transactions">
-                                    <p>No transaction history yet.</p>
+                                    <p>No transactions found.</p>
                                 </div>
                             ) : (
-                                <div className="transaction-list">
-                                    {transactions.map(transaction => (
-                                        <div
-                                            key={transaction.id}
-                                            className={`transaction-item ${transaction.type}`}
-                                        >
+                                <div className="transactions-list">
+                                    {filteredTransactions().map(transaction => (
+                                        <div key={transaction.id} className="transaction-item">
                                             <div className="transaction-icon">
-                                                {transaction.type === 'credit' ? (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                                                        <polyline points="19 12 12 19 5 12"></polyline>
-                                                    </svg>
-                                                ) : (
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <line x1="12" y1="19" x2="12" y2="5"></line>
-                                                        <polyline points="5 12 12 5 19 12"></polyline>
-                                                    </svg>
-                                                )}
+                                                {transaction.type === 'deposit' && <span className="icon deposit">+</span>}
+                                                {transaction.type === 'transfer' && <span className="icon transfer">↑</span>}
+                                                {transaction.type === 'purchase' && <span className="icon purchase">-</span>}
                                             </div>
                                             <div className="transaction-details">
-                                                <div className="transaction-description">{transaction.description}</div>
-                                                <div className="transaction-date">{formatDate(transaction.createdAt)}</div>
+                                                <div className="transaction-description">
+                                                    {transaction.description || 'Transaction'}
+                                                </div>
+                                                <div className="transaction-date">
+                                                    {formatDate(transaction.createdAt)}
+                                                </div>
                                             </div>
-                                            <div className="transaction-amount">
-                                                {transaction.type === 'credit' ? '+' : '-'} {formatCurrency(transaction.amount)}
+                                            <div className={`transaction-amount ${transaction.amount < 0 ? 'negative' : 'positive'}`}>
+                                                {transaction.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(transaction.amount))}
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
-
-                            {/* Interest Rates Section */}
-                            <InterestRatesPanel walletBalance={walletBalance || 0} />
-                        </div>
-                    )}
-
-                    {activeTab === 'interest' && (
-                        <div className="interest-tab">
-                            <h2>Interest Earnings</h2>
-                            <p className="interest-info">
-                                Earn daily interest on your wallet balance. Interest is calculated and paid daily at midnight UTC.
-                            </p>
-
-                            <InterestRatesPanel walletBalance={walletBalance || 0} />
-
-                            <div className="interest-history-section">
-                                <InterestHistory limit={15} />
-                            </div>
                         </div>
                     )}
 
                     {activeTab === 'transfer' && (
                         <div className="transfer-tab">
-                            <h2>Transfer Credits</h2>
-
-                            {transferError && <div className="error-message">{transferError}</div>}
-                            {transferSuccess && <div className="success-message">{transferSuccess}</div>}
-
-                            <form className="transfer-form" onSubmit={handleTransfer}>
+                            <h3>Transfer Credits</h3>
+                            <form onSubmit={handleTransfer} className="transfer-form">
                                 <div className="form-group">
-                                    <label htmlFor="recipientId">Recipient ID</label>
+                                    <label htmlFor="transferTo">Recipient Email</label>
                                     <input
-                                        type="text"
-                                        id="recipientId"
-                                        name="recipientId"
-                                        value={transferData.recipientId}
-                                        onChange={handleTransferChange}
-                                        placeholder="Enter recipient's user ID"
+                                        type="email"
+                                        id="transferTo"
+                                        value={transferTo}
+                                        onChange={(e) => setTransferTo(e.target.value)}
+                                        placeholder="Enter recipient email"
+                                        disabled={transferLoading}
                                         required
                                     />
                                 </div>
 
                                 <div className="form-group">
-                                    <label htmlFor="amount">Amount</label>
-                                    <input
-                                        type="number"
-                                        id="amount"
-                                        name="amount"
-                                        value={transferData.amount}
-                                        onChange={handleTransferChange}
-                                        placeholder="Enter amount to transfer"
-                                        min="1"
-                                        step="any"
-                                        required
-                                    />
+                                    <label htmlFor="transferAmount">Amount</label>
+                                    <div className="amount-input">
+                                        <span className="currency-symbol">$</span>
+                                        <input
+                                            type="number"
+                                            id="transferAmount"
+                                            value={transferAmount}
+                                            onChange={(e) => setTransferAmount(e.target.value)}
+                                            placeholder="0.00"
+                                            disabled={transferLoading}
+                                            min="0.01"
+                                            step="0.01"
+                                            required
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="form-group">
-                                    <label htmlFor="description">Description</label>
-                                    <input
-                                        type="text"
-                                        id="description"
-                                        name="description"
-                                        value={transferData.description}
-                                        onChange={handleTransferChange}
-                                        placeholder="What's this transfer for?"
-                                        required
-                                    />
+                                    <label htmlFor="transferNote">Note (Optional)</label>
+                                    <textarea
+                                        id="transferNote"
+                                        value={transferNote}
+                                        onChange={(e) => setTransferNote(e.target.value)}
+                                        placeholder="Add a note for the recipient"
+                                        disabled={transferLoading}
+                                        maxLength="100"
+                                    ></textarea>
                                 </div>
 
-                                <button type="submit" className="transfer-button">
-                                    Transfer Credits
+                                {transferError && <div className="error-message">{transferError}</div>}
+                                {transferSuccess && <div className="success-message">{transferSuccess}</div>}
+
+                                <button
+                                    type="submit"
+                                    className="transfer-button"
+                                    disabled={transferLoading}
+                                >
+                                    {transferLoading ? (
+                                        <>
+                                            <LoadingSpinner size="small" />
+                                            <span>Processing...</span>
+                                        </>
+                                    ) : 'Transfer Credits'}
                                 </button>
                             </form>
                         </div>
                     )}
 
-                    {activeTab === 'deposit' && (
-                        <div className="deposit-tab">
-                            <h2>Add Credits</h2>
-
-                            {depositError && <div className="error-message">{depositError}</div>}
-                            {depositSuccess && <div className="success-message">{depositSuccess}</div>}
-
-                            <form className="deposit-form" onSubmit={handleDeposit}>
+                    {activeTab === 'add' && (
+                        <div className="add-credits-tab">
+                            <h3>Add Credits to Wallet</h3>
+                            <form onSubmit={handleDeposit} className="deposit-form">
                                 <div className="form-group">
-                                    <label htmlFor="deposit-amount">Amount</label>
-                                    <input
-                                        type="number"
-                                        id="deposit-amount"
-                                        name="amount"
-                                        value={depositData.amount}
-                                        onChange={handleDepositChange}
-                                        placeholder="Enter amount to add"
-                                        min="1"
-                                        step="any"
-                                        required
-                                    />
+                                    <label htmlFor="depositAmount">Amount to Add</label>
+                                    <div className="amount-input">
+                                        <span className="currency-symbol">$</span>
+                                        <input
+                                            type="number"
+                                            id="depositAmount"
+                                            value={depositAmount}
+                                            onChange={(e) => setDepositAmount(e.target.value)}
+                                            placeholder="0.00"
+                                            disabled={isDepositing}
+                                            min="1"
+                                            step="1"
+                                            required
+                                        />
+                                    </div>
                                 </div>
 
-                                <div className="form-group">
-                                    <label htmlFor="deposit-description">Description</label>
-                                    <input
-                                        type="text"
-                                        id="deposit-description"
-                                        name="description"
-                                        value={depositData.description}
-                                        onChange={handleDepositChange}
-                                        placeholder="Why are you adding credits?"
-                                        required
-                                    />
+                                <div className="payment-methods">
+                                    <h4>Payment Method</h4>
+                                    <div className="payment-method-selector">
+                                        <div className="payment-method active">
+                                            <input
+                                                type="radio"
+                                                id="creditCard"
+                                                name="paymentMethod"
+                                                value="creditCard"
+                                                defaultChecked
+                                                disabled={isDepositing}
+                                            />
+                                            <label htmlFor="creditCard">
+                                                Credit Card
+                                                <div className="card-icons">
+                                                    <span className="card-icon visa">Visa</span>
+                                                    <span className="card-icon mastercard">Mastercard</span>
+                                                    <span className="card-icon amex">Amex</span>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <button type="submit" className="deposit-button">
-                                    Add Credits
+                                {depositError && <div className="error-message">{depositError}</div>}
+                                {depositSuccess && <div className="success-message">{depositSuccess}</div>}
+
+                                <button
+                                    type="submit"
+                                    className="deposit-button"
+                                    disabled={isDepositing}
+                                >
+                                    {isDepositing ? (
+                                        <>
+                                            <LoadingSpinner size="small" />
+                                            <span>Processing...</span>
+                                        </>
+                                    ) : 'Add Credits'}
                                 </button>
+
+                                <div className="security-note">
+                                    <p>💳 Your payment information is securely processed.</p>
+                                    <p>This is for demonstration purposes only. No actual charges will be made.</p>
+                                </div>
                             </form>
+                        </div>
+                    )}
+
+                    {activeTab === 'interest' && (
+                        <div className="interest-tab">
+                            <h3>Interest Earnings</h3>
+                            <div className="interest-summary">
+                                <div className="interest-card">
+                                    <h4>Monthly Interest Rate</h4>
+                                    <div className="interest-rate">3.5%</div>
+                                    <p className="interest-note">Interest is calculated daily and paid monthly</p>
+                                </div>
+                            </div>
+
+                            <h4>Interest History</h4>
+
+                            {transactionLoading ? (
+                                <div className="loading-transactions">
+                                    <LoadingSpinner size="small" />
+                                    <p>Loading interest history...</p>
+                                </div>
+                            ) : interestTransactions.length === 0 ? (
+                                <div className="no-transactions">
+                                    <p>No interest payments found.</p>
+                                    <p>Interest is calculated daily and paid monthly based on your average wallet balance.</p>
+                                </div>
+                            ) : (
+                                <div className="transactions-list">
+                                    {interestTransactions.map(transaction => (
+                                        <div key={transaction.id} className="transaction-item">
+                                            <div className="transaction-icon">
+                                                <span className="icon interest">%</span>
+                                            </div>
+                                            <div className="transaction-details">
+                                                <div className="transaction-description">
+                                                    {transaction.description || 'Interest Payment'}
+                                                </div>
+                                                <div className="transaction-date">
+                                                    {formatDate(transaction.createdAt)}
+                                                </div>
+                                            </div>
+                                            <div className="transaction-amount positive">
+                                                +{formatCurrency(transaction.amount)}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

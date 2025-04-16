@@ -10,7 +10,7 @@ import CloseBurger from "../assets/Close-Burger@4x.png"
 import MessageIcon from "../assets/message icon mini.png";
 import NotificationsIcon from "../assets/Notification icon mini.png";
 import CartIcon from "../assets/Shopping trolly drag edition.png";
-import WalletIcon from "../assets/Wally.png";
+import WalletIcon from "../assets/Wally_1@2x.png";
 import NotificationCenter from "./NotificationCenter";
 import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';
@@ -245,7 +245,7 @@ const Navbar = () => {
 
           {/* Desktop Navigation - only visible on larger screens */}
           <div className="desktop-nav order-4 md:order-3 md:flex w-full md:w-auto mt-4 md:mt-0">
-            <ul className="nav-links-desktop flex flex-col md:flex-row md:space-x-4 space-y-2 md:space-y-0">
+            <ul className="nav-links-desktop flex flex-row md:flex-row md:space-x-4 space-y-2 md:space-y-0">
               <NavLinks />
             </ul>
 

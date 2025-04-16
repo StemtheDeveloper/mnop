@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import walletService from '../services/walletService';
 import '../styles/CheckoutPage.css';
 
 const CheckoutPage = () => {
-    const { currentUser, userProfile } = useUser();
+    const { currentUser, userProfile, userWallet } = useUser();
     const { showSuccess, showError } = useToast();
     const navigate = useNavigate();
 
@@ -23,6 +24,12 @@ const CheckoutPage = () => {
     const [step, setStep] = useState(1);
     const [orderComplete, setOrderComplete] = useState(false);
     const [orderId, setOrderId] = useState('');
+    const [paymentSettings, setPaymentSettings] = useState({
+        useWalletPayment: true, // Default to wallet payment
+        allowCreditCardPayment: false // Will be set based on admin settings
+    });
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('wallet');
+    const [insufficientFunds, setInsufficientFunds] = useState(false);
 
     const [formData, setFormData] = useState({
         // Shipping info
@@ -48,6 +55,52 @@ const CheckoutPage = () => {
         // Shipping method
         shippingMethod: 'standard'
     });
+
+    // Fetch payment settings
+    useEffect(() => {
+        const fetchPaymentSettings = async () => {
+            try {
+                const settingsRef = doc(db, 'settings', 'paymentSettings');
+                const settingsDoc = await getDoc(settingsRef);
+
+                if (settingsDoc.exists()) {
+                    const settings = settingsDoc.data();
+                    setPaymentSettings({
+                        useWalletPayment: settings.useWalletPayment ?? true,
+                        allowCreditCardPayment: settings.allowCreditCardPayment ?? false
+                    });
+
+                    // Set default payment method based on settings and wallet balance
+                    if (settings.useWalletPayment) {
+                        setSelectedPaymentMethod('wallet');
+                    } else {
+                        setSelectedPaymentMethod('creditCard');
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching payment settings:", error);
+                // Default to wallet payment if there's an error
+                setPaymentSettings({
+                    useWalletPayment: true,
+                    allowCreditCardPayment: false
+                });
+            }
+        };
+
+        fetchPaymentSettings();
+    }, []);
+
+    // Check wallet balance against order total
+    useEffect(() => {
+        if (userWallet && total > 0) {
+            setInsufficientFunds(userWallet.balance < total);
+
+            // If wallet has insufficient funds and credit card is allowed, switch to credit card
+            if (userWallet.balance < total && paymentSettings.allowCreditCardPayment) {
+                setSelectedPaymentMethod('creditCard');
+            }
+        }
+    }, [userWallet, total, paymentSettings.allowCreditCardPayment]);
 
     // Calculate subtotal and total
     const calculateTotals = (items) => {
@@ -139,32 +192,70 @@ const CheckoutPage = () => {
         setError(null);
     };
 
+    // Handle payment method change
+    const handlePaymentMethodChange = (method) => {
+        setSelectedPaymentMethod(method);
+    };
+
     // Handle payment form submission
     const handlePaymentSubmit = async (e) => {
         e.preventDefault();
 
-        // Validate payment information
-        if (!formData.cardName || !formData.cardNumber || !formData.expMonth ||
-            !formData.expYear || !formData.cvv) {
-            setError("Please fill in all required payment fields");
-            return;
-        }
+        // Validate payment information based on selected method
+        if (selectedPaymentMethod === 'creditCard') {
+            if (!formData.cardName || !formData.cardNumber || !formData.expMonth ||
+                !formData.expYear || !formData.cvv) {
+                setError("Please fill in all required payment fields");
+                return;
+            }
 
-        // Simulate card validation
-        if (formData.cardNumber.replace(/\s/g, '').length !== 16) {
-            setError("Please enter a valid 16-digit card number");
-            return;
-        }
+            // Simulate card validation
+            if (formData.cardNumber.replace(/\s/g, '').length !== 16) {
+                setError("Please enter a valid 16-digit card number");
+                return;
+            }
 
-        if (formData.cvv.length !== 3) {
-            setError("Please enter a valid 3-digit CVV");
-            return;
+            if (formData.cvv.length !== 3) {
+                setError("Please enter a valid 3-digit CVV");
+                return;
+            }
+        } else if (selectedPaymentMethod === 'wallet') {
+            // Check wallet balance
+            if (!userWallet || userWallet.balance < total) {
+                setError("Insufficient wallet balance. Please add funds or select another payment method.");
+                return;
+            }
         }
 
         setProcessing(true);
         setError(null);
 
         try {
+            // Process payment based on selected method
+            let paymentStatus = 'pending';
+            let paymentMethod = selectedPaymentMethod;
+
+            if (selectedPaymentMethod === 'wallet') {
+                // Deduct from wallet
+                try {
+                    await walletService.deductFunds(
+                        currentUser.uid,
+                        total,
+                        `Payment for order - ${cartItems.length} items`
+                    );
+                    paymentStatus = 'paid';
+                } catch (error) {
+                    console.error("Wallet payment failed:", error);
+                    setError("Wallet payment failed. Please try again or use a different payment method.");
+                    setProcessing(false);
+                    return;
+                }
+            } else {
+                // Simulate credit card processing
+                // In a real app, this would integrate with a payment processor
+                paymentStatus = 'paid';
+            }
+
             // Create order in database
             const orderData = {
                 userId: currentUser?.uid || 'guest',
@@ -186,8 +277,8 @@ const CheckoutPage = () => {
                 total: total,
                 status: 'processing',
                 createdAt: serverTimestamp(),
-                paymentMethod: 'credit card', // Don't store actual card details for security
-                paymentStatus: 'paid',
+                paymentMethod: paymentMethod,
+                paymentStatus: paymentStatus,
                 estimatedDelivery: calculateEstimatedDelivery(formData.shippingMethod)
             };
 
@@ -540,103 +631,186 @@ const CheckoutPage = () => {
                         <div className="checkout-form">
                             <h2>Payment Information</h2>
                             <form onSubmit={handlePaymentSubmit}>
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label htmlFor="cardName">Name on Card*</label>
-                                        <input
-                                            type="text"
-                                            id="cardName"
-                                            name="cardName"
-                                            value={formData.cardName}
-                                            onChange={handleChange}
-                                            required
-                                        />
-                                    </div>
+                                {/* Payment Method Selection */}
+                                <div className="payment-methods">
+                                    <h3>Select Payment Method</h3>
+
+                                    {paymentSettings.useWalletPayment && (
+                                        <div className="payment-method-option">
+                                            <input
+                                                type="radio"
+                                                id="wallet"
+                                                name="paymentMethod"
+                                                value="wallet"
+                                                checked={selectedPaymentMethod === 'wallet'}
+                                                onChange={() => handlePaymentMethodChange('wallet')}
+                                                disabled={insufficientFunds}
+                                            />
+                                            <label htmlFor="wallet" className={insufficientFunds ? 'disabled' : ''}>
+                                                <div className="method-name">Wallet Balance</div>
+                                                <div className="wallet-balance">
+                                                    Available: {formatPrice(userWallet?.balance || 0)}
+                                                    {insufficientFunds && (
+                                                        <span className="insufficient-funds">
+                                                            Insufficient funds
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </label>
+                                        </div>
+                                    )}
+
+                                    {paymentSettings.allowCreditCardPayment && (
+                                        <div className="payment-method-option">
+                                            <input
+                                                type="radio"
+                                                id="creditCard"
+                                                name="paymentMethod"
+                                                value="creditCard"
+                                                checked={selectedPaymentMethod === 'creditCard'}
+                                                onChange={() => handlePaymentMethodChange('creditCard')}
+                                            />
+                                            <label htmlFor="creditCard">
+                                                <div className="method-name">Credit Card</div>
+                                                <div className="card-icons">
+                                                    <span>Visa</span>
+                                                    <span>Mastercard</span>
+                                                    <span>Amex</span>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label htmlFor="cardNumber">Card Number*</label>
-                                        <input
-                                            type="text"
-                                            id="cardNumber"
-                                            name="cardNumber"
-                                            value={formData.cardNumber}
-                                            onChange={handleChange}
-                                            placeholder="1234 5678 9012 3456"
-                                            required
-                                            maxLength="19"
-                                        />
-                                    </div>
-                                </div>
+                                {/* Credit Card Fields - Only shown if credit card is selected */}
+                                {selectedPaymentMethod === 'creditCard' && (
+                                    <div className="credit-card-fields">
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label htmlFor="cardName">Name on Card*</label>
+                                                <input
+                                                    type="text"
+                                                    id="cardName"
+                                                    name="cardName"
+                                                    value={formData.cardName}
+                                                    onChange={handleChange}
+                                                    required={selectedPaymentMethod === 'creditCard'}
+                                                />
+                                            </div>
+                                        </div>
 
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label htmlFor="expMonth">Expiration Month*</label>
-                                        <select
-                                            id="expMonth"
-                                            name="expMonth"
-                                            value={formData.expMonth}
-                                            onChange={handleChange}
-                                            required
-                                        >
-                                            <option value="">Month</option>
-                                            {[...Array(12)].map((_, i) => (
-                                                <option key={i + 1} value={i + 1}>
-                                                    {(i + 1).toString().padStart(2, '0')}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="form-group">
-                                        <label htmlFor="expYear">Expiration Year*</label>
-                                        <select
-                                            id="expYear"
-                                            name="expYear"
-                                            value={formData.expYear}
-                                            onChange={handleChange}
-                                            required
-                                        >
-                                            <option value="">Year</option>
-                                            {[...Array(10)].map((_, i) => {
-                                                const year = new Date().getFullYear() + i;
-                                                return (
-                                                    <option key={year} value={year}>
-                                                        {year}
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
-                                    </div>
-                                    <div className="form-group cvv-group">
-                                        <label htmlFor="cvv">CVV*</label>
-                                        <input
-                                            type="text"
-                                            id="cvv"
-                                            name="cvv"
-                                            value={formData.cvv}
-                                            onChange={handleChange}
-                                            required
-                                            maxLength="3"
-                                            placeholder="123"
-                                        />
-                                    </div>
-                                </div>
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label htmlFor="cardNumber">Card Number*</label>
+                                                <input
+                                                    type="text"
+                                                    id="cardNumber"
+                                                    name="cardNumber"
+                                                    value={formData.cardNumber}
+                                                    onChange={handleChange}
+                                                    placeholder="1234 5678 9012 3456"
+                                                    required={selectedPaymentMethod === 'creditCard'}
+                                                    maxLength="19"
+                                                />
+                                            </div>
+                                        </div>
 
-                                <div className="payment-secure-note">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                    </svg>
-                                    <span>Your payment information is encrypted and secure.</span>
-                                </div>
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label htmlFor="expMonth">Expiration Month*</label>
+                                                <select
+                                                    id="expMonth"
+                                                    name="expMonth"
+                                                    value={formData.expMonth}
+                                                    onChange={handleChange}
+                                                    required={selectedPaymentMethod === 'creditCard'}
+                                                >
+                                                    <option value="">Month</option>
+                                                    {[...Array(12)].map((_, i) => (
+                                                        <option key={i + 1} value={i + 1}>
+                                                            {(i + 1).toString().padStart(2, '0')}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="form-group">
+                                                <label htmlFor="expYear">Expiration Year*</label>
+                                                <select
+                                                    id="expYear"
+                                                    name="expYear"
+                                                    value={formData.expYear}
+                                                    onChange={handleChange}
+                                                    required={selectedPaymentMethod === 'creditCard'}
+                                                >
+                                                    <option value="">Year</option>
+                                                    {[...Array(10)].map((_, i) => {
+                                                        const year = new Date().getFullYear() + i;
+                                                        return (
+                                                            <option key={year} value={year}>
+                                                                {year}
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </select>
+                                            </div>
+                                            <div className="form-group cvv-group">
+                                                <label htmlFor="cvv">CVV*</label>
+                                                <input
+                                                    type="text"
+                                                    id="cvv"
+                                                    name="cvv"
+                                                    value={formData.cvv}
+                                                    onChange={handleChange}
+                                                    required={selectedPaymentMethod === 'creditCard'}
+                                                    maxLength="3"
+                                                    placeholder="123"
+                                                />
+                                            </div>
+                                        </div>
 
-                                <div className="billing-address-note">
-                                    <label>
-                                        <input type="checkbox" checked disabled />
-                                        Billing address same as shipping
-                                    </label>
-                                </div>
+                                        <div className="payment-secure-note">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                            </svg>
+                                            <span>Your payment information is encrypted and secure.</span>
+                                        </div>
+
+                                        <div className="billing-address-note">
+                                            <label>
+                                                <input type="checkbox" checked disabled />
+                                                Billing address same as shipping
+                                            </label>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Wallet Payment Info - Only shown if wallet is selected */}
+                                {selectedPaymentMethod === 'wallet' && (
+                                    <div className="wallet-payment-summary">
+                                        <div className="wallet-balance-details">
+                                            <div className="balance-row">
+                                                <span>Current Balance:</span>
+                                                <span className="balance-amount">{formatPrice(userWallet?.balance || 0)}</span>
+                                            </div>
+                                            <div className="balance-row">
+                                                <span>Order Total:</span>
+                                                <span className="order-total">{formatPrice(total)}</span>
+                                            </div>
+                                            <div className="balance-row remaining-balance">
+                                                <span>Remaining Balance:</span>
+                                                <span className="remaining-amount">
+                                                    {formatPrice((userWallet?.balance || 0) - total)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="wallet-payment-note">
+                                            <p>Your order will be paid using your wallet balance.</p>
+                                            <p>You can add funds to your wallet on the <Link to="/wallet">wallet page</Link>.</p>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="form-actions">
                                     <button
@@ -650,7 +824,7 @@ const CheckoutPage = () => {
                                     <button
                                         type="submit"
                                         className="btn-primary"
-                                        disabled={processing}
+                                        disabled={processing || (selectedPaymentMethod === 'wallet' && insufficientFunds)}
                                     >
                                         {processing ? (
                                             <>

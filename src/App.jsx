@@ -52,6 +52,7 @@ function App() {
     <UserProvider>
       <ToastProvider>
         <div className="App">
+          <br /><br /><br /><br /><br />
           <Navbar />
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
@@ -63,7 +64,7 @@ function App() {
               <Route path="/shop" element={<ShopPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/products" element={<ProductsPage />} />
-              <Route path="/product/:id" element={<ProductDetailPage />} />
+              <Route path="/product/:productId" element={<ProductDetailPage />} />
               <Route path="/unauthorized" element={<UnauthorizedPage />} />
               <Route path="/toast-demo" element={<ToastDemoPage />} />
 
