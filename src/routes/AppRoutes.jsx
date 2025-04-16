@@ -17,6 +17,8 @@ const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage'));
 const ProductsPage = lazy(() => import('../pages/ProductsPage'));
 const OrdersPage = lazy(() => import('../pages/OrdersPage'));
 const OrderDetailPage = lazy(() => import('../pages/OrderDetailPage'));
+const CartPage = lazy(() => import('../pages/CartPage'));
+const CheckoutPage = lazy(() => import('../pages/CheckoutPage'));
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -37,6 +39,7 @@ const AppRoutes = () => {
                 <Route path="/shop" element={<ShopPage />} />
                 <Route path="/product/:productId" element={<ProductDetailPage />} />
                 <Route path="/unauthorized" element={<UnauthorizedPage />} />
+                <Route path="/cart" element={<CartPage />} />
 
                 {/* Protected Routes */}
                 <Route path="/home" element={
@@ -63,6 +66,11 @@ const AppRoutes = () => {
                 <Route path="/order/:orderId" element={
                     <AuthGuard>
                         <OrderDetailPage />
+                    </AuthGuard>
+                } />
+                <Route path="/checkout" element={
+                    <AuthGuard>
+                        <CheckoutPage />
                     </AuthGuard>
                 } />
                 <Route path="/products" element={<ProductsPage />} />
