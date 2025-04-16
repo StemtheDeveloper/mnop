@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore, serverTimestamp } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 import {
   getAuth,
   onAuthStateChanged,
@@ -58,6 +59,7 @@ let analytics = null;
 let storage = null;
 let db = null;
 let auth = null;
+let functions = null;
 
 try {
   app = initializeApp(firebaseConfig);
@@ -70,6 +72,7 @@ try {
   storage = getStorage(app);
   db = getFirestore(app);
   auth = getAuth(app);
+  functions = getFunctions(app);
 } catch (error) {
   console.error("Error initializing Firebase:", error);
 }
@@ -78,7 +81,7 @@ export const timestamp = serverTimestamp();
 const googleProvider = new GoogleAuthProvider();
 
 // Export Firebase services
-export { db, storage, auth, analytics };
+export { db, storage, auth, analytics, functions };
 
 // Export Firebase authentication functions
 export { onAuthStateChanged, signOut, updateProfile, googleProvider };

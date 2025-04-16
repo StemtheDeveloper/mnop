@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy, limit, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
@@ -29,66 +29,64 @@ const NotificationInbox = ({ isOpen, onClose }) => {
 
     // Listen for notifications in real-time
     useEffect(() => {
-        if (!currentUser) return;
+        if (!currentUser || !isOpen) return;
 
         setLoading(true);
 
-        // Create query for user's notifications
-        const notificationsRef = collection(db, 'notifications');
-        const userNotificationsQuery = query(
-            notificationsRef,
-            where('userId', '==', currentUser.uid),
-            orderBy('createdAt', 'desc'),
-            limit(20)
-        );
+        try {
+            // Create a simpler query that doesn't require a composite index
+            const notificationsRef = collection(db, 'notifications');
+            const userNotificationsQuery = query(
+                notificationsRef,
+                where('userId', '==', currentUser.uid),
+                limit(30) // Increased limit to ensure we get enough recent notifications
+            );
 
-        // Set up real-time listener
-        const unsubscribe = onSnapshot(userNotificationsQuery, (snapshot) => {
-            try {
-                const notificationData = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    createdAt: doc.data().createdAt?.toDate() || new Date()
-                }));
+            // Set up real-time listener
+            const unsubscribe = onSnapshot(userNotificationsQuery, (snapshot) => {
+                try {
+                    let notificationData = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        createdAt: doc.data().createdAt?.toDate() || new Date()
+                    }));
 
-                // Update notifications state
-                setNotifications(notificationData);
+                    // Sort client-side by createdAt (descending)
+                    notificationData.sort((a, b) => b.createdAt - a.createdAt);
 
-                // Count unread notifications
-                const unreadNotifications = notificationData.filter(n => !n.read).length;
-                setUnreadCount(unreadNotifications);
+                    // Update notifications state
+                    setNotifications(notificationData);
 
+                    // Count unread notifications
+                    const unreadNotifications = notificationData.filter(n => !n.read).length;
+                    setUnreadCount(unreadNotifications);
+
+                    setLoading(false);
+                } catch (err) {
+                    console.error('Error processing notifications:', err);
+                    setLoading(false);
+                }
+            }, (error) => {
+                console.error('Error fetching notifications:', error);
                 setLoading(false);
-            } catch (error) {
-                console.error('Error processing notifications:', error);
-                setLoading(false);
-            }
-        }, (error) => {
-            console.error('Error fetching notifications:', error);
-            showError('Failed to load notifications');
+            });
+
+            return () => unsubscribe();
+        } catch (err) {
+            console.error('Error setting up notification listener:', err);
             setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [currentUser, showError]);
+        }
+    }, [currentUser, isOpen]);
 
     // Mark a notification as read
     const markAsRead = async (notification) => {
         if (notification.read) return;
 
         try {
-            const notificationRef = doc(db, 'notifications', notification.id);
-            await updateDoc(notificationRef, {
+            await updateDoc(doc(db, 'notifications', notification.id), {
                 read: true,
                 readAt: serverTimestamp()
             });
-
-            // Optimistically update local state
-            setNotifications(prevNotifications =>
-                prevNotifications.map(n =>
-                    n.id === notification.id ? { ...n, read: true } : n
-                )
-            );
         } catch (error) {
             console.error('Error marking notification as read:', error);
         }
@@ -96,29 +94,27 @@ const NotificationInbox = ({ isOpen, onClose }) => {
 
     // Mark all notifications as read
     const markAllAsRead = async () => {
-        try {
-            const unreadNotifications = notifications.filter(n => !n.read);
+        if (notifications.length === 0) return;
 
-            // If there are no unread notifications, return early
+        try {
+            const unreadNotifications = notifications.filter(notif => !notif.read);
+
             if (unreadNotifications.length === 0) return;
 
-            // Update each unread notification in Firestore
-            const updatePromises = unreadNotifications.map(notification => {
-                const notificationRef = doc(db, 'notifications', notification.id);
-                return updateDoc(notificationRef, {
+            // Update each unread notification
+            const updatePromises = unreadNotifications.map(notification =>
+                updateDoc(doc(db, 'notifications', notification.id), {
                     read: true,
                     readAt: serverTimestamp()
-                });
-            });
-
-            await Promise.all(updatePromises);
-
-            // Update local state
-            setNotifications(prevNotifications =>
-                prevNotifications.map(n => ({ ...n, read: true }))
+                })
             );
 
-            showSuccess(`Marked ${unreadNotifications.length} notifications as read`);
+            await Promise.all(updatePromises);
+            showSuccess('All notifications marked as read');
+
+            // Update local state
+            setNotifications(notifications.map(notif => ({ ...notif, read: true })));
+            setUnreadCount(0);
         } catch (error) {
             console.error('Error marking all as read:', error);
             showError('Failed to mark notifications as read');

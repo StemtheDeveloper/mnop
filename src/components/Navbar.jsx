@@ -10,7 +10,7 @@ import CloseBurger from "../assets/Close-Burger@4x.png"
 import MessageIcon from "../assets/message icon mini.png";
 import NotificationsIcon from "../assets/Notification icon mini.png";
 import CartIcon from "../assets/Shopping trolly drag edition.png";
-import WalletIcon from "../assets/wallet-icon.png"; // Import wallet icon (you'll need to add this to your assets)
+import WalletIcon from "../assets/Wally.png";
 import NotificationCenter from "./NotificationCenter";
 import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';
@@ -22,7 +22,9 @@ const AdminEmails = [
 ];
 
 const Navbar = () => {
-  const { user, userProfile, userRole, loading, signOut } = useUser();
+  // Fix: properly destructure what's available from useUser()
+  // Remove the problematic setCurrentUser from destructuring
+  const { user, userProfile, userRole, loading, signOut: userSignOut } = useUser();
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -59,10 +61,15 @@ const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
+  // Fix: Update the onAuthStateChanged listener to use Firebase's auth directly
+  // without trying to use setCurrentUser from context
   useEffect(() => {
+    // Simply use onAuthStateChanged to monitor auth state changes
+    // UserContext should have its own listener that handles this
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+      // No need to call setCurrentUser here, the UserContext will handle this
     });
+
     return () => unsubscribe();
   }, []);
 

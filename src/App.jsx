@@ -48,115 +48,115 @@ const LoadingFallback = () => (
 
 function App() {
   return (
-    <Router>
-      <UserProvider>
-        <ToastProvider>
-          <div className="App">
-            <Navbar />
-            <Suspense fallback={<LoadingFallback />}>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/signin" element={<SignInRegisterPage />} />
-                <Route path="/register" element={<SignInRegisterPage />} />
-                <Route path="/about" element={<AboutPage />} />
-                <Route path="/shop" element={<ShopPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/products" element={<ProductsPage />} />
-                <Route path="/product/:id" element={<ProductDetailPage />} />
-                <Route path="/unauthorized" element={<UnauthorizedPage />} />
-                <Route path="/toast-demo" element={<ToastDemoPage />} />
 
-                {/* Authentication required routes */}
-                <Route path="/cart" element={
-                  <ProtectedRoute>
-                    <CartPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/profile" element={
-                  <ProtectedRoute>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/home" element={
-                  <ProtectedRoute>
-                    <HomeDashboardPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/orders" element={
-                  <ProtectedRoute>
-                    <OrdersPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/orders/:orderId" element={
-                  <ProtectedRoute>
-                    <OrderDetailPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/messages" element={
-                  <ProtectedRoute>
-                    <MessagesPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/notifications" element={
-                  <ProtectedRoute>
-                    <NotificationsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/checkout" element={
-                  <ProtectedRoute>
-                    <CheckoutPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/wallet" element={
-                  <ProtectedRoute>
-                    <WalletPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/settings" element={
-                  <ProtectedRoute>
-                    <UserSettingsPage />
-                  </ProtectedRoute>
-                } />
+    <UserProvider>
+      <ToastProvider>
+        <div className="App">
+          <Navbar />
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/signin" element={<SignInRegisterPage />} />
+              <Route path="/register" element={<SignInRegisterPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/shop" element={<ShopPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/product/:id" element={<ProductDetailPage />} />
+              <Route path="/unauthorized" element={<UnauthorizedPage />} />
+              <Route path="/toast-demo" element={<ToastDemoPage />} />
 
-                {/* Achievement routes */}
-                <Route path="/profile/achievements" element={
-                  <ProtectedRoute>
-                    <AchievementsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/profile/:userId/achievements" element={<AchievementsPage />} />
+              {/* Authentication required routes */}
+              <Route path="/cart" element={
+                <ProtectedRoute>
+                  <CartPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/home" element={
+                <ProtectedRoute>
+                  <HomeDashboardPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/orders" element={
+                <ProtectedRoute>
+                  <OrdersPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/orders/:orderId" element={
+                <ProtectedRoute>
+                  <OrderDetailPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/messages" element={
+                <ProtectedRoute>
+                  <MessagesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/notifications" element={
+                <ProtectedRoute>
+                  <NotificationsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/checkout" element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/wallet" element={
+                <ProtectedRoute>
+                  <WalletPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <UserSettingsPage />
+                </ProtectedRoute>
+              } />
 
-                {/* Role-based routes */}
-                <Route path="/admin" element={
-                  <AuthGuard allowedRoles={USER_ROLES.ADMIN}>
-                    <AdminPage />
-                  </AuthGuard>
-                } />
-                <Route path="/upload-product" element={
-                  <AuthGuard allowedRoles={USER_ROLES.DESIGNER}>
-                    <ProductUploadPage />
-                  </AuthGuard>
-                } />
-                <Route path="/designer/quotes" element={
-                  <ProtectedRoute requiredRoles="designer">
-                    <DesignerQuotesPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/designer/quotes/:quoteId" element={
-                  <ProtectedRoute requiredRoles="designer">
-                    <DesignerQuoteDetailPage />
-                  </ProtectedRoute>
-                } />
+              {/* Achievement routes */}
+              <Route path="/profile/achievements" element={
+                <ProtectedRoute>
+                  <AchievementsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/profile/:userId/achievements" element={<AchievementsPage />} />
 
-                {/* 404 Not Found Route - must be last */}
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </Suspense>
-          </div>
-        </ToastProvider>
-      </UserProvider>
-    </Router>
+              {/* Role-based routes */}
+              <Route path="/admin" element={
+                <AuthGuard allowedRoles={USER_ROLES.ADMIN}>
+                  <AdminPage />
+                </AuthGuard>
+              } />
+              <Route path="/upload-product" element={
+                <AuthGuard allowedRoles={USER_ROLES.DESIGNER}>
+                  <ProductUploadPage />
+                </AuthGuard>
+              } />
+              <Route path="/designer/quotes" element={
+                <ProtectedRoute requiredRoles="designer">
+                  <DesignerQuotesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/designer/quotes/:quoteId" element={
+                <ProtectedRoute requiredRoles="designer">
+                  <DesignerQuoteDetailPage />
+                </ProtectedRoute>
+              } />
+
+              {/* 404 Not Found Route - must be last */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </ToastProvider>
+    </UserProvider>
+
   );
 }
 

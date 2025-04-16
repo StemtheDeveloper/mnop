@@ -7,7 +7,7 @@ import { auth, db, storage } from '../config/firebase';
 import '../styles/ProfilePage.css';
 import '../styles/ImageCropper.css';
 import ImageCropper from '../components/ImageCropper';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 
 const ProfilePage = () => {
@@ -319,6 +319,9 @@ const ProfilePage = () => {
         </div>;
     };
 
+    const params = useParams();
+    const userId = params.id || currentUser?.uid; // Use URL param or current user's ID
+
     return (
         <div className="profile-page">
             {showProfileCropper && (
@@ -620,12 +623,12 @@ const ProfilePage = () => {
                         <div className="profile-section">
                             <div className="section-header">
                                 <h2>Achievements</h2>
-                                <Link to={profileId ? `/profile/${profileId}/achievements` : "/profile/achievements"} className="view-all-link">
+                                <Link to={userId ? `/profile/${userId}/achievements` : "/profile/achievements"} className="view-all-link">
                                     View All
                                 </Link>
 
                                 <AchievementBadgeDisplay
-                                    userId={profileId || currentUser?.uid}
+                                    userId={userId || currentUser?.uid}
                                     showTitle={false}
                                     limit={8}
                                 />

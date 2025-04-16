@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, writeBatch, deleteDoc, query, orderBy, limit, startAfter } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, writeBatch, deleteDoc, query, orderBy, limit, startAfter, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import AuthGuard from '../components/AuthGuard';
@@ -10,12 +10,30 @@ import ProductArchivePanel from '../components/admin/ProductArchivePanel';
 import TrendingProductsPanel from '../components/admin/TrendingProductsPanel';
 import '../styles/AdminTools.css';
 
+// Available roles in the system
+const AVAILABLE_ROLES = [
+    { id: 'customer', name: 'Customer', description: 'Purchase products' },
+    { id: 'designer', name: 'Designer', description: 'Create and manage product designs' },
+    { id: 'manufacturer', name: 'Manufacturer', description: 'Provide manufacturing quotes and services' },
+    { id: 'investor', name: 'Investor', description: 'Fund projects and track investments' },
+    { id: 'admin', name: 'Administrator', description: 'Manage system and users' }
+];
+
 const AdminPage = () => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState({ success: false, message: '', details: null });
     const [operation, setOperation] = useState('');
-    const { currentUser } = useUser();
+
+    // Fix: Check the actual function names in the UserContext
+    const { currentUser, userRole, loading: userLoading } = useUser();
+    const userContext = useUser(); // Get the full context to access methods
+
     const [activeTab, setActiveTab] = useState('users');
+
+    // Admin's own role management state
+    const [adminRoles, setAdminRoles] = useState([]);
+    const [selfRoleLoading, setSelfRoleLoading] = useState(false);
+    const [selfRoleMessage, setSelfRoleMessage] = useState({ type: '', text: '' });
 
     // User management state
     const [users, setUsers] = useState([]);
@@ -33,6 +51,196 @@ const AdminPage = () => {
     // Constants
     const USER_ROLES = ['customer', 'designer', 'manufacturer', 'investor', 'admin'];
     const USERS_PER_PAGE = 20;
+
+    // Initialize admin roles from userRole
+    useEffect(() => {
+        if (userRole) {
+            if (Array.isArray(userRole)) {
+                setAdminRoles([...userRole]);
+            } else {
+                setAdminRoles([userRole]);
+            }
+        }
+    }, [userRole]);
+
+    // Define our own functions to add and remove roles
+    const addRoleDirectly = async (userId, roleId) => {
+        try {
+            // Get the current user document
+            const userRef = doc(db, 'users', userId);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) {
+                throw new Error('User document not found');
+            }
+
+            const userData = userSnap.data();
+
+            // Check if user already has roles array
+            let currentRoles = [];
+            if (Array.isArray(userData.roles)) {
+                currentRoles = [...userData.roles];
+            } else if (userData.role) {
+                currentRoles = [userData.role];
+            } else {
+                currentRoles = ['customer']; // Default role if none exists
+            }
+
+            // Add the new role if not already present
+            if (!currentRoles.includes(roleId)) {
+                currentRoles.push(roleId);
+
+                // Update Firestore
+                await updateDoc(userRef, {
+                    roles: currentRoles,
+                    role: roleId, // Update single role field for backward compatibility
+                    updatedAt: new Date()
+                });
+
+                return true;
+            }
+
+            return false; // Role already exists
+        } catch (error) {
+            console.error('Error adding role:', error);
+            throw error;
+        }
+    };
+
+    const removeRoleDirectly = async (userId, roleId) => {
+        try {
+            // Get the current user document
+            const userRef = doc(db, 'users', userId);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) {
+                throw new Error('User document not found');
+            }
+
+            const userData = userSnap.data();
+
+            // Check if user has roles array
+            let currentRoles = [];
+            if (Array.isArray(userData.roles)) {
+                currentRoles = [...userData.roles];
+            } else if (userData.role) {
+                currentRoles = [userData.role];
+            } else {
+                return false; // No roles to remove
+            }
+
+            // Remove the role if present
+            if (currentRoles.includes(roleId)) {
+                const newRoles = currentRoles.filter(role => role !== roleId);
+
+                // Don't allow removing the last role or all roles
+                if (newRoles.length === 0) {
+                    newRoles.push('customer'); // Default to customer if removing last role
+                }
+
+                // Update Firestore
+                await updateDoc(userRef, {
+                    roles: newRoles,
+                    role: newRoles[0], // Update single role field with first role
+                    updatedAt: new Date()
+                });
+
+                return true;
+            }
+
+            return false; // Role didn't exist
+        } catch (error) {
+            console.error('Error removing role:', error);
+            throw error;
+        }
+    };
+
+    // Function to handle adding a role to the admin's own account
+    const handleAddSelfRole = async (roleId) => {
+        if (!currentUser || adminRoles.includes(roleId)) return;
+
+        setSelfRoleLoading(true);
+        setSelfRoleMessage({ type: '', text: '' });
+
+        try {
+            // Use our direct function instead of relying on context
+            const success = await addRoleDirectly(currentUser.uid, roleId);
+
+            if (success) {
+                // Update local state
+                setAdminRoles(prev => [...prev, roleId]);
+                setSelfRoleMessage({
+                    type: 'success',
+                    text: `Successfully added ${roleId} role to your account!`
+                });
+            } else {
+                setSelfRoleMessage({
+                    type: 'error',
+                    text: 'Failed to update role. Please try again.'
+                });
+            }
+        } catch (error) {
+            console.error('Error adding role:', error);
+            setSelfRoleMessage({
+                type: 'error',
+                text: `Error: ${error.message}`
+            });
+        } finally {
+            setSelfRoleLoading(false);
+        }
+    };
+
+    // Function to handle removing a role from the admin's own account
+    const handleRemoveSelfRole = async (roleId) => {
+        // Prevent removing admin role from admin page
+        if (!currentUser || roleId === 'admin') {
+            setSelfRoleMessage({
+                type: 'warning',
+                text: 'You cannot remove the admin role while on the admin page.'
+            });
+            return;
+        }
+
+        setSelfRoleLoading(true);
+        setSelfRoleMessage({ type: '', text: '' });
+
+        try {
+            // Use our direct function instead of relying on context
+            const success = await removeRoleDirectly(currentUser.uid, roleId);
+
+            if (success) {
+                // Update local state
+                setAdminRoles(prev => prev.filter(role => role !== roleId));
+                setSelfRoleMessage({
+                    type: 'success',
+                    text: `Successfully removed ${roleId} role from your account.`
+                });
+            } else {
+                setSelfRoleMessage({
+                    type: 'warning',
+                    text: `Could not remove the ${roleId} role. It may not exist.`
+                });
+            }
+        } catch (error) {
+            console.error('Error removing role:', error);
+            setSelfRoleMessage({
+                type: 'error',
+                text: `Error: ${error.message}`
+            });
+        } finally {
+            setSelfRoleLoading(false);
+        }
+    };
+
+    // Add a debug function to see available methods
+    const debugUserContext = () => {
+        console.log("Available methods in UserContext:",
+            Object.keys(userContext).filter(key => typeof userContext[key] === 'function'));
+        setSelfRoleMessage({
+            type: 'info',
+            text: 'Available methods logged to console. Check browser developer tools.'
+        });
+    };
 
     // Fetch users on component mount
     useEffect(() => {
@@ -139,40 +347,40 @@ const AdminPage = () => {
         setResult({ success: false, message: 'Updating user role...', details: null });
 
         try {
-            const userRef = doc(db, 'users', selectedUser.id);
+            const success = await addRoleDirectly(selectedUser.id, newRole);
 
-            // Get current roles
-            const currentRoles = Array.isArray(selectedUser.roles)
-                ? [...selectedUser.roles]
-                : [selectedUser.role || 'customer'];
+            if (success) {
+                // Get current roles to update local state
+                const userRef = doc(db, 'users', selectedUser.id);
+                const userSnap = await getDoc(userRef);
+                const userData = userSnap.data();
 
-            // Add the new role if it doesn't exist
-            if (!currentRoles.includes(newRole)) {
-                currentRoles.push(newRole);
+                // Update local state
+                setUsers(prevUsers => prevUsers.map(user =>
+                    user.id === selectedUser.id
+                        ? {
+                            ...user,
+                            roles: userData.roles,
+                            role: userData.role
+                        }
+                        : user
+                ));
+
+                setResult({
+                    success: true,
+                    message: `Updated ${selectedUser.email} with role: ${newRole}`,
+                    details: null
+                });
+
+                // Close modal
+                setRoleModalOpen(false);
+            } else {
+                setResult({
+                    success: false,
+                    message: `User already has the ${newRole} role`,
+                    details: null
+                });
             }
-
-            // Update Firestore
-            await updateDoc(userRef, {
-                roles: currentRoles,
-                role: newRole, // Update old field for backward compatibility
-                updatedAt: new Date()
-            });
-
-            // Update local state
-            setUsers(prevUsers => prevUsers.map(user =>
-                user.id === selectedUser.id
-                    ? { ...user, roles: currentRoles, role: newRole }
-                    : user
-            ));
-
-            setResult({
-                success: true,
-                message: `Updated ${selectedUser.email} with role: ${newRole}`,
-                details: null
-            });
-
-            // Close modal
-            setRoleModalOpen(false);
         } catch (error) {
             console.error('Error updating user role:', error);
             setResult({
@@ -342,6 +550,73 @@ const AdminPage = () => {
             <div className="admin-page">
                 <div className="admin-container">
                     <h1>Admin Dashboard</h1>
+
+                    {/* Admin Self-Role Management Section */}
+                    <div className="admin-section admin-self-role-section">
+                        <h2>Your Account Roles</h2>
+
+                        {selfRoleMessage.text && (
+                            <div className={`message ${selfRoleMessage.type}`}>
+                                {selfRoleMessage.text}
+                            </div>
+                        )}
+
+                        {/* Debug button to help identify available methods */}
+                        <button
+                            onClick={debugUserContext}
+                            className="debug-button"
+                        >
+                            Debug Available Methods
+                        </button>
+
+                        <div className="current-roles">
+                            <h3>Current Roles</h3>
+                            {adminRoles.length === 0 ? (
+                                <p>No roles assigned</p>
+                            ) : (
+                                <ul className="role-list">
+                                    {adminRoles.map((role, index) => (
+                                        <li key={role} className="role-item">
+                                            <span className={`role-badge ${role}`}>{role}</span>
+                                            {role !== 'admin' && (
+                                                <button
+                                                    onClick={() => handleRemoveSelfRole(role)}
+                                                    disabled={selfRoleLoading}
+                                                    className="role-action-button remove-button"
+                                                >
+                                                    Remove
+                                                </button>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+
+                        <div className="add-role-section">
+                            <h3>Add Role to Your Account</h3>
+                            <div className="available-roles">
+                                {AVAILABLE_ROLES
+                                    .filter(role => !adminRoles.includes(role.id))
+                                    .map(role => (
+                                        <div key={role.id} className="role-option">
+                                            <div className="role-info">
+                                                <span className={`role-badge ${role.id}`}>{role.name}</span>
+                                                <p>{role.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleAddSelfRole(role.id)}
+                                                disabled={selfRoleLoading}
+                                                className="add-role-button"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                        </div>
+                    </div>
 
                     <div className="admin-tabs">
                         <button
