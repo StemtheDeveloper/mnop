@@ -531,4 +531,73 @@ li {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-/* ... existing CSS ... */
+/* Add these styles to replace Tailwind classes */
+
+.search-container {
+  width: 100%;
+  order: 3;
+  margin-top: 1rem;
+}
+
+@media (min-width: 768px) {
+  .search-container {
+    order: 2;
+    width: auto;
+    margin-top: 0;
+    display: flex;
+  }
+}
+
+.search-form {
+  display: flex;
+}
+
+.search-input {
+  padding: 0.5rem 1rem;
+  width: 100%;
+  border-radius: 0.25rem 0 0 0.25rem;
+  border: 1px solid #e2e8f0;
+  font-size: 1rem;
+  outline: none;
+}
+
+@media (min-width: 768px) {
+  .search-input {
+    width: 16rem;
+  }
+}
+
+.search-button {
+  background-color: #ffd108; /* secondary color */
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0 0.25rem 0.25rem 0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.search-button:hover {
+  background-color: #e6bc07;
+}
+
+.mobile-menu-button {
+  order: 2;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: black;
+}
+
+@media (min-width: 768px) {
+  .mobile-menu-button {
+    display: none;
+  }
+}
+
+.mobile-menu-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}

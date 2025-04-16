@@ -195,27 +195,27 @@ const Navbar = () => {
 
   return (
     <>
-      <nav className="navbar bg-primary text-white py-4">
-        <div className="navbar-container container mx-auto px-4 flex flex-wrap items-center justify-between">
-          <div className="logo flex items-center space-x-2">
+      <nav className="navbar">
+        <div className="navbar-container">
+          <div className="logo">
             <Link to="/">
               <img src={Logo} alt="Portable Home logo" />
             </Link>
           </div>
 
           {/* Search Bar */}
-          <div className="order-3 md:order-2 w-full md:w-auto mt-4 md:mt-0 md:flex">
-            <form onSubmit={handleSearch} className="flex">
+          <div className="search-container">
+            <form onSubmit={handleSearch} className="search-form">
               <input
                 type="search"
                 placeholder="Search products..."
-                className="px-4 py-2 w-full md:w-64 text-black rounded-l focus:outline-none"
+                className="search-input"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <button
                 type="submit"
-                className="bg-secondary text-white px-4 py-2 rounded-r hover:bg-opacity-90"
+                className="search-button"
               >
                 Search
               </button>
@@ -225,10 +225,10 @@ const Navbar = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={toggleMenu}
-            className="order-2 md:hidden flex items-center text-white"
+            className="mobile-menu-button"
           >
             <svg
-              className="w-6 h-6"
+              className="mobile-menu-icon"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -244,17 +244,18 @@ const Navbar = () => {
           </button>
 
           {/* Desktop Navigation - only visible on larger screens */}
-          <div className="desktop-nav order-4 md:order-3 md:flex w-full md:w-auto mt-4 md:mt-0">
-            <ul className="nav-links-desktop flex flex-row md:flex-row md:space-x-4 space-y-2 md:space-y-0">
+          <div className="desktop-nav">
+            <ul className="nav-links-desktop">
               <NavLinks />
             </ul>
 
-            <div className="quick-links flex flex-col md:flex-row md:space-x-4 space-y-2 md:space-y-0">
-              <ul><li className="nav-item navbar-icons">
-                <Link to="/messages">
-                  <img src={MessageIcon} alt="Message icon" />
-                </Link>
-              </li>
+            <div className="quick-links">
+              <ul>
+                <li className="nav-item navbar-icons">
+                  <Link to="/messages">
+                    <img src={MessageIcon} alt="Message icon" />
+                  </Link>
+                </li>
                 <div className="c-h-r"></div>
                 <li className="nav-item navbar-icons">
                   <div className="icon-container" onClick={handleNotificationClick}>
