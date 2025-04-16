@@ -5,6 +5,7 @@ import Logo from "../assets/logos/Logo full black_1.svg";
 import { onAuthStateChanged, signOut, getAuth } from "firebase/auth";
 import { auth } from "../config/firebase.js";
 import { useUser } from "../context/UserContext";
+import { useTheme } from "../context/ThemeContext"; // Import ThemeContext
 import Burger from "../assets/Burger 3@4x.png"
 import CloseBurger from "../assets/Close-Burger@4x.png"
 import MessageIcon from "../assets/message icon mini.png";
@@ -15,6 +16,7 @@ import NotificationCenter from "./NotificationCenter";
 import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';
 import NotificationInbox from './NotificationInbox';
+import ThemeToggle from './ThemeToggle'; // Import ThemeToggle component
 import { useToast } from '../context/ToastContext';
 
 const AdminEmails = [
@@ -293,6 +295,7 @@ const Navbar = () => {
                   <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
                 </li>
               )}
+              <ThemeToggle /> {/* Add ThemeToggle component */}
             </div>
           </div>
 
@@ -358,6 +361,10 @@ const Navbar = () => {
                 <Link to="/wallet" className={isActive('/wallet') ? 'active' : ''} onClick={() => setIsOpen(false)}>
                   Wallet {walletBalance !== null && `($${walletBalance.toFixed(0)})`}
                 </Link>
+              </li>
+              <li className="nav-item theme-toggle-container">
+                <div className="theme-toggle-label">Theme Mode</div>
+                <ThemeToggle />
               </li>
             </ul>
           </div>

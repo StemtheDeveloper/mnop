@@ -601,3 +601,29 @@ li {
   width: 1.5rem;
   height: 1.5rem;
 }
+
+/* Theme toggle styling in navbar */
+.theme-toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0;
+}
+
+.theme-toggle-label {
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin-right: 10px;
+}
+
+.desktop-nav .theme-toggle-wrapper {
+  margin-left: 15px;
+}
+
+@media (max-width: 912px) {
+  .theme-toggle-container {
+    padding: 0.7rem 15px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 10px;
+  }
+}

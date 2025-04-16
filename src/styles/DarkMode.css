@@ -1,0 +1,130 @@
+/* Base light theme variables */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9f9f9;
+  --bg-tertiary: #f5f5f5;
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-tertiary: #888888;
+  --border-color: #dddddd;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --primary-color: #ef3c23; /* M'NOP primary brand color */
+  --primary-color-hover: #d43418;
+  --accent-color: #ffd108;
+  --success-color: #4caf50;
+  --error-color: #f44336;
+  --warning-color: #ff9800;
+  --info-color: #2196f3;
+}
+
+/* Dark theme variables */
+.dark-mode {
+  --bg-primary: #121212;
+  --bg-secondary: #1e1e1e;
+  --bg-tertiary: #2d2d2d;
+  --text-primary: #f5f5f5;
+  --text-secondary: #d1d1d1;
+  --text-tertiary: #a1a1a1;
+  --border-color: #444444;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --primary-color: #ff6b58; /* Lighter version for dark mode */
+  --primary-color-hover: #ff8876;
+  --accent-color: #ffde45;
+  --success-color: #66bb6a;
+  --error-color: #e57373;
+  --warning-color: #ffa726;
+  --info-color: #42a5f5;
+}
+
+/* Apply theme variables to common elements */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Cards and containers */
+.shop-container,
+.product-card,
+.wallet-container,
+.settings-container,
+.admin-section,
+.modal-container,
+.notification-item,
+.comment-card {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Inputs and form elements */
+input,
+select,
+textarea,
+.form-input,
+.filter-select {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Links and text */
+a {
+  color: var(--primary-color);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--text-primary);
+}
+
+p,
+span,
+div {
+  color: var(--text-secondary);
+}
+
+/* Navigation elements */
+.navbar {
+  background-color: var(--bg-primary);
+}
+
+.nav-links-desktop a,
+.nav-links-mobile a {
+  color: var(--text-primary);
+}
+
+/* Adjust button styles */
+.btn-primary {
+  background-color: var(--primary-color);
+  color: var(--bg-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-color-hover);
+}
+
+/* Transitions for smooth theme switching */
+*,
+*::before,
+*::after {
+  transition: background-color 0.3s ease, color 0.3s ease,
+    border-color 0.3s ease;
+}
+
+/* Dark mode icon adjustments */
+.dark-mode .navbar-icons img,
+.dark-mode .icon-container img {
+  filter: brightness(0) invert(1);
+}
+
+/* Override for status badges and color indicators to maintain their colors */
+.status-badge,
+.balance-amount,
+.funding-progress-bar {
+  transition: none !important;
+}

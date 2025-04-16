@@ -66,12 +66,15 @@
   justify-content: center;
   gap: 1.5rem;
   flex-wrap: wrap;
+  padding: 12px 0;
+  margin: 5px 0;
 }
 
 .filter-group {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  position: relative;
 }
 
 .filter-group label {
@@ -84,6 +87,81 @@
   border: 1px solid #ddd;
   border-radius: 4px;
   background-color: white;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.filter-select:focus {
+  border-color: #ef3c23;
+  box-shadow: 0 0 0 2px rgba(239, 60, 35, 0.2);
+  outline: none;
+}
+
+.filter-select.active-filter {
+  border-color: #ef3c23;
+  background-color: #fff0ee;
+}
+
+.filter-badge {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ef3c23;
+  display: block;
+}
+
+.subcategory-group {
+  position: relative;
+}
+
+/* Filter active summary */
+.filter-summary {
+  text-align: center;
+  margin: 5px 0 15px;
+  font-size: 14px;
+  color: #666;
+}
+
+.filter-summary .highlight {
+  font-weight: 500;
+  color: #ef3c23;
+}
+
+/* Clear filters button */
+.clear-filters-button {
+  display: block;
+  margin: 10px auto;
+  padding: 8px 16px;
+  background-color: #f5f5f5;
+  color: #555;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.clear-filters-button:hover {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+/* Animation for subcategory dropdown */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filter-group:nth-of-type(2) {
+  animation: fadeIn 0.3s ease-out;
 }
 
 /* Products Grid */

@@ -21,6 +21,63 @@ const ShopPage = () => {
     const [sortBy, setSortBy] = useState('newest');
     const [categories, setCategories] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [subCategory, setSubCategory] = useState('all');
+
+    // Predefined subcategories for main categories
+    const subCategories = {
+        all: [
+            { id: 'all', name: 'All Subcategories' }
+        ],
+        electronics: [
+            { id: 'all', name: 'All Electronics' },
+            { id: 'smartphones', name: 'Smartphones' },
+            { id: 'laptops', name: 'Laptops' },
+            { id: 'audio', name: 'Audio Devices' },
+            { id: 'wearables', name: 'Wearable Tech' },
+            { id: 'accessories', name: 'Accessories' }
+        ],
+        home: [
+            { id: 'all', name: 'All Home' },
+            { id: 'furniture', name: 'Furniture' },
+            { id: 'decor', name: 'Home Decor' },
+            { id: 'kitchen', name: 'Kitchen Appliances' },
+            { id: 'bedding', name: 'Bedding & Linens' },
+            { id: 'storage', name: 'Storage & Organization' }
+        ],
+        fashion: [
+            { id: 'all', name: 'All Fashion' },
+            { id: 'clothing', name: 'Clothing' },
+            { id: 'footwear', name: 'Footwear' },
+            { id: 'accessories', name: 'Accessories' },
+            { id: 'jewelry', name: 'Jewelry' }
+        ],
+        outdoors: [
+            { id: 'all', name: 'All Outdoors' },
+            { id: 'camping', name: 'Camping Gear' },
+            { id: 'sports', name: 'Sports Equipment' },
+            { id: 'garden', name: 'Garden & Patio' },
+            { id: 'travel', name: 'Travel Accessories' }
+        ],
+        health: [
+            { id: 'all', name: 'All Health & Beauty' },
+            { id: 'personal', name: 'Personal Care' },
+            { id: 'fitness', name: 'Fitness Equipment' },
+            { id: 'wellness', name: 'Wellness Products' }
+        ]
+    };
+
+    // Default categories if database fetch fails
+    const defaultCategories = [
+        { id: 'all', name: 'All Categories' },
+        { id: 'electronics', name: 'Electronics' },
+        { id: 'home', name: 'Home & Living' },
+        { id: 'fashion', name: 'Fashion' },
+        { id: 'outdoors', name: 'Outdoors & Recreation' },
+        { id: 'health', name: 'Health & Beauty' },
+        { id: 'kids', name: 'Kids & Toys' },
+        { id: 'books', name: 'Books & Entertainment' },
+        { id: 'art', name: 'Art & Collectibles' }
+    ];
 
     const productsPerPage = 12;
 
@@ -34,10 +91,18 @@ const ShopPage = () => {
                     id: doc.id,
                     ...doc.data()
                 }));
-                setCategories(categoryList);
+
+                // Use fetched categories if available, otherwise use defaults
+                if (categoryList.length > 0) {
+                    setCategories(categoryList);
+                } else {
+                    console.log('No categories found in database, using defaults');
+                    setCategories(defaultCategories.filter(cat => cat.id !== 'all'));
+                }
             } catch (err) {
                 console.error('Error fetching categories:', err);
-                // Don't set error state here to allow product fetching to continue
+                // Use default categories as fallback
+                setCategories(defaultCategories.filter(cat => cat.id !== 'all'));
             }
         };
 
@@ -94,10 +159,18 @@ const ShopPage = () => {
                 const snapshot = await getDocs(productsQuery);
 
                 // Get products
-                const productList = snapshot.docs.map(doc => ({
+                let productList = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
+
+                // Filter by subcategory if selected (client-side filtering as we can't do this in Firestore directly)
+                if (category !== 'all' && subCategory !== 'all') {
+                    productList = productList.filter(product =>
+                        product.subCategory === subCategory ||
+                        (product.tags && product.tags.includes(subCategory))
+                    );
+                }
 
                 // Set last visible for pagination
                 const lastDoc = snapshot.docs[snapshot.docs.length - 1];
@@ -116,7 +189,7 @@ const ShopPage = () => {
         };
 
         fetchProducts();
-    }, [category, sortBy]);
+    }, [category, sortBy, subCategory]);
 
     // Load more products
     const loadMoreProducts = async () => {
@@ -172,10 +245,18 @@ const ShopPage = () => {
             const snapshot = await getDocs(moreProductsQuery);
 
             // Get products
-            const moreProducts = snapshot.docs.map(doc => ({
+            let moreProducts = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
+
+            // Filter by subcategory if selected (client-side filtering)
+            if (category !== 'all' && subCategory !== 'all') {
+                moreProducts = moreProducts.filter(product =>
+                    product.subCategory === subCategory ||
+                    (product.tags && product.tags.includes(subCategory))
+                );
+            }
 
             // Update last visible
             const lastDoc = snapshot.docs[snapshot.docs.length - 1];
@@ -237,6 +318,22 @@ const ShopPage = () => {
         setSearchTerm('');
         setCategory('all');
         setSortBy('newest');
+    };
+
+    // Clear all filters
+    const handleClearAllFilters = () => {
+        setSearchTerm('');
+        setCategory('all');
+        setSortBy('newest');
+        setSubCategory('all');
+    };
+
+    // Check if any filter is active
+    const isFilterActive = () => {
+        return category !== 'all' ||
+            sortBy !== 'newest' ||
+            (category !== 'all' && subCategory !== 'all') ||
+            searchTerm !== '';
     };
 
     // Product navigation handler
@@ -315,8 +412,11 @@ const ShopPage = () => {
                             <select
                                 id="category"
                                 value={category}
-                                onChange={(e) => setCategory(e.target.value)}
-                                className="filter-select"
+                                onChange={(e) => {
+                                    setCategory(e.target.value);
+                                    setSubCategory('all'); // Reset subcategory when main category changes
+                                }}
+                                className={`filter-select ${category !== 'all' ? 'active-filter' : ''}`}
                             >
                                 <option value="all">All Categories</option>
                                 {categories.map(cat => (
@@ -325,7 +425,28 @@ const ShopPage = () => {
                                     </option>
                                 ))}
                             </select>
+                            {category !== 'all' && <span className="filter-badge"></span>}
                         </div>
+
+                        {/* Subcategory filter - only show if a main category is selected */}
+                        {category !== 'all' && subCategories[category] && (
+                            <div className="filter-group subcategory-group">
+                                <label htmlFor="subcategory">Subcategory:</label>
+                                <select
+                                    id="subcategory"
+                                    value={subCategory}
+                                    onChange={(e) => setSubCategory(e.target.value)}
+                                    className={`filter-select ${subCategory !== 'all' ? 'active-filter' : ''}`}
+                                >
+                                    {(subCategories[category] || subCategories.all).map(subCat => (
+                                        <option key={subCat.id} value={subCat.id}>
+                                            {subCat.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {subCategory !== 'all' && <span className="filter-badge"></span>}
+                            </div>
+                        )}
 
                         <div className="filter-group">
                             <label htmlFor="sortBy">Sort by:</label>
@@ -333,7 +454,7 @@ const ShopPage = () => {
                                 id="sortBy"
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                className="filter-select"
+                                className={`filter-select ${sortBy !== 'newest' ? 'active-filter' : ''}`}
                             >
                                 <option value="newest">Newest</option>
                                 <option value="priceAsc">Price: Low to High</option>
@@ -341,8 +462,37 @@ const ShopPage = () => {
                                 <option value="popular">Most Popular</option>
                                 <option value="rating">Highest Rated</option>
                             </select>
+                            {sortBy !== 'newest' && <span className="filter-badge"></span>}
                         </div>
                     </div>
+
+                    {/* Clear Filters Button */}
+                    {isFilterActive() && (
+                        <button
+                            className="clear-filters-button"
+                            onClick={handleClearAllFilters}
+                        >
+                            Clear Filters
+                        </button>
+                    )}
+
+                    {/* Filter Summary */}
+                    {isFilterActive() && (
+                        <div className="filter-summary">
+                            Showing
+                            {category !== 'all' && subCategory !== 'all' ? (
+                                <> <span className="highlight">{subCategory}</span> products in <span className="highlight">{category}</span></>
+                            ) : category !== 'all' ? (
+                                <> all <span className="highlight">{category}</span> products</>
+                            ) : null}
+                            {searchTerm && <> matching "<span className="highlight">{searchTerm}</span>"</>}
+                            {sortBy !== 'newest' && <> sorted by <span className="highlight">
+                                {sortBy === 'priceAsc' ? 'price (low to high)' :
+                                    sortBy === 'priceDesc' ? 'price (high to low)' :
+                                        sortBy === 'popular' ? 'popularity' : 'rating'}
+                            </span></>}
+                        </div>
+                    )}
                 </div>
 
                 {/* Products Grid */}
