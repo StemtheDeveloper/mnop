@@ -401,7 +401,7 @@ const ProfilePage = () => {
 
                     <div className="action-buttons">
                         {userRole && Array.isArray(userRole) && userRole.includes('designer') && (
-                            <Link to="/upload-product" className="pill-btn">Upload New Design</Link>
+                            <Link to="/product-upload" className="pill-btn">Upload New Design</Link>
                         )}
                         {userRole && Array.isArray(userRole) && userRole.includes('investor') && (
                             <Link to="/portfolio" className="pill-btn">View Investment Portfolio</Link>

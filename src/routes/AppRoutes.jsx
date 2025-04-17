@@ -19,6 +19,25 @@ const OrdersPage = lazy(() => import('../pages/OrdersPage'));
 const OrderDetailPage = lazy(() => import('../pages/OrderDetailPage'));
 const CartPage = lazy(() => import('../pages/CartPage'));
 const CheckoutPage = lazy(() => import('../pages/CheckoutPage'));
+const ProductUploadPage = lazy(() => import('../pages/ProductUploadPage'));
+const AboutPage = lazy(() => import('../pages/AboutPage'));
+const ContactPage = lazy(() => import('../pages/ContactPage'));
+const AchievementsPage = lazy(() => import('../pages/AchievementsPage'));
+const AchievementsBadgesPage = lazy(() => import('../pages/AchievementsBadgesPage'));
+const DesignerQuotesPage = lazy(() => import('../pages/DesignerQuotesPage'));
+const DesignerQuoteDetailPage = lazy(() => import('../pages/DesignerQuoteDetailPage'));
+const HelpDocumentationPage = lazy(() => import('../pages/HelpDocumentationPage'));
+const IdeaDetailPage = lazy(() => import('../pages/IdeaDetailPage'));
+const IdeasPage = lazy(() => import('../pages/IdeasPage'));
+const InvestmentPortfolioPage = lazy(() => import('../pages/InvestmentPortfolioPage'));
+const ManufacturerQuotesPage = lazy(() => import('../pages/ManufacturerQuotesPage'));
+const ManufacturerQuoteDetailPage = lazy(() => import('../pages/ManufacturerQuoteDetailPage'));
+const ManufacturingManagementQuotesPage = lazy(() => import('../pages/ManufacturingManagementQuotesPage'));
+const MessagesPage = lazy(() => import('../pages/MessagesPage'));
+const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
+const NotificationsInboxPage = lazy(() => import('../pages/NotificationsInboxPage'));
+const ToastDemoPage = lazy(() => import('../pages/ToastDemoPage'));
+const UserSettingsPage = lazy(() => import('../pages/UserSettingsPage'));
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -40,6 +59,11 @@ const AppRoutes = () => {
                 <Route path="/product/:productId" element={<ProductDetailPage />} />
                 <Route path="/unauthorized" element={<UnauthorizedPage />} />
                 <Route path="/cart" element={<CartPage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/help" element={<HelpDocumentationPage />} />
+                <Route path="/ideas" element={<IdeasPage />} />
+                <Route path="/idea/:ideaId" element={<IdeaDetailPage />} />
 
                 {/* Protected Routes */}
                 <Route path="/home" element={
@@ -74,6 +98,76 @@ const AppRoutes = () => {
                     </AuthGuard>
                 } />
                 <Route path="/products" element={<ProductsPage />} />
+                <Route path="/product-upload" element={
+                    <AuthGuard allowedRoles={["designer"]}>
+                        <ProductUploadPage />
+                    </AuthGuard>
+                } />
+                <Route path="/settings" element={
+                    <AuthGuard>
+                        <UserSettingsPage />
+                    </AuthGuard>
+                } />
+                <Route path="/achievements" element={
+                    <AuthGuard>
+                        <AchievementsPage />
+                    </AuthGuard>
+                } />
+                <Route path="/achievements/badges" element={
+                    <AuthGuard>
+                        <AchievementsBadgesPage />
+                    </AuthGuard>
+                } />
+                <Route path="/messages" element={
+                    <AuthGuard>
+                        <MessagesPage />
+                    </AuthGuard>
+                } />
+                <Route path="/notifications" element={
+                    <AuthGuard>
+                        <NotificationsPage />
+                    </AuthGuard>
+                } />
+                <Route path="/notifications/inbox" element={
+                    <AuthGuard>
+                        <NotificationsInboxPage />
+                    </AuthGuard>
+                } />
+                <Route path="/portfolio" element={
+                    <AuthGuard allowedRoles={["investor"]}>
+                        <InvestmentPortfolioPage />
+                    </AuthGuard>
+                } />
+
+                {/* Role-specific Routes */}
+                <Route path="/designer/quotes" element={
+                    <AuthGuard allowedRoles={["designer"]}>
+                        <DesignerQuotesPage />
+                    </AuthGuard>
+                } />
+                <Route path="/designer/quote/:quoteId" element={
+                    <AuthGuard allowedRoles={["designer"]}>
+                        <DesignerQuoteDetailPage />
+                    </AuthGuard>
+                } />
+                <Route path="/manufacturer/quotes" element={
+                    <AuthGuard allowedRoles={["manufacturer"]}>
+                        <ManufacturerQuotesPage />
+                    </AuthGuard>
+                } />
+                <Route path="/manufacturer/quote/:quoteId" element={
+                    <AuthGuard allowedRoles={["manufacturer"]}>
+                        <ManufacturerQuoteDetailPage />
+                    </AuthGuard>
+                } />
+                <Route path="/manufacturing/quotes" element={
+                    <AuthGuard allowedRoles={["manufacturer"]}>
+                        <ManufacturingManagementQuotesPage />
+                    </AuthGuard>
+                } />
+
+                {/* Development Routes */}
+                <Route path="/toast-demo" element={<ToastDemoPage />} />
 
                 {/* Admin Routes */}
                 <Route path="/admin" element={
