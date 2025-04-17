@@ -78,9 +78,16 @@ const ProfilePage = () => {
     // Fetch designer's products
     useEffect(() => {
         const fetchDesignerProducts = async () => {
-            if (!userId || !isDesigner) return;
+            if (!userId) return;
 
+            // Only try to fetch products if the user has designer role
+            // Use hasRole to check for designer role consistently
+            const userIsDesigner = hasRole('designer');
+            if (!userIsDesigner) return;
+
+            console.log('Fetching designer products for userId:', userId);
             setLoadingProducts(true);
+
             try {
                 const productsRef = collection(db, 'products');
                 const q = query(productsRef, where('designerId', '==', userId));
@@ -91,6 +98,7 @@ const ProfilePage = () => {
                     ...doc.data()
                 }));
 
+                console.log('Designer products fetched:', products.length);
                 setDesignerProducts(products);
             } catch (error) {
                 console.error('Error fetching products:', error);
@@ -101,7 +109,7 @@ const ProfilePage = () => {
         };
 
         fetchDesignerProducts();
-    }, [userId, isDesigner]);
+    }, [userId, hasRole]); // Depend directly on hasRole to ensure role changes are detected
 
     // Format price as currency
     const formatPrice = (price) => {

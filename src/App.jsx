@@ -7,6 +7,7 @@ import { UserProvider } from './context/UserContext';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
 import './styles/App.css';
+import './styles/Buttons.css'; // Importing common button styles
 
 function App() {
   return (
