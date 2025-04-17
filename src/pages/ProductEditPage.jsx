@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { doc, collection, addDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useNavigate, useParams } from 'react-router-dom';
+import { doc, collection, updateDoc, getDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
-import useAchievements from '../hooks/useAchievements';
 import '../styles/ProductUpload.css';
+import { useToast } from '../context/ToastContext';
 
 // Default categories in case Firestore fetch fails
 const DEFAULT_CATEGORIES = [
@@ -23,15 +23,16 @@ const DEFAULT_CATEGORIES = [
 
 const MAX_IMAGES = 5; // Maximum number of images allowed
 
-const ProductUploadPage = () => {
+const ProductEditPage = () => {
     const navigate = useNavigate();
-    const { currentUser, userRole, userProfile } = useUser();
-    const { checkProductAchievements } = useAchievements();
-    const [loading, setLoading] = useState(false);
+    const { productId } = useParams();
+    const { currentUser, userRole } = useUser();
+    const { showSuccess, showError } = useToast();
+
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-    const [success, setSuccess] = useState(false);
-    const [requireApproval, setRequireApproval] = useState(true);
-    const [successMessage, setSuccessMessage] = useState('');
+    const [product, setProduct] = useState(null);
 
     // Product form state
     const [formData, setFormData] = useState({
@@ -40,12 +41,14 @@ const ProductUploadPage = () => {
         price: '',
         category: '',
         fundingGoal: '',
-        customCategory: '',  // New field for custom category
+        customCategory: '',
     });
 
     // Multiple image handling state
     const [productImages, setProductImages] = useState([]);
     const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
+    const [existingImageUrls, setExistingImageUrls] = useState([]);
+    const [imagesToDelete, setImagesToDelete] = useState([]);
     const [showImageCropper, setShowImageCropper] = useState(false);
     const [cropImageSrc, setCropImageSrc] = useState('');
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -63,6 +66,65 @@ const ProductUploadPage = () => {
             Array.isArray(userRole) && userRole.includes('designer')
     );
 
+    // Fetch the product data
+    useEffect(() => {
+        const fetchProduct = async () => {
+            if (!productId || !currentUser) return;
+
+            try {
+                const productRef = doc(db, 'products', productId);
+                const productSnap = await getDoc(productRef);
+
+                if (!productSnap.exists()) {
+                    throw new Error('Product not found');
+                }
+
+                const productData = productSnap.data();
+
+                // Check if the current user is the designer of this product
+                if (productData.designerId !== currentUser.uid) {
+                    throw new Error('You do not have permission to edit this product');
+                }
+
+                setProduct({
+                    id: productSnap.id,
+                    ...productData
+                });
+
+                // Set form data from product
+                setFormData({
+                    name: productData.name || '',
+                    description: productData.description || '',
+                    price: productData.price ? productData.price.toString() : '',
+                    category: productData.category || '',
+                    fundingGoal: productData.fundingGoal ? productData.fundingGoal.toString() : '',
+                    customCategory: productData.categoryType === 'custom' ? productData.category : '',
+                });
+
+                // Set useCustomCategory based on categoryType
+                setUseCustomCategory(productData.categoryType === 'custom');
+
+                // Set existing image URLs
+                if (productData.imageUrls && Array.isArray(productData.imageUrls)) {
+                    setExistingImageUrls(productData.imageUrls);
+                    setImagePreviewUrls(productData.imageUrls);
+                } else if (productData.imageUrl) {
+                    // Handle case where only a single imageUrl exists
+                    setExistingImageUrls([productData.imageUrl]);
+                    setImagePreviewUrls([productData.imageUrl]);
+                }
+
+                setLoading(false);
+            } catch (err) {
+                console.error('Error fetching product:', err);
+                setError(err.message || 'Failed to load product data');
+                setLoading(false);
+            }
+        };
+
+        fetchProduct();
+    }, [productId, currentUser]);
+
     // Fetch categories on component mount
     useEffect(() => {
         const fetchCategories = async () => {
@@ -79,38 +141,17 @@ const ProductUploadPage = () => {
                     setCategories(categoriesData);
                 } else {
                     setCategories(DEFAULT_CATEGORIES);
-                    console.log('Using default categories as fallback');
                 }
             } catch (err) {
                 console.error('Error fetching categories:', err);
                 // Use default categories as fallback
                 setCategories(DEFAULT_CATEGORIES);
-                console.log('Using default categories due to fetch error');
             } finally {
                 setLoadingCategories(false);
             }
         };
 
         fetchCategories();
-    }, []);
-
-    // Fetch approval setting on component mount
-    useEffect(() => {
-        const fetchApprovalSetting = async () => {
-            try {
-                const settingsRef = doc(db, 'settings', 'productSettings');
-                const settingsSnap = await getDoc(settingsRef);
-
-                if (settingsSnap.exists()) {
-                    setRequireApproval(settingsSnap.data().requireApproval ?? true);
-                }
-            } catch (err) {
-                console.error('Error fetching approval settings:', err);
-                // Default to requiring approval if there's an error
-            }
-        };
-
-        fetchApprovalSetting();
     }, []);
 
     // Handle form input changes
@@ -155,6 +196,18 @@ const ProductUploadPage = () => {
         }
     };
 
+    // Handle existing image removal
+    const handleRemoveExistingImage = (index) => {
+        const urlToRemove = existingImageUrls[index];
+        setExistingImageUrls(existingImageUrls.filter((_, i) => i !== index));
+        setImagePreviewUrls(imagePreviewUrls.filter((_, i) => i !== index));
+
+        // Add URL to list of images to delete on save
+        if (urlToRemove) {
+            setImagesToDelete([...imagesToDelete, urlToRemove]);
+        }
+    };
+
     // Handle image selection
     const handleImageChange = (e) => {
         if (e.target.files[0]) {
@@ -172,8 +225,8 @@ const ProductUploadPage = () => {
                 return;
             }
 
-            // Check if we've reached the image limit
-            if (productImages.length >= MAX_IMAGES) {
+            // Check if we've reached the image limit (existing + new)
+            if ((existingImageUrls.length + productImages.length) >= MAX_IMAGES) {
                 setError(`You can upload a maximum of ${MAX_IMAGES} images`);
                 return;
             }
@@ -204,11 +257,7 @@ const ProductUploadPage = () => {
 
             // Create preview URL
             const previewUrl = URL.createObjectURL(blob);
-            setImagePreviewUrls(prevUrls => {
-                const newUrls = [...prevUrls];
-                newUrls[currentImageIndex] = previewUrl;
-                return newUrls;
-            });
+            setImagePreviewUrls(prevUrls => [...prevUrls, previewUrl]);
         } catch (error) {
             console.error("Error processing cropped image:", error);
             setError('Error processing the cropped image');
@@ -248,7 +297,8 @@ const ProductUploadPage = () => {
             return false;
         }
 
-        if (productImages.length === 0) {
+        // Make sure there's at least one image (either existing or new)
+        if (existingImageUrls.length === 0 && productImages.length === 0) {
             setError('At least one product image is required');
             return false;
         }
@@ -260,39 +310,54 @@ const ProductUploadPage = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Reset error and success states
+        // Reset error state
         setError('');
-        setSuccess(false);
 
         // Validate form
         if (!validateForm()) {
             return;
         }
 
-        setLoading(true);
+        setSaving(true);
 
         try {
-            // 1. Upload images to Storage with properly structured path
-            const imageUrls = await Promise.all(productImages.map(async (image, index) => {
+            // 1. Upload any new images to Storage
+            const newImageUrls = await Promise.all(productImages.map(async (image) => {
                 const timestamp = Date.now();
-                const fileName = `${timestamp}-product-${index}.jpg`;
+                const fileName = `${timestamp}-product-${Math.random().toString(36).substring(7)}.jpg`;
                 const storageRef = ref(storage, `products/${currentUser.uid}/${fileName}`);
 
-                // Log the upload process
-                console.log('Uploading product image to:', storageRef.fullPath);
-
                 // Upload the file
-                const uploadTaskSnapshot = await uploadBytes(storageRef, image);
-                console.log('Upload completed:', uploadTaskSnapshot);
+                await uploadBytes(storageRef, image);
 
                 // Get the download URL
                 const imageUrl = await getDownloadURL(storageRef);
-                console.log('Image URL obtained:', imageUrl);
-
                 return imageUrl;
             }));
 
-            // 2. Create product document in Firestore with the image URLs
+            // 2. Delete any images that were marked for deletion
+            // Only attempt to delete if we have storage paths
+            if (product.storagePaths && Array.isArray(product.storagePaths)) {
+                for (const imageUrl of imagesToDelete) {
+                    // Find the storage path that corresponds to this URL
+                    const pathIndex = product.imageUrls.indexOf(imageUrl);
+                    if (pathIndex >= 0 && pathIndex < product.storagePaths.length) {
+                        const storagePath = product.storagePaths[pathIndex];
+                        try {
+                            const imageRef = ref(storage, storagePath);
+                            await deleteObject(imageRef);
+                        } catch (deleteError) {
+                            console.error('Error deleting image:', deleteError);
+                            // Continue with the update even if image deletion fails
+                        }
+                    }
+                }
+            }
+
+            // 3. Combine existing (that weren't deleted) and new image URLs
+            const allImageUrls = [...existingImageUrls, ...newImageUrls];
+
+            // 4. Update product document in Firestore
             const productData = {
                 name: formData.name,
                 description: formData.description,
@@ -300,94 +365,24 @@ const ProductUploadPage = () => {
                 fundingGoal: parseFloat(formData.fundingGoal),
                 category: useCustomCategory ? formData.customCategory.trim() : formData.category,
                 categoryType: useCustomCategory ? 'custom' : 'standard',
-                imageUrls: imageUrls, // Store the image URLs from Firebase Storage
-                designerId: currentUser.uid,
-                designerName: userProfile?.displayName || 'Designer',
-                status: requireApproval ? 'pending' : 'active', // Set status based on approval setting
-                currentFunding: 0, // Initial funding amount
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-                storagePaths: imageUrls.map((url, index) => `products/${currentUser.uid}/${Date.now()}-product-${index}.jpg`) // Store the paths for future reference
+                imageUrls: allImageUrls,
+                updatedAt: serverTimestamp()
             };
 
-            console.log('Creating Firestore document with data:', { ...productData, imageUrls: 'URLs logged above' });
+            // Update the product document
+            await updateDoc(doc(db, 'products', productId), productData);
 
-            // If it's a custom category, add it to the categories collection
-            if (useCustomCategory && formData.customCategory.trim()) {
-                const customCategoryData = {
-                    name: formData.customCategory.trim(),
-                    createdAt: serverTimestamp(),
-                    createdBy: currentUser.uid,
-                    type: 'user-created'
-                };
+            // Show success message
+            showSuccess("Product updated successfully!");
 
-                try {
-                    const categoryRef = await addDoc(collection(db, 'categories'), customCategoryData);
-                    console.log('Added custom category with ID:', categoryRef.id);
-
-                    // Use the new category ID instead
-                    productData.category = categoryRef.id;
-                    productData.categoryType = 'standard'; // now it's stored in the database
-                } catch (categoryError) {
-                    console.error('Failed to add custom category, using text value instead:', categoryError);
-                }
-            }
-
-            const docRef = await addDoc(collection(db, 'products'), productData);
-            console.log('Firestore document created with ID:', docRef.id);
-
-            // Success message based on approval setting
-            if (requireApproval) {
-                setSuccess(true);
-                setSuccessMessage("Product submitted for approval! It will appear in the shop once approved.");
-            } else {
-                setSuccess(true);
-                setSuccessMessage("Product created successfully! It is now live in the shop.");
-            }
-
-            // Success! Reset form and show success message
-            setFormData({
-                name: '',
-                description: '',
-                price: '',
-                category: '',
-                customCategory: '',
-                fundingGoal: '',
-            });
-            setProductImages([]);
-            setImagePreviewUrls([]);
-            setUseCustomCategory(false);
-
-            // On successful upload, check for achievements
-            await checkProductAchievements();
-
-            // Redirect to the new product page after a delay
-            setTimeout(() => {
-                navigate(`/products/${docRef.id}`);
-            }, 2000);
-
+            // Redirect back to product detail or management page
+            navigate(`/product/${productId}`);
         } catch (error) {
-            console.error('Error creating product:', error);
-
-            // More detailed error handling
-            let errorMessage = 'Failed to create product. Please try again.';
-
-            // Check for specific Firebase errors
-            if (error.code) {
-                if (error.code.includes('storage/unauthorized')) {
-                    errorMessage = 'You do not have permission to upload images. Please check your account permissions.';
-                } else if (error.code.includes('storage/quota-exceeded')) {
-                    errorMessage = 'Storage quota exceeded. Please contact support.';
-                } else if (error.code.includes('storage/')) {
-                    errorMessage = `Storage error: ${error.message}`;
-                } else if (error.code.includes('firestore/')) {
-                    errorMessage = `Database error: ${error.message}`;
-                }
-            }
-
-            setError(errorMessage);
+            console.error('Error updating product:', error);
+            setError(error.message || 'Failed to update product. Please try again.');
+            showError("Failed to update product");
         } finally {
-            setLoading(false);
+            setSaving(false);
         }
     };
 
@@ -396,7 +391,7 @@ const ProductUploadPage = () => {
         return (
             <div className="role-error-container">
                 <h2>Designer Access Only</h2>
-                <p>You need to have the designer role to upload products.</p>
+                <p>You need to have the designer role to edit products.</p>
                 <button
                     className="back-button"
                     onClick={() => navigate('/profile')}
@@ -407,15 +402,42 @@ const ProductUploadPage = () => {
         );
     }
 
+    // Display loading state
+    if (loading) {
+        return (
+            <div className="product-upload-page">
+                <div className="loading-container">
+                    <LoadingSpinner />
+                    <p>Loading product data...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Display error state if product couldn't be loaded
+    if (error && !product) {
+        return (
+            <div className="product-upload-page">
+                <div className="product-upload-container">
+                    <h1>Edit Product</h1>
+                    <div className="error-message">{error}</div>
+                    <button
+                        className="back-button"
+                        onClick={() => navigate(-1)}
+                    >
+                        Go Back
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="product-upload-page">
             <div className="product-upload-container">
-                <h1>Upload New Product</h1>
+                <h1>Edit Product</h1>
 
                 {error && <div className="error-message">{error}</div>}
-                {success && <div className="success-message">
-                    {successMessage || "Product created successfully! Redirecting..."}
-                </div>}
 
                 {showImageCropper && (
                     <ImageCropper
@@ -441,7 +463,7 @@ const ProductUploadPage = () => {
                                     value={formData.name}
                                     onChange={handleChange}
                                     placeholder="Enter product name"
-                                    disabled={loading}
+                                    disabled={saving}
                                 />
                             </div>
 
@@ -453,7 +475,7 @@ const ProductUploadPage = () => {
                                     value={formData.description}
                                     onChange={handleChange}
                                     placeholder="Describe your product"
-                                    disabled={loading}
+                                    disabled={saving}
                                     rows="6"
                                 ></textarea>
                             </div>
@@ -468,7 +490,7 @@ const ProductUploadPage = () => {
                                         value={formData.price}
                                         onChange={handleChange}
                                         placeholder="0.00"
-                                        disabled={loading}
+                                        disabled={saving}
                                     />
                                 </div>
 
@@ -481,7 +503,7 @@ const ProductUploadPage = () => {
                                         value={formData.fundingGoal}
                                         onChange={handleChange}
                                         placeholder="0.00"
-                                        disabled={loading}
+                                        disabled={saving}
                                     />
                                 </div>
                             </div>
@@ -496,7 +518,7 @@ const ProductUploadPage = () => {
                                                 name="categoryToggle"
                                                 checked={!useCustomCategory}
                                                 onChange={() => toggleCustomCategory()}
-                                                disabled={loading}
+                                                disabled={saving}
                                             />
                                             Use existing category
                                         </label>
@@ -507,7 +529,7 @@ const ProductUploadPage = () => {
                                                 name="categoryToggle"
                                                 checked={useCustomCategory}
                                                 onChange={() => toggleCustomCategory()}
-                                                disabled={loading}
+                                                disabled={saving}
                                             />
                                             Create custom category
                                         </label>
@@ -521,7 +543,7 @@ const ProductUploadPage = () => {
                                                 name="category"
                                                 value={formData.category}
                                                 onChange={handleChange}
-                                                disabled={loading || loadingCategories || useCustomCategory}
+                                                disabled={saving || loadingCategories || useCustomCategory}
                                             >
                                                 <option value="">Select a category</option>
                                                 {categories.map(category => (
@@ -542,7 +564,7 @@ const ProductUploadPage = () => {
                                                 value={formData.customCategory}
                                                 onChange={handleChange}
                                                 placeholder="Enter a new category name"
-                                                disabled={loading || !useCustomCategory}
+                                                disabled={saving || !useCustomCategory}
                                             />
                                         </>
                                     )}
@@ -552,35 +574,61 @@ const ProductUploadPage = () => {
 
                         <div className="form-right">
                             <div className="form-group image-upload">
-                                <label>Product Images*</label>
+                                <label>Product Images* ({imagePreviewUrls.length}/{MAX_IMAGES})</label>
                                 <div className="image-upload-area">
-                                    {imagePreviewUrls.map((url, index) => (
-                                        <div key={index} className="image-preview-container">
+                                    {/* Display existing images */}
+                                    {existingImageUrls.map((url, index) => (
+                                        <div key={`existing-${index}`} className="image-preview-container">
                                             <img src={url} alt={`Product Preview ${index + 1}`} className="image-preview" />
                                             <button
                                                 type="button"
                                                 className="remove-image-btn"
-                                                onClick={() => {
-                                                    setProductImages(prevImages => prevImages.filter((_, i) => i !== index));
-                                                    setImagePreviewUrls(prevUrls => prevUrls.filter((_, i) => i !== index));
-                                                }}
-                                                disabled={loading}
+                                                onClick={() => handleRemoveExistingImage(index)}
+                                                disabled={saving}
                                             >
                                                 Remove
                                             </button>
                                         </div>
                                     ))}
-                                    {productImages.length < MAX_IMAGES && (
+
+                                    {/* Display new images */}
+                                    {productImages.map((_, index) => (
+                                        <div key={`new-${index}`} className="image-preview-container">
+                                            <img
+                                                src={imagePreviewUrls[existingImageUrls.length + index]}
+                                                alt={`New Product Preview ${index + 1}`}
+                                                className="image-preview"
+                                            />
+                                            <button
+                                                type="button"
+                                                className="remove-image-btn"
+                                                onClick={() => {
+                                                    setProductImages(prevImages => prevImages.filter((_, i) => i !== index));
+                                                    setImagePreviewUrls(prevUrls => {
+                                                        const updatedUrls = [...prevUrls];
+                                                        updatedUrls.splice(existingImageUrls.length + index, 1);
+                                                        return updatedUrls;
+                                                    });
+                                                }}
+                                                disabled={saving}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {/* Upload new image button */}
+                                    {imagePreviewUrls.length < MAX_IMAGES && (
                                         <div
                                             className="upload-placeholder"
-                                            onClick={() => !loading && imageInputRef.current.click()}
+                                            onClick={() => !saving && imageInputRef.current.click()}
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                                                 <circle cx="8.5" cy="8.5" r="1.5"></circle>
                                                 <polyline points="21 15 16 10 5 21"></polyline>
                                             </svg>
-                                            <p>Click to upload image</p>
+                                            <p>Add image</p>
                                             <span>(Max size: 5MB)</span>
                                         </div>
                                     )}
@@ -591,9 +639,38 @@ const ProductUploadPage = () => {
                                     onChange={handleImageChange}
                                     accept="image/*"
                                     style={{ display: 'none' }}
-                                    disabled={loading}
+                                    disabled={saving}
                                 />
                             </div>
+
+                            {product && (
+                                <div className="product-status-info">
+                                    <h3>Product Status</h3>
+                                    <div className={`status-badge status-${product.status || 'pending'}`}>
+                                        {product.status || 'Pending'}
+                                    </div>
+
+                                    {product.fundingGoal > 0 && (
+                                        <div className="funding-progress">
+                                            <p>
+                                                {(product.currentFunding || 0) > 0
+                                                    ? `${Math.round((product.currentFunding / product.fundingGoal) * 100)}% Funded`
+                                                    : 'No funding yet'}
+                                            </p>
+                                            <div className="progress-bar">
+                                                <div
+                                                    className="progress"
+                                                    style={{ width: `${Math.min(((product.currentFunding || 0) / product.fundingGoal) * 100, 100)}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <p className="hint-text">
+                                        Note: Editing this product may require re-approval if product approval is required.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -602,16 +679,16 @@ const ProductUploadPage = () => {
                             type="button"
                             className="cancel-button"
                             onClick={() => navigate(-1)}
-                            disabled={loading}
+                            disabled={saving}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             className="submit-button"
-                            disabled={loading}
+                            disabled={saving}
                         >
-                            {loading ? <LoadingSpinner /> : 'Upload Product'}
+                            {saving ? <LoadingSpinner /> : 'Save Changes'}
                         </button>
                     </div>
                 </form>
@@ -620,4 +697,4 @@ const ProductUploadPage = () => {
     );
 };
 
-export default ProductUploadPage;
+export default ProductEditPage;

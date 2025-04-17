@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
 import '../styles/ProfilePage.css';
 import '../styles/ImageCropper.css';
 import ImageCropper from '../components/ImageCropper';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const ProfilePage = () => {
-    const { currentUser, userProfile, updateUserProfile, userRole, addUserRole } = useUser();
+    const navigate = useNavigate();
+    const { currentUser, userProfile, updateUserProfile, userRole, addUserRole, hasRole } = useUser();
     const [activeTab, setActiveTab] = useState('personal');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -27,6 +29,8 @@ const ProfilePage = () => {
     });
     const [requestedRole, setRequestedRole] = useState('');
     const [processingRoleRequest, setProcessingRoleRequest] = useState(false);
+    const [designerProducts, setDesignerProducts] = useState([]);
+    const [loadingProducts, setLoadingProducts] = useState(false);
 
     // Refs for file inputs
     const profilePhotoRef = useRef(null);
@@ -43,6 +47,16 @@ const ProfilePage = () => {
 
     // Temporary preview states
     const [profilePhotoPreview, setProfilePhotoPreview] = useState('');
+
+    // Parameters from URL
+    const params = useParams();
+    const userId = params.id || currentUser?.uid; // Use URL param or current user's ID
+
+    // Check if the current user is viewing their own profile
+    const isOwnProfile = currentUser && userId === currentUser.uid;
+
+    // Check if user has designer role
+    const isDesigner = hasRole('designer');
 
     // Load user data into form
     useEffect(() => {
@@ -61,6 +75,54 @@ const ProfilePage = () => {
         }
     }, [userProfile, currentUser]);
 
+    // Fetch designer's products
+    useEffect(() => {
+        const fetchDesignerProducts = async () => {
+            if (!userId || !isDesigner) return;
+
+            setLoadingProducts(true);
+            try {
+                const productsRef = collection(db, 'products');
+                const q = query(productsRef, where('designerId', '==', userId));
+                const snapshot = await getDocs(q);
+
+                const products = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                setDesignerProducts(products);
+            } catch (error) {
+                console.error('Error fetching products:', error);
+                setMessage({ type: 'error', text: 'Failed to load your products.' });
+            } finally {
+                setLoadingProducts(false);
+            }
+        };
+
+        fetchDesignerProducts();
+    }, [userId, isDesigner]);
+
+    // Format price as currency
+    const formatPrice = (price) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(price || 0);
+    };
+
+    // Format date
+    const formatDate = (timestamp) => {
+        if (!timestamp) return 'N/A';
+
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        return new Intl.DateTimeFormat('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        }).format(date);
+    };
+
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData({
@@ -68,6 +130,20 @@ const ProfilePage = () => {
             [name]: type === 'checkbox' ? checked : value,
         });
     };
+
+    // Handle navigation to edit product page
+    const handleEditProduct = (productId) => {
+        navigate(`/product-edit/${productId}`);
+    };
+
+    // Function to calculate funding percentage
+    const calculateFundingPercentage = (product) => {
+        if (!product.fundingGoal || product.fundingGoal <= 0) return 0;
+        const percentage = Math.min(((product.currentFunding || 0) / product.fundingGoal) * 100, 100);
+        return Math.round(percentage);
+    };
+
+    // ... existing code for profile photo handling ...
 
     const handleProfilePhotoClick = () => {
         profilePhotoRef.current.click();
@@ -319,8 +395,31 @@ const ProfilePage = () => {
         </div>;
     };
 
-    const params = useParams();
-    const userId = params.id || currentUser?.uid; // Use URL param or current user's ID
+    // Determine which tabs to show based on roles
+    const getTabs = () => {
+        const tabs = [
+            { id: 'personal', label: 'Personal Info', roles: ['all'] },
+            { id: 'account', label: 'Account Settings', roles: ['all'] },
+            { id: 'preferences', label: 'Preferences', roles: ['all'] }
+        ];
+
+        // Designer-specific tabs
+        if (isDesigner) {
+            tabs.push({ id: 'products', label: 'My Products', roles: ['designer'] });
+        }
+
+        // Manufacturer-specific tabs
+        if (hasRole('manufacturer')) {
+            tabs.push({ id: 'quotes', label: 'My Quotes', roles: ['manufacturer'] });
+        }
+
+        // Investor-specific tabs
+        if (hasRole('investor')) {
+            tabs.push({ id: 'investments', label: 'My Investments', roles: ['investor'] });
+        }
+
+        return tabs;
+    };
 
     return (
         <div className="profile-page">
@@ -361,12 +460,14 @@ const ProfilePage = () => {
                         alt="Profile"
                         className="profile-photo"
                     />
-                    <div className="photo-upload-button" onClick={handleProfilePhotoClick}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                            <circle cx="12" cy="13" r="4"></circle>
-                        </svg>
-                    </div>
+                    {isOwnProfile && (
+                        <div className="photo-upload-button" onClick={handleProfilePhotoClick}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                <circle cx="12" cy="13" r="4"></circle>
+                            </svg>
+                        </div>
+                    )}
                     <input
                         type="file"
                         ref={profilePhotoRef}
@@ -376,18 +477,20 @@ const ProfilePage = () => {
                     />
                 </div>
 
-                <div className="background-upload">
-                    <button className="upload-button" onClick={handleHeaderPhotoClick}>
-                        Change Cover
-                    </button>
-                    <input
-                        type="file"
-                        ref={headerPhotoRef}
-                        onChange={handleHeaderPhotoChange}
-                        style={{ display: 'none' }}
-                        accept="image/*"
-                    />
-                </div>
+                {isOwnProfile && (
+                    <div className="background-upload">
+                        <button className="upload-button" onClick={handleHeaderPhotoClick}>
+                            Change Cover
+                        </button>
+                        <input
+                            type="file"
+                            ref={headerPhotoRef}
+                            onChange={handleHeaderPhotoChange}
+                            style={{ display: 'none' }}
+                            accept="image/*"
+                        />
+                    </div>
+                )}
             </div>
 
             <div className="profile-wrapper">
@@ -400,14 +503,16 @@ const ProfilePage = () => {
                     </div>
 
                     <div className="action-buttons">
-                        {userRole && Array.isArray(userRole) && userRole.includes('designer') && (
+                        {isOwnProfile && hasRole('designer') && (
                             <Link to="/product-upload" className="pill-btn">Upload New Design</Link>
                         )}
-                        {userRole && Array.isArray(userRole) && userRole.includes('investor') && (
+                        {isOwnProfile && hasRole('investor') && (
                             <Link to="/portfolio" className="pill-btn">View Investment Portfolio</Link>
                         )}
-                        <Link to="/orders" className="pill-btn">My Orders</Link>
-                        {userRole && Array.isArray(userRole) && userRole.includes('designer') && (
+                        {isOwnProfile && (
+                            <Link to="/orders" className="pill-btn">My Orders</Link>
+                        )}
+                        {isOwnProfile && hasRole('designer') && (
                             <Link to="/earnings" className="pill-btn earnings">My Earnings</Link>
                         )}
                     </div>
@@ -415,24 +520,15 @@ const ProfilePage = () => {
 
                 <div className="profile-right">
                     <div className="profile-tabs">
-                        <div
-                            className={`profile-tab ${activeTab === 'personal' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('personal')}
-                        >
-                            Personal Info
-                        </div>
-                        <div
-                            className={`profile-tab ${activeTab === 'account' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('account')}
-                        >
-                            Account Settings
-                        </div>
-                        <div
-                            className={`profile-tab ${activeTab === 'preferences' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('preferences')}
-                        >
-                            Preferences
-                        </div>
+                        {getTabs().map(tab => (
+                            <div
+                                key={tab.id}
+                                className={`profile-tab ${activeTab === tab.id ? 'active' : ''}`}
+                                onClick={() => setActiveTab(tab.id)}
+                            >
+                                {tab.label}
+                            </div>
+                        ))}
                     </div>
 
                     <div className="profile-content">
@@ -442,8 +538,8 @@ const ProfilePage = () => {
                             </div>
                         )}
 
-                        <form onSubmit={handleSubmit}>
-                            {activeTab === 'personal' && (
+                        {activeTab === 'personal' && (
+                            <form onSubmit={handleSubmit}>
                                 <div className="settings-section">
                                     <h3>Personal Information</h3>
 
@@ -520,31 +616,43 @@ const ProfilePage = () => {
                                             placeholder="Tell us about yourself"
                                         />
                                     </div>
-                                </div>
-                            )}
 
-                            {activeTab === 'account' && (
-                                <div className="settings-section">
-                                    <h3>Account Information</h3>
-
-                                    <div className="form-group">
-                                        <label htmlFor="website">Website</label>
-                                        <input
-                                            type="url"
-                                            id="website"
-                                            name="website"
-                                            value={formData.website}
-                                            onChange={handleChange}
-                                            placeholder="https://yourwebsite.com"
-                                        />
+                                    <div className="form-actions">
+                                        <button
+                                            type="submit"
+                                            className="submit-button"
+                                            disabled={loading}
+                                        >
+                                            {loading ? 'Saving...' : 'Save Changes'}
+                                        </button>
                                     </div>
+                                </div>
+                            </form>
+                        )}
 
-                                    <div className="form-group">
-                                        <label>Account Type</label>
-                                        <p>Your account is registered as: <strong>
-                                            {Array.isArray(userRole) ? userRole.join(', ') : userRole || 'Customer'}
-                                        </strong></p>
+                        {activeTab === 'account' && (
+                            <div className="settings-section">
+                                <h3>Account Information</h3>
 
+                                <div className="form-group">
+                                    <label htmlFor="website">Website</label>
+                                    <input
+                                        type="url"
+                                        id="website"
+                                        name="website"
+                                        value={formData.website}
+                                        onChange={handleChange}
+                                        placeholder="https://yourwebsite.com"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Account Type</label>
+                                    <p>Your account is registered as: <strong>
+                                        {Array.isArray(userRole) ? userRole.join(', ') : userRole || 'Customer'}
+                                    </strong></p>
+
+                                    {isOwnProfile && (
                                         <div className="role-upgrade-section">
                                             <label htmlFor="requestRole">Request Additional Role:</label>
                                             <div className="role-upgrade-controls">
@@ -574,50 +682,170 @@ const ProfilePage = () => {
                                                 Adding a new role will give you access to additional features and capabilities.
                                             </p>
                                         </div>
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label>Account Status</label>
-                                        <p>Your account is <strong>Active</strong></p>
-                                    </div>
+                                    )}
                                 </div>
-                            )}
 
-                            {activeTab === 'preferences' && (
-                                <div className="settings-section">
-                                    <h3>Preferences</h3>
-
-                                    <div className="form-group checkbox">
-                                        <input
-                                            type="checkbox"
-                                            id="notifications"
-                                            name="notifications"
-                                            checked={formData.notifications}
-                                            onChange={handleChange}
-                                        />
-                                        <label htmlFor="notifications">Receive email notifications</label>
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label>Email Preferences</label>
-                                        <p>Manage your email preferences and subscriptions.</p>
-                                        <button type="button" className="add-button">
-                                            Manage Email Preferences
-                                        </button>
-                                    </div>
+                                <div className="form-group">
+                                    <label>Account Status</label>
+                                    <p>Your account is <strong>Active</strong></p>
                                 </div>
-                            )}
 
-                            <div className="form-actions">
-                                <button
-                                    type="submit"
-                                    className="submit-button"
-                                    disabled={loading}
-                                >
-                                    {loading ? 'Saving...' : 'Save Changes'}
-                                </button>
+                                <div className="form-actions">
+                                    <button
+                                        type="submit"
+                                        className="submit-button"
+                                        onClick={handleSubmit}
+                                        disabled={loading}
+                                    >
+                                        {loading ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </div>
                             </div>
-                        </form>
+                        )}
+
+                        {activeTab === 'preferences' && (
+                            <div className="settings-section">
+                                <h3>Preferences</h3>
+
+                                <div className="form-group checkbox">
+                                    <input
+                                        type="checkbox"
+                                        id="notifications"
+                                        name="notifications"
+                                        checked={formData.notifications}
+                                        onChange={handleChange}
+                                    />
+                                    <label htmlFor="notifications">Receive email notifications</label>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Email Preferences</label>
+                                    <p>Manage your email preferences and subscriptions.</p>
+                                    <button type="button" className="add-button">
+                                        Manage Email Preferences
+                                    </button>
+                                </div>
+
+                                <div className="form-actions">
+                                    <button
+                                        type="submit"
+                                        className="submit-button"
+                                        onClick={handleSubmit}
+                                        disabled={loading}
+                                    >
+                                        {loading ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'products' && isDesigner && (
+                            <div className="settings-section products-section">
+                                <h3>Manage Products</h3>
+
+                                <div className="section-actions">
+                                    <Link to="/product-upload" className="btn-primary">
+                                        Upload New Product
+                                    </Link>
+                                </div>
+
+                                {loadingProducts ? (
+                                    <div className="loading-container">
+                                        <LoadingSpinner />
+                                        <p>Loading your products...</p>
+                                    </div>
+                                ) : designerProducts.length === 0 ? (
+                                    <div className="empty-state">
+                                        <p>You haven't uploaded any products yet.</p>
+                                        <Link to="/product-upload" className="btn-secondary">
+                                            Create Your First Product
+                                        </Link>
+                                    </div>
+                                ) : (
+                                    <div className="product-management-list">
+                                        {designerProducts.map(product => (
+                                            <div key={product.id} className="managed-product-card">
+                                                <div className="product-image">
+                                                    <img
+                                                        src={Array.isArray(product.imageUrls) && product.imageUrls.length > 0
+                                                            ? product.imageUrls[0]
+                                                            : product.imageUrl || '/placeholder-product.jpg'}
+                                                        alt={product.name}
+                                                    />
+                                                    <span className={`product-status status-${product.status || 'pending'}`}>
+                                                        {product.status || 'Pending'}
+                                                    </span>
+                                                </div>
+                                                <div className="product-info">
+                                                    <h3>{product.name}</h3>
+                                                    <div className="product-meta">
+                                                        <span className="product-price">{formatPrice(product.price)}</span>
+                                                        <span className="product-date">Created: {formatDate(product.createdAt)}</span>
+                                                    </div>
+                                                    {product.fundingGoal > 0 && (
+                                                        <div className="product-funding">
+                                                            <div className="funding-progress-bar">
+                                                                <div
+                                                                    className="funding-bar"
+                                                                    style={{ width: `${calculateFundingPercentage(product)}%` }}
+                                                                ></div>
+                                                            </div>
+                                                            <div className="funding-text">
+                                                                <span className="funding-percentage">
+                                                                    {calculateFundingPercentage(product)}% funded
+                                                                </span>
+                                                                <span className="funding-amount">
+                                                                    {formatPrice(product.currentFunding || 0)} of {formatPrice(product.fundingGoal)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="product-actions">
+                                                    <button
+                                                        onClick={() => handleEditProduct(product.id)}
+                                                        className="btn-edit"
+                                                    >
+                                                        Edit Product
+                                                    </button>
+                                                    <Link
+                                                        to={`/product/${product.id}`}
+                                                        className="btn-view"
+                                                    >
+                                                        View Details
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Placeholder for future tabs */}
+                        {activeTab === 'quotes' && hasRole('manufacturer') && (
+                            <div className="settings-section">
+                                <h3>Manufacturing Quotes</h3>
+                                <p>Manage your manufacturing quotes and production requests.</p>
+                                <div className="section-actions">
+                                    <Link to="/manufacturer/quotes" className="btn-primary">
+                                        View All Quotes
+                                    </Link>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'investments' && hasRole('investor') && (
+                            <div className="settings-section">
+                                <h3>Your Investments</h3>
+                                <p>View and manage your investment portfolio.</p>
+                                <div className="section-actions">
+                                    <Link to="/portfolio" className="btn-primary">
+                                        Go to Portfolio
+                                    </Link>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Achievements Section */}
                         <div className="profile-section">
@@ -626,13 +854,12 @@ const ProfilePage = () => {
                                 <Link to={userId ? `/profile/${userId}/achievements` : "/profile/achievements"} className="view-all-link">
                                     View All
                                 </Link>
-
-                                <AchievementBadgeDisplay
-                                    userId={userId || currentUser?.uid}
-                                    showTitle={false}
-                                    limit={8}
-                                />
                             </div>
+                            <AchievementBadgeDisplay
+                                userId={userId || currentUser?.uid}
+                                showTitle={false}
+                                limit={8}
+                            />
                         </div>
                     </div>
                 </div>

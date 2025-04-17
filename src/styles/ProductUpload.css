@@ -83,25 +83,54 @@
   min-height: 150px;
 }
 
-/* Image upload area */
+/* Multiple images support */
 .image-upload-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   width: 100%;
-  aspect-ratio: 1;
   border: 2px dashed #ddd;
   border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  overflow: hidden;
-  position: relative;
+  padding: 10px;
+  min-height: 200px;
   transition: all 0.2s;
 }
 
 .image-upload-area:hover {
   border-color: #ef3c23;
   background-color: rgba(239, 60, 35, 0.04);
+}
+
+.image-preview-container {
+  position: relative;
+  width: calc(50% - 5px);
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.image-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.remove-image-btn:hover {
+  background-color: rgba(239, 60, 35, 0.9);
 }
 
 .upload-placeholder {
@@ -111,6 +140,12 @@
   justify-content: center;
   text-align: center;
   padding: 20px;
+  width: calc(50% - 5px);
+  min-height: 150px;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px dashed #ccc;
 }
 
 .upload-placeholder svg {
@@ -131,27 +166,17 @@
   margin-top: 5px;
 }
 
-.image-preview {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.change-image-btn {
+/* Image control buttons */
+.image-controls {
   margin-top: 10px;
-  padding: 8px 16px;
-  background-color: transparent;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  color: #555;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.change-image-btn:hover {
-  border-color: #ef3c23;
-  color: #ef3c23;
+.image-count {
+  font-size: 14px;
+  color: #666;
 }
 
 /* Form actions */
