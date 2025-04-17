@@ -506,6 +506,7 @@ const ShopPage = () => {
                                 <ProductCard
                                     id={product.id}
                                     image={product.imageUrl || 'https://via.placeholder.com/300'}
+                                    images={product.imageUrls || []}
                                     title={product.name || 'Unnamed Product'}
                                     description={product.description?.slice(0, 100) || 'No description'}
                                     price={product.price || 0}

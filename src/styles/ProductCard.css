@@ -206,6 +206,59 @@
   color: #888;
 }
 
+/* Image navigation buttons */
+.image-nav-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(255, 255, 255, 0.7);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.product-card:hover .image-nav-button {
+  opacity: 1;
+}
+
+.image-nav-button:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+.image-nav-button.prev {
+  left: 10px;
+}
+
+.image-nav-button.next {
+  right: 10px;
+}
+
+.image-nav-button svg {
+  stroke: #333;
+}
+
+/* Stop auto-cycling when manually navigating */
+.product-image:hover .image-nav-button:hover + .image-indicators {
+  animation-play-state: paused;
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 768px) {
+  .image-nav-button {
+    opacity: 1; /* Always show on mobile */
+    width: 28px;
+    height: 28px;
+  }
+}
+
 /* Responsive styles */
 @media (max-width: 768px) {
   .product-image {

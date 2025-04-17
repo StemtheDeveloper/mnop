@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { doc, updateDoc, arrayUnion, arrayRemove, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -9,6 +9,7 @@ import '../styles/ProductCard.css';
 const ProductCard = ({
   id,
   image,
+  images = [],  // New prop to accept multiple images
   title,
   description,
   price,
@@ -26,6 +27,14 @@ const ProductCard = ({
   const { showSuccess, showError } = useToast();
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isHovering, setIsHovering] = useState(false);
+  const imageInterval = useRef(null);
+
+  // Combine single image and images array, ensuring no duplicates
+  const allImages = images.length > 0
+    ? images
+    : image ? [image] : ['https://via.placeholder.com/300'];
 
   // Calculate funding percentage
   const fundingPercentage = fundingGoal > 0
@@ -202,14 +211,84 @@ const ProductCard = ({
     checkLikeStatus();
   }, [currentUser, id]);
 
+  // Handle image cycling on hover
+  useEffect(() => {
+    if (isHovering && allImages.length > 1) {
+      imageInterval.current = setInterval(() => {
+        setCurrentImageIndex(prevIndex => (prevIndex + 1) % allImages.length);
+      }, 2000); // Change image every 2 seconds
+    } else {
+      clearInterval(imageInterval.current);
+    }
+
+    return () => clearInterval(imageInterval.current);
+  }, [isHovering, allImages.length]);
+
   return (
     <div className="product-card" onClick={onClick}>
       {showPendingStatus && (
         <div className="product-pending-badge">Pending Approval</div>
       )}
 
-      <div className="product-image">
-        <img src={image} alt={title} />
+      <div
+        className="product-image"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => {
+          setIsHovering(false);
+          setCurrentImageIndex(0); // Reset to first image when mouse leaves
+        }}
+      >
+        <img src={allImages[currentImageIndex]} alt={title} />
+
+        {/* Image indicators - only show when there are multiple images */}
+        {allImages.length > 1 && (
+          <div className="image-indicators">
+            {allImages.map((_, index) => (
+              <span
+                key={index}
+                className={`image-indicator ${currentImageIndex === index ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex(index);
+                }}
+              ></span>
+            ))}
+          </div>
+        )}
+
+        {/* Navigation arrows - only show when there are multiple images */}
+        {allImages.length > 1 && (
+          <>
+            <button
+              className="image-nav-button prev"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setCurrentImageIndex(prevIndex =>
+                  prevIndex === 0 ? allImages.length - 1 : prevIndex - 1
+                );
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <button
+              className="image-nav-button next"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setCurrentImageIndex(prevIndex =>
+                  prevIndex === allImages.length - 1 ? 0 : prevIndex + 1
+                );
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </>
+        )}
 
         {viewers > 0 && (
           <div className="active-viewers">
