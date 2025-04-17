@@ -808,20 +808,20 @@ const ProfilePage = () => {
                                                             </div>
                                                         </div>
                                                     )}
-                                                </div>
-                                                <div className="product-actions">
-                                                    <button
-                                                        onClick={() => handleEditProduct(product.id)}
-                                                        className="btn-edit"
-                                                    >
-                                                        Edit Product
-                                                    </button>
-                                                    <Link
-                                                        to={`/product/${product.id}`}
-                                                        className="btn-view"
-                                                    >
-                                                        View Details
-                                                    </Link>
+                                                    <div className="product-actions">
+                                                        <button
+                                                            onClick={() => handleEditProduct(product.id)}
+                                                            className="btn-edit"
+                                                        >
+                                                            Edit Product
+                                                        </button>
+                                                        <Link
+                                                            to={`/product/${product.id}`}
+                                                            className="btn-view"
+                                                        >
+                                                            View Details
+                                                        </Link>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}

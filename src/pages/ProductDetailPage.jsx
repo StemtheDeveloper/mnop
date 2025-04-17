@@ -20,6 +20,7 @@ const ProductDetailPage = () => {
     const [showInvestModal, setShowInvestModal] = useState(false);
     const [fundAmount, setFundAmount] = useState('');
     const [isFunding, setIsFunding] = useState(false);
+    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
     // Calculate if product is fully funded
     const isFullyFunded = product && product.currentFunding >= product.fundingGoal;
@@ -199,14 +200,36 @@ const ProductDetailPage = () => {
         ? Math.min(((product.currentFunding || 0) / product.fundingGoal) * 100, 100)
         : 0;
 
+    // Process the product images
+    const productImages = [];
+    if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+        productImages.push(...product.imageUrls);
+    } else if (product.imageUrl) {
+        productImages.push(product.imageUrl);
+    } else {
+        productImages.push('https://placehold.co/600x400?text=Product+Image');
+    }
+
     return (
         <div className="product-detail-page">
             <div className="product-detail-container">
                 <div className="product-images">
                     <div className="main-image">
-                        <img src={product.imageUrl || '/placeholder-product.jpg'} alt={product.name} />
+                        <img src={productImages[selectedImageIndex]} alt={product.name} />
                     </div>
-                    {/* Additional images would go here */}
+                    {productImages.length > 1 && (
+                        <div className="image-thumbnails">
+                            {productImages.map((img, index) => (
+                                <img
+                                    key={index}
+                                    src={img}
+                                    alt={`${product.name} - view ${index + 1}`}
+                                    className={`thumbnail ${index === selectedImageIndex ? 'active' : ''}`}
+                                    onClick={() => setSelectedImageIndex(index)}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="product-info">
