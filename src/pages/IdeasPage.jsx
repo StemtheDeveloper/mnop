@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, limit, getDocs, addDoc, doc, updateDoc, deleteDoc, where, serverTimestamp, increment, getDoc } from 'firebase/firestore';
 import { db, storage } from '../config/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
 import IdeaCard from '../components/IdeaCard';
+import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import '../styles/IdeasPage.css';
 
 const IdeasPage = () => {
@@ -201,7 +202,7 @@ const IdeasPage = () => {
         const { name, value } = e.target;
         setFormData({
             ...formData,
-            [name]: value
+            [name]: sanitizeString(value)
         });
     };
 
@@ -258,7 +259,7 @@ const IdeasPage = () => {
             }
 
             // Create idea document
-            const ideaData = {
+            const ideaData = sanitizeFormData({
                 title: formData.title,
                 description: formData.description,
                 category: formData.category,
@@ -271,7 +272,7 @@ const IdeasPage = () => {
                 voters: [],
                 comments: 0,
                 trendingScore: 0 // Initial trending score
-            };
+            });
 
             await addDoc(collection(db, 'ideas'), ideaData);
 

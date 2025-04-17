@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { db, auth } from '../config/firebase';
+import { updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { useUser } from '../context/UserContext';
-import { deleteUser } from 'firebase/auth';
-import { auth } from '../config/firebase';
-import accountDeletionService from '../services/accountDeletionService';
+import { useToast } from '../context/ToastContext';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import '../styles/UserSettingsPage.css';
 
 const UserSettingsPage = () => {
@@ -29,7 +32,7 @@ const UserSettingsPage = () => {
 
         try {
             // Step 1: Re-authenticate the user
-            const { success, error } = await deleteUserAccount(password);
+            const { success, error } = await deleteUserAccount(sanitizeString(password));
 
             if (!success) {
                 throw new Error(error || 'Authentication failed');

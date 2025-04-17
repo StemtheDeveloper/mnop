@@ -7,6 +7,7 @@ import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
 import useAchievements from '../hooks/useAchievements';
+import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import '../styles/ProductUpload.css';
 
 // Default categories in case Firestore fetch fails
@@ -140,7 +141,7 @@ const ProductUploadPage = () => {
             }
         }
         else {
-            setFormData({ ...formData, [name]: value });
+            setFormData({ ...formData, [name]: sanitizeString(value) });
         }
     };
 
@@ -196,19 +197,18 @@ const ProductUploadPage = () => {
 
             // Create a File from the blob
             const croppedFile = new File([blob], `product-image-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            setProductImages(prevImages => {
-                const newImages = [...prevImages];
-                newImages[currentImageIndex] = croppedFile;
-                return newImages;
-            });
+
+            // Add the new image to the array instead of placing at specific index
+            setProductImages(prevImages => [...prevImages, croppedFile]);
 
             // Create preview URL
             const previewUrl = URL.createObjectURL(blob);
-            setImagePreviewUrls(prevUrls => {
-                const newUrls = [...prevUrls];
-                newUrls[currentImageIndex] = previewUrl;
-                return newUrls;
-            });
+            setImagePreviewUrls(prevUrls => [...prevUrls, previewUrl]);
+
+            // Reset file input to allow selecting the same file again
+            if (imageInputRef.current) {
+                imageInputRef.current.value = "";
+            }
         } catch (error) {
             console.error("Error processing cropped image:", error);
             setError('Error processing the cropped image');
@@ -294,11 +294,11 @@ const ProductUploadPage = () => {
 
             // 2. Create product document in Firestore with the image URLs
             const productData = {
-                name: formData.name,
-                description: formData.description,
+                name: sanitizeString(formData.name),
+                description: sanitizeString(formData.description),
                 price: parseFloat(formData.price),
                 fundingGoal: parseFloat(formData.fundingGoal),
-                category: useCustomCategory ? formData.customCategory.trim() : formData.category,
+                category: useCustomCategory ? sanitizeString(formData.customCategory.trim()) : formData.category,
                 categoryType: useCustomCategory ? 'custom' : 'standard',
                 imageUrls: imageUrls, // Store the image URLs from Firebase Storage
                 designerId: currentUser.uid,
@@ -315,7 +315,7 @@ const ProductUploadPage = () => {
             // If it's a custom category, add it to the categories collection
             if (useCustomCategory && formData.customCategory.trim()) {
                 const customCategoryData = {
-                    name: formData.customCategory.trim(),
+                    name: sanitizeString(formData.customCategory.trim()),
                     createdAt: serverTimestamp(),
                     createdBy: currentUser.uid,
                     type: 'user-created'

@@ -6,6 +6,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
+import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import '../styles/CheckoutPage.css';
 
 const CheckoutPage = () => {
@@ -168,7 +169,7 @@ const CheckoutPage = () => {
     // Update form data
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => ({ ...prev, [name]: sanitizeString(value) }));
 
         // Update shipping cost based on method
         if (name === 'shippingMethod') {

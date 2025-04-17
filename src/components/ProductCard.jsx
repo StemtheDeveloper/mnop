@@ -29,6 +29,7 @@ const ProductCard = ({
   const [isLoading, setIsLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isHovering, setIsHovering] = useState(false);
+  const [buttonAnimation, setButtonAnimation] = useState('');
   const imageInterval = useRef(null);
 
   // Process images prop
@@ -129,6 +130,8 @@ const ProductCard = ({
       return;
     }
 
+    // Start animation
+    setButtonAnimation('animate-add-to-cart');
     setIsLoading(true);
 
     try {
@@ -136,6 +139,9 @@ const ProductCard = ({
       const cartsRef = collection(db, 'carts');
       const cartQuery = query(cartsRef, where('userId', '==', currentUser.uid));
       const cartSnapshot = await getDocs(cartQuery);
+
+      // Use the first image from allImages array instead of just the image prop
+      const imageUrl = allImages[0] || 'https://placehold.co/300x300?text=Product';
 
       if (cartSnapshot.empty) {
         // Create a new cart
@@ -145,7 +151,7 @@ const ProductCard = ({
             id,
             name: title,
             price,
-            imageUrl: image,
+            imageUrl: imageUrl,
             quantity: 1
           }],
           createdAt: serverTimestamp(),
@@ -177,7 +183,7 @@ const ProductCard = ({
               id,
               name: title,
               price,
-              imageUrl: image,
+              imageUrl: imageUrl,
               quantity: 1
             }],
             updatedAt: serverTimestamp()
@@ -185,12 +191,15 @@ const ProductCard = ({
         }
       }
 
-      showSuccess("Added to cart");
+      // Show success notification with product details
+      showSuccess(`Added to cart: ${title} (${formatPrice(price)})`);
     } catch (error) {
       console.error("Error adding to cart:", error);
       showError("Failed to add to cart");
     } finally {
       setIsLoading(false);
+      // Reset animation after a delay
+      setTimeout(() => setButtonAnimation(''), 700);
     }
   };
 
@@ -317,7 +326,7 @@ const ProductCard = ({
           </button>
 
           <button
-            className={`add-to-cart-button ${fundingGoal > 0 && !isFullyFunded ? 'disabled' : ''}`}
+            className={`add-to-cart-button ${fundingGoal > 0 && !isFullyFunded ? 'disabled' : ''} ${buttonAnimation}`}
             onClick={handleAddToCart}
             disabled={isLoading || (fundingGoal > 0 && !isFullyFunded)}
             title={fundingGoal > 0 && !isFullyFunded ? "Product needs to be fully funded" : "Add to cart"}

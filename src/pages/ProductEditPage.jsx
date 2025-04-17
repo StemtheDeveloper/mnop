@@ -6,8 +6,9 @@ import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
-import '../styles/ProductUpload.css';
 import { useToast } from '../context/ToastContext';
+import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
+import '../styles/ProductUpload.css';
 
 // Default categories in case Firestore fetch fails
 const DEFAULT_CATEGORIES = [
@@ -181,7 +182,7 @@ const ProductEditPage = () => {
             }
         }
         else {
-            setFormData({ ...formData, [name]: value });
+            setFormData({ ...formData, [name]: sanitizeString(value) });
         }
     };
 
@@ -249,15 +250,18 @@ const ProductEditPage = () => {
 
             // Create a File from the blob
             const croppedFile = new File([blob], `product-image-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            setProductImages(prevImages => {
-                const newImages = [...prevImages];
-                newImages[currentImageIndex] = croppedFile;
-                return newImages;
-            });
 
-            // Create preview URL
+            // Add the new image to the array instead of using specific index
+            setProductImages(prevImages => [...prevImages, croppedFile]);
+
+            // Create preview URL and add to the end of preview URLs
             const previewUrl = URL.createObjectURL(blob);
             setImagePreviewUrls(prevUrls => [...prevUrls, previewUrl]);
+
+            // Reset file input to allow selecting the same file again
+            if (imageInputRef.current) {
+                imageInputRef.current.value = "";
+            }
         } catch (error) {
             console.error("Error processing cropped image:", error);
             setError('Error processing the cropped image');
@@ -359,11 +363,11 @@ const ProductEditPage = () => {
 
             // 4. Update product document in Firestore
             const productData = {
-                name: formData.name,
-                description: formData.description,
+                name: sanitizeString(formData.name),
+                description: sanitizeString(formData.description),
                 price: parseFloat(formData.price),
                 fundingGoal: parseFloat(formData.fundingGoal),
-                category: useCustomCategory ? formData.customCategory.trim() : formData.category,
+                category: useCustomCategory ? sanitizeString(formData.customCategory.trim()) : sanitizeString(formData.category),
                 categoryType: useCustomCategory ? 'custom' : 'standard',
                 imageUrls: allImageUrls,
                 updatedAt: serverTimestamp()

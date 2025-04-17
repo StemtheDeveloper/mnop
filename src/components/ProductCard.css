@@ -127,6 +127,37 @@
   cursor: not-allowed;
 }
 
+/* Add more styles for the add-to-cart animation */
+.animate-add-to-cart {
+  animation: add-to-cart-pulse 0.7s ease-in-out;
+}
+
+@keyframes add-to-cart-pulse {
+  0% {
+    transform: scale(1);
+    background-color: white;
+  }
+  25% {
+    transform: scale(1.2);
+    background-color: #3498db;
+    color: white;
+  }
+  50% {
+    transform: scale(0.95);
+    background-color: #3498db;
+    color: white;
+  }
+  75% {
+    transform: scale(1.05);
+    background-color: #3498db;
+    color: white;
+  }
+  100% {
+    transform: scale(1);
+    background-color: white;
+  }
+}
+
 /* Product info section */
 .product-info {
   padding: 15px;

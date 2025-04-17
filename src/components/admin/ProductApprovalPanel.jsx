@@ -159,6 +159,20 @@ const ProductApprovalPanel = () => {
         });
     };
 
+    // Get the first available image URL from a product
+    const getProductImage = (product) => {
+        // First check for imageUrls array
+        if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+            return product.imageUrls[0];
+        }
+        // Fall back to single imageUrl if it exists
+        if (product.imageUrl) {
+            return product.imageUrl;
+        }
+        // Return placeholder if no image found
+        return 'https://placehold.co/300x300?text=No+Image';
+    };
+
     return (
         <div className="admin-panel product-approval-panel">
             <div className="panel-header">
@@ -206,7 +220,7 @@ const ProductApprovalPanel = () => {
                             <div key={product.id} className="pending-product-card">
                                 <div className="product-image">
                                     <img
-                                        src={product.imageUrl || 'https://placehold.co/100x100?text=No+Image'}
+                                        src={getProductImage(product)}
                                         alt={product.name}
                                         className="product-thumbnail"
                                     />

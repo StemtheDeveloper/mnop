@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
@@ -9,6 +9,7 @@ import InvestmentModal from '../components/InvestmentModal';
 import TrendingExtensionButton from '../components/TrendingExtensionButton';
 import productTrendingService from '../services/productTrendingService';
 import '../styles/ProductDetailPage.css';
+import { serverTimestamp } from 'firebase/firestore';
 
 const ProductDetailPage = () => {
     const { productId } = useParams();
@@ -21,6 +22,8 @@ const ProductDetailPage = () => {
     const [fundAmount, setFundAmount] = useState('');
     const [isFunding, setIsFunding] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+    const [isAddingToCart, setIsAddingToCart] = useState(false);
+    const [buttonAnimation, setButtonAnimation] = useState('');
 
     // Calculate if product is fully funded
     const isFullyFunded = product && product.currentFunding >= product.fundingGoal;
@@ -150,6 +153,110 @@ const ProductDetailPage = () => {
             ...prev,
             fundingProgress: updatedFundingProgress || (prev.fundingProgress || 0) + amount
         }));
+    };
+
+    // Handle Add to Cart
+    const handleAddToCart = async () => {
+        if (!currentUser) {
+            showError("Please sign in to add items to cart");
+            return;
+        }
+
+        // Check if product is fully funded
+        if (product.fundingGoal && !isFullyFunded) {
+            showError("This product needs to be fully funded before purchase");
+            return;
+        }
+
+        // Start animation and loading state
+        setButtonAnimation('animate-add-to-cart');
+        setIsAddingToCart(true);
+
+        try {
+            // Process the product images before adding to cart
+            let imageToUse = 'https://placehold.co/300x300?text=Product';
+            if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+                imageToUse = product.imageUrls[0];
+            } else if (product.imageUrl) {
+                imageToUse = product.imageUrl;
+            }
+
+            // Check if user has a cart
+            const cartsRef = collection(db, 'carts');
+            const cartQuery = query(cartsRef, where('userId', '==', currentUser.uid));
+            const cartSnapshot = await getDocs(cartQuery);
+
+            if (cartSnapshot.empty) {
+                // Create a new cart
+                const cartData = {
+                    userId: currentUser.uid,
+                    items: [{
+                        id: product.id,
+                        name: product.name,
+                        price: product.price || 0,
+                        imageUrl: imageToUse,
+                        quantity: 1
+                    }],
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                };
+
+                await addDoc(cartsRef, cartData);
+            } else {
+                // Update existing cart
+                const cartDoc = cartSnapshot.docs[0];
+                const cartData = cartDoc.data();
+                const items = cartData.items || [];
+
+                // Check if product already in cart
+                const existingItem = items.find(item => item.id === product.id);
+
+                if (existingItem) {
+                    // Increase quantity
+                    existingItem.quantity += 1;
+
+                    await updateDoc(doc(db, 'carts', cartDoc.id), {
+                        items,
+                        updatedAt: serverTimestamp()
+                    });
+                } else {
+                    // Add new item
+                    await updateDoc(doc(db, 'carts', cartDoc.id), {
+                        items: [...items, {
+                            id: product.id,
+                            name: product.name,
+                            price: product.price || 0,
+                            imageUrl: imageToUse,
+                            quantity: 1
+                        }],
+                        updatedAt: serverTimestamp()
+                    });
+                }
+            }
+
+            // Create a notification in Firestore
+            if (currentUser) {
+                await addDoc(collection(db, 'notifications'), {
+                    userId: currentUser.uid,
+                    title: 'Product Added to Cart',
+                    message: `${product.name} has been added to your cart.`,
+                    type: 'cart_update',
+                    productId: product.id,
+                    read: false,
+                    createdAt: serverTimestamp()
+                });
+            }
+
+            // Show success notification with product details
+            showSuccess(`Added to cart: ${product.name} (${formatPrice(product.price || 0)})`);
+        } catch (error) {
+            console.error("Error adding to cart:", error);
+            showError("Failed to add to cart");
+        } finally {
+            setIsAddingToCart(false);
+            // Reset animation after a delay
+            setTimeout(() => setButtonAnimation(''), 700);
+        }
     };
 
     // Format price as currency
@@ -322,10 +429,11 @@ const ProductDetailPage = () => {
                     <div className="product-actions">
                         {/* Add to Cart Button - only enabled if product is fully funded */}
                         <button
-                            className={`add-to-cart-button ${!isFullyFunded ? 'disabled' : ''}`}
-                            disabled={!isFullyFunded}
+                            className={`add-to-cart-button ${!isFullyFunded ? 'disabled' : ''} ${buttonAnimation}`}
+                            disabled={!isFullyFunded || isAddingToCart}
+                            onClick={handleAddToCart}
                         >
-                            {isFullyFunded ? 'Add to Cart' : 'Funding Required'}
+                            {isAddingToCart ? 'Adding...' : isFullyFunded ? 'Add to Cart' : 'Funding Required'}
                         </button>
 
                         {/* Investment Button - only show for users with investor role */}

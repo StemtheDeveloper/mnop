@@ -10,6 +10,20 @@ export default defineConfig({
       "@": "/src",
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Ensure proper chunk naming for better caching
+        chunkFileNames: "assets/[name]-[hash].js",
+        entryFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash].[ext]",
+        // Ensure ESM format
+        format: "es",
+      },
+    },
+    // Ensure source maps are created
+    sourcemap: true,
+  },
   server: {
     port: 5173,
     open: true,

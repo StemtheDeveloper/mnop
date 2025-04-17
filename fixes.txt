@@ -1,0 +1,81 @@
+Fix product image display in cart. The images for the products in the card aren't showing.
+Fix product upload so users can upload multiple product images. Not working currently. 
+Fix: interestService-DDuf0BSG.js:1 Failed to load module script: Expected a JavaScript module script but the server responded with a MIME type of "text/html". Strict MIME type checking is enforced for module scripts per HTML spec.index-BVofNjdL.js:49 Uncaught TypeError: Failed to fetch dynamically imported module: https://m-nop-39b2f.firebaseapp.com/assets/AdminPage-CPR0lFZV.js
+Change wallet page so that the balance updates as soon as there is an update.
+Update page display functionality to better cater to users of various role types. If a user has multiple role types the page should display relevent information and interfaces for that user. Currently the page display chnages depending on where the user accesses a page from. This needs to be fixed.
+Update Shop search functionality to make sure that if the user clears all search terms, all products will display again.
+Fix notifications styling and functionality
+Add more notifications for events such as currency transfers, messages, product approval, product deletion, role changes. 
+Write Firebase function to process investment and deduct amount from investor wallet
+Allow investors to invest in products, store amount in /investments collection
+Create bank interest system with scheduled function calculating daily interest on wallet balances
+Fetch real-world interest rate from public API and store in Firestore config
+Update user wallet balances by adding interest to balances every 24h using Firebase Cloud Functions
+Archive products that did not meet fundingGoal by deadline and notify designer
+Extend lifespan of trending products (based on views + investments)
+Add DeleteAccount button in UserSettingsPage that deletes user and Firestore data
+Implement toast notifications for success/error (ToastNotification.jsx)
+Create ManufacturerQuotesPage where manufacturers can submit quotes on products
+Show product quotes to designers for negotiation
+Add Firestore rule to allow only product owner to see quotes
+Add ActiveUserCountIndicator to show number of users online (Firestore presence tracking)
+Add AchievementBadgeDisplay and award badges for milestones (e.g., 5 products, 3 investments)
+Style ProfilePage with gradient border, tabs, and role pills
+Display NotificationInbox for messages and role requests using Firestore listener
+Create LiveCursorOverlay component to show real-time cursors of online users
+Setup HelpDocumentationPage with static FAQ markdown rendered as HTML
+Optimize all images before upload using a compression utility
+Show interest transaction history in virtual wallet on ProfilePage
+Display investment history in PortfolioPage for each user
+Prevent duplicate investment submissions using a Firestore transaction check
+Add 2FA to user login for security (Firebase Multi-factor Authentication)
+Track product metrics like views and funding rate in Firestore analytics
+Create ManufacturingManagementQuotesPage with quote accept/reject functionality
+Implement floating LiveChat button for direct support
+Create and display Terms of Service and Privacy Policy from markdown files
+Add onboarding flow for new users with role descriptions and getting started guide
+Notify admins of suspicious activity using Firestore function trigger
+Add badge unlock animations when user earns new achievement
+Build virtual bank logic to reject invalid transfers
+Sync Firebase user data to Firestore onAuthStateChanged if not present
+Implement activity logging for user actions: investment, product upload, role changes
+Ensure Firestore indexes are created for all filtered queries (e.g., products by designer, investments by productId)
+Create investment calculator showing estimated ROI based on virtual interest rate
+Add Firestore cleanup job for removing expired product images
+Localize app using i18n and allow switching between English and Te Reo Māori
+Handle error boundaries gracefully across all routes
+Create ProductFilters component (price, goal, status, category, designer)
+Add ability for designers to archive or unpublish products
+Create contact form on ContactPage that sends emails using formspree
+Build out role switcher UI in ProfilePage.jsx
+For expired products:- Mark status as 'expired'- Notify investors
+Allow investor to vote to extend funding for high-performing products
+Show vote results in product detail
+Show list of approved products not yet manufactured
+Manufacturers can submit a quote
+Save quote in 'quotes' collection with role-based visibility
+Create MessagesPage.jsx
+Support direct messages between designers and manufacturers
+Use 'messages' collection with senderId, recipientId
+Allow quote negotiations to use inline chat threads
+Create better notifications structure
+Push notifications to users when:- Their product is approved- They receive a new investment- They get a message- Their product is trending or expiring
+Create useAchievements hook
+Display badges in AchievementBadgeDisplay.jsx
+Trigger achievements like: - First product uploaded- First investment- $1000 funded total
+Add delete button to UserSettingsPage.jsx - Call accountDeletionService.js to remove auth + Firestore data - Prompt user for confirmation
+Add InterestRateAdminPanel.jsx
+Allow admin to override interest rate manually
+Add MarketRatesPanel.jsx to display fetched external rates
+Add PaymentSettingsPanel.jsx for future Stripe or test payment configs
+Create pages, TermsAndConditionsPage.jsx, PrivacyPolicyPage.jsx
+Add links to footer
+Add analytics event tracking with Firebase Analytics
+Log user interactions (e.g. investment made, product uploaded)
+Add Helmet for each page with unique title & description
+Use product name and designer for product detail pages
+Restrict product edits to owner
+Restrict quote visibility by role
+Restrict wallet and investment writes to authenticated user only
+Add full-text indexing to product names and categories
+Add skeleton loading for all cards and lists

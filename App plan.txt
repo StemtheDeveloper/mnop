@@ -165,20 +165,17 @@ Works seamlessly on desktops, tablets, and mobile devices.
 Possibly a progressive web app (PWA) approach if offline usage or installable features are desired.
 
 Prompts: 
-Setup React Router routes with lazy loading for all pages in /src/pages
-Create ProtectedRoute component that checks Firebase auth and user roles
-Build SignInRegisterPage form with Firebase Auth and role assignment on signup
-Add dropdown in ProfilePage for users to request role upgrade
-Setup Firestore collections: users, products, investments, transactions
-Create Firebase rules to restrict product writes to 'designer' role only
-In ProductUploadPage, allow designers to upload product name, description, price, image, fundingGoal
-Save uploaded product images to Firebase Storage, get the URL and store in Firestore
-Display ProductCards in ShopPage, fetch only 'active' products from Firestore
-In AdminPage, list all users and allow role change and account deletion
-Create virtual currency system with balances stored in users/{userId}/wallet
+Add a notification and initial button feeback when a user adds an item to their cart. started 4:03PM
+Fix produtct image display in cart. The images for the products in the card aren't showing.
+Fix product upload so users can upload multiple product images. Not working currently. 
+Fix: interestService-DDuf0BSG.js:1 Failed to load module script: Expected a JavaScript module script but the server responded with a MIME type of "text/html". Strict MIME type checking is enforced for module scripts per HTML spec.index-BVofNjdL.js:49 Uncaught TypeError: Failed to fetch dynamically imported module: https://m-nop-39b2f.firebaseapp.com/assets/AdminPage-CPR0lFZV.js
+Change wallet page so that the balance updates as soon as there is an update.
+Update page display functionality to better cater to users of various role types. If a user has multiple role types the page should display relevent information and interfaces for that user. Currently the page display chnages depending on where the user accesses a page from. This needs to be fixed.
+Update Shop search functionality to make sure that if the user clears all search terms, all products will display again.
+Fix notifications styling and functionality
+Add more notifications for events such as currency transfers, messages, product approval, product deletion, role changes. 
 Write Firebase function to process investment and deduct amount from investor wallet
 Allow investors to invest in products, store amount in /investments collection
-Update product fundingProgress on each investment using Firestore transaction
 Create bank interest system with scheduled function calculating daily interest on wallet balances
 Fetch real-world interest rate from public API and store in Firestore config
 Update user wallet balances by adding interest to balances every 24h using Firebase Cloud Functions
@@ -191,17 +188,11 @@ Show product quotes to designers for negotiation
 Add Firestore rule to allow only product owner to see quotes
 Add ActiveUserCountIndicator to show number of users online (Firestore presence tracking)
 Add AchievementBadgeDisplay and award badges for milestones (e.g., 5 products, 3 investments)
-Style ProfilePage with gradient border, tabs, and role pills (Figma match)
-Implement ImageCropper modal for circular profile and rectangular header images
+Style ProfilePage with gradient border, tabs, and role pills
 Display NotificationInbox for messages and role requests using Firestore listener
-Implement CheckoutPage that moves items from cart to /orders and clears cart
 Create LiveCursorOverlay component to show real-time cursors of online users
-Build IdeasPage where users can post new product ideas and vote
 Setup HelpDocumentationPage with static FAQ markdown rendered as HTML
-Use Tailwind CSS or modular CSS to style pages according to brand color (#ef3c23)
-Setup Firebase Hosting for production with Vite build
 Optimize all images before upload using a compression utility
-Use Firestore rules to ensure users can only read/write their own virtual wallet
 Show interest transaction history in virtual wallet on ProfilePage
 Display investment history in PortfolioPage for each user
 Prevent duplicate investment submissions using a Firestore transaction check
@@ -213,61 +204,21 @@ Create and display Terms of Service and Privacy Policy from markdown files
 Add onboarding flow for new users with role descriptions and getting started guide
 Notify admins of suspicious activity using Firestore function trigger
 Add badge unlock animations when user earns new achievement
-Build virtual bank logic to reject negative balances and invalid transfers
+Build virtual bank logic to reject invalid transfers
 Sync Firebase user data to Firestore onAuthStateChanged if not present
 Implement activity logging for user actions: investment, product upload, role changes
 Ensure Firestore indexes are created for all filtered queries (e.g., products by designer, investments by productId)
-Create ProductDetailsPage showing full product data, designer info, funding timeline and quote status
-Add cart functionality with quantity and total calculation
-Render fallback skeleton UI while data loads using LoadingSpinner
-Create role-specific dashboards on HomeDashboardPage
 Create investment calculator showing estimated ROI based on virtual interest rate
 Add Firestore cleanup job for removing expired product images
-Add monthly leaderboard for top investors/designers
 Localize app using i18n and allow switching between English and Te Reo Māori
-Prevent access to admin-only features with UnauthorizedPage fallback
 Handle error boundaries gracefully across all routes
 Create ProductFilters component (price, goal, status, category, designer)
 Add ability for designers to archive or unpublish products
-Create contact form on ContactPage that sends message to Firestore /support_messages
-Add routing to all pages in /src/pages
-Setup context providers for Toast and User
-Implement ProtectedRoute wrapper to guard authenticated routes
-Enable lazy loading for all major route components
-Create a Firebase auth listener in UserContext.jsx
-Auto-assign new users the role 'customer' if none exists
+Create contact form on ContactPage that sends emails using formspree
 Build out role switcher UI in ProfilePage.jsx
-Restrict access to /admin to users with 'admin' role
-Build role-specific dashboards for 'designer', 'manufacturer', 'investor', 'promoter'
-Add a virtual wallet balance field to Firestore users
-Create WalletPage.jsx to view balance, funding history
-Add wallet top-up modal with test values ($50, $100, $500)
-Log wallet top-up as transaction documents in 'walletTransactions' collection
-Create Firebase function: dailyInterestCalculation.js
-Fetch real-world interest rate from external API
-Apply interest rate to all user balances daily
-Store interest history in 'interestHistory' collection
-Create ProductUploadPage.jsx
-Form: name, category, price, description, image, funding goal
-Save to 'products' collection with status: 'pending'
-Add ProductManagementPage.jsx for designers to edit/delete their uploads
-Create ProductApprovalPanel.jsx
-Display all products with status: 'pending'
-Allow admin to approve, reject or request changes
-Move approved products to 'live' status
-Allow filtering by category, price, designer
-Enable search by product name
-Create InvestmentModal.jsx
-When user clicks 'Invest' on product, open modal to choose amount
-Subtract amount from user wallet
-Create investment record in 'investments' collection
-Update fundingProgress on product document
-Create Firebase function: checkProductDeadlines.js
 For expired products:- Mark status as 'expired'- Notify investors
-Add TrendingExtensionButton.jsx
 Allow investor to vote to extend funding for high-performing products
 Show vote results in product detail
-Create ManufacturerQuotesPage.jsx
 Show list of approved products not yet manufactured
 Manufacturers can submit a quote
 Save quote in 'quotes' collection with role-based visibility
@@ -275,15 +226,12 @@ Create MessagesPage.jsx
 Support direct messages between designers and manufacturers
 Use 'messages' collection with senderId, recipientId
 Allow quote negotiations to use inline chat threads
-Create NotificationCenter.jsx and NotificationInbox.jsx
+Create better notifications structure
 Push notifications to users when:- Their product is approved- They receive a new investment- They get a message- Their product is trending or expiring
-Create achievementsData.js
 Create useAchievements hook
 Display badges in AchievementBadgeDisplay.jsx
 Trigger achievements like: - First product uploaded- First investment- $1000 funded total
-Add delete button to UserSettingsPage.jsx
-Call accountDeletionService.js to remove auth + Firestore data
-Prompt user for confirmation
+Add delete button to UserSettingsPage.jsx - Call accountDeletionService.js to remove auth + Firestore data - Prompt user for confirmation
 Add InterestRateAdminPanel.jsx
 Allow admin to override interest rate manually
 Add MarketRatesPanel.jsx to display fetched external rates
@@ -294,17 +242,8 @@ Add analytics event tracking with Firebase Analytics
 Log user interactions (e.g. investment made, product uploaded)
 Add Helmet for each page with unique title & description
 Use product name and designer for product detail pages
-Ensure firebase.json rewrites all routes to /index.html
-Build and deploy with: vite build -> firebase deploy
-Add fallback route for 404 NotFoundPage
 Restrict product edits to owner
 Restrict quote visibility by role
 Restrict wallet and investment writes to authenticated user only
-Restrict admin panel access to users with role === 'admin'
 Add full-text indexing to product names and categories
-Use firestoreService.js to write indexed fields to a separate searchable field
-Implement drag & drop product upload preview
-Auto-resize bio textarea in ProfilePage.jsx
 Add skeleton loading for all cards and lists
-Support dark mode theme toggle
-
