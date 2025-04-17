@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import '../../styles/admin/TrendingProductsPanel.css';
 
@@ -19,12 +19,11 @@ const TrendingProductsPanel = () => {
         try {
             // Load products that had deadline extensions
             const productsRef = collection(db, 'products');
+            // Simplify the query to avoid composite index requirement
             const extendedQuery = query(
                 productsRef,
                 where('extensionHistory', '!=', null),
-                orderBy('extensionHistory', 'desc'),
-                orderBy('lastExtended', 'desc'),
-                limit(20)
+                limit(50)
             );
 
             const snapshot = await getDocs(extendedQuery);
@@ -39,6 +38,14 @@ const TrendingProductsPanel = () => {
                         lastExtensionDate: data.lastExtended?.toDate() || null
                     });
                 }
+            });
+
+            // Sort client-side instead of using orderBy in the query
+            extendedList.sort((a, b) => {
+                // Sort by lastExtended date (newest first)
+                const dateA = a.lastExtended?.toMillis() || 0;
+                const dateB = b.lastExtended?.toMillis() || 0;
+                return dateB - dateA;
             });
 
             setExtendedProducts(extendedList);

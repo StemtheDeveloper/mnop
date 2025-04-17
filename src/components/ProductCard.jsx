@@ -31,6 +31,11 @@ const ProductCard = ({
   const [isHovering, setIsHovering] = useState(false);
   const imageInterval = useRef(null);
 
+  // Process images prop
+  const imageList = Array.isArray(images) && images.length > 0
+    ? images
+    : image ? [image] : ['https://placehold.co/300x300?text=Product'];
+
   // Combine single image and images array, ensuring no duplicates
   const allImages = images.length > 0
     ? images

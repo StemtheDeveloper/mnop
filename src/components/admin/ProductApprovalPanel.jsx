@@ -206,8 +206,9 @@ const ProductApprovalPanel = () => {
                             <div key={product.id} className="pending-product-card">
                                 <div className="product-image">
                                     <img
-                                        src={product.imageUrl || 'https://via.placeholder.com/100?text=No+Image'}
+                                        src={product.imageUrl || 'https://placehold.co/100x100?text=No+Image'}
                                         alt={product.name}
+                                        className="product-thumbnail"
                                     />
                                 </div>
                                 <div className="product-details">

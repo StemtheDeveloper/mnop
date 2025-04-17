@@ -464,7 +464,7 @@ const ProfilePage = () => {
             }}>
                 <div className="profile-photo-container">
                     <img
-                        src={profilePhotoPreview || currentUser?.photoURL || 'https://via.placeholder.com/120?text=Profile'}
+                        src={profilePhotoPreview || currentUser?.photoURL || 'https://placehold.co/120x120?text=Profile'}
                         alt="Profile"
                         className="profile-photo"
                     />
