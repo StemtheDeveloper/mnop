@@ -1,0 +1,446 @@
+/* ManufacturerQuoteDetailPage.css */
+
+.quote-detail-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.quote-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.quote-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.quote-id {
+  font-size: 1rem;
+  color: #777;
+  margin-bottom: 15px;
+}
+
+.quote-status {
+  padding: 8px 16px;
+  border-radius: 30px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+.status-pending {
+  background-color: #fff8e1;
+  color: #ff8f00;
+}
+
+.status-accepted {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-rejected {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.status-completed {
+  background-color: #e8eaf6;
+  color: #3f51b5;
+}
+
+.quote-actions {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.quote-btn {
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.primary-btn {
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+}
+
+.primary-btn:hover {
+  background-color: #d43418;
+}
+
+.secondary-btn {
+  background-color: #f0f0f0;
+  color: #333;
+  border: none;
+}
+
+.secondary-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.danger-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+}
+
+.danger-btn:hover {
+  background-color: #d32f2f;
+}
+
+.quote-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 30px;
+}
+
+@media (min-width: 768px) {
+  .quote-content {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.quote-main {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 25px;
+}
+
+.quote-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sidebar-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.product-info {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.product-image {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-right: 15px;
+}
+
+.product-details {
+  flex: 1;
+}
+
+.product-name {
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.product-meta {
+  font-size: 0.9rem;
+  color: #777;
+}
+
+.section-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 25px 0 15px;
+  color: #333;
+}
+
+.detail-group {
+  margin-bottom: 20px;
+}
+
+.detail-label {
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: #555;
+}
+
+.detail-value {
+  margin: 0;
+  color: #333;
+}
+
+.specs-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.specs-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+}
+
+.specs-list li:last-child {
+  border-bottom: none;
+}
+
+.parameter {
+  font-weight: 500;
+  color: #555;
+}
+
+.value {
+  color: #333;
+}
+
+.pricing-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.pricing-table td,
+.pricing-table th {
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.pricing-table th {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.pricing-table td {
+  color: #333;
+}
+
+.pricing-table tr:last-child td {
+  border-bottom: none;
+}
+
+.total-row {
+  font-weight: 700;
+}
+
+.total-row td {
+  padding-top: 15px;
+}
+
+.timeline {
+  margin-top: 20px;
+  padding: 0;
+}
+
+.timeline-item {
+  display: flex;
+  padding: 15px 0;
+  border-left: 2px solid #ddd;
+  margin-left: 15px;
+  position: relative;
+}
+
+.timeline-item::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background-color: #fff;
+  border: 2px solid #ddd;
+  border-radius: 50%;
+  position: absolute;
+  left: -8px;
+  top: 15px;
+}
+
+.timeline-item.active::before {
+  background-color: #ef3c23;
+  border-color: #ef3c23;
+}
+
+.timeline-content {
+  margin-left: 20px;
+}
+
+.timeline-date {
+  font-size: 0.8rem;
+  color: #777;
+  margin-bottom: 5px;
+}
+
+.timeline-title {
+  font-weight: 600;
+  margin: 0 0 5px;
+  color: #333;
+}
+
+.timeline-description {
+  font-size: 0.9rem;
+  color: #555;
+  margin: 0;
+}
+
+.manufacturer-info,
+.designer-info {
+  display: flex;
+  margin-bottom: 15px;
+}
+
+.info-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 15px;
+}
+
+.info-details {
+  flex: 1;
+}
+
+.info-name {
+  font-weight: 600;
+  margin: 0 0 5px;
+}
+
+.info-role {
+  font-size: 0.9rem;
+  color: #777;
+}
+
+.communication-section {
+  margin-top: 30px;
+}
+
+.messages-container {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+}
+
+.message {
+  padding: 12px 15px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  position: relative;
+  max-width: 80%;
+}
+
+.message-incoming {
+  background-color: #f0f0f0;
+  margin-right: auto;
+}
+
+.message-outgoing {
+  background-color: #e3f2fd;
+  margin-left: auto;
+}
+
+.message-author {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
+}
+
+.message-text {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.message-time {
+  font-size: 0.8rem;
+  color: #777;
+  text-align: right;
+  margin-top: 5px;
+}
+
+.message-form {
+  display: flex;
+  gap: 10px;
+}
+
+.message-input {
+  flex: 1;
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.send-button {
+  align-self: flex-end;
+  padding: 12px 20px;
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.send-button:hover {
+  background-color: #d43418;
+}
+
+.attach-files {
+  display: flex;
+  margin-top: 10px;
+  align-items: center;
+  color: #666;
+}
+
+.files-counter {
+  margin-left: 5px;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 767px) {
+  .quote-header {
+    flex-direction: column;
+  }
+
+  .quote-actions {
+    width: 100%;
+  }
+
+  .quote-btn {
+    width: 100%;
+  }
+
+  .message {
+    max-width: 95%;
+  }
+}
