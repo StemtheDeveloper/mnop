@@ -16,6 +16,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
+import notificationService from "./notificationService";
 
 class WalletService {
   /**
@@ -123,34 +124,54 @@ class WalletService {
    */
   async transferFunds(fromUserId, toEmail, amount, note = "") {
     try {
-      // First find the recipient by email
+      // Validate inputs
+      if (!fromUserId || !toEmail || !amount) {
+        return {
+          success: false,
+          error: "Missing required fields",
+        };
+      }
+
+      if (amount <= 0) {
+        return {
+          success: false,
+          error: "Amount must be greater than 0",
+        };
+      }
+
+      // Find user by email
       const usersRef = collection(db, "users");
-      const recipientQuery = query(usersRef, where("email", "==", toEmail));
-      const recipientSnapshot = await getDocs(recipientQuery);
+      const q = query(usersRef, where("email", "==", toEmail));
+      const querySnapshot = await getDocs(q);
 
-      if (recipientSnapshot.empty) {
-        return { success: false, error: "Recipient not found" };
+      if (querySnapshot.empty) {
+        return {
+          success: false,
+          error: "Recipient not found",
+        };
       }
 
-      // Get recipient user ID
-      const recipient = recipientSnapshot.docs[0];
-      const toUserId = recipient.id;
+      const toUserDoc = querySnapshot.docs[0];
+      const toUserId = toUserDoc.id;
 
-      // Don't allow transfers to self
+      // Prevent transferring to self
       if (fromUserId === toUserId) {
-        return { success: false, error: "Cannot transfer to yourself" };
+        return {
+          success: false,
+          error: "Cannot transfer to yourself",
+        };
       }
 
-      // Check sender balance
+      // Check sender's wallet balance
       const fromWallet = await this.getUserWallet(fromUserId);
-      if (!fromWallet || fromWallet.balance < amount) {
-        return { success: false, error: "Insufficient funds" };
+      if (fromWallet.balance < amount) {
+        return {
+          success: false,
+          error: "Insufficient funds",
+        };
       }
 
-      // Initialize recipient wallet if needed
-      await this.getUserWallet(toUserId);
-
-      // Update sender's wallet (deduct amount)
+      // Update sender's wallet
       const fromWalletRef = doc(db, "wallets", fromUserId);
       await updateDoc(fromWalletRef, {
         balance: increment(-amount),
@@ -167,21 +188,53 @@ class WalletService {
         recipientEmail: toEmail,
       });
 
-      // Update recipient's wallet (add amount)
+      // Update recipient's wallet
       const toWalletRef = doc(db, "wallets", toUserId);
-      await updateDoc(toWalletRef, {
-        balance: increment(amount),
-        updatedAt: serverTimestamp(),
-      });
+      const toWalletDoc = await getDoc(toWalletRef);
 
-      // Record credit transaction for recipient
+      if (toWalletDoc.exists()) {
+        // Update existing wallet
+        await updateDoc(toWalletRef, {
+          balance: increment(amount),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create new wallet
+        await setDoc(toWalletRef, {
+          userId: toUserId,
+          balance: amount,
+          currency: "USD",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // Record credit transaction
       await this.recordTransaction(toUserId, {
         type: "transfer",
         amount: amount,
-        description: `Transfer from ${fromUserId}${note ? ": " + note : ""}`,
+        description: `Transfer from ${
+          (await getDoc(doc(db, "users", fromUserId))).data()?.email ||
+          "another user"
+        }${note ? ": " + note : ""}`,
         status: "completed",
         senderId: fromUserId,
       });
+
+      // Send notifications to both users
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      );
+      await notificationService.sendTransferNotification(
+        fromUserId,
+        amount,
+        false
+      ); // false for withdrawal/send
+      await notificationService.sendTransferNotification(
+        toUserId,
+        amount,
+        true
+      ); // true for deposit/receive
 
       return { success: true };
     } catch (error) {
@@ -213,6 +266,12 @@ class WalletService {
         description,
         status: "completed",
       });
+
+      // Send notification for successful deposit
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      );
+      await notificationService.sendTransferNotification(userId, amount, true); // true for deposit
 
       return { success: true };
     } catch (error) {
@@ -250,6 +309,12 @@ class WalletService {
         description,
         status: "completed",
       });
+
+      // Send notification for withdrawal
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      );
+      await notificationService.sendTransferNotification(userId, amount, false); // false for withdrawal
 
       return { success: true };
     } catch (error) {

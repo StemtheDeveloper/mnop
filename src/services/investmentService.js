@@ -10,10 +10,10 @@ import {
   updateDoc,
   increment,
   serverTimestamp,
-  runTransaction,
 } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../config/firebase";
-import walletService from "./walletService";
+import notificationService from "./notificationService";
 
 class InvestmentService {
   /**
@@ -31,115 +31,34 @@ class InvestmentService {
         throw new Error("Invalid investment parameters");
       }
 
-      // Get the product details to verify it's valid and get additional info
-      const productRef = doc(db, "products", productId);
-      const productDoc = await getDoc(productRef);
+      // Call the Cloud Function to process the investment
+      const functions = getFunctions();
+      const processInvestment = httpsCallable(functions, "processInvestment");
 
-      if (!productDoc.exists()) {
-        throw new Error("Product not found");
-      }
+      const result = await processInvestment({
+        userId,
+        productId,
+        amount,
+        productName,
+      });
 
-      const productData = productDoc.data();
-
-      // Check if the product is in funding phase (can be customized based on your business logic)
-      if (
-        productData.status !== "funding" &&
-        productData.status !== "active" &&
-        productData.status !== "open"
-      ) {
-        throw new Error("This product is not currently accepting investments");
-      }
-
-      // Use a Firestore transaction to ensure atomicity
-      try {
-        const result = await runTransaction(db, async (transaction) => {
-          // 1. Check wallet balance first
-          const userRef = doc(db, "users", userId);
-          const userDoc = await transaction.get(userRef);
-
-          if (!userDoc.exists()) {
-            throw new Error("User not found");
-          }
-
-          const userData = userDoc.data();
-
-          if (!userData.wallet || userData.wallet.balance < amount) {
-            throw new Error("Insufficient funds in wallet");
-          }
-
-          // 2. Deduct amount from wallet
-          transaction.update(userRef, {
-            "wallet.balance": increment(-amount),
-            "wallet.lastUpdated": serverTimestamp(),
-          });
-
-          // 3. Refresh product data to get current funding status
-          const freshProductDoc = await transaction.get(productRef);
-          const freshProductData = freshProductDoc.data();
-          const currentFunding = freshProductData.fundingProgress || 0;
-
-          // 4. Update product's funding progress
-          transaction.update(productRef, {
-            fundingProgress: increment(amount),
-            updatedAt: serverTimestamp(),
-            // If this is the first investment, update the product status if necessary
-            ...(currentFunding === 0 && { status: "funding" }),
-          });
-
-          // 5. Create the investment record as part of the transaction
-          const investmentData = {
-            userId,
-            productId,
-            productName: productName || freshProductData.name,
-            amount,
-            status: "active",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            notes: "",
-          };
-
-          // We need to return the data to use it after transaction
-          return {
-            userData,
-            investmentData,
-            fundingProgress: currentFunding + amount,
-          };
-        });
-
-        // Create investment record after successful transaction
-        const investmentsRef = collection(db, "investments");
-        const investmentRef = await addDoc(
-          investmentsRef,
-          result.investmentData
-        );
-
-        // Record the transaction in the transaction history
-        await walletService.recordTransaction(userId, {
-          type: "debit",
+      // Return the result
+      return {
+        success: true,
+        data: {
+          id: result.data.investmentId,
           amount,
-          description: `Investment in ${productName || "product"}`,
-          status: "completed",
-        });
-
-        return {
-          success: true,
-          data: {
-            id: investmentRef.id,
-            ...result.investmentData,
-            fundingProgress: result.fundingProgress,
-          },
-        };
-      } catch (transactionError) {
-        console.error("Transaction failed:", transactionError);
-        throw new Error(
-          transactionError.message || "Investment transaction failed"
-        );
-      }
+          productId,
+          productName,
+          fundingProgress: result.data.fundingProgress,
+          message: result.data.message,
+        },
+      };
     } catch (error) {
       console.error("Error creating investment:", error);
       return {
         success: false,
-        error: error.message,
+        error: error.message || "Failed to process investment",
       };
     }
   }

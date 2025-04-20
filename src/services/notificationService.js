@@ -197,6 +197,155 @@ class NotificationService {
 
     return await this.createNotification(notificationData);
   }
+
+  /**
+   * Send product approved notification
+   */
+  async sendProductApprovalNotification(userId, productId, productName) {
+    return this.createNotification(userId, {
+      type: "product_approved",
+      title: "Product Approved",
+      message: `Your product "${productName}" has been approved and is now live!`,
+      link: `/product/${productId}`,
+    });
+  }
+
+  /**
+   * Send investment notification
+   */
+  async sendInvestmentNotification(
+    designerId,
+    investorName,
+    amount,
+    productId,
+    productName
+  ) {
+    return this.createNotification(designerId, {
+      type: "investment",
+      title: "New Investment",
+      message: `${investorName} has invested $${amount} in your product "${productName}"`,
+      link: `/product/${productId}`,
+    });
+  }
+
+  /**
+   * Send investment confirmation notification to investor
+   * @param {string} investorId - Investor's user ID
+   * @param {number} amount - Investment amount
+   * @param {string} productId - Product ID
+   * @param {string} productName - Product name
+   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   */
+  async sendInvestmentConfirmationNotification(
+    investorId,
+    amount,
+    productId,
+    productName
+  ) {
+    const notificationData = {
+      userId: investorId,
+      type: "investment_confirmation",
+      title: "Investment Successful",
+      message: `You have successfully invested $${amount} in "${productName}"`,
+      link: `/product/${productId}`,
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
+  }
+
+  /**
+   * Send message notification
+   */
+  async sendMessageNotification(
+    recipientId,
+    senderName,
+    messagePreview,
+    conversationId
+  ) {
+    return this.createNotification(recipientId, {
+      type: "message",
+      title: "New Message",
+      message: `${senderName}: ${messagePreview.substring(0, 100)}${
+        messagePreview.length > 100 ? "..." : ""
+      }`,
+      link: `/messages/${conversationId}`,
+    });
+  }
+
+  /**
+   * Send trending product notification
+   */
+  async sendTrendingNotification(designerId, productId, productName) {
+    return this.createNotification(designerId, {
+      type: "trending",
+      title: "Trending Product",
+      message: `Your product "${productName}" is trending! It's receiving a lot of attention.`,
+      link: `/product/${productId}`,
+    });
+  }
+
+  /**
+   * Send expiring product notification
+   */
+  async sendExpiringNotification(designerId, productId, productName, daysLeft) {
+    return this.createNotification(designerId, {
+      type: "expiring",
+      title: "Product Expiring Soon",
+      message: `Your product "${productName}" will expire in ${daysLeft} days. Consider extending it if it's trending.`,
+      link: `/product/${productId}`,
+    });
+  }
+
+  /**
+   * Send role change notification
+   */
+  async sendRoleChangeNotification(userId, role) {
+    return this.createNotification(userId, {
+      type: "role_change",
+      title: "Role Updated",
+      message: `Your account now has the ${role} role.`,
+      link: `/profile`,
+    });
+  }
+
+  /**
+   * Send currency transfer notification
+   */
+  async sendTransferNotification(userId, amount, isDeposit) {
+    return this.createNotification(userId, {
+      type: "transfer",
+      title: isDeposit ? "Deposit Successful" : "Withdrawal Successful",
+      message: isDeposit
+        ? `$${amount} has been added to your wallet.`
+        : `$${amount} has been withdrawn from your wallet.`,
+      link: `/wallet`,
+    });
+  }
+
+  /**
+   * Send interest payment notification
+   * @param {string} userId - User ID receiving the notification
+   * @param {number} amount - Interest amount
+   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   */
+  async sendInterestNotification(userId, amount) {
+    const notificationData = {
+      userId,
+      type: "interest",
+      title: "Interest Payment",
+      message: `You've earned ${new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+      }).format(amount)} in interest on your wallet balance.`,
+      link: "/wallet?tab=interest",
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
+  }
 }
 
 const notificationService = new NotificationService();

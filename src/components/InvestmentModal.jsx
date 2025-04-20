@@ -81,7 +81,7 @@ const InvestmentModal = ({ isOpen, onClose, product, onSuccess }) => {
                     message: 'Investment completed successfully!'
                 });
 
-                setSuccess(`Successfully invested ${investmentAmount} credits in ${product.name}`);
+                setSuccess(`Successfully invested $${investmentAmount} in ${product.name}`);
                 setAmount('');
 
                 // Refresh wallet balance

@@ -223,7 +223,7 @@ const CartPage = () => {
                                 <div key={item.id} className="cart-item">
                                     <div className="item-image">
                                         <img
-                                            src={item.imageUrl || 'https://via.placeholder.com/80?text=Product'}
+                                            src={item.imageUrl || 'https://placehold.co/80x80?text=Product'}
                                             alt={item.name}
                                         />
                                     </div>

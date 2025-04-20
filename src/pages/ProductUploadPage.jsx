@@ -185,7 +185,6 @@ const ProductUploadPage = () => {
             // Create URL for the cropper
             const imageUrl = URL.createObjectURL(file);
             setCropImageSrc(imageUrl);
-            setCurrentImageIndex(productImages.length); // Set index for the new image
             setShowImageCropper(true);
         }
     };
@@ -198,7 +197,7 @@ const ProductUploadPage = () => {
             // Create a File from the blob
             const croppedFile = new File([blob], `product-image-${Date.now()}.jpg`, { type: 'image/jpeg' });
 
-            // Add the new image to the array instead of placing at specific index
+            // Add the new image to the array
             setProductImages(prevImages => [...prevImages, croppedFile]);
 
             // Create preview URL
@@ -272,25 +271,32 @@ const ProductUploadPage = () => {
         setLoading(true);
 
         try {
+            // Track storage paths for uploaded files to store them later
+            const storagePaths = [];
+            const imageUrls = [];
+
             // 1. Upload images to Storage with properly structured path
-            const imageUrls = await Promise.all(productImages.map(async (image, index) => {
+            for (let i = 0; i < productImages.length; i++) {
+                const image = productImages[i];
                 const timestamp = Date.now();
-                const fileName = `${timestamp}-product-${index}.jpg`;
-                const storageRef = ref(storage, `products/${currentUser.uid}/${fileName}`);
+                const fileName = `${timestamp}-product-${i}.jpg`;
+                const storagePath = `products/${currentUser.uid}/${fileName}`;
 
-                // Log the upload process
-                console.log('Uploading product image to:', storageRef.fullPath);
+                // Add storage path to the array
+                storagePaths.push(storagePath);
 
-                // Upload the file
-                const uploadTaskSnapshot = await uploadBytes(storageRef, image);
-                console.log('Upload completed:', uploadTaskSnapshot);
+                // Create storage reference
+                const storageRef = ref(storage, storagePath);
 
-                // Get the download URL
+                // Upload file
+                await uploadBytes(storageRef, image);
+
+                // Get download URL
                 const imageUrl = await getDownloadURL(storageRef);
-                console.log('Image URL obtained:', imageUrl);
+                imageUrls.push(imageUrl);
 
-                return imageUrl;
-            }));
+                console.log(`Image ${i + 1} uploaded: ${imageUrl}`);
+            }
 
             // 2. Create product document in Firestore with the image URLs
             const productData = {
@@ -300,17 +306,22 @@ const ProductUploadPage = () => {
                 fundingGoal: parseFloat(formData.fundingGoal),
                 category: useCustomCategory ? sanitizeString(formData.customCategory.trim()) : formData.category,
                 categoryType: useCustomCategory ? 'custom' : 'standard',
-                imageUrls: imageUrls, // Store the image URLs from Firebase Storage
+                imageUrls: imageUrls, // Store all image URLs from Firebase Storage
                 designerId: currentUser.uid,
                 designerName: userProfile?.displayName || 'Designer',
                 status: requireApproval ? 'pending' : 'active', // Set status based on approval setting
                 currentFunding: 0, // Initial funding amount
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
-                storagePaths: imageUrls.map((url, index) => `products/${currentUser.uid}/${Date.now()}-product-${index}.jpg`) // Store the paths for future reference
+                storagePaths: storagePaths // Store the correct paths for future reference
             };
 
-            console.log('Creating Firestore document with data:', { ...productData, imageUrls: 'URLs logged above' });
+            console.log('Creating Firestore document with data:', {
+                ...productData,
+                imageUrls: imageUrls,
+                storagePaths: storagePaths,
+                imageCount: imageUrls.length
+            });
 
             // If it's a custom category, add it to the categories collection
             if (useCustomCategory && formData.customCategory.trim()) {
@@ -363,7 +374,7 @@ const ProductUploadPage = () => {
 
             // Redirect to the new product page after a delay
             setTimeout(() => {
-                navigate(`/products/${docRef.id}`);
+                navigate(`/product/${docRef.id}`);
             }, 2000);
 
         } catch (error) {
@@ -552,7 +563,7 @@ const ProductUploadPage = () => {
 
                         <div className="form-right">
                             <div className="form-group image-upload">
-                                <label>Product Images*</label>
+                                <label>Product Images* ({imagePreviewUrls.length}/{MAX_IMAGES})</label>
                                 <div className="image-upload-area">
                                     {imagePreviewUrls.map((url, index) => (
                                         <div key={index} className="image-preview-container">

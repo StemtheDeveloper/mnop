@@ -39,6 +39,42 @@
         ]
       },
       {
+        "source": "**/*-*.js",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/javascript"
+          }
+        ]
+      },
+      {
+        "source": "**/*-???????.js",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/javascript"
+          }
+        ]
+      },
+      {
+        "source": "**/*.module.js",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/javascript"
+          }
+        ]
+      },
+      {
+        "source": "**/assets/**/*.js",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/javascript"
+          }
+        ]
+      },
+      {
         "source": "**/*.css",
         "headers": [
           {
@@ -58,10 +94,6 @@
       }
     ],
     "rewrites": [
-      {
-        "source": "/assets/**",
-        "destination": "/assets/**"
-      },
       {
         "source": "**",
         "destination": "/index.html"

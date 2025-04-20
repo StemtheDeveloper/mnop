@@ -314,18 +314,88 @@ const ShopPage = () => {
     };
 
     // Clear search and reset filters
-    const handleClearSearch = () => {
+    const handleClearSearch = async () => {
         setSearchTerm('');
         setCategory('all');
         setSortBy('newest');
+
+        // Reload products when search is cleared
+        setLoading(true);
+        setError(null);
+
+        try {
+            const productsRef = collection(db, 'products');
+            const productsQuery = query(
+                productsRef,
+                where('status', '==', 'active'),
+                orderBy('createdAt', 'desc'),
+                limit(productsPerPage)
+            );
+
+            const snapshot = await getDocs(productsQuery);
+
+            const productList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // Set last visible for pagination
+            const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+            setLastVisible(lastDoc);
+
+            // Check if there are more products
+            setHasMore(productList.length === productsPerPage);
+
+            setProducts(productList);
+        } catch (err) {
+            console.error('Error reloading products:', err);
+            setError('Failed to reload products. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Clear all filters
-    const handleClearAllFilters = () => {
+    const handleClearAllFilters = async () => {
         setSearchTerm('');
         setCategory('all');
         setSortBy('newest');
         setSubCategory('all');
+
+        // Reload all products when filters are cleared
+        setLoading(true);
+        setError(null);
+
+        try {
+            const productsRef = collection(db, 'products');
+            const productsQuery = query(
+                productsRef,
+                where('status', '==', 'active'),
+                orderBy('createdAt', 'desc'),
+                limit(productsPerPage)
+            );
+
+            const snapshot = await getDocs(productsQuery);
+
+            const productList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // Set last visible for pagination
+            const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+            setLastVisible(lastDoc);
+
+            // Check if there are more products
+            setHasMore(productList.length === productsPerPage);
+
+            setProducts(productList);
+        } catch (err) {
+            console.error('Error reloading products:', err);
+            setError('Failed to reload products. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Check if any filter is active

@@ -18,6 +18,7 @@ import AchievementBadgeDisplay from './AchievementBadgeDisplay';
 import NotificationInbox from './NotificationInbox';
 import ThemeToggle from './ThemeToggle'; // Import ThemeToggle component
 import { useToast } from '../context/ToastContext';
+import { useNotifications } from './notifications/NotificationSystem';
 
 const AdminEmails = [
   "stiaan44@gmail.com",
@@ -28,7 +29,6 @@ const Navbar = () => {
   // Remove the problematic setCurrentUser from destructuring
   const { user, userProfile, userRole, loading, signOut: userSignOut } = useUser();
   const [isOpen, setIsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 912);
@@ -39,6 +39,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const auth = getAuth();
+  const { unreadCount } = useNotifications();
 
   // Update isMobile state when window is resized
   useEffect(() => {
@@ -355,7 +356,12 @@ const Navbar = () => {
                 <Link to="/messages" className={isActive('/messages') ? 'active' : ''} onClick={() => setIsOpen(false)}>Messages</Link>
               </li>
               <li className="nav-item">
-                <Link to="/notifications" className={isActive('/notifications') ? 'active' : ''} onClick={() => setIsOpen(false)}>Notifications</Link>
+                <Link to="/notifications" className={isActive('/notifications') ? 'active' : ''} onClick={() => setIsOpen(false)}>
+                  <div className="notification-indicator">
+                    Notifications
+                    {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
+                  </div>
+                </Link>
               </li>
               <li className="nav-item">
                 <Link to="/wallet" className={isActive('/wallet') ? 'active' : ''} onClick={() => setIsOpen(false)}>

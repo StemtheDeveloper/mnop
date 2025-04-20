@@ -5,14 +5,16 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import interestService from '../services/interestService';
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { doc, onSnapshot } from 'firebase/firestore';  // Import for real-time updates
+import { db } from '../config/firebase';  // Import Firestore db
 import '../styles/WalletPage.css';
 
 const WalletPage = () => {
-    const { currentUser, userWallet } = useUser();
+    const { currentUser, userWallet, userRole, hasRole } = useUser();
     const { showSuccess, showError } = useToast();
 
     // Wallet state
-    const [balance, setBalance] = useState(0);
+    const [balance, setBalance] = useState(userWallet?.balance || 0);
     const [transactions, setTransactions] = useState([]);
     const [interestTransactions, setInterestTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -36,32 +38,94 @@ const WalletPage = () => {
     const [depositError, setDepositError] = useState('');
     const [depositSuccess, setDepositSuccess] = useState('');
 
+    // Role state
+    const [userRoles, setUserRoles] = useState([]);
+
+    // Initialize user roles
     useEffect(() => {
-        const loadWalletData = async () => {
-            setLoading(true);
-            if (!currentUser) return;
+        if (userRole) {
+            // Convert to array if it's a single string
+            const roles = Array.isArray(userRole) ? userRole : [userRole];
+            setUserRoles(roles);
+        } else {
+            setUserRoles(['customer']); // Default role
+        }
+    }, [userRole]);
 
-            try {
-                // Set balance from UserContext if available
-                if (userWallet && userWallet.balance !== undefined) {
-                    setBalance(userWallet.balance);
-                } else {
-                    const walletData = await walletService.getUserWallet(currentUser.uid);
-                    if (walletData) {
-                        setBalance(walletData.balance || 0);
-                    }
+    // Keep balance in sync with userWallet from context
+    useEffect(() => {
+        if (userWallet && userWallet.balance !== undefined) {
+            setBalance(userWallet.balance);
+        }
+    }, [userWallet]);
+
+    // Function to determine if user has a specific role
+    const userHasRole = (role) => {
+        return userRoles.includes(role);
+    };
+
+    // Function to determine if user has access to specific tabs
+    const canAccessTab = (tabName) => {
+        // All users can access these tabs
+        if (['summary', 'add'].includes(tabName)) return true;
+
+        // Transfer funds require any role beyond customer
+        if (tabName === 'transfer') return userRoles.length > 0;
+
+        // Interest tab requires investor role
+        if (tabName === 'interest') {
+            return userHasRole('investor');
+        }
+
+        return true;
+    };
+
+    // Set up real-time listener for wallet updates
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const walletRef = doc(db, "wallets", currentUser.uid);
+
+        // Real-time listener for wallet updates
+        const unsubscribe = onSnapshot(walletRef,
+            (walletDoc) => {
+                if (walletDoc.exists()) {
+                    const walletData = walletDoc.data();
+                    setBalance(walletData.balance || 0);
                 }
-            } catch (error) {
-                console.error('Error loading wallet:', error);
-                showError('Failed to load wallet information');
-            } finally {
-                setLoading(false);
+            },
+            (error) => {
+                console.error("Error in wallet listener:", error);
+                // Fallback to manual fetch if real-time updates fail
+                loadWalletData();
             }
-        };
+        );
 
+        // Initial load
         loadWalletData();
-    }, [currentUser, userWallet, showError]);
 
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    const loadWalletData = async () => {
+        setLoading(true);
+        if (!currentUser) return;
+
+        try {
+            // Get the most up-to-date wallet data
+            const walletData = await walletService.getUserWallet(currentUser.uid);
+            if (walletData) {
+                setBalance(walletData.balance || 0);
+            }
+        } catch (error) {
+            console.error('Error loading wallet:', error);
+            showError('Failed to load wallet information');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Real-time listener for transactions
     useEffect(() => {
         const loadTransactions = async () => {
             if (!currentUser) return;
@@ -72,9 +136,11 @@ const WalletPage = () => {
                 const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
                 setTransactions(txData || []);
 
-                // Load interest transactions
-                const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 20);
-                setInterestTransactions(interestTxData || []);
+                // Load interest transactions if user is an investor
+                if (userHasRole('investor')) {
+                    const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 20);
+                    setInterestTransactions(interestTxData || []);
+                }
             } catch (error) {
                 console.error('Error loading transactions:', error);
                 // Don't show an error toast here to avoid duplicate errors
@@ -84,7 +150,26 @@ const WalletPage = () => {
         };
 
         loadTransactions();
-    }, [currentUser, showError]);
+
+        // Set up a refresh interval for transactions (every 30 seconds)
+        const intervalId = setInterval(loadTransactions, 30000);
+
+        return () => clearInterval(intervalId);
+    }, [currentUser, userRoles]);
+
+    // Handle wallet refresh button click
+    const handleRefreshWallet = async () => {
+        try {
+            const walletData = await walletService.getUserWallet(currentUser.uid);
+            if (walletData) {
+                setBalance(walletData.balance || 0);
+                showSuccess("Wallet updated successfully");
+            }
+        } catch (error) {
+            console.error('Error refreshing wallet:', error);
+            showError('Failed to refresh wallet information');
+        }
+    };
 
     // Handle transfer submission
     const handleTransfer = async (e) => {
@@ -123,14 +208,17 @@ const WalletPage = () => {
 
             if (result.success) {
                 setTransferSuccess('Transfer completed successfully!');
-                // Update local balance
-                setBalance(prevBalance => prevBalance - amount);
+                // Balance will be updated automatically by the listener
                 // Clear form
                 setTransferTo('');
                 setTransferAmount('');
                 setTransferNote('');
                 // Show success toast
                 showSuccess(`Successfully transferred ${formatCurrency(amount)} to ${transferTo}`);
+
+                // Refresh transactions
+                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
+                setTransactions(txData || []);
             } else {
                 setTransferError(result.error || 'Transfer failed. Please try again.');
             }
@@ -169,14 +257,16 @@ const WalletPage = () => {
             );
 
             if (result.success) {
-                // Update local balance
-                setBalance(prevBalance => prevBalance + amount);
                 // Clear form
                 setDepositAmount('');
                 // Set success message
                 setDepositSuccess(`Successfully added ${formatCurrency(amount)} to your wallet`);
                 // Show success toast
                 showSuccess(`Added ${formatCurrency(amount)} to your wallet`);
+
+                // Refresh transactions immediately
+                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
+                setTransactions(txData || []);
             } else {
                 setDepositError(result.error || 'Deposit failed. Please try again.');
             }
@@ -192,6 +282,19 @@ const WalletPage = () => {
     const filteredTransactions = () => {
         if (activeTransactionType === 'all') return transactions;
         return transactions.filter(tx => tx.type === activeTransactionType);
+    };
+
+    // Render roles badges 
+    const renderRoleBadges = () => {
+        return (
+            <div className="user-roles">
+                {userRoles.map((role, index) => (
+                    <span key={index} className={`role-badge ${role}`}>
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                    </span>
+                ))}
+            </div>
+        );
     };
 
     if (loading) {
@@ -210,8 +313,14 @@ const WalletPage = () => {
             <div className="wallet-container">
                 <div className="wallet-header">
                     <h1>My Wallet</h1>
-                    <div className="wallet-balance">
-                        <h2>Current Balance</h2>
+                    {renderRoleBadges()}
+                    <div className="balance-card">
+                        <button className="refresh-button" onClick={handleRefreshWallet} aria-label="Refresh wallet">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38" />
+                            </svg>
+                        </button>
+                        <div className="balance-header">Current Balance</div>
                         <div className="balance-amount">{formatCurrency(balance)}</div>
                     </div>
                 </div>
@@ -235,12 +344,14 @@ const WalletPage = () => {
                     >
                         Add Credits
                     </button>
-                    <button
-                        className={`tab-button ${activeTab === 'interest' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('interest')}
-                    >
-                        Interest
-                    </button>
+                    {userHasRole('investor') && (
+                        <button
+                            className={`tab-button ${activeTab === 'interest' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('interest')}
+                        >
+                            Interest
+                        </button>
+                    )}
                 </div>
 
                 <div className="tab-content">
@@ -448,51 +559,10 @@ const WalletPage = () => {
                         </div>
                     )}
 
-                    {activeTab === 'interest' && (
+                    {activeTab === 'interest' && userHasRole('investor') && (
                         <div className="interest-tab">
                             <h3>Interest Earnings</h3>
-                            <div className="interest-summary">
-                                <div className="interest-card">
-                                    <h4>Monthly Interest Rate</h4>
-                                    <div className="interest-rate">3.5%</div>
-                                    <p className="interest-note">Interest is calculated daily and paid monthly</p>
-                                </div>
-                            </div>
-
-                            <h4>Interest History</h4>
-
-                            {transactionLoading ? (
-                                <div className="loading-transactions">
-                                    <LoadingSpinner size="small" />
-                                    <p>Loading interest history...</p>
-                                </div>
-                            ) : interestTransactions.length === 0 ? (
-                                <div className="no-transactions">
-                                    <p>No interest payments found.</p>
-                                    <p>Interest is calculated daily and paid monthly based on your average wallet balance.</p>
-                                </div>
-                            ) : (
-                                <div className="transactions-list">
-                                    {interestTransactions.map(transaction => (
-                                        <div key={transaction.id} className="transaction-item">
-                                            <div className="transaction-icon">
-                                                <span className="icon interest">%</span>
-                                            </div>
-                                            <div className="transaction-details">
-                                                <div className="transaction-description">
-                                                    {transaction.description || 'Interest Payment'}
-                                                </div>
-                                                <div className="transaction-date">
-                                                    {formatDate(transaction.createdAt)}
-                                                </div>
-                                            </div>
-                                            <div className="transaction-amount positive">
-                                                +{formatCurrency(transaction.amount)}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <InterestRatesPanel />
                         </div>
                     )}
                 </div>
