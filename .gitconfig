@@ -3,19 +3,31 @@
     lowSpeedLimit = 0
     lowSpeedTime = 999999
     maxRequestBuffer = 100M
+    receiveTimeout = 300
+    timeout = 300
 [core]
     compression = 0
     packedGitLimit = 512m
     packedGitWindowSize = 512m
+    askPass = 
 [pack]
     deltaCacheSize = 2047m
     packSizeLimit = 2047m
     windowMemory = 2047m
+    threads = 1
 [ssh]
     postBuffer = 524288000
 [protocol]
     version = 2
 [transfer]
     fsckObjects = false
+    unpackLimit = 1g
 [git-http-push-backend]
     maxPackSize = 100m
+[credential]
+    helper = cache --timeout=3600
+[http "https://github.com"]
+    cookieFile = ~/.gitcookies
+    saveCookies = true
+[pull]
+    rebase = false
