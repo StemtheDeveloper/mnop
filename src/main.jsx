@@ -4,13 +4,22 @@ import App from "./App.jsx";
 import "./index.css";
 import { CookiesProvider } from 'react-cookie';
 import { BrowserRouter } from "react-router-dom";
+import { AuthProvider } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <BrowserRouter>
-    <React.StrictMode>
-      <CookiesProvider>
-        <App />
-      </CookiesProvider>
-    </React.StrictMode>
-  </BrowserRouter>
+  <React.StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <ToastProvider>
+          <NotificationProvider>
+            <CookiesProvider>
+              <App />
+            </CookiesProvider>
+          </NotificationProvider>
+        </ToastProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>
 );

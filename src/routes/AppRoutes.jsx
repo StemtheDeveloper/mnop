@@ -36,7 +36,6 @@ const ManufacturerQuoteDetailPage = lazy(() => import('../pages/ManufacturerQuot
 const ManufacturingManagementQuotesPage = lazy(() => import('../pages/ManufacturingManagementQuotesPage'));
 const MessagesPage = lazy(() => import('../pages/MessagesPage'));
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
-const NotificationsInboxPage = lazy(() => import('../pages/NotificationsInboxPage'));
 const ToastDemoPage = lazy(() => import('../pages/ToastDemoPage'));
 const UserSettingsPage = lazy(() => import('../pages/UserSettingsPage'));
 
@@ -132,11 +131,6 @@ const AppRoutes = () => {
                 <Route path="/notifications" element={
                     <AuthGuard>
                         <NotificationsPage />
-                    </AuthGuard>
-                } />
-                <Route path="/notifications/inbox" element={
-                    <AuthGuard>
-                        <NotificationsInboxPage />
                     </AuthGuard>
                 } />
                 <Route path="/portfolio" element={

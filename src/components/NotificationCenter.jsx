@@ -1,214 +1,205 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useUser } from '../context/UserContext';
+import { useAuth } from '../contexts/AuthContext';
 import notificationService from '../services/notificationService';
-import '../styles/NotificationCenter.css';
+import { formatDistanceToNow } from 'date-fns';
+import './NotificationCenter.css';
 
-const NotificationCenter = ({ isOpen, onClose }) => {
-    const { currentUser } = useUser();
+const NotificationCenter = () => {
+    const { currentUser } = useAuth();
     const [notifications, setNotifications] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const notificationRef = useRef(null);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [isOpen, setIsOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const dropdownRef = useRef(null);
 
+    // Fetch notifications when user logs in
     useEffect(() => {
-        // Load notifications when opened
-        if (isOpen && currentUser) {
-            loadNotifications();
+        if (currentUser?.uid) {
+            fetchNotifications();
+        } else {
+            setNotifications([]);
+            setUnreadCount(0);
         }
-    }, [isOpen, currentUser]);
+    }, [currentUser]);
 
+    // Close dropdown when clicking outside
     useEffect(() => {
-        // Handle clicks outside of notification center
-        function handleClickOutside(event) {
-            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-                onClose();
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
             }
-        }
+        };
 
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-
+        document.addEventListener('mousedown', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isOpen, onClose]);
+    }, []);
 
-    const loadNotifications = async () => {
-        if (!currentUser) return;
+    const fetchNotifications = async () => {
+        if (!currentUser?.uid) return;
 
         setLoading(true);
-        setError(null);
+        const result = await notificationService.getUserNotifications(currentUser.uid);
+        setLoading(false);
 
-        try {
-            const response = await notificationService.getUserNotifications(currentUser.uid);
-            if (response.success) {
-                setNotifications(response.data);
-            } else {
-                setError(response.error || 'Failed to load notifications');
-            }
-        } catch (err) {
-            setError('Error loading notifications');
-            console.error(err);
-        } finally {
-            setLoading(false);
+        if (result.success) {
+            // Sort notifications by date (newest first)
+            const sortedNotifications = result.data.sort((a, b) => {
+                const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+                const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+                return dateB - dateA;
+            });
+
+            setNotifications(sortedNotifications);
+            setUnreadCount(sortedNotifications.filter(n => !n.read).length);
         }
     };
 
-    const handleMarkAsRead = async (notificationId) => {
-        try {
-            await notificationService.markAsRead(notificationId);
-            setNotifications(prevNotifications =>
-                prevNotifications.map(notification =>
-                    notification.id === notificationId
-                        ? { ...notification, read: true }
-                        : notification
-                )
-            );
-        } catch (err) {
-            console.error('Error marking notification as read:', err);
+    const toggleDropdown = () => {
+        setIsOpen(!isOpen);
+    };
+
+    const markAsRead = async (notificationId) => {
+        const result = await notificationService.markAsRead(notificationId);
+        if (result.success) {
+            setNotifications(notifications.map(n =>
+                n.id === notificationId ? { ...n, read: true } : n
+            ));
+            setUnreadCount(Math.max(0, unreadCount - 1));
         }
     };
 
-    const handleMarkAllAsRead = async () => {
-        if (!currentUser || notifications.length === 0) return;
+    const markAllAsRead = async () => {
+        if (unreadCount === 0) return;
 
-        try {
-            await notificationService.markAllAsRead(currentUser.uid);
-            setNotifications(prevNotifications =>
-                prevNotifications.map(notification => ({ ...notification, read: true }))
-            );
-        } catch (err) {
-            console.error('Error marking all notifications as read:', err);
+        const result = await notificationService.markAllAsRead(currentUser.uid);
+        if (result.success) {
+            setNotifications(notifications.map(n => ({ ...n, read: true })));
+            setUnreadCount(0);
         }
     };
 
-    const handleDeleteNotification = async (notificationId) => {
-        try {
-            await notificationService.deleteNotification(notificationId);
-            setNotifications(prevNotifications =>
-                prevNotifications.filter(notification => notification.id !== notificationId)
-            );
-        } catch (err) {
-            console.error('Error deleting notification:', err);
+    const deleteNotification = async (notificationId) => {
+        const result = await notificationService.deleteNotification(notificationId);
+        if (result.success) {
+            const updatedNotifications = notifications.filter(n => n.id !== notificationId);
+            setNotifications(updatedNotifications);
+            setUnreadCount(updatedNotifications.filter(n => !n.read).length);
         }
     };
 
-    const formatDate = (timestamp) => {
+    const formatNotificationTime = (timestamp) => {
         if (!timestamp) return '';
 
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / (1000 * 60));
-        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-        if (diffMins < 60) {
-            return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
-        } else if (diffHours < 24) {
-            return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-        } else if (diffDays < 7) {
-            return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
-        } else {
-            return date.toLocaleDateString();
-        }
+        const date = timestamp?.toDate?.() || new Date(timestamp);
+        return formatDistanceToNow(date, { addSuffix: true });
     };
 
     const getNotificationIcon = (type) => {
         switch (type) {
-            case 'product_archived':
-                return '🗃️';
-            case 'product_restored':
-                return '🔄';
-            case 'funding_update':
-                return '💰';
-            case 'system_message':
-                return '⚙️';
-            default:
+            case 'message':
+                return '✉️';
+            case 'quote_request':
                 return '📝';
+            case 'product_approved':
+                return '✅';
+            case 'investment':
+                return '💰';
+            case 'trending':
+                return '🔥';
+            case 'role_change':
+            case 'role_request_approved':
+                return '👤';
+            case 'transfer':
+            case 'interest':
+                return '💳';
+            default:
+                return '🔔';
         }
     };
 
-    if (!isOpen) return null;
+    if (!currentUser) return null;
 
     return (
-        <div className="notification-overlay">
-            <div className="notification-center" ref={notificationRef}>
-                <div className="notification-header">
-                    <h3>Notifications</h3>
-                    <button className="close-button" onClick={onClose}>&times;</button>
-                </div>
+        <div className="notification-center" ref={dropdownRef}>
+            <button
+                className="notification-button"
+                onClick={toggleDropdown}
+                aria-label="Notifications"
+            >
+                <span className="notification-icon">🔔</span>
+                {unreadCount > 0 && (
+                    <span className="notification-badge">{unreadCount}</span>
+                )}
+            </button>
 
-                {loading ? (
-                    <div className="notification-loading">Loading notifications...</div>
-                ) : error ? (
-                    <div className="notification-error">{error}</div>
-                ) : notifications.length === 0 ? (
-                    <div className="empty-notifications">
-                        <p>No notifications</p>
+            {isOpen && (
+                <div className="notification-dropdown">
+                    <div className="notification-header">
+                        <h3>Notifications</h3>
+                        {unreadCount > 0 && (
+                            <button
+                                className="mark-all-read-btn"
+                                onClick={markAllAsRead}
+                            >
+                                Mark all as read
+                            </button>
+                        )}
                     </div>
-                ) : (
-                    <>
-                        <div className="notification-actions">
-                            <button onClick={handleMarkAllAsRead}>Mark all as read</button>
-                        </div>
 
-                        <div className="notification-list">
-                            {notifications.map(notification => (
+                    <div className="notification-list">
+                        {loading ? (
+                            <div className="notification-loading">Loading notifications...</div>
+                        ) : notifications.length === 0 ? (
+                            <div className="notification-empty">No notifications</div>
+                        ) : (
+                            notifications.map(notification => (
                                 <div
                                     key={notification.id}
-                                    className={`notification-item ${notification.read ? 'read' : 'unread'}`}
+                                    className={`notification-item ${!notification.read ? 'unread' : ''}`}
                                 >
                                     <div className="notification-icon">
                                         {getNotificationIcon(notification.type)}
                                     </div>
-
                                     <div className="notification-content">
                                         <div className="notification-title">{notification.title}</div>
                                         <div className="notification-message">{notification.message}</div>
-                                        <div className="notification-time">{formatDate(notification.createdAt)}</div>
-
-                                        {notification.productId && (
-                                            <div className="notification-actions">
-                                                <Link
-                                                    to={`/product/${notification.productId}`}
-                                                    onClick={() => {
-                                                        handleMarkAsRead(notification.id);
-                                                        onClose();
-                                                    }}
-                                                >
-                                                    View Product
-                                                </Link>
-                                            </div>
-                                        )}
+                                        <div className="notification-time">
+                                            {formatNotificationTime(notification.createdAt)}
+                                        </div>
                                     </div>
-
-                                    <div className="notification-buttons">
+                                    <div className="notification-actions">
                                         {!notification.read && (
                                             <button
-                                                className="mark-read-btn"
-                                                onClick={() => handleMarkAsRead(notification.id)}
-                                                title="Mark as read"
+                                                onClick={() => markAsRead(notification.id)}
+                                                className="read-btn"
+                                                aria-label="Mark as read"
                                             >
                                                 ✓
                                             </button>
                                         )}
                                         <button
+                                            onClick={() => deleteNotification(notification.id)}
                                             className="delete-btn"
-                                            onClick={() => handleDeleteNotification(notification.id)}
-                                            title="Delete"
+                                            aria-label="Delete notification"
                                         >
-                                            🗑️
+                                            ×
                                         </button>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </>
-                )}
-            </div>
+                            ))
+                        )}
+                    </div>
+
+                    <div className="notification-footer">
+                        <Link to="/notifications" onClick={() => setIsOpen(false)}>
+                            View all notifications
+                        </Link>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

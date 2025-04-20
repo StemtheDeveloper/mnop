@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import interestService from '../services/interestService';
@@ -11,7 +11,7 @@ import '../styles/WalletPage.css';
 
 const WalletPage = () => {
     const { currentUser, userWallet, userRole, hasRole } = useUser();
-    const { showSuccess, showError } = useToast();
+    const { success: showSuccess, error: showError } = useToast(); // Map to correct function names
 
     // Wallet state
     const [balance, setBalance] = useState(userWallet?.balance || 0);

@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
 import LoadingSpinner from '../components/LoadingSpinner';
 import InvestmentModal from '../components/InvestmentModal';
 import TrendingExtensionButton from '../components/TrendingExtensionButton';
@@ -14,7 +14,7 @@ import { serverTimestamp } from 'firebase/firestore';
 const ProductDetailPage = () => {
     const { productId } = useParams();
     const { currentUser, hasRole, userWallet, fundProduct } = useUser();
-    const { showSuccess, showError } = useToast();
+    const { success: showSuccess, error: showError } = useToast(); // Map to correct function names
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

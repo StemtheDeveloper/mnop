@@ -3,7 +3,7 @@ import { useUser } from '../context/UserContext';
 import { doc, updateDoc, arrayUnion, arrayRemove, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../contexts/ToastContext';
 import '../styles/ProductCard.css';
 
 const ProductCard = ({
@@ -24,7 +24,7 @@ const ProductCard = ({
   onClick
 }) => {
   const { currentUser } = useUser();
-  const { showSuccess, showError } = useToast();
+  const { success: showSuccess, error: showError } = useToast(); // Map to correct function names
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -215,7 +215,12 @@ const ProductCard = ({
         if (userDoc.exists()) {
           const userData = userDoc.data();
           const likedProducts = userData.likedProducts || [];
-          setIsLiked(likedProducts.includes(id));
+          const isCurrentlyLiked = likedProducts.includes(id);
+
+          // Only update state if the liked status has changed
+          if (isLiked !== isCurrentlyLiked) {
+            setIsLiked(isCurrentlyLiked);
+          }
         }
       } catch (error) {
         console.error("Error checking like status:", error);
@@ -223,7 +228,7 @@ const ProductCard = ({
     };
 
     checkLikeStatus();
-  }, [currentUser, id]);
+  }, [currentUser, id, isLiked]);
 
   // Handle image cycling on hover
   useEffect(() => {

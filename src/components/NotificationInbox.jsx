@@ -1,264 +1,255 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, limit, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { useUser } from '../context/UserContext';
-import { useToast } from '../context/ToastContext';
-import '../styles/NotificationInbox.css';
+import { Link } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationContext';
+import './NotificationInbox.css'; // Use our new CSS file
 
 const NotificationInbox = ({ isOpen, onClose }) => {
-    const { currentUser, userRole } = useUser();
-    const { showError, showSuccess } = useToast();
-    const [notifications, setNotifications] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const { currentUser } = useAuth();
+    const {
+        notifications,
+        loading,
+        refresh,
+        markAsRead,
+        markAllAsRead,
+        deleteNotification,
+        unreadCount
+    } = useNotifications();
     const inboxRef = useRef(null);
-    const navigate = useNavigate();
+    const [isClosing, setIsClosing] = useState(false);
+    const [notificationsList, setNotificationsList] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // Handle click outside to close
+    // Handle smooth closing animation
+    const handleClose = () => {
+        setIsClosing(true);
+        setTimeout(() => {
+            setIsClosing(false);
+            onClose();
+        }, 300); // Match animation duration in CSS
+    };
+
+    // Load notifications and manage local state to prevent flickering
+    useEffect(() => {
+        if (isOpen && currentUser) {
+            setIsLoading(true);
+            try {
+                // Call refresh and handle both Promise and non-Promise return values
+                const result = refresh();
+
+                if (result && typeof result.then === 'function') {
+                    // If refresh returns a Promise
+                    result.then(() => {
+                        setIsLoading(false);
+                    }).catch(() => {
+                        setIsLoading(false);
+                    });
+                } else {
+                    // If refresh doesn't return a Promise
+                    setIsLoading(false);
+                }
+            } catch (error) {
+                console.error("Error refreshing notifications:", error);
+                setIsLoading(false);
+            }
+        }
+    }, [isOpen, currentUser, refresh]);
+
+    // Update local notifications list when notifications change
+    useEffect(() => {
+        if (notifications) {
+            setNotificationsList(notifications);
+        }
+    }, [notifications]);
+
+    // Close the inbox when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (inboxRef.current && !inboxRef.current.contains(event.target) && isOpen) {
-                onClose();
+            if (inboxRef.current && !inboxRef.current.contains(event.target)) {
+                handleClose();
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, [isOpen, onClose]);
 
-    // Listen for notifications in real-time
-    useEffect(() => {
-        if (!currentUser || !isOpen) return;
-
-        setLoading(true);
-
-        try {
-            // Create a simpler query that doesn't require a composite index
-            const notificationsRef = collection(db, 'notifications');
-            const userNotificationsQuery = query(
-                notificationsRef,
-                where('userId', '==', currentUser.uid),
-                limit(30) // Increased limit to ensure we get enough recent notifications
-            );
-
-            // Set up real-time listener
-            const unsubscribe = onSnapshot(userNotificationsQuery, (snapshot) => {
-                try {
-                    let notificationData = snapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data(),
-                        createdAt: doc.data().createdAt?.toDate() || new Date()
-                    }));
-
-                    // Sort client-side by createdAt (descending)
-                    notificationData.sort((a, b) => b.createdAt - a.createdAt);
-
-                    // Update notifications state
-                    setNotifications(notificationData);
-
-                    // Count unread notifications
-                    const unreadNotifications = notificationData.filter(n => !n.read).length;
-                    setUnreadCount(unreadNotifications);
-
-                    setLoading(false);
-                } catch (err) {
-                    console.error('Error processing notifications:', err);
-                    setLoading(false);
-                }
-            }, (error) => {
-                console.error('Error fetching notifications:', error);
-                setLoading(false);
-            });
-
-            return () => unsubscribe();
-        } catch (err) {
-            console.error('Error setting up notification listener:', err);
-            setLoading(false);
-        }
-    }, [currentUser, isOpen]);
-
-    // Mark a notification as read
-    const markAsRead = async (notification) => {
-        if (notification.read) return;
-
-        try {
-            await updateDoc(doc(db, 'notifications', notification.id), {
-                read: true,
-                readAt: serverTimestamp()
-            });
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
-        }
-    };
-
-    // Mark all notifications as read
-    const markAllAsRead = async () => {
-        if (notifications.length === 0) return;
-
-        try {
-            const unreadNotifications = notifications.filter(notif => !notif.read);
-
-            if (unreadNotifications.length === 0) return;
-
-            // Update each unread notification
-            const updatePromises = unreadNotifications.map(notification =>
-                updateDoc(doc(db, 'notifications', notification.id), {
-                    read: true,
-                    readAt: serverTimestamp()
-                })
-            );
-
-            await Promise.all(updatePromises);
-            showSuccess('All notifications marked as read');
-
-            // Update local state
-            setNotifications(notifications.map(notif => ({ ...notif, read: true })));
-            setUnreadCount(0);
-        } catch (error) {
-            console.error('Error marking all as read:', error);
-            showError('Failed to mark notifications as read');
-        }
-    };
-
-    // Handle notification click based on type
-    const handleNotificationClick = async (notification) => {
-        // First mark as read
-        await markAsRead(notification);
-
-        // Then navigate based on notification type
-        switch (notification.type) {
-            case 'quote_request':
-                navigate(`/manufacturer/quotes`);
-                break;
-            case 'quote_accepted':
-            case 'quote_rejected':
-            case 'quote_negotiation':
-                navigate(`/manufacturer/quotes/${notification.quoteId}`);
-                break;
-            case 'role_request_approved':
-                navigate('/profile');
-                break;
-            case 'order_status':
-                navigate(`/orders/${notification.orderId}`);
-                break;
-            case 'investment_update':
-                navigate(`/portfolio`);
-                break;
-            case 'product_trending':
-            case 'product_updated':
-                navigate(`/product/${notification.productId}`);
-                break;
-            case 'message':
-            default:
-                // Just mark as read but stay on current page
-                break;
-        }
-
-        onClose();
-    };
-
-    // Format notification timestamp
-    const formatTime = (timestamp) => {
+    const formatNotificationTime = (timestamp) => {
         if (!timestamp) return '';
 
-        const now = new Date();
-        const notificationDate = new Date(timestamp);
-        const diffMs = now - notificationDate;
-        const diffMins = Math.round(diffMs / 60000);
-        const diffHours = Math.round(diffMs / 3600000);
-        const diffDays = Math.round(diffMs / 86400000);
-
-        if (diffMins < 1) return 'Just now';
-        if (diffMins < 60) return `${diffMins}m ago`;
-        if (diffHours < 24) return `${diffHours}h ago`;
-        if (diffDays < 7) return `${diffDays}d ago`;
-
-        return notificationDate.toLocaleDateString();
+        const date = timestamp?.toDate?.() || new Date(timestamp);
+        return formatDistanceToNow(date, { addSuffix: true });
     };
 
-    // Get icon based on notification type
     const getNotificationIcon = (type) => {
         switch (type) {
-            case 'quote_request': return '💼';
-            case 'quote_accepted': return '✅';
-            case 'quote_rejected': return '❌';
-            case 'quote_negotiation': return '🤝';
-            case 'role_request_approved': return '🔑';
-            case 'order_status': return '📦';
-            case 'investment_update': return '💰';
-            case 'product_trending': return '🔥';
-            case 'product_updated': return '🔄';
-            case 'achievement_earned': return '🏆';
-            default: return '📣';
+            case 'message':
+                return '✉️';
+            case 'quote_request':
+                return '📝';
+            case 'product_approved':
+                return '✅';
+            case 'investment':
+            case 'investment_confirmation':
+                return '💰';
+            case 'trending':
+                return '🔥';
+            case 'role_change':
+            case 'role_request_approved':
+                return '👤';
+            case 'transfer':
+            case 'interest':
+                return '💳';
+            default:
+                return '🔔';
         }
     };
 
-    // Empty state message when no notifications
-    const renderEmptyState = () => (
-        <div className="empty-notifications">
-            <div className="empty-icon">📭</div>
-            <p>No new notifications</p>
-        </div>
-    );
+    // Handle refresh button click safely
+    const handleRefresh = () => {
+        setIsLoading(true);
+        try {
+            const result = refresh();
 
-    if (!isOpen) return null;
+            if (result && typeof result.then === 'function') {
+                result.then(() => {
+                    setIsLoading(false);
+                }).catch(() => {
+                    setIsLoading(false);
+                });
+            } else {
+                // If refresh doesn't return a Promise, use the loading state from context
+                // Or set a timeout to give time for the refresh to complete
+                setTimeout(() => {
+                    setIsLoading(false);
+                }, 500);
+            }
+        } catch (error) {
+            console.error("Error refreshing notifications:", error);
+            setIsLoading(false);
+        }
+    };
+
+    // Handle notification deletion with local state update to prevent flickering
+    const handleDeleteNotification = async (id) => {
+        // Optimistically update UI first
+        setNotificationsList(prev => prev.filter(n => n.id !== id));
+
+        // Then perform the actual deletion
+        await deleteNotification(id);
+    };
+
+    // Handle mark as read with local state update
+    const handleMarkAsRead = async (id) => {
+        // Optimistically update UI first
+        setNotificationsList(prev =>
+            prev.map(n => n.id === id ? { ...n, read: true } : n)
+        );
+
+        // Then perform the actual update
+        await markAsRead(id);
+    };
+
+    // Handle mark all as read with local state update
+    const handleMarkAllAsRead = async () => {
+        if (unreadCount === 0) return;
+
+        // Optimistically update UI first
+        setNotificationsList(prev =>
+            prev.map(n => ({ ...n, read: true }))
+        );
+
+        // Then perform the actual update
+        await markAllAsRead();
+    };
+
+    if (!isOpen || !currentUser) return null;
 
     return (
         <div className="notification-inbox-overlay">
-            <div ref={inboxRef} className="notification-inbox">
+            <div className={`notification-inbox ${isClosing ? 'closing' : ''}`} ref={inboxRef}>
                 <div className="notification-inbox-header">
-                    <h2>Notifications</h2>
-                    <div className="inbox-actions">
-                        {notifications.length > 0 && (
-                            <button onClick={markAllAsRead} className="mark-all-read">
+                    <h3>Recent Notifications</h3>
+                    <div className="notification-inbox-actions">
+                        <button
+                            className="refresh-btn"
+                            onClick={handleRefresh}
+                            disabled={isLoading}
+                        >
+                            Refresh
+                        </button>
+                        {unreadCount > 0 && (
+                            <button className="mark-all-read-btn" onClick={handleMarkAllAsRead}>
                                 Mark all as read
                             </button>
                         )}
-                        <button onClick={onClose} className="close-button">
-                            ✕
+                        <button className="close-btn" onClick={handleClose}>
+                            Close
                         </button>
                     </div>
                 </div>
 
                 <div className="notification-inbox-content">
-                    {loading ? (
-                        <div className="loading-spinner">
-                            <div className="spinner"></div>
-                            <p>Loading notifications...</p>
-                        </div>
-                    ) : notifications.length === 0 ? (
-                        renderEmptyState()
+                    {isLoading ? (
+                        <div className="notification-loading">Loading notifications...</div>
+                    ) : notificationsList.length === 0 ? (
+                        <div className="notification-empty">No notifications</div>
                     ) : (
-                        <>
-                            <div className="notifications-list">
-                                {notifications.map(notification => (
-                                    <div
-                                        key={notification.id}
-                                        className={`notification-item ${notification.read ? '' : 'unread'}`}
-                                        onClick={() => handleNotificationClick(notification)}
-                                    >
-                                        <div className="notification-icon">
-                                            {getNotificationIcon(notification.type)}
-                                        </div>
-                                        <div className="notification-content">
-                                            <h3 className="notification-title">{notification.title}</h3>
-                                            <p className="notification-message">{notification.message}</p>
-                                            <span className="notification-time">
-                                                {formatTime(notification.createdAt)}
-                                            </span>
-                                        </div>
-                                        {!notification.read && <div className="unread-indicator"></div>}
+                        <div className="notification-list-scrollable">
+                            {notificationsList.map(notification => (
+                                <div
+                                    key={notification.id}
+                                    className={`notification-item ${!notification.read ? 'unread' : ''}`}
+                                >
+                                    <div className="notification-icon">
+                                        {getNotificationIcon(notification.type)}
                                     </div>
-                                ))}
-                            </div>
-                            <div className="notification-footer">
-                                <Link to="/notifications" onClick={onClose}>
-                                    View all notifications
-                                </Link>
-                            </div>
-                        </>
+                                    <div className="notification-content">
+                                        <div className="notification-title">{notification.title}</div>
+                                        <div className="notification-message">{notification.message}</div>
+                                        <div className="notification-time">
+                                            {formatNotificationTime(notification.createdAt)}
+                                        </div>
+                                        {notification.link && (
+                                            <Link to={notification.link} className="notification-link" onClick={handleClose}>
+                                                View details
+                                            </Link>
+                                        )}
+                                    </div>
+                                    <div className="notification-actions">
+                                        {!notification.read && (
+                                            <button
+                                                onClick={() => handleMarkAsRead(notification.id)}
+                                                className="read-btn"
+                                                aria-label="Mark as read"
+                                            >
+                                                ✓
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => handleDeleteNotification(notification.id)}
+                                            className="delete-btn"
+                                            aria-label="Delete notification"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     )}
+                </div>
+
+                <div className="notification-inbox-footer">
+                    <Link to="/notifications" onClick={handleClose}>
+                        View all notifications
+                    </Link>
                 </div>
             </div>
         </div>

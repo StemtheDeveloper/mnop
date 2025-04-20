@@ -1,57 +1,28 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useUser } from '../context/UserContext';
+import { useAuth } from '../contexts/AuthContext';
 
-/**
- * AuthGuard component for role-based access control
- * 
- * @param {Object} props
- * @param {React.ReactNode} props.children - The components to render if authorized
- * @param {string|string[]} [props.allowedRoles] - Required role(s) to access the route
- * @returns {React.ReactNode}
- */
 const AuthGuard = ({ children, allowedRoles }) => {
-  const { currentUser, userRole, loading, authInitialized } = useUser();
+  const { currentUser, hasRole, loading } = useAuth();
   const location = useLocation();
 
-  // Show nothing while initializing auth to prevent flash of incorrect content
-  if (!authInitialized) {
-    return null;
-  }
-
-  // Show loading indicator while fetching user data
+  // Wait for authentication to initialize
   if (loading) {
-    return (
-      <div className="auth-loading">
-        <div className="auth-loading-spinner"></div>
-      </div>
-    );
+    return <div className="loading">Loading...</div>;
   }
 
-  // If user is not authenticated, redirect to sign in with return path
+  // If user is not logged in, redirect to login page
   if (!currentUser) {
     return <Navigate to="/signin" state={{ from: location.pathname }} replace />;
   }
 
-  // If specific roles are required, check if user has one of them
-  if (allowedRoles) {
-    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-
-    // Check if user has any of the required roles
-    const hasAllowedRole = roles.some(role =>
-      userRole && (typeof userRole === 'string'
-        ? userRole === role
-        : userRole.includes(role))
-    );
-
-    if (!hasAllowedRole) {
-      // Redirect to unauthorized page with info about required roles
-      return <Navigate to="/unauthorized" state={{ requiredRoles: roles }} replace />;
-    }
+  // If roles are specified, check if user has access
+  if (allowedRoles && !hasRole(allowedRoles)) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  // User is authenticated and has required role(s)
+  // If user is authenticated and has permission, render the protected component
   return children;
-}
+};
 
 export default AuthGuard;

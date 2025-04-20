@@ -17,7 +17,7 @@ import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';
 import NotificationInbox from './NotificationInbox';
 import ThemeToggle from './ThemeToggle'; // Import ThemeToggle component
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
 import { useNotifications } from './notifications/NotificationSystem';
 
 const AdminEmails = [

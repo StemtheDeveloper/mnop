@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's'
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
