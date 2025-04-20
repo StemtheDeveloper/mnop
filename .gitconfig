@@ -1,0 +1,21 @@
+[http]
+    postBuffer = 524288000
+    lowSpeedLimit = 0
+    lowSpeedTime = 999999
+    maxRequestBuffer = 100M
+[core]
+    compression = 0
+    packedGitLimit = 512m
+    packedGitWindowSize = 512m
+[pack]
+    deltaCacheSize = 2047m
+    packSizeLimit = 2047m
+    windowMemory = 2047m
+[ssh]
+    postBuffer = 524288000
+[protocol]
+    version = 2
+[transfer]
+    fsckObjects = false
+[git-http-push-backend]
+    maxPackSize = 100m
