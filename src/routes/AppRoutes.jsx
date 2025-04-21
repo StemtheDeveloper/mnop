@@ -177,6 +177,11 @@ const AppRoutes = () => {
                         <AdminPage />
                     </AuthGuard>
                 } />
+                <Route path="/admin/achievements" element={
+                    <AuthGuard allowedRoles="admin">
+                        <AdminPage activeTab="achievements" />
+                    </AuthGuard>
+                } />
 
                 {/* Fallback route - 404 */}
                 <Route path="*" element={<NotFoundPage />} />

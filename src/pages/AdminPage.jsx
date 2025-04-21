@@ -12,6 +12,7 @@ import ProductApprovalPanel from '../components/admin/ProductApprovalPanel';
 import PaymentSettingsPanel from '../components/admin/PaymentSettingsPanel';
 import FirestoreIndexHelper from '../components/admin/FirestoreIndexHelper';
 import NopsManagementPanel from '../components/admin/NopsManagementPanel';
+import AchievementsManagementPanel from '../components/admin/AchievementsManagementPanel';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -23,7 +24,7 @@ const AVAILABLE_ROLES = [
     { id: 'admin', name: 'Administrator', description: 'Manage system and users' }
 ];
 
-const AdminPage = () => {
+const AdminPage = ({ activeTab: initialActiveTab }) => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState({ success: false, message: '', details: null });
     const [operation, setOperation] = useState('');
@@ -32,7 +33,7 @@ const AdminPage = () => {
     const { currentUser, userRole, loading: userLoading } = useUser();
     const userContext = useUser(); // Get the full context to access methods
 
-    const [activeTab, setActiveTab] = useState('users');
+    const [activeTab, setActiveTab] = useState(initialActiveTab || 'users');
 
     // Admin's own role management state
     const [adminRoles, setAdminRoles] = useState([]);
@@ -636,6 +637,12 @@ const AdminPage = () => {
                             Products
                         </button>
                         <button
+                            className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('achievements')}
+                        >
+                            Achievements
+                        </button>
+                        <button
                             className={`tab-button ${activeTab === 'collectibles' ? 'active' : ''}`}
                             onClick={() => setActiveTab('collectibles')}
                         >
@@ -896,6 +903,13 @@ const AdminPage = () => {
                                 <TrendingProductsPanel />
                                 <ProductArchivePanel />
                                 {/* Other product management components */}
+                            </div>
+                        )}
+
+                        {activeTab === 'achievements' && (
+                            <div className="achievements-tab">
+                                <h2>Achievements & Badges Management</h2>
+                                <AchievementsManagementPanel />
                             </div>
                         )}
 
