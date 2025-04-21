@@ -1,17 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayRemove } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { useToast } from '../context/ToastContext';
 import '../styles/AchievementsPage.css';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const AchievementsPage = () => {
     const { userId } = useParams();
     const { currentUser } = useUser();
+    const { showSuccess, showError } = useToast();
+    const navigate = useNavigate();
     const [userProfile, setUserProfile] = useState(null);
     const [achievements, setAchievements] = useState([]);
     const [allAchievements, setAllAchievements] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Bulk operations state
+    const [selectedAchievements, setSelectedAchievements] = useState([]);
+    const [selectAll, setSelectAll] = useState(false);
+    const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+    const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
     // Get user achievements and profile
     useEffect(() => {
@@ -76,6 +86,87 @@ const AchievementsPage = () => {
         fetchUserAndAchievements();
     }, [userId, currentUser]);
 
+    // Toggle achievement selection
+    const toggleAchievementSelection = (achievementId) => {
+        setSelectedAchievements(prev => {
+            if (prev.includes(achievementId)) {
+                return prev.filter(id => id !== achievementId);
+            } else {
+                return [...prev, achievementId];
+            }
+        });
+    };
+
+    // Toggle select all achievements
+    const toggleSelectAll = () => {
+        if (selectAll) {
+            setSelectedAchievements([]);
+        } else {
+            setSelectedAchievements(achievements.map(a => a.id));
+        }
+        setSelectAll(!selectAll);
+    };
+
+    // Enter bulk delete mode
+    const enterBulkDeleteMode = () => {
+        setBulkDeleteMode(true);
+    };
+
+    // Cancel bulk operations
+    const cancelBulkOperations = () => {
+        setBulkDeleteMode(false);
+        setConfirmBulkDelete(false);
+        setSelectedAchievements([]);
+        setSelectAll(false);
+    };
+
+    // Execute bulk delete
+    const executeBulkDelete = async () => {
+        if (!currentUser || selectedAchievements.length === 0) return;
+
+        try {
+            setLoading(true);
+            const userRef = doc(db, 'users', currentUser.uid);
+
+            // Remove each selected achievement from user's achievements array
+            for (const achievementId of selectedAchievements) {
+                await updateDoc(userRef, {
+                    achievements: arrayRemove(achievementId)
+                });
+            }
+
+            showSuccess(`Successfully removed ${selectedAchievements.length} achievements`);
+
+            // Reset state and refresh achievements
+            cancelBulkOperations();
+
+            // Refresh the data
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                setUserProfile(userData);
+
+                // Update the achievements list
+                const updatedAchievements = achievements.filter(
+                    achievement => !selectedAchievements.includes(achievement.id)
+                );
+                setAchievements(updatedAchievements);
+
+                // Update allAchievements earned status
+                const updatedAllAchievements = allAchievements.map(achievement => ({
+                    ...achievement,
+                    earned: userData.achievements?.includes(achievement.id) || false
+                }));
+                setAllAchievements(updatedAllAchievements);
+            }
+        } catch (error) {
+            console.error('Error performing bulk delete:', error);
+            showError('Failed to remove achievements: ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="achievements-page">
@@ -98,6 +189,9 @@ const AchievementsPage = () => {
         );
     }
 
+    // Check if user is viewing their own profile
+    const isOwnProfile = currentUser && (userId === currentUser.uid || !userId);
+
     return (
         <div className="achievements-page">
             <div className="achievements-header">
@@ -118,13 +212,106 @@ const AchievementsPage = () => {
                 />
             </div>
 
+            {/* Bulk operations controls - only show on own profile */}
+            {isOwnProfile && achievements.length > 0 && (
+                <div className="bulk-actions">
+                    <div className="select-all-container">
+                        <input
+                            type="checkbox"
+                            id="selectAll"
+                            checked={selectAll}
+                            onChange={toggleSelectAll}
+                            disabled={loading || bulkDeleteMode}
+                        />
+                        <label htmlFor="selectAll">Select All</label>
+                    </div>
+                    <div className="bulk-action-buttons">
+                        <button
+                            className="bulk-delete-button"
+                            onClick={enterBulkDeleteMode}
+                            disabled={loading || selectedAchievements.length === 0 || bulkDeleteMode}
+                        >
+                            Remove Selected
+                        </button>
+                    </div>
+                    {selectedAchievements.length > 0 && (
+                        <div className="selected-count">
+                            {selectedAchievements.length} selected
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Bulk delete confirmation */}
+            {bulkDeleteMode && (
+                <div className="bulk-delete-form">
+                    <h3>Remove Selected Achievements</h3>
+                    <p className="warning-message">
+                        Are you sure you want to remove {selectedAchievements.length} achievements from your profile?
+                        This action cannot be undone.
+                    </p>
+                    <div className="form-actions">
+                        <button
+                            className="cancel-button"
+                            onClick={cancelBulkOperations}
+                            disabled={loading}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            className="delete-button"
+                            onClick={() => setConfirmBulkDelete(true)}
+                            disabled={loading}
+                        >
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Final confirmation */}
+            {confirmBulkDelete && (
+                <div className="bulk-delete-confirm">
+                    <h3>Final Confirmation</h3>
+                    <p className="warning-message">
+                        Please confirm that you want to permanently remove these achievements.
+                    </p>
+                    <div className="form-actions">
+                        <button
+                            className="cancel-button"
+                            onClick={() => setConfirmBulkDelete(false)}
+                            disabled={loading}
+                        >
+                            Go Back
+                        </button>
+                        <button
+                            className="delete-button"
+                            onClick={executeBulkDelete}
+                            disabled={loading}
+                        >
+                            {loading ? <LoadingSpinner /> : 'Confirm Removal'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="achievements-grid">
                 {/* Show all achievements - earned ones and locked/unearned ones */}
                 {allAchievements.map(achievement => (
                     <div
                         key={achievement.id}
-                        className={`achievement-card ${achievement.earned ? 'earned' : 'locked'}`}
+                        className={`achievement-card ${achievement.earned ? 'earned' : 'locked'} ${selectedAchievements.includes(achievement.id) ? 'selected' : ''}`}
                     >
+                        {isOwnProfile && achievement.earned && (
+                            <div className="achievement-selection">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedAchievements.includes(achievement.id)}
+                                    onChange={() => toggleAchievementSelection(achievement.id)}
+                                    disabled={loading || bulkDeleteMode}
+                                />
+                            </div>
+                        )}
                         <div className={`achievement-icon tier-${achievement.tier || 1}`}>
                             {achievement.icon || '🏆'}
                         </div>

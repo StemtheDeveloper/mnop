@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
@@ -26,6 +26,14 @@ const AchievementsManagementPanel = () => {
     // Edit state
     const [editMode, setEditMode] = useState(false);
     const [currentAchievement, setCurrentAchievement] = useState(null);
+
+    // Bulk operation states
+    const [selectedAchievements, setSelectedAchievements] = useState([]);
+    const [bulkEditMode, setBulkEditMode] = useState(false);
+    const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+    const [selectAll, setSelectAll] = useState(false);
+    const [bulkPoints, setBulkPoints] = useState(0);
+    const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
     const fileInputRef = useRef(null);
 
@@ -315,7 +323,165 @@ const AchievementsManagementPanel = () => {
         }
     };
 
-    // Reset form
+    // Toggle achievement selection
+    const toggleAchievementSelection = (achievementId) => {
+        setSelectedAchievements(prev => {
+            if (prev.includes(achievementId)) {
+                return prev.filter(id => id !== achievementId);
+            } else {
+                return [...prev, achievementId];
+            }
+        });
+    };
+
+    // Toggle select all achievements
+    const toggleSelectAll = () => {
+        if (selectAll) {
+            setSelectedAchievements([]);
+        } else {
+            setSelectedAchievements(achievements.map(a => a.id));
+        }
+        setSelectAll(!selectAll);
+    };
+
+    // Enter bulk edit mode
+    const enterBulkEditMode = () => {
+        if (selectedAchievements.length === 0) {
+            setError('Please select at least one achievement to edit');
+            return;
+        }
+        setBulkEditMode(true);
+        setBulkDeleteMode(false);
+        setError('');
+    };
+
+    // Enter bulk delete mode
+    const enterBulkDeleteMode = () => {
+        if (selectedAchievements.length === 0) {
+            setError('Please select at least one achievement to delete');
+            return;
+        }
+        setBulkDeleteMode(true);
+        setBulkEditMode(false);
+        setError('');
+    };
+
+    // Cancel bulk operations
+    const cancelBulkOperations = () => {
+        setBulkEditMode(false);
+        setBulkDeleteMode(false);
+        setConfirmBulkDelete(false);
+        setError('');
+    };
+
+    // Handle bulk edit submission
+    const handleBulkEdit = async () => {
+        if (selectedAchievements.length === 0) {
+            setError('No achievements selected for bulk edit');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            // Use batch to update multiple documents
+            const batch = writeBatch(db);
+
+            // Update each selected achievement
+            selectedAchievements.forEach(id => {
+                const achievementRef = doc(db, 'achievements', id);
+                batch.update(achievementRef, {
+                    points: Number(bulkPoints),
+                    updatedAt: serverTimestamp()
+                });
+            });
+
+            // Commit the batch
+            await batch.commit();
+
+            setSuccess(`Successfully updated ${selectedAchievements.length} achievements`);
+            setBulkEditMode(false);
+            setSelectedAchievements([]);
+            setSelectAll(false);
+
+            // Refresh the achievements list
+            fetchAchievements();
+        } catch (err) {
+            console.error('Error performing bulk edit:', err);
+            setError(`Failed to update achievements: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Handle bulk delete
+    const handleBulkDelete = async () => {
+        if (selectedAchievements.length === 0) {
+            setError('No achievements selected for deletion');
+            return;
+        }
+
+        // If confirmation not yet shown, show it first
+        if (!confirmBulkDelete) {
+            setConfirmBulkDelete(true);
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            // Use batch to delete multiple documents
+            const batch = writeBatch(db);
+
+            // Get all achievements to delete (for image cleanup)
+            const achievementsToDelete = achievements.filter(a => selectedAchievements.includes(a.id));
+
+            // Add each document to the batch for deletion
+            selectedAchievements.forEach(id => {
+                const achievementRef = doc(db, 'achievements', id);
+                batch.delete(achievementRef);
+            });
+
+            // Commit the batch
+            await batch.commit();
+
+            // Delete all associated images from Storage
+            const deleteImagePromises = achievementsToDelete
+                .filter(a => a.storagePath)
+                .map(a => {
+                    try {
+                        const imageRef = ref(storage, a.storagePath);
+                        return deleteObject(imageRef);
+                    } catch (err) {
+                        console.warn(`Failed to delete image for achievement ${a.id}:`, err);
+                        return Promise.resolve(); // Continue even if image deletion fails
+                    }
+                });
+
+            // Wait for all image deletions (if any)
+            await Promise.all(deleteImagePromises);
+
+            setSuccess(`Successfully deleted ${selectedAchievements.length} achievements`);
+            setBulkDeleteMode(false);
+            setConfirmBulkDelete(false);
+            setSelectedAchievements([]);
+            setSelectAll(false);
+
+            // Refresh the achievements list
+            fetchAchievements();
+        } catch (err) {
+            console.error('Error performing bulk delete:', err);
+            setError(`Failed to delete achievements: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Reset form and bulk operations
     const resetForm = () => {
         setAchievementName('');
         setAchievementDescription('');
@@ -331,6 +497,12 @@ const AchievementsManagementPanel = () => {
         setCurrentAchievement(null);
         setError('');
         setSuccess('');
+        setBulkEditMode(false);
+        setBulkDeleteMode(false);
+        setConfirmBulkDelete(false);
+        setSelectedAchievements([]);
+        setSelectAll(false);
+        setBulkPoints(0);
     };
 
     // Toggle advanced mode
@@ -386,193 +558,319 @@ const AchievementsManagementPanel = () => {
 
             <div className="achievements-management-container">
                 <div className="achievements-form-section">
-                    <form onSubmit={handleSubmit} className="achievements-form">
-                        <h3>{editMode ? 'Edit Achievement' : 'Create New Achievement'}</h3>
-
-                        <div className="form-group">
-                            <label htmlFor="achievementName">Achievement Name*</label>
-                            <input
-                                type="text"
-                                id="achievementName"
-                                value={achievementName}
-                                onChange={(e) => setAchievementName(e.target.value)}
-                                placeholder="Enter achievement name"
-                                disabled={loading}
-                            />
+                    {bulkEditMode ? (
+                        <div className="bulk-edit-form">
+                            <h3>Bulk Edit {selectedAchievements.length} Achievements</h3>
+                            <div className="form-group">
+                                <label htmlFor="bulkPoints">Points Value</label>
+                                <input
+                                    type="number"
+                                    id="bulkPoints"
+                                    value={bulkPoints}
+                                    onChange={(e) => setBulkPoints(e.target.value)}
+                                    min="0"
+                                    placeholder="Points to set for all selected achievements"
+                                    disabled={loading}
+                                />
+                                <p className="form-hint">This will change the points value for all selected achievements.</p>
+                            </div>
+                            <div className="form-actions">
+                                <button
+                                    type="button"
+                                    className="cancel-button"
+                                    onClick={cancelBulkOperations}
+                                    disabled={loading}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    className="submit-button"
+                                    onClick={handleBulkEdit}
+                                    disabled={loading}
+                                >
+                                    {loading ? <LoadingSpinner /> : 'Update All Selected'}
+                                </button>
+                            </div>
                         </div>
+                    ) : bulkDeleteMode ? (
+                        <div className="bulk-delete-form">
+                            <h3>Bulk Delete {selectedAchievements.length} Achievements</h3>
 
-                        <div className="form-group">
-                            <label htmlFor="achievementDescription">Description*</label>
-                            <textarea
-                                id="achievementDescription"
-                                value={achievementDescription}
-                                onChange={(e) => setAchievementDescription(e.target.value)}
-                                placeholder="Describe what this achievement represents"
-                                disabled={loading}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor="points">Points Value</label>
-                            <input
-                                type="number"
-                                id="points"
-                                value={points}
-                                onChange={(e) => setPoints(e.target.value)}
-                                min="0"
-                                placeholder="Points awarded for this achievement"
-                                disabled={loading}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Badge Image* (JPG, PNG, SVG supported)</label>
-                            <div className="image-upload-area">
-                                {imagePreview && (
-                                    <div className="image-preview-container">
-                                        <img src={imagePreview} alt="Achievement Badge Preview" className="image-preview" />
+                            {confirmBulkDelete ? (
+                                <div className="confirm-bulk-delete">
+                                    <p className="warning-message">⚠️ WARNING: This will permanently delete {selectedAchievements.length} achievements and cannot be undone!</p>
+                                    <div className="form-actions">
                                         <button
                                             type="button"
-                                            className="remove-image-btn"
-                                            onClick={() => {
-                                                setAchievementImage(null);
-                                                setImagePreview(null);
-                                            }}
+                                            className="cancel-button"
+                                            onClick={cancelBulkOperations}
                                             disabled={loading}
                                         >
-                                            Change Image
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="delete-button"
+                                            onClick={handleBulkDelete}
+                                            disabled={loading}
+                                        >
+                                            {loading ? <LoadingSpinner /> : 'Confirm Delete'}
                                         </button>
                                     </div>
-                                )}
-
-                                {!imagePreview && (
-                                    <div
-                                        className="upload-placeholder"
-                                        onClick={() => !loading && fileInputRef.current.click()}
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                                            <polyline points="21 15 16 10 5 21"></polyline>
-                                        </svg>
-                                        <p>Click to upload badge image</p>
-                                        <span>(Max size: 2MB)</span>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p>You're about to delete {selectedAchievements.length} achievements.</p>
+                                    <div className="form-actions">
+                                        <button
+                                            type="button"
+                                            className="cancel-button"
+                                            onClick={cancelBulkOperations}
+                                            disabled={loading}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="delete-button"
+                                            onClick={handleBulkDelete}
+                                            disabled={loading}
+                                        >
+                                            {loading ? <LoadingSpinner /> : 'Delete Selected Achievements'}
+                                        </button>
                                     </div>
-                                )}
-                            </div>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleImageChange}
-                                accept="image/*,.svg"
-                                style={{ display: 'none' }}
-                                disabled={loading}
-                            />
-                            {editMode && !achievementImage && (
-                                <p className="form-hint">Leave empty to keep the current image</p>
+                                </div>
                             )}
                         </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="achievements-form">
+                            <h3>{editMode ? 'Edit Achievement' : 'Create New Achievement'}</h3>
 
-                        <div className="form-group">
-                            <label htmlFor="triggerType">Award Trigger*</label>
-                            <select
-                                id="triggerType"
-                                value={triggerType}
-                                onChange={(e) => {
-                                    setTriggerType(e.target.value);
-                                    setTriggerCondition('');
-                                    setTriggerValue('');
-                                    if (e.target.value === 'custom') {
-                                        setIsAdvancedMode(true);
-                                    }
-                                }}
-                                disabled={loading}
-                            >
-                                {triggerTypes.map(type => (
-                                    <option key={type.id} value={type.id}>{type.name}</option>
-                                ))}
-                            </select>
-                            <p className="trigger-description">
-                                {triggerTypes.find(t => t.id === triggerType)?.description || ''}
-                            </p>
-                        </div>
+                            <div className="form-group">
+                                <label htmlFor="achievementName">Achievement Name*</label>
+                                <input
+                                    type="text"
+                                    id="achievementName"
+                                    value={achievementName}
+                                    onChange={(e) => setAchievementName(e.target.value)}
+                                    placeholder="Enter achievement name"
+                                    disabled={loading}
+                                />
+                            </div>
 
-                        {/* Trigger configuration for non-manual, non-custom triggers */}
-                        {triggerType !== 'manual' && triggerType !== 'custom' && (
-                            <>
-                                <div className="form-group">
-                                    <label htmlFor="triggerCondition">Trigger Condition*</label>
-                                    <select
-                                        id="triggerCondition"
-                                        value={triggerCondition}
-                                        onChange={(e) => setTriggerCondition(e.target.value)}
-                                        disabled={loading}
-                                    >
-                                        <option value="">Select a condition</option>
-                                        {getTriggerConditionOptions().map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
+                            <div className="form-group">
+                                <label htmlFor="achievementDescription">Description*</label>
+                                <textarea
+                                    id="achievementDescription"
+                                    value={achievementDescription}
+                                    onChange={(e) => setAchievementDescription(e.target.value)}
+                                    placeholder="Describe what this achievement represents"
+                                    disabled={loading}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="points">Points Value</label>
+                                <input
+                                    type="number"
+                                    id="points"
+                                    value={points}
+                                    onChange={(e) => setPoints(e.target.value)}
+                                    min="0"
+                                    placeholder="Points awarded for this achievement"
+                                    disabled={loading}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Badge Image* (JPG, PNG, SVG supported)</label>
+                                <div className="image-upload-area">
+                                    {imagePreview && (
+                                        <div className="image-preview-container">
+                                            <img src={imagePreview} alt="Achievement Badge Preview" className="image-preview" />
+                                            <button
+                                                type="button"
+                                                className="remove-image-btn"
+                                                onClick={() => {
+                                                    setAchievementImage(null);
+                                                    setImagePreview(null);
+                                                }}
+                                                disabled={loading}
+                                            >
+                                                Change Image
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {!imagePreview && (
+                                        <div
+                                            className="upload-placeholder"
+                                            onClick={() => !loading && fileInputRef.current.click()}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                                <polyline points="21 15 16 10 5 21"></polyline>
+                                            </svg>
+                                            <p>Click to upload badge image</p>
+                                            <span>(Max size: 2MB)</span>
+                                        </div>
+                                    )}
                                 </div>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleImageChange}
+                                    accept="image/*,.svg"
+                                    style={{ display: 'none' }}
+                                    disabled={loading}
+                                />
+                                {editMode && !achievementImage && (
+                                    <p className="form-hint">Leave empty to keep the current image</p>
+                                )}
+                            </div>
 
+                            <div className="form-group">
+                                <label htmlFor="triggerType">Award Trigger*</label>
+                                <select
+                                    id="triggerType"
+                                    value={triggerType}
+                                    onChange={(e) => {
+                                        setTriggerType(e.target.value);
+                                        setTriggerCondition('');
+                                        setTriggerValue('');
+                                        if (e.target.value === 'custom') {
+                                            setIsAdvancedMode(true);
+                                        }
+                                    }}
+                                    disabled={loading}
+                                >
+                                    {triggerTypes.map(type => (
+                                        <option key={type.id} value={type.id}>{type.name}</option>
+                                    ))}
+                                </select>
+                                <p className="trigger-description">
+                                    {triggerTypes.find(t => t.id === triggerType)?.description || ''}
+                                </p>
+                            </div>
+
+                            {/* Trigger configuration for non-manual, non-custom triggers */}
+                            {triggerType !== 'manual' && triggerType !== 'custom' && (
+                                <>
+                                    <div className="form-group">
+                                        <label htmlFor="triggerCondition">Trigger Condition*</label>
+                                        <select
+                                            id="triggerCondition"
+                                            value={triggerCondition}
+                                            onChange={(e) => setTriggerCondition(e.target.value)}
+                                            disabled={loading}
+                                        >
+                                            <option value="">Select a condition</option>
+                                            {getTriggerConditionOptions().map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label htmlFor="triggerValue">Trigger Value*</label>
+                                        <input
+                                            type="text"
+                                            id="triggerValue"
+                                            value={triggerValue}
+                                            onChange={(e) => setTriggerValue(e.target.value)}
+                                            placeholder="The value that triggers the achievement"
+                                            disabled={loading}
+                                        />
+                                        <p className="form-hint">
+                                            Example: If condition is "Number of products uploaded", value could be "5"
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Advanced mode for custom triggers */}
+                            {triggerType === 'custom' && isAdvancedMode && (
                                 <div className="form-group">
-                                    <label htmlFor="triggerValue">Trigger Value*</label>
-                                    <input
-                                        type="text"
-                                        id="triggerValue"
-                                        value={triggerValue}
-                                        onChange={(e) => setTriggerValue(e.target.value)}
-                                        placeholder="The value that triggers the achievement"
+                                    <label htmlFor="customTriggerScript">Custom Trigger Script*</label>
+                                    <textarea
+                                        id="customTriggerScript"
+                                        value={customTriggerScript}
+                                        onChange={(e) => setCustomTriggerScript(e.target.value)}
+                                        placeholder="Define a custom trigger condition with JavaScript..."
+                                        className="code-editor"
+                                        rows={8}
                                         disabled={loading}
                                     />
                                     <p className="form-hint">
-                                        Example: If condition is "Number of products uploaded", value could be "5"
+                                        Example: Write a custom function that evaluates user data to determine if the achievement should be awarded.
                                     </p>
                                 </div>
-                            </>
-                        )}
+                            )}
 
-                        {/* Advanced mode for custom triggers */}
-                        {triggerType === 'custom' && isAdvancedMode && (
-                            <div className="form-group">
-                                <label htmlFor="customTriggerScript">Custom Trigger Script*</label>
-                                <textarea
-                                    id="customTriggerScript"
-                                    value={customTriggerScript}
-                                    onChange={(e) => setCustomTriggerScript(e.target.value)}
-                                    placeholder="Define a custom trigger condition with JavaScript..."
-                                    className="code-editor"
-                                    rows={8}
+                            <div className="form-actions">
+                                <button
+                                    type="button"
+                                    className="cancel-button"
+                                    onClick={resetForm}
                                     disabled={loading}
-                                />
-                                <p className="form-hint">
-                                    Example: Write a custom function that evaluates user data to determine if the achievement should be awarded.
-                                </p>
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="submit-button"
+                                    disabled={loading}
+                                >
+                                    {loading ? <LoadingSpinner /> : editMode ? 'Update Achievement' : 'Create Achievement'}
+                                </button>
                             </div>
-                        )}
-
-                        <div className="form-actions">
-                            <button
-                                type="button"
-                                className="cancel-button"
-                                onClick={resetForm}
-                                disabled={loading}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="submit-button"
-                                disabled={loading}
-                            >
-                                {loading ? <LoadingSpinner /> : editMode ? 'Update Achievement' : 'Create Achievement'}
-                            </button>
-                        </div>
-                    </form>
+                        </form>
+                    )}
                 </div>
 
                 <div className="achievements-list-section">
-                    <h3>All Achievements</h3>
+                    <div className="achievements-list-header">
+                        <h3>All Achievements</h3>
+
+                        {/* Bulk operations controls */}
+                        {achievements.length > 0 && (
+                            <div className="bulk-actions">
+                                <div className="select-all-container">
+                                    <input
+                                        type="checkbox"
+                                        id="selectAll"
+                                        checked={selectAll}
+                                        onChange={toggleSelectAll}
+                                        disabled={loading || bulkEditMode || bulkDeleteMode}
+                                    />
+                                    <label htmlFor="selectAll">Select All</label>
+                                </div>
+                                <div className="bulk-action-buttons">
+                                    <button
+                                        className="bulk-edit-button"
+                                        onClick={enterBulkEditMode}
+                                        disabled={loading || selectedAchievements.length === 0 || bulkEditMode || bulkDeleteMode}
+                                    >
+                                        Bulk Edit
+                                    </button>
+                                    <button
+                                        className="bulk-delete-button"
+                                        onClick={enterBulkDeleteMode}
+                                        disabled={loading || selectedAchievements.length === 0 || bulkEditMode || bulkDeleteMode}
+                                    >
+                                        Bulk Delete
+                                    </button>
+                                </div>
+                                {selectedAchievements.length > 0 && (
+                                    <div className="selected-count">
+                                        {selectedAchievements.length} selected
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                     {loading && achievements.length === 0 ? (
                         <div className="loading-container">
@@ -586,7 +884,18 @@ const AchievementsManagementPanel = () => {
                     ) : (
                         <div className="achievements-grid">
                             {achievements.map(achievement => (
-                                <div key={achievement.id} className="achievement-card">
+                                <div
+                                    key={achievement.id}
+                                    className={`achievement-card ${selectedAchievements.includes(achievement.id) ? 'selected' : ''}`}
+                                >
+                                    <div className="achievement-selection">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedAchievements.includes(achievement.id)}
+                                            onChange={() => toggleAchievementSelection(achievement.id)}
+                                            disabled={loading || bulkEditMode || bulkDeleteMode}
+                                        />
+                                    </div>
                                     <div className="achievement-image-container">
                                         <img src={achievement.imageUrl} alt={achievement.name} className="achievement-image" />
                                     </div>
@@ -601,14 +910,14 @@ const AchievementsManagementPanel = () => {
                                             <button
                                                 onClick={() => handleEditAchievement(achievement)}
                                                 className="edit-button"
-                                                disabled={loading}
+                                                disabled={loading || bulkEditMode || bulkDeleteMode}
                                             >
                                                 Edit
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteAchievement(achievement)}
                                                 className="delete-button"
-                                                disabled={loading}
+                                                disabled={loading || bulkEditMode || bulkDeleteMode}
                                             >
                                                 Delete
                                             </button>
