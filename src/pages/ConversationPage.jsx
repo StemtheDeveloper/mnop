@@ -180,9 +180,9 @@ const ConversationPage = () => {
 
     const renderFileAttachment = (fileData) => {
         if (!fileData) return null;
-        
+
         const fileType = fileData.type ? messagingService.getFileTypeCategory(fileData.type) : 'other';
-        
+
         // For images
         if (fileType === 'image') {
             return (
@@ -193,7 +193,7 @@ const ConversationPage = () => {
                 </div>
             );
         }
-        
+
         // For videos
         if (fileType === 'video') {
             return (
@@ -205,13 +205,13 @@ const ConversationPage = () => {
                 </div>
             );
         }
-        
+
         // For other files
         let icon = <FaFile />;
         if (fileType === 'document') icon = <FaFileAlt />;
         if (fileType === 'image') icon = <FaImage />;
         if (fileType === 'video') icon = <FaVideo />;
-        
+
         return (
             <div className="attachment-container file-attachment">
                 <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer" className="file-download-link">
@@ -343,11 +343,11 @@ const ConversationPage = () => {
                                                     {message.decryptedContent}
                                                 </div>
                                             )}
-                                            
+
                                             {message.hasAttachment && (message.attachmentData || message.fileData) && (
                                                 renderFileAttachment(message.attachmentData || message.fileData)
                                             )}
-                                            
+
                                             <div className="message-info">
                                                 <span className="message-time">
                                                     {message.createdAt?.toDate ?
@@ -371,8 +371,8 @@ const ConversationPage = () => {
 
                 <div className="message-input-container">
                     <form className="input-wrapper" onSubmit={handleSendMessage}>
-                        <button 
-                            type="button" 
+                        <button
+                            type="button"
                             className="attach-button"
                             onClick={handleAttachmentClick}
                             disabled={sendingMessage || !!attachment}

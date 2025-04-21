@@ -414,7 +414,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 20px;
+
   background-color: #ef3c23;
   color: white;
   border: none;
@@ -423,10 +423,14 @@
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
+  width: 80px;
+  height: 80px;
 }
 
 .send-button svg {
-  margin-right: 4px;
+  color: white;
+  width: 20px;
+  height: 20px;
 }
 
 .send-button:hover {

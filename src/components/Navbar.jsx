@@ -10,7 +10,7 @@ import CloseBurger from "../assets/Close-Burger@4x.png"
 import MessageIcon from "../assets/message icon mini.png";
 import NotificationsIcon from "../assets/Notification icon mini.png";
 import CartIcon from "../assets/Shopping trolly drag edition.png";
-import WalletIcon from "../assets/Wally_1@2x.png";
+import WalletIcon from "../assets/Wally no legs big eyes@2x.webp";
 import NotificationCenter from "./NotificationCenter";
 import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';
@@ -288,13 +288,13 @@ const Navbar = () => {
               <ul>
                 <li className="nav-item navbar-icons">
                   <Link to="/messages">
-                    <img src={MessageIcon} alt="Message icon" />
+                    <img src={MessageIcon} alt="Message icon" title="Messages" />
                   </Link>
                 </li>
                 <div className="c-h-r"></div>
                 <li className="nav-item navbar-icons">
                   <div className="icon-container" onClick={handleNotificationClick}>
-                    <img src={NotificationsIcon} alt="Notifications" className="nav-icons" />
+                    <img src={NotificationsIcon} alt="Notifications" title="Notifications" className="nav-icons" />
                     {unreadCount > 0 && (
                       <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                     )}
@@ -303,18 +303,18 @@ const Navbar = () => {
                 <div className="c-h-r"></div>
                 <li className="nav-item navbar-icons">
                   <Link to="/cart">
-                    <img src={CartIcon} alt="Cart icon" />
+                    <img src={CartIcon} title="Cart" alt="Cart icon" />
                   </Link>
                 </li>
                 <div className="c-h-r"></div>
                 <li className="nav-item navbar-icons wallet-icon-container">
                   <Link to="/wallet">
-                    <img src={WalletIcon} alt="Wallet icon" />
-                    {walletBalance !== null && (
+                    <img src={WalletIcon} alt="Wallet icon" title="Wallet" style={{ width: 40 }} />
+                    {/* {walletBalance !== null && (
                       <span className="wallet-balance-badge">
                         ${walletBalance.toFixed(0)}
                       </span>
-                    )}
+                    )} */}
                   </Link>
                 </li>
               </ul>

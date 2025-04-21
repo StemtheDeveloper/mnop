@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useUser } from "../context/UserContext";
 import AchievementService from "../services/achievementService";
-import { useToast } from "../context/ToastContext";
+import { useToast } from "../contexts/ToastContext";  // Updated import path from context to contexts
 
 /**
  * Hook to check and award achievements

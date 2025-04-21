@@ -374,7 +374,7 @@ li {
   #burger-icon {
     display: block;
     width: 50px;
-    margin: 5px auto;
+
     transition: all 0.3s ease;
   }
 
@@ -453,7 +453,7 @@ li {
   }
 
   .navbar-icons img {
-    max-height: 25px;
+    max-height: 40px;
   }
 
   .menu-icons {
@@ -467,7 +467,7 @@ li {
 
   #burger-icon,
   #close-burger-icon {
-    width: 30px;
+    width: 50px;
   }
 
   .navbar-container {

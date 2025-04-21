@@ -236,15 +236,15 @@ const MessagesPage = () => {
                                         disabled={!message.trim() || sendingMessage}
                                     >
                                         {sendingMessage ? (
-                                            <>
+                                            <div className="sending-indicator">
                                                 <LoadingSpinner size="small" />
-                                                <span>Sending</span>
-                                            </>
+
+                                            </div>
                                         ) : (
-                                            <>
+                                            <div className="send-icon">
                                                 <FaPaperPlane />
-                                                <span>Send</span>
-                                            </>
+
+                                            </div>
                                         )}
                                     </button>
                                 </div>

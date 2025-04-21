@@ -14,7 +14,12 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
 import { storage } from "../config/firebase";
 import encryptionService from "./encryptionService";
 
@@ -81,7 +86,13 @@ class MessagingService {
    * @param {File} [attachment] - Optional file attachment
    * @returns {Promise<Object>} - Sent message object
    */
-  async sendMessage(conversationId, senderId, recipientId, content, attachment = null) {
+  async sendMessage(
+    conversationId,
+    senderId,
+    recipientId,
+    content,
+    attachment = null
+  ) {
     try {
       // Generate encryption key for this conversation
       const encryptionKey = encryptionService.generateConversationKey(
@@ -106,38 +117,40 @@ class MessagingService {
 
       // Handle file attachment if provided
       let attachmentData = null;
-      
+
       if (attachment) {
         const timestamp = Date.now();
         const fileExtension = attachment.name.split(".").pop().toLowerCase();
-        const fileName = `${timestamp}-${Math.random().toString(36).substring(2, 15)}.${fileExtension}`;
+        const fileName = `${timestamp}-${Math.random()
+          .toString(36)
+          .substring(2, 15)}.${fileExtension}`;
         const storagePath = `message_attachments/${conversationId}/${fileName}`;
-        
+
         // Upload file to storage
         const storageRef = ref(storage, storagePath);
         await uploadBytes(storageRef, attachment);
-        
+
         // Get download URL
         const downloadURL = await getDownloadURL(storageRef);
-        
+
         // Create attachment data
         attachmentData = {
           fileName: attachment.name,
           fileType: attachment.type,
           fileSize: attachment.size,
           storagePath: storagePath,
-          downloadURL: downloadURL
+          downloadURL: downloadURL,
         };
-        
+
         // Encrypt attachment metadata
         const encryptedAttachmentData = encryptionService.encryptMessage(
           JSON.stringify(attachmentData),
           encryptionKey
         );
-        
+
         attachmentData = {
           ...attachmentData,
-          encryptedData: encryptedAttachmentData
+          encryptedData: encryptedAttachmentData,
         };
       }
 
@@ -150,7 +163,7 @@ class MessagingService {
         read: false,
         encrypted: true,
         hasAttachment: attachment !== null,
-        attachmentData: attachmentData
+        attachmentData: attachmentData,
       };
 
       // Add the message to Firestore
@@ -159,15 +172,15 @@ class MessagingService {
       // Create preview text based on content and/or attachment
       let previewText = "Encrypted message";
       if (attachment) {
-        const fileType = attachment.type.split('/')[0];
+        const fileType = attachment.type.split("/")[0];
         switch (fileType) {
-          case 'image':
+          case "image":
             previewText = "📷 Image";
             break;
-          case 'video':
+          case "video":
             previewText = "🎥 Video";
             break;
-          case 'audio':
+          case "audio":
             previewText = "🎵 Audio";
             break;
           default:
@@ -323,7 +336,7 @@ class MessagingService {
           id: doc.id,
           ...doc.data(),
         };
-        
+
         // Add decrypted content if this is an encrypted message
         if (message.encrypted && message.encryptedContent) {
           message.decryptedContent = encryptionService.decryptMessage(
@@ -331,20 +344,26 @@ class MessagingService {
             encryptionKey
           );
         }
-        
+
         // Decrypt attachment data if present
-        if (message.hasAttachment && message.attachmentData && message.attachmentData.encryptedData) {
+        if (
+          message.hasAttachment &&
+          message.attachmentData &&
+          message.attachmentData.encryptedData
+        ) {
           try {
             const decryptedAttachmentDataStr = encryptionService.decryptMessage(
               message.attachmentData.encryptedData,
               encryptionKey
             );
-            
+
             if (decryptedAttachmentDataStr) {
-              const decryptedAttachmentData = JSON.parse(decryptedAttachmentDataStr);
+              const decryptedAttachmentData = JSON.parse(
+                decryptedAttachmentDataStr
+              );
               message.attachmentData = {
                 ...message.attachmentData,
-                decryptedData: decryptedAttachmentData
+                decryptedData: decryptedAttachmentData,
               };
             }
           } catch (decryptError) {
@@ -418,31 +437,38 @@ class MessagingService {
               encryptionKey
             );
           }
-          
+
           // Decrypt attachment data if present
-          if (message.hasAttachment && message.attachmentData && message.attachmentData.encryptedData) {
+          if (
+            message.hasAttachment &&
+            message.attachmentData &&
+            message.attachmentData.encryptedData
+          ) {
             try {
-              const decryptedAttachmentDataStr = encryptionService.decryptMessage(
-                message.attachmentData.encryptedData,
-                encryptionKey
-              );
-              
+              const decryptedAttachmentDataStr =
+                encryptionService.decryptMessage(
+                  message.attachmentData.encryptedData,
+                  encryptionKey
+                );
+
               if (decryptedAttachmentDataStr) {
-                const decryptedAttachmentData = JSON.parse(decryptedAttachmentDataStr);
-                
+                const decryptedAttachmentData = JSON.parse(
+                  decryptedAttachmentDataStr
+                );
+
                 // Replace the attachmentData with the decrypted version for easier access in UI
                 message.fileData = {
                   name: decryptedAttachmentData.fileName,
                   type: decryptedAttachmentData.fileType,
                   size: decryptedAttachmentData.fileSize,
                   url: decryptedAttachmentData.downloadURL,
-                  path: decryptedAttachmentData.storagePath
+                  path: decryptedAttachmentData.storagePath,
                 };
-                
+
                 // Keep the original data too
                 message.attachmentData = {
                   ...message.attachmentData,
-                  decryptedData: decryptedAttachmentData
+                  decryptedData: decryptedAttachmentData,
                 };
               }
             } catch (decryptError) {
@@ -584,22 +610,25 @@ class MessagingService {
     try {
       const messageRef = doc(db, "messages", messageId);
       const messageDoc = await getDoc(messageRef);
-      
+
       if (!messageDoc.exists()) {
         throw new Error("Message not found");
       }
-      
+
       const messageData = messageDoc.data();
-      
+
       // If there's a file attachment, delete it from storage first
-      if (messageData.hasAttachment && messageData.attachmentData?.storagePath) {
+      if (
+        messageData.hasAttachment &&
+        messageData.attachmentData?.storagePath
+      ) {
         const fileRef = ref(storage, messageData.attachmentData.storagePath);
         await deleteObject(fileRef);
       }
-      
+
       // Now delete the message document
       await deleteDoc(messageRef);
-      
+
       return true;
     } catch (error) {
       console.error("Error deleting message:", error);
@@ -613,17 +642,20 @@ class MessagingService {
    * @returns {string} - File type category (image, video, audio, document, other)
    */
   getFileTypeCategory(mimeType) {
-    if (!mimeType) return 'other';
-    
-    if (mimeType.startsWith('image/')) return 'image';
-    if (mimeType.startsWith('video/')) return 'video';
-    if (mimeType.startsWith('audio/')) return 'audio';
-    if (mimeType.includes('pdf') || 
-        mimeType.includes('document') || 
-        mimeType.includes('spreadsheet') ||
-        mimeType.includes('presentation')) return 'document';
-        
-    return 'other';
+    if (!mimeType) return "other";
+
+    if (mimeType.startsWith("image/")) return "image";
+    if (mimeType.startsWith("video/")) return "video";
+    if (mimeType.startsWith("audio/")) return "audio";
+    if (
+      mimeType.includes("pdf") ||
+      mimeType.includes("document") ||
+      mimeType.includes("spreadsheet") ||
+      mimeType.includes("presentation")
+    )
+      return "document";
+
+    return "other";
   }
 }
 
