@@ -27,6 +27,7 @@ a {
   margin: 0 auto;
   max-width: 1400px;
   box-sizing: border-box;
+  flex-wrap: wrap; /* Allow wrapping for mobile layout */
 }
 
 ul {
@@ -405,33 +406,89 @@ li {
     left: 0;
     width: 100%;
   }
+
+  .navbar-container {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 0.5rem;
+  }
+
+  .logo {
+    flex-basis: 50%;
+    order: 1;
+  }
+
+  .mobile-nav {
+    flex-basis: 10%;
+    order: 2;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .search-container {
+    flex-basis: 100%;
+    order: 3;
+    margin: 0.5rem 0;
+  }
+
+  .quick-links-mobile {
+    flex-basis: 30%;
+    order: 1;
+    justify-content: center;
+    gap: 10px;
+    margin-right: 0;
+  }
 }
 
 /* Small screen adjustments */
 @media (max-width: 480px) {
+  .navbar {
+    min-height: auto;
+  }
+
   .logo img {
     min-width: 80px;
-    margin-left: 5px;
+    margin-left: 0;
   }
 
   .navbar-icons img {
     max-height: 25px;
   }
 
-  .menu-icons img {
-    width: 25px;
+  .menu-icons {
+    height: 50px;
+    width: 50px;
+    padding: 0.25rem;
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
   }
 
-  .nav-links-mobile li {
-    margin: 0.7rem 0;
+  #burger-icon,
+  #close-burger-icon {
+    width: 30px;
   }
 
   .navbar-container {
-    padding: 0.5rem;
+    padding: 0.5rem 0.5rem 0.75rem;
+  }
+
+  .search-container {
+    margin-top: 0;
+    padding: 0 0.5rem;
+  }
+
+  .search-input {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .search-button {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.9rem;
   }
 }
-
-/* ... existing styles ... */
 
 .icon-container {
   position: relative;
@@ -453,8 +510,6 @@ li {
   justify-content: center;
   font-weight: bold;
 }
-
-/* ... existing styles ... */
 
 .dropdown-user-info {
   display: flex;
@@ -506,8 +561,6 @@ li {
   color: #333;
 }
 
-/* ... existing styles ... */
-
 .notification-icon-wrapper {
   position: relative;
   cursor: pointer;
@@ -530,8 +583,6 @@ li {
   font-weight: bold;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
-
-/* Add these styles to replace Tailwind classes */
 
 .search-container {
   width: 100%;

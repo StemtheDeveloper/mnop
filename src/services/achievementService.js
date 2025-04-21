@@ -1,376 +1,336 @@
+import { db } from "../config/firebase";
 import {
-  doc,
-  getDoc,
-  updateDoc,
-  arrayUnion,
   collection,
-  query,
+  doc,
   getDocs,
+  getDoc,
+  setDoc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
   where,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "../config/firebase";
 
-class AchievementService {
-  // Define achievement IDs
-  static ACHIEVEMENTS = {
-    FIRST_PRODUCT: "first_product",
-    PRODUCT_COLLECTOR_5: "product_collector_5",
-    PRODUCT_COLLECTOR_10: "product_collector_10",
-    PRODUCT_COLLECTOR_25: "product_collector_25",
-    FIRST_INVESTMENT: "first_investment",
-    INVESTOR_3: "investor_3",
-    INVESTOR_10: "investor_10",
-    FIRST_SALE: "first_sale",
-    SALES_MASTER_5: "sales_master_5",
-    SALES_MASTER_25: "sales_master_25",
-    TOP_SELLER: "top_seller",
-    FIRST_REVIEW: "first_review",
-    REVIEWER_5: "reviewer_5",
-    FIRST_QUOTE: "first_manufacturing_quote",
-    QUOTE_MASTER_5: "quote_master_5",
-    PROJECT_COMPLETE: "first_completed_project",
-    VETERAN_USER: "veteran_user", // 3 months active
-  };
+/**
+ * Service for managing achievements, including CRUD operations and condition evaluation
+ */
+export const achievementService = {
+  /**
+   * Get all achievements from Firestore
+   */
+  async getAllAchievements() {
+    try {
+      const achievementsRef = collection(db, "achievements");
+      const snapshot = await getDocs(achievementsRef);
+
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    } catch (error) {
+      console.error("Error fetching achievements:", error);
+      throw error;
+    }
+  },
 
   /**
-   * Check and update product-related achievements
-   * @param {string} userId - User ID
-   * @returns {Promise<{ earnedIds: string[] }>} - Earned achievement IDs
+   * Get a specific achievement by ID
    */
-  static async checkProductAchievements(userId) {
+  async getAchievementById(achievementId) {
     try {
-      // Count user's products
-      const productsRef = collection(db, "products");
-      const productsQuery = query(
-        productsRef,
-        where("designerId", "==", userId)
+      const achievementRef = doc(db, "achievements", achievementId);
+      const achievementSnap = await getDoc(achievementRef);
+
+      if (!achievementSnap.exists()) {
+        throw new Error("Achievement not found");
+      }
+
+      return {
+        id: achievementSnap.id,
+        ...achievementSnap.data(),
+      };
+    } catch (error) {
+      console.error(`Error fetching achievement ${achievementId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new achievement
+   */
+  async createAchievement(achievementData) {
+    try {
+      const achievementsRef = collection(db, "achievements");
+      const newAchievementData = {
+        ...achievementData,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      const newAchievementRef = await addDoc(
+        achievementsRef,
+        newAchievementData
       );
-      const productsSnapshot = await getDocs(productsQuery);
-      const productCount = productsSnapshot.size;
-
-      // Get current user achievements
-      const userRef = doc(db, "users", userId);
-      const userDoc = await getDoc(userRef);
-      const userData = userDoc.data();
-      const currentAchievements = userData.achievements || [];
-
-      const earnedIds = [];
-
-      // Check first product achievement
-      if (
-        productCount >= 1 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.FIRST_PRODUCT)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.FIRST_PRODUCT);
-      }
-
-      // Check for 5 products achievement
-      if (
-        productCount >= 5 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.PRODUCT_COLLECTOR_5)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.PRODUCT_COLLECTOR_5);
-      }
-
-      // Check for 10 products achievement
-      if (
-        productCount >= 10 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.PRODUCT_COLLECTOR_10)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.PRODUCT_COLLECTOR_10);
-      }
-
-      // Check for 25 products achievement
-      if (
-        productCount >= 25 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.PRODUCT_COLLECTOR_25)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.PRODUCT_COLLECTOR_25);
-      }
-
-      // Award achievements if earned
-      if (earnedIds.length > 0) {
-        await this.awardAchievements(userId, earnedIds);
-      }
-
-      return { earnedIds };
+      return {
+        id: newAchievementRef.id,
+        ...newAchievementData,
+      };
     } catch (error) {
-      console.error("Error checking product achievements:", error);
-      return { earnedIds: [] };
+      console.error("Error creating achievement:", error);
+      throw error;
     }
-  }
+  },
 
   /**
-   * Check and update investment-related achievements
-   * @param {string} userId - User ID
-   * @returns {Promise<{ earnedIds: string[] }>} - Earned achievement IDs
+   * Update an existing achievement
    */
-  static async checkInvestmentAchievements(userId) {
+  async updateAchievement(achievementId, achievementData) {
     try {
-      // Count user's investments
-      const investmentsRef = collection(db, "investments");
-      const investmentsQuery = query(
-        investmentsRef,
-        where("userId", "==", userId)
+      const achievementRef = doc(db, "achievements", achievementId);
+
+      const updatedData = {
+        ...achievementData,
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateDoc(achievementRef, updatedData);
+      return {
+        id: achievementId,
+        ...updatedData,
+      };
+    } catch (error) {
+      console.error(`Error updating achievement ${achievementId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete an achievement
+   */
+  async deleteAchievement(achievementId) {
+    try {
+      const achievementRef = doc(db, "achievements", achievementId);
+      await deleteDoc(achievementRef);
+      return true;
+    } catch (error) {
+      console.error(`Error deleting achievement ${achievementId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Award an achievement to a user
+   */
+  async awardAchievementToUser(userId, achievementId) {
+    try {
+      // Check if user already has this achievement
+      const userAchievementsRef = collection(db, "userAchievements");
+      const q = query(
+        userAchievementsRef,
+        where("userId", "==", userId),
+        where("achievementId", "==", achievementId)
       );
-      const investmentsSnapshot = await getDocs(investmentsQuery);
-      const investmentCount = investmentsSnapshot.size;
 
-      // Get current user achievements
-      const userRef = doc(db, "users", userId);
-      const userDoc = await getDoc(userRef);
-      const userData = userDoc.data();
-      const currentAchievements = userData.achievements || [];
+      const existingAwards = await getDocs(q);
 
-      const earnedIds = [];
-
-      // Check first investment achievement
-      if (
-        investmentCount >= 1 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.FIRST_INVESTMENT)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.FIRST_INVESTMENT);
+      if (!existingAwards.empty) {
+        console.log(`User ${userId} already has achievement ${achievementId}`);
+        return false; // User already has this achievement
       }
 
-      // Check for 3 investments achievement
-      if (
-        investmentCount >= 3 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.INVESTOR_3)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.INVESTOR_3);
-      }
+      // Get the achievement details
+      const achievement = await this.getAchievementById(achievementId);
 
-      // Check for 10 investments achievement
-      if (
-        investmentCount >= 10 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.INVESTOR_10)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.INVESTOR_10);
-      }
+      // Create a new user achievement record
+      const userAchievementData = {
+        userId,
+        achievementId,
+        achievementName: achievement.name,
+        achievementImageUrl: achievement.imageUrl,
+        achievementDescription: achievement.description,
+        points: achievement.points || 0,
+        awardedAt: serverTimestamp(),
+      };
 
-      // Award achievements if earned
-      if (earnedIds.length > 0) {
-        await this.awardAchievements(userId, earnedIds);
-      }
+      await addDoc(userAchievementsRef, userAchievementData);
 
-      return { earnedIds };
+      // Update user's total achievement points
+      await this.updateUserAchievementPoints(userId, achievement.points || 0);
+
+      return true;
     } catch (error) {
-      console.error("Error checking investment achievements:", error);
-      return { earnedIds: [] };
-    }
-  }
-
-  /**
-   * Check and update quote-related achievements
-   * @param {string} userId - User ID
-   * @returns {Promise<{ earnedIds: string[] }>} - Earned achievement IDs
-   */
-  static async checkQuoteAchievements(userId) {
-    try {
-      // Count quotes submitted by user
-      const quotesRef = collection(db, "manufacturerQuotes");
-      const quotesQuery = query(
-        quotesRef,
-        where("manufacturerId", "==", userId)
+      console.error(
+        `Error awarding achievement ${achievementId} to user ${userId}:`,
+        error
       );
-      const quotesSnapshot = await getDocs(quotesQuery);
-      const quoteCount = quotesSnapshot.size;
-
-      // Get count of completed projects
-      const completedQuery = query(
-        quotesRef,
-        where("manufacturerId", "==", userId),
-        where("status", "==", "completed")
-      );
-      const completedSnapshot = await getDocs(completedQuery);
-      const completedCount = completedSnapshot.size;
-
-      // Get current user achievements
-      const userRef = doc(db, "users", userId);
-      const userDoc = await getDoc(userRef);
-      const userData = userDoc.data();
-      const currentAchievements = userData.achievements || [];
-
-      const earnedIds = [];
-
-      // Check first quote achievement
-      if (
-        quoteCount >= 1 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.FIRST_QUOTE)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.FIRST_QUOTE);
-      }
-
-      // Check for 5 quotes achievement
-      if (
-        quoteCount >= 5 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.QUOTE_MASTER_5)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.QUOTE_MASTER_5);
-      }
-
-      // Check for completed project achievement
-      if (
-        completedCount >= 1 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.PROJECT_COMPLETE)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.PROJECT_COMPLETE);
-      }
-
-      // Award achievements if earned
-      if (earnedIds.length > 0) {
-        await this.awardAchievements(userId, earnedIds);
-      }
-
-      return { earnedIds };
-    } catch (error) {
-      console.error("Error checking quote achievements:", error);
-      return { earnedIds: [] };
+      throw error;
     }
-  }
+  },
 
   /**
-   * Check and update review-related achievements
-   * @param {string} userId - User ID
-   * @returns {Promise<{ earnedIds: string[] }>} - Earned achievement IDs
+   * Update a user's total achievement points
    */
-  static async checkReviewAchievements(userId) {
+  async updateUserAchievementPoints(userId, pointsToAdd) {
     try {
-      // Count user's reviews
-      const reviewsRef = collection(db, "reviews");
-      const reviewsQuery = query(reviewsRef, where("userId", "==", userId));
-      const reviewsSnapshot = await getDocs(reviewsQuery);
-      const reviewCount = reviewsSnapshot.size;
-
-      // Get current user achievements
       const userRef = doc(db, "users", userId);
-      const userDoc = await getDoc(userRef);
-      const userData = userDoc.data();
-      const currentAchievements = userData.achievements || [];
+      const userSnap = await getDoc(userRef);
 
-      const earnedIds = [];
-
-      // Check first review achievement
-      if (
-        reviewCount >= 1 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.FIRST_REVIEW)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.FIRST_REVIEW);
+      if (!userSnap.exists()) {
+        throw new Error("User not found");
       }
 
-      // Check for 5 reviews achievement
-      if (
-        reviewCount >= 5 &&
-        !currentAchievements.includes(this.ACHIEVEMENTS.REVIEWER_5)
-      ) {
-        earnedIds.push(this.ACHIEVEMENTS.REVIEWER_5);
-      }
+      const userData = userSnap.data();
+      const currentPoints = userData.achievementPoints || 0;
 
-      // Award achievements if earned
-      if (earnedIds.length > 0) {
-        await this.awardAchievements(userId, earnedIds);
-      }
-
-      return { earnedIds };
-    } catch (error) {
-      console.error("Error checking review achievements:", error);
-      return { earnedIds: [] };
-    }
-  }
-
-  /**
-   * Check for veteran user achievement (account age > 3 months)
-   * @param {string} userId - User ID
-   * @returns {Promise<{ earnedIds: string[] }>} - Earned achievement IDs
-   */
-  static async checkAccountAgeAchievements(userId) {
-    try {
-      // Get user document
-      const userRef = doc(db, "users", userId);
-      const userDoc = await getDoc(userRef);
-      const userData = userDoc.data();
-
-      if (!userData) {
-        return { earnedIds: [] };
-      }
-
-      const currentAchievements = userData.achievements || [];
-      const creationTime = userData.createdAt;
-
-      // If no creation time or already has achievement, skip
-      if (
-        !creationTime ||
-        currentAchievements.includes(this.ACHIEVEMENTS.VETERAN_USER)
-      ) {
-        return { earnedIds: [] };
-      }
-
-      const earnedIds = [];
-      const now = new Date();
-      const accountCreationDate = creationTime.toDate
-        ? creationTime.toDate()
-        : new Date(creationTime);
-
-      // Check if account is at least 3 months old (90 days)
-      const daysSinceCreation =
-        (now - accountCreationDate) / (1000 * 60 * 60 * 24);
-      if (daysSinceCreation >= 90) {
-        earnedIds.push(this.ACHIEVEMENTS.VETERAN_USER);
-      }
-
-      // Award achievements if earned
-      if (earnedIds.length > 0) {
-        await this.awardAchievements(userId, earnedIds);
-      }
-
-      return { earnedIds };
-    } catch (error) {
-      console.error("Error checking account age achievements:", error);
-      return { earnedIds: [] };
-    }
-  }
-
-  /**
-   * Award achievements to user
-   * @param {string} userId - User ID
-   * @param {string[]} achievementIds - Array of achievement IDs to award
-   * @returns {Promise<void>}
-   */
-  static async awardAchievements(userId, achievementIds) {
-    try {
-      if (!achievementIds || achievementIds.length === 0) {
-        return;
-      }
-
-      // Update user document with achievements
-      const userRef = doc(db, "users", userId);
       await updateDoc(userRef, {
-        achievements: arrayUnion(...achievementIds),
-        lastAchievementAt: serverTimestamp(),
+        achievementPoints: currentPoints + pointsToAdd,
       });
 
-      // Record achievement events
-      const batch = [];
-      const now = serverTimestamp();
-
-      achievementIds.forEach((achievementId) => {
-        batch.push({
-          userId,
-          achievementId,
-          earnedAt: now,
-          type: "achievement_earned",
-        });
-      });
-
-      // Could add notifications or other actions here
-
-      return { success: true, awarded: achievementIds };
+      return currentPoints + pointsToAdd;
     } catch (error) {
-      console.error("Error awarding achievements:", error);
-      return { success: false, error };
+      console.error(
+        `Error updating achievement points for user ${userId}:`,
+        error
+      );
+      throw error;
     }
-  }
-}
+  },
 
-export default AchievementService;
+  /**
+   * Get all achievements for a specific user
+   */
+  async getUserAchievements(userId) {
+    try {
+      const userAchievementsRef = collection(db, "userAchievements");
+      const q = query(userAchievementsRef, where("userId", "==", userId));
+      const snapshot = await getDocs(q);
+
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    } catch (error) {
+      console.error(`Error fetching achievements for user ${userId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Check if a user has a specific achievement
+   */
+  async hasAchievement(userId, achievementId) {
+    try {
+      const userAchievementsRef = collection(db, "userAchievements");
+      const q = query(
+        userAchievementsRef,
+        where("userId", "==", userId),
+        where("achievementId", "==", achievementId)
+      );
+
+      const snapshot = await getDocs(q);
+      return !snapshot.empty;
+    } catch (error) {
+      console.error(
+        `Error checking if user ${userId} has achievement ${achievementId}:`,
+        error
+      );
+      throw error;
+    }
+  },
+
+  /**
+   * Evaluate if a user meets the conditions for an achievement
+   * This function takes:
+   * - userId: The user to check
+   * - achievementId: The achievement to evaluate
+   * - contextData: Any relevant data needed for evaluation (e.g., products created, investments made)
+   */
+  async evaluateAchievementCondition(userId, achievementId, contextData = {}) {
+    try {
+      // Get the achievement
+      const achievement = await this.getAchievementById(achievementId);
+
+      // Check if it has a condition function
+      if (!achievement.triggerCondition) {
+        console.log(
+          `Achievement ${achievementId} has no trigger condition defined`
+        );
+        return false;
+      }
+
+      // For safety, we'll use a try-catch within a Function constructor to evaluate the condition
+      try {
+        // Create a safe evaluation function from the stored string
+        const conditionFn = new Function(
+          "userId",
+          "contextData",
+          achievement.triggerCondition
+        );
+
+        // Execute the condition with the provided data
+        const conditionMet = conditionFn(userId, contextData);
+
+        return conditionMet;
+      } catch (evalError) {
+        console.error(
+          `Error evaluating condition for achievement ${achievementId}:`,
+          evalError
+        );
+        return false;
+      }
+    } catch (error) {
+      console.error(`Error in achievement condition evaluation:`, error);
+      return false;
+    }
+  },
+
+  /**
+   * Check all achievements for a user and award any that match their conditions
+   * Use this when checking achievements in bulk
+   */
+  async checkAndAwardAchievements(userId, contextData = {}) {
+    try {
+      // Get all achievements
+      const achievements = await this.getAllAchievements();
+
+      // Get user's current achievements
+      const userAchievements = await this.getUserAchievements(userId);
+      const userAchievementIds = userAchievements.map((ua) => ua.achievementId);
+
+      // Filter out achievements the user already has
+      const candidateAchievements = achievements.filter(
+        (achievement) => !userAchievementIds.includes(achievement.id)
+      );
+
+      // Track newly awarded achievements
+      const newlyAwarded = [];
+
+      // Evaluate each achievement
+      for (const achievement of candidateAchievements) {
+        const conditionMet = await this.evaluateAchievementCondition(
+          userId,
+          achievement.id,
+          contextData
+        );
+
+        if (conditionMet) {
+          // Award the achievement
+          await this.awardAchievementToUser(userId, achievement.id);
+          newlyAwarded.push(achievement);
+        }
+      }
+
+      return newlyAwarded;
+    } catch (error) {
+      console.error(
+        `Error checking and awarding achievements for user ${userId}:`,
+        error
+      );
+      throw error;
+    }
+  },
+};
+
+export default achievementService;

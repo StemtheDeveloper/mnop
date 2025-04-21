@@ -18,6 +18,7 @@ function App() {
         <ToastProvider>
           <NotificationProvider>
             <div className="app">
+              <br /><br /><br /><br /><br /><br /><br />
               <Nav />
               <NotificationToastContainer />
               <main className="main-content">

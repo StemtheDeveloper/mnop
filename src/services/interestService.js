@@ -16,6 +16,28 @@ import { functions } from "../config/firebase";
 
 class InterestService {
   /**
+   * Get user interest transactions
+   * @param {string} userId - User ID
+   * @param {number} maxResults - Maximum number of transactions to retrieve
+   * @returns {Promise<Array>} - Array of interest transactions
+   */
+  async getUserInterestTransactions(userId, maxResults = 20) {
+    try {
+      const result = await this.getInterestHistory(userId, maxResults);
+
+      if (result.success && result.data && result.data.history) {
+        return result.data.history;
+      } else {
+        console.error("Error in getUserInterestTransactions:", result.error);
+        return [];
+      }
+    } catch (error) {
+      console.error("Error getting user interest transactions:", error);
+      return [];
+    }
+  }
+
+  /**
    * Calculate and apply interest for a user's wallet balance
    * @param {string} userId - User ID
    * @returns {Promise<Object>} Result with success status

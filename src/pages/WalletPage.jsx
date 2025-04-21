@@ -4,6 +4,7 @@ import { useToast } from '../contexts/ToastContext'; // Fixed import path with '
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import interestService from '../services/interestService';
+import InterestRatesPanel from '../components/InterestRatesPanel'; // Import InterestRatesPanel
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { doc, onSnapshot } from 'firebase/firestore';  // Import for real-time updates
 import { db } from '../config/firebase';  // Import Firestore db

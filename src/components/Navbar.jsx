@@ -25,8 +25,6 @@ const AdminEmails = [
 ];
 
 const Navbar = () => {
-  // Fix: properly destructure what's available from useUser()
-  // Remove the problematic setCurrentUser from destructuring
   const { user, userProfile, userRole, loading, signOut: userSignOut } = useUser();
   const [isOpen, setIsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -41,12 +39,11 @@ const Navbar = () => {
   const auth = getAuth();
   const { unreadCount } = useNotifications();
 
-  // Update isMobile state when window is resized
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 912);
       if (window.innerWidth > 912) {
-        setIsOpen(false); // Close mobile menu when switching to desktop
+        setIsOpen(false);
       }
     };
 
@@ -64,15 +61,8 @@ const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
-  // Fix: Update the onAuthStateChanged listener to use Firebase's auth directly
-  // without trying to use setCurrentUser from context
   useEffect(() => {
-    // Simply use onAuthStateChanged to monitor auth state changes
-    // UserContext should have its own listener that handles this
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // No need to call setCurrentUser here, the UserContext will handle this
-    });
-
+    const unsubscribe = onAuthStateChanged(auth, (user) => { });
     return () => unsubscribe();
   }, []);
 
@@ -87,7 +77,6 @@ const Navbar = () => {
     }
   };
 
-  // Function to check if a link is active
   const isActive = (path) => {
     if (path === '/' && location.pathname === '/') {
       return true;
@@ -95,10 +84,8 @@ const Navbar = () => {
     return path !== '/' && location.pathname === path;
   };
 
-  // Detect if we're using mobile menu
   const isMobileMenu = isMobile || isOpen;
 
-  // Load unread notification count
   useEffect(() => {
     const loadUnreadCount = async () => {
       if (!user?.uid) return;
@@ -115,8 +102,6 @@ const Navbar = () => {
 
     if (user) {
       loadUnreadCount();
-
-      // Set up interval to refresh count (every 60 seconds)
       const interval = setInterval(loadUnreadCount, 60000);
       return () => clearInterval(interval);
     }
@@ -169,7 +154,6 @@ const Navbar = () => {
     return null;
   };
 
-  // Navigation links component that's used in both desktop and mobile
   const NavLinks = () => (
     <>
       <li className="nav-item home-link">
@@ -206,7 +190,80 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Search Bar */}
+          <div className="mobile-nav">
+            <div className="menu-icons">
+              <img
+                id="burger-icon"
+                className={`menu-icon ${isOpen ? "open" : ""}`}
+                onClick={() => setIsOpen(true)}
+                src={Burger}
+                alt="A juicy looking burger icon"
+              />
+              <img
+                id="close-burger-icon"
+                className={`menu-icon ${isOpen ? "" : "open"}`}
+                onClick={() => setIsOpen(false)}
+                src={CloseBurger}
+                alt="Two burger 3D burger patties arranged to form an X"
+              />
+            </div>
+
+            <ul ref={menuRef} className={`nav-links-mobile ${isOpen ? "active" : ""}`}>
+              <NavLinks isMobileMenu={true} />
+
+              {user && AdminEmails.includes(user.email) ? (
+                <li className="nav-item">
+                  <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
+                </li>
+              ) : (
+                <li className="nav-item">
+                  <Link to="/signin" className={isActive('/signin') ? 'active' : ''} onClick={() => setIsOpen(false)}>Sign In</Link>
+                </li>
+              )}
+              <li className="nav-item">
+                <Link to="/messages" className={isActive('/messages') ? 'active' : ''} onClick={() => setIsOpen(false)}>Messages</Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/notifications" className={isActive('/notifications') ? 'active' : ''} onClick={() => setIsOpen(false)}>
+                  <div className="notification-indicator">
+                    Notifications
+                    {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
+                  </div>
+                </Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/wallet" className={isActive('/wallet') ? 'active' : ''} onClick={() => setIsOpen(false)}>
+                  Wallet {walletBalance !== null && `($${walletBalance.toFixed(0)})`}
+                </Link>
+              </li>
+              <li className="nav-item theme-toggle-container">
+                <div className="theme-toggle-label">Theme Mode</div>
+                <ThemeToggle />
+              </li>
+            </ul>
+          </div>
+
+          <ul className="quick-links-mobile">
+            <li className="nav-item navbar-icons">
+              <Link to="/messages">
+                <img src={MessageIcon} alt="Message icon" />
+              </Link>
+            </li>
+            <li className="nav-item navbar-icons">
+              <Link to="/notifications">
+                <img src={NotificationsIcon} alt="Notifications icon" />
+                {unreadCount > 0 && (
+                  <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                )}
+              </Link>
+            </li>
+            <li className="nav-item navbar-icons">
+              <Link to="/cart">
+                <img src={CartIcon} alt="Cart icon" />
+              </Link>
+            </li>
+          </ul>
+
           <div className="search-container">
             <form onSubmit={handleSearch} className="search-form">
               <input
@@ -225,28 +282,6 @@ const Navbar = () => {
             </form>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={toggleMenu}
-            className="mobile-menu-button"
-          >
-            <svg
-              className="mobile-menu-icon"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
-              ></path>
-            </svg>
-          </button>
-
-          {/* Desktop Navigation - only visible on larger screens */}
           <div className="desktop-nav">
             <ul className="nav-links-desktop">
               <NavLinks />
@@ -296,83 +331,8 @@ const Navbar = () => {
                   <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
                 </li>
               )}
-              <ThemeToggle /> {/* Add ThemeToggle component */}
+              <ThemeToggle />
             </div>
-          </div>
-
-          {/* Mobile Quick Links - always visible on mobile */}
-          <ul className="quick-links-mobile">
-            <li className="nav-item navbar-icons">
-              <Link to="/messages">
-                <img src={MessageIcon} alt="Message icon" />
-              </Link>
-            </li>
-            <li className="nav-item navbar-icons">
-              <Link to="/notifications">
-                <img src={NotificationsIcon} alt="Notifications icon" />
-              </Link>
-            </li>
-            <li className="nav-item navbar-icons">
-              <Link to="/cart">
-                <img src={CartIcon} alt="Cart icon" />
-              </Link>
-            </li>
-          </ul>
-
-          {/* Mobile Navigation Menu */}
-          <div className="mobile-nav">
-            {/* Burger Menu Icons */}
-            <div className="menu-icons">
-              <img
-                id="burger-icon"
-                className={`menu-icon ${isOpen ? "open" : ""}`}
-                onClick={() => setIsOpen(true)}
-                src={Burger}
-                alt="A juicy looking burger icon"
-              />
-              <img
-                id="close-burger-icon"
-                className={`menu-icon ${isOpen ? "" : "open"}`}
-                onClick={() => setIsOpen(false)}
-                src={CloseBurger}
-                alt="Two burger 3D burger patties arranged to form an X"
-              />
-            </div>
-
-            {/* Mobile Menu */}
-            <ul ref={menuRef} className={`nav-links-mobile ${isOpen ? "active" : ""}`}>
-              <NavLinks isMobileMenu={true} />
-
-              {user && AdminEmails.includes(user.email) ? (
-                <li className="nav-item">
-                  <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
-                </li>
-              ) : (
-                <li className="nav-item">
-                  <Link to="/signin" className={isActive('/signin') ? 'active' : ''} onClick={() => setIsOpen(false)}>Sign In</Link>
-                </li>
-              )}
-              <li className="nav-item">
-                <Link to="/messages" className={isActive('/messages') ? 'active' : ''} onClick={() => setIsOpen(false)}>Messages</Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/notifications" className={isActive('/notifications') ? 'active' : ''} onClick={() => setIsOpen(false)}>
-                  <div className="notification-indicator">
-                    Notifications
-                    {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
-                  </div>
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link to="/wallet" className={isActive('/wallet') ? 'active' : ''} onClick={() => setIsOpen(false)}>
-                  Wallet {walletBalance !== null && `($${walletBalance.toFixed(0)})`}
-                </Link>
-              </li>
-              <li className="nav-item theme-toggle-container">
-                <div className="theme-toggle-label">Theme Mode</div>
-                <ThemeToggle />
-              </li>
-            </ul>
           </div>
         </div>
       </nav>

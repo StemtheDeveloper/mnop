@@ -8,6 +8,7 @@ const LandingPage = lazy(() => import('../pages/LandingPage'));
 const SignInRegisterPage = lazy(() => import('../pages/SignInRegisterPage'));
 const HomeDashboardPage = lazy(() => import('../pages/HomeDashboardPage'));
 const ShopPage = lazy(() => import('../pages/ShopPage'));
+const SearchPage = lazy(() => import('../pages/SearchPage')); // Import SearchPage
 const ProductDetailPage = lazy(() => import('../pages/ProductDetailPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const WalletPage = lazy(() => import('../pages/WalletPage'));
@@ -56,6 +57,7 @@ const AppRoutes = () => {
                 <Route path="/signin" element={<SignInRegisterPage />} />
                 <Route path="/register" element={<SignInRegisterPage />} />
                 <Route path="/shop" element={<ShopPage />} />
+                <Route path="/search" element={<SearchPage />} />
                 <Route path="/product/:productId" element={<ProductDetailPage />} />
                 <Route path="/unauthorized" element={<UnauthorizedPage />} />
                 <Route path="/cart" element={<CartPage />} />
