@@ -750,6 +750,161 @@
   color: #e53935;
 }
 
+/* File attachment styles */
+.attach-button {
+  background: none;
+  border: none;
+  color: #666;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+  margin-right: 10px;
+}
+
+.attach-button:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.attach-button:disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+.attachment-preview {
+  padding: 10px 15px;
+  background-color: #f5f5f5;
+  border-top: 1px solid #eee;
+}
+
+.attachment-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.attachment-name {
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.remove-attachment-btn {
+  background: none;
+  border: none;
+  color: #666;
+  padding: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-preview {
+  text-align: center;
+  max-height: 150px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.file-preview {
+  display: flex;
+  align-items: center;
+  color: #666;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: white;
+}
+
+/* Message attachment displays */
+.attachment-container {
+  margin-top: 10px;
+  margin-bottom: 5px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.image-attachment img {
+  max-width: 100%;
+  max-height: 200px;
+  display: block;
+  border-radius: 8px;
+}
+
+.video-attachment video {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+}
+
+.file-attachment {
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+}
+
+.message.sent .file-attachment {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.file-download-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+.file-icon {
+  width: 30px;
+  height: 30px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+}
+
+.message.sent .file-icon {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-name {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 2px;
+  word-break: break-word;
+}
+
+.file-size {
+  font-size: 11px;
+  color: #888;
+}
+
+.message.sent .file-size {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* Responsive styles */
 @media (max-width: 768px) {
   .conversation-page {

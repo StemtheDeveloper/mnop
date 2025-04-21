@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { FaArrowLeft, FaPaperPlane, FaLock } from 'react-icons/fa';
+import { FaArrowLeft, FaPaperPlane, FaLock, FaFileAlt, FaImage, FaVideo, FaFile, FaPaperclip, FaTimes } from 'react-icons/fa';
 import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
@@ -16,8 +16,11 @@ const ConversationPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [sendingMessage, setSendingMessage] = useState(false);
+    const [attachment, setAttachment] = useState(null);
+    const [attachmentPreview, setAttachmentPreview] = useState(null);
     const messagesEndRef = useRef(null);
     const messageListRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     // Group messages by date
     const groupedMessages = messages.reduce((groups, message) => {
@@ -92,7 +95,8 @@ const ConversationPage = () => {
     const handleSendMessage = async (e) => {
         e.preventDefault();
 
-        if (!newMessage.trim() || !user?.uid || !conversation) return;
+        // Allow sending if there's either text or an attachment (or both)
+        if ((!newMessage.trim() && !attachment) || !user?.uid || !conversation) return;
 
         try {
             setSendingMessage(true);
@@ -101,16 +105,124 @@ const ConversationPage = () => {
                 conversationId,
                 user.uid,
                 conversation.otherParticipant.id,
-                newMessage
+                newMessage,
+                attachment
             );
 
             setNewMessage('');
+            setAttachment(null);
+            setAttachmentPreview(null);
         } catch (err) {
             console.error('Error sending message:', err);
             setError('Failed to send message. Please try again.');
         } finally {
             setSendingMessage(false);
         }
+    };
+
+    const handleAttachmentClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Check file size (max 20MB)
+        if (file.size > 20 * 1024 * 1024) {
+            setError('File size exceeds 20MB limit');
+            return;
+        }
+
+        setAttachment(file);
+
+        // Create preview URL for images
+        if (file.type.startsWith('image/')) {
+            const previewUrl = URL.createObjectURL(file);
+            setAttachmentPreview(previewUrl);
+        } else {
+            setAttachmentPreview(null);
+        }
+    };
+
+    const removeAttachment = () => {
+        setAttachment(null);
+        setAttachmentPreview(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const renderAttachmentPreview = () => {
+        if (!attachment) return null;
+
+        return (
+            <div className="attachment-preview">
+                <div className="attachment-preview-header">
+                    <span className="attachment-name">{attachment.name}</span>
+                    <button className="remove-attachment-btn" onClick={removeAttachment}>
+                        <FaTimes />
+                    </button>
+                </div>
+                {attachmentPreview ? (
+                    <div className="image-preview">
+                        <img src={attachmentPreview} alt="Attachment preview" />
+                    </div>
+                ) : (
+                    <div className="file-preview">
+                        <FaFile size={24} />
+                        <span>{(attachment.size / 1024).toFixed(2)} KB</span>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderFileAttachment = (fileData) => {
+        if (!fileData) return null;
+        
+        const fileType = fileData.type ? messagingService.getFileTypeCategory(fileData.type) : 'other';
+        
+        // For images
+        if (fileType === 'image') {
+            return (
+                <div className="attachment-container image-attachment">
+                    <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer">
+                        <img src={fileData.url || fileData.downloadURL} alt={fileData.name || fileData.fileName || "Image attachment"} />
+                    </a>
+                </div>
+            );
+        }
+        
+        // For videos
+        if (fileType === 'video') {
+            return (
+                <div className="attachment-container video-attachment">
+                    <video controls>
+                        <source src={fileData.url || fileData.downloadURL} type={fileData.type || fileData.fileType} />
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            );
+        }
+        
+        // For other files
+        let icon = <FaFile />;
+        if (fileType === 'document') icon = <FaFileAlt />;
+        if (fileType === 'image') icon = <FaImage />;
+        if (fileType === 'video') icon = <FaVideo />;
+        
+        return (
+            <div className="attachment-container file-attachment">
+                <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer" className="file-download-link">
+                    <div className="file-icon">{icon}</div>
+                    <div className="file-info">
+                        <span className="file-name">{fileData.name || fileData.fileName || "File attachment"}</span>
+                        <span className="file-size">{fileData.size || fileData.fileSize ? `${((fileData.size || fileData.fileSize) / 1024).toFixed(2)} KB` : ''}</span>
+                    </div>
+                </a>
+            </div>
+        );
     };
 
     if (userLoading) {
@@ -226,9 +338,16 @@ const ConversationPage = () => {
                                         className={`message ${message.senderId === user.uid ? 'sent' : 'received'}`}
                                     >
                                         <div className="message-content">
-                                            <div className="message-text">
-                                                {message.decryptedContent}
-                                            </div>
+                                            {message.decryptedContent && (
+                                                <div className="message-text">
+                                                    {message.decryptedContent}
+                                                </div>
+                                            )}
+                                            
+                                            {message.hasAttachment && (message.attachmentData || message.fileData) && (
+                                                renderFileAttachment(message.attachmentData || message.fileData)
+                                            )}
+                                            
                                             <div className="message-info">
                                                 <span className="message-time">
                                                     {message.createdAt?.toDate ?
@@ -248,8 +367,18 @@ const ConversationPage = () => {
                     <div ref={messagesEndRef} />
                 </div>
 
+                {attachment && renderAttachmentPreview()}
+
                 <div className="message-input-container">
                     <form className="input-wrapper" onSubmit={handleSendMessage}>
+                        <button 
+                            type="button" 
+                            className="attach-button"
+                            onClick={handleAttachmentClick}
+                            disabled={sendingMessage || !!attachment}
+                        >
+                            <FaPaperclip />
+                        </button>
                         <textarea
                             placeholder="Type a message..."
                             value={newMessage}
@@ -265,11 +394,18 @@ const ConversationPage = () => {
                         <button
                             type="submit"
                             className="send-button"
-                            disabled={!newMessage.trim() || sendingMessage}
+                            disabled={((!newMessage.trim() && !attachment) || sendingMessage)}
                         >
                             <FaPaperPlane />
                         </button>
                     </form>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        style={{ display: 'none' }}
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+                    />
                     <div className="encryption-notice">
                         <FaLock size={12} />
                         <span>End-to-end encrypted</span>
