@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, writeBatch, deleteDoc, query, orderBy, limit, startAfter, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, writeBatch, deleteDoc, query, orderBy, limit, startAfter, getDoc, where } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import AuthGuard from '../components/AuthGuard';
@@ -28,19 +28,17 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState({ success: false, message: '', details: null });
     const [operation, setOperation] = useState('');
+    const [conversationIndexStatus, setConversationIndexStatus] = useState({ loading: false, message: '', type: '' });
 
-    // Fix: Check the actual function names in the UserContext
     const { currentUser, userRole, loading: userLoading } = useUser();
-    const userContext = useUser(); // Get the full context to access methods
+    const userContext = useUser();
 
     const [activeTab, setActiveTab] = useState(initialActiveTab || 'users');
 
-    // Admin's own role management state
     const [adminRoles, setAdminRoles] = useState([]);
     const [selfRoleLoading, setSelfRoleLoading] = useState(false);
     const [selfRoleMessage, setSelfRoleMessage] = useState({ type: '', text: '' });
 
-    // User management state
     const [users, setUsers] = useState([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [lastVisible, setLastVisible] = useState(null);
@@ -53,11 +51,9 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
     const [newRole, setNewRole] = useState('');
     const [confirmDelete, setConfirmDelete] = useState('');
 
-    // Constants
     const USER_ROLES = ['customer', 'designer', 'manufacturer', 'investor', 'admin'];
     const USERS_PER_PAGE = 20;
 
-    // Initialize admin roles from userRole
     useEffect(() => {
         if (userRole) {
             if (Array.isArray(userRole)) {
@@ -68,10 +64,8 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     }, [userRole]);
 
-    // Define our own functions to add and remove roles
     const addRoleDirectly = async (userId, roleId) => {
         try {
-            // Get the current user document
             const userRef = doc(db, 'users', userId);
             const userSnap = await getDoc(userRef);
 
@@ -81,31 +75,28 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
             const userData = userSnap.data();
 
-            // Check if user already has roles array
             let currentRoles = [];
             if (Array.isArray(userData.roles)) {
                 currentRoles = [...userData.roles];
             } else if (userData.role) {
                 currentRoles = [userData.role];
             } else {
-                currentRoles = ['customer']; // Default role if none exists
+                currentRoles = ['customer'];
             }
 
-            // Add the new role if not already present
             if (!currentRoles.includes(roleId)) {
                 currentRoles.push(roleId);
 
-                // Update Firestore
                 await updateDoc(userRef, {
                     roles: currentRoles,
-                    role: roleId, // Update single role field for backward compatibility
+                    role: roleId,
                     updatedAt: new Date()
                 });
 
                 return true;
             }
 
-            return false; // Role already exists
+            return false;
         } catch (error) {
             console.error('Error adding role:', error);
             throw error;
@@ -114,7 +105,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
     const removeRoleDirectly = async (userId, roleId) => {
         try {
-            // Get the current user document
             const userRef = doc(db, 'users', userId);
             const userSnap = await getDoc(userRef);
 
@@ -124,43 +114,38 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
             const userData = userSnap.data();
 
-            // Check if user has roles array
             let currentRoles = [];
             if (Array.isArray(userData.roles)) {
                 currentRoles = [...userData.roles];
             } else if (userData.role) {
                 currentRoles = [userData.role];
             } else {
-                return false; // No roles to remove
+                return false;
             }
 
-            // Remove the role if present
             if (currentRoles.includes(roleId)) {
                 const newRoles = currentRoles.filter(role => role !== roleId);
 
-                // Don't allow removing the last role or all roles
                 if (newRoles.length === 0) {
-                    newRoles.push('customer'); // Default to customer if removing last role
+                    newRoles.push('customer');
                 }
 
-                // Update Firestore
                 await updateDoc(userRef, {
                     roles: newRoles,
-                    role: newRoles[0], // Update single role field with first role
+                    role: newRoles[0],
                     updatedAt: new Date()
                 });
 
                 return true;
             }
 
-            return false; // Role didn't exist
+            return false;
         } catch (error) {
             console.error('Error removing role:', error);
             throw error;
         }
     };
 
-    // Function to handle adding a role to the admin's own account
     const handleAddSelfRole = async (roleId) => {
         if (!currentUser || adminRoles.includes(roleId)) return;
 
@@ -168,11 +153,9 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         setSelfRoleMessage({ type: '', text: '' });
 
         try {
-            // Use our direct function instead of relying on context
             const success = await addRoleDirectly(currentUser.uid, roleId);
 
             if (success) {
-                // Update local state
                 setAdminRoles(prev => [...prev, roleId]);
                 setSelfRoleMessage({
                     type: 'success',
@@ -195,9 +178,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     };
 
-    // Function to handle removing a role from the admin's own account
     const handleRemoveSelfRole = async (roleId) => {
-        // Prevent removing admin role from admin page
         if (!currentUser || roleId === 'admin') {
             setSelfRoleMessage({
                 type: 'warning',
@@ -210,11 +191,9 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         setSelfRoleMessage({ type: '', text: '' });
 
         try {
-            // Use our direct function instead of relying on context
             const success = await removeRoleDirectly(currentUser.uid, roleId);
 
             if (success) {
-                // Update local state
                 setAdminRoles(prev => prev.filter(role => role !== roleId));
                 setSelfRoleMessage({
                     type: 'success',
@@ -237,7 +216,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     };
 
-    // Add a debug function to see available methods
     const debugUserContext = () => {
         console.log("Available methods in UserContext:",
             Object.keys(userContext).filter(key => typeof userContext[key] === 'function'));
@@ -247,12 +225,10 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         });
     };
 
-    // Fetch users on component mount
     useEffect(() => {
         fetchUsers();
     }, []);
 
-    // Filter users based on search term
     useEffect(() => {
         if (searchTerm.trim() === '') {
             setFilteredUsers(users);
@@ -266,7 +242,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     }, [users, searchTerm]);
 
-    // Fetch users from Firestore
     const fetchUsers = async (loadMore = false) => {
         setLoadingUsers(true);
 
@@ -291,24 +266,19 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
             const snapshot = await getDocs(q);
 
-            // Get the last visible document for pagination
             const lastVisible = snapshot.docs[snapshot.docs.length - 1];
             setLastVisible(lastVisible);
 
-            // Check if there are more users to load
             setHasMoreUsers(snapshot.docs.length === USERS_PER_PAGE);
 
-            // Convert to user objects with proper ID
             const userList = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
 
             if (loadMore) {
-                // Append to existing users
                 setUsers(prevUsers => [...prevUsers, ...userList]);
             } else {
-                // Replace existing users
                 setUsers(userList);
             }
         } catch (error) {
@@ -323,28 +293,24 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     };
 
-    // Load more users with pagination
     const loadMoreUsers = () => {
         if (hasMoreUsers && !loadingUsers) {
             fetchUsers(true);
         }
     };
 
-    // Open role modal for a user
     const openRoleModal = (user) => {
         setSelectedUser(user);
         setNewRole('');
         setRoleModalOpen(true);
     };
 
-    // Open delete modal for a user
     const openDeleteModal = (user) => {
         setSelectedUser(user);
         setConfirmDelete('');
         setDeleteModalOpen(true);
     };
 
-    // Update user's role
     const updateUserRole = async () => {
         if (!selectedUser || !newRole) return;
 
@@ -355,12 +321,10 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
             const success = await addRoleDirectly(selectedUser.id, newRole);
 
             if (success) {
-                // Get current roles to update local state
                 const userRef = doc(db, 'users', selectedUser.id);
                 const userSnap = await getDoc(userRef);
                 const userData = userSnap.data();
 
-                // Update local state
                 setUsers(prevUsers => prevUsers.map(user =>
                     user.id === selectedUser.id
                         ? {
@@ -377,7 +341,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                     details: null
                 });
 
-                // Close modal
                 setRoleModalOpen(false);
             } else {
                 setResult({
@@ -398,11 +361,9 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     };
 
-    // Delete user account
     const deleteUserAccount = async () => {
         if (!selectedUser) return;
 
-        // Check for confirmation text match
         if (confirmDelete !== selectedUser.email) {
             setResult({
                 success: false,
@@ -416,10 +377,8 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         setResult({ success: false, message: 'Deleting user...', details: null });
 
         try {
-            // Delete user document
             await deleteDoc(doc(db, 'users', selectedUser.id));
 
-            // Update local state
             setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
 
             setResult({
@@ -428,7 +387,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                 details: null
             });
 
-            // Close modal
             setDeleteModalOpen(false);
         } catch (error) {
             console.error('Error deleting user:', error);
@@ -442,7 +400,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     };
 
-    // Format role display
     const formatRoleDisplay = (user) => {
         if (Array.isArray(user.roles)) {
             return user.roles.join(', ');
@@ -452,7 +409,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         return 'customer';
     };
 
-    // Original admin functions
     const updateRoleStructure = async () => {
         setLoading(true);
         setResult({ success: false, message: 'Processing...', details: null });
@@ -462,7 +418,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
             const usersRef = collection(db, 'users');
             const snapshot = await getDocs(usersRef);
 
-            // Use batched writes for better performance and atomicity
             const batch = writeBatch(db);
             let updatedCount = 0;
             let skippedCount = 0;
@@ -472,24 +427,21 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
             snapshot.forEach((document) => {
                 const userData = document.data();
 
-                // Check if user has old role structure but not new roles array
                 if (userData.role && !userData.roles) {
                     const userRef = doc(db, 'users', document.id);
                     batch.update(userRef, {
-                        roles: [userData.role], // Convert single role to array of roles
+                        roles: [userData.role],
                         rolesMigrated: true,
                         lastUpdated: new Date()
                     });
                     updatedCount++;
                 } else if (userData.roles) {
-                    // Already has roles array
                     skippedCount++;
                 } else if (!userData.role && !userData.roles) {
-                    // Neither old nor new structure exists
                     const userRef = doc(db, 'users', document.id);
                     batch.update(userRef, {
-                        roles: ['user'], // Default role
-                        role: 'user',  // For backward compatibility
+                        roles: ['user'],
+                        role: 'user',
                         rolesMigrated: true,
                         lastUpdated: new Date()
                     });
@@ -501,7 +453,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                 }
             });
 
-            // Commit all the batched writes
             await batch.commit();
 
             setResult({
@@ -533,7 +484,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         setOperation('cleanup');
 
         try {
-            // Implementation would go here
             setResult({
                 success: true,
                 message: 'Cleanup operation not yet implemented',
@@ -550,13 +500,60 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     };
 
+    const handleCheckConversationIndex = async () => {
+        setConversationIndexStatus({ loading: true, message: 'Checking conversation index...', type: 'info' });
+
+        const conversationsRef = collection(db, 'conversations');
+        const q = query(
+            conversationsRef,
+            where('participants', 'array-contains', currentUser?.uid || 'test-user-id'),
+            orderBy('lastMessageAt', 'desc'),
+            limit(1)
+        );
+
+        try {
+            await getDocs(q);
+            setConversationIndexStatus({
+                loading: false,
+                message: 'Conversation query successful. The required index likely exists or is not needed for current data.',
+                type: 'success'
+            });
+        } catch (error) {
+            console.error("Error checking conversation index:", error);
+            if (error.code === 'failed-precondition' && error.message.includes('index')) {
+                const indexCreationUrl = `https://console.firebase.google.com/v1/r/project/${db.app.options.projectId}/firestore/indexes?create_composite=ClFwcm9qZWN0cy9tLW5vcC0zOWIyZi9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvY29udmVyc2F0aW9ucy9pbmRleGVzL18QARoQCgxwYXJ0aWNpcGFudHMYARoRCg1sYXN0TWVzc2FnZUF0EAIaDAoIX19uYW1lX18QAg`;
+                setConversationIndexStatus({
+                    loading: false,
+                    message: (
+                        <>
+                            The required Firestore index for conversations is missing.
+                            This index allows efficiently querying conversations by participant and sorting by the last message time.
+                            <br />
+                            <a href={indexCreationUrl} target="_blank" rel="noopener noreferrer" className="admin-link">
+                                Click here to create the index in the Firebase Console.
+                            </a>
+                            <br />
+                            (Index details: Collection='conversations', Fields: participants ASC, lastMessageAt DESC)
+                        </>
+                    ),
+                    type: 'error'
+                });
+            } else {
+                setConversationIndexStatus({
+                    loading: false,
+                    message: `An error occurred while checking the index: ${error.message}`,
+                    type: 'error'
+                });
+            }
+        }
+    };
+
     return (
         <AuthGuard allowedRoles="admin">
             <div className="admin-page">
                 <div className="admin-container">
                     <h1>Admin Dashboard</h1>
 
-                    {/* Admin Self-Role Management Section */}
                     <div className="admin-section admin-self-role-section">
                         <h2>Your Account Roles</h2>
 
@@ -566,7 +563,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                             </div>
                         )}
 
-                        {/* Debug button to help identify available methods */}
                         <button
                             onClick={debugUserContext}
                             className="debug-button"
@@ -803,7 +799,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                     <p>Time: {new Date().toLocaleString()}</p>
                                 </div>
 
-                                {/* Role Change Modal */}
                                 {roleModalOpen && selectedUser && (
                                     <div className="modal-overlay">
                                         <div className="modal-container">
@@ -847,7 +842,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                     </div>
                                 )}
 
-                                {/* Delete User Modal */}
                                 {deleteModalOpen && selectedUser && (
                                     <div className="modal-overlay">
                                         <div className="modal-container">
@@ -902,7 +896,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                 <ProductApprovalPanel />
                                 <TrendingProductsPanel />
                                 <ProductArchivePanel />
-                                {/* Other product management components */}
                             </div>
                         )}
 
@@ -917,7 +910,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                             <div className="collectibles-tab">
                                 <h2>Collectibles Management</h2>
                                 <NopsManagementPanel />
-                                {/* Additional collectibles components can be added here */}
                             </div>
                         )}
 
@@ -928,14 +920,11 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                 <PaymentSettingsPanel />
                                 <MarketRatesPanel />
                                 <InterestRateAdminPanel />
-
-                                {/* Additional finance panels can be added here */}
                             </div>
                         )}
 
                         {activeTab === 'settings' && (
                             <div className="settings-tab">
-                                {/* Existing Settings Content */}
                             </div>
                         )}
 
@@ -943,6 +932,29 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                             <div className="database-tab">
                                 <h2>Database Management</h2>
                                 <FirestoreIndexHelper />
+
+                                <div className="admin-section">
+                                    <h2>Index Management</h2>
+                                    <div className="admin-card">
+                                        <h3>Conversation Query Index</h3>
+                                        <p>
+                                            Checks if the necessary Firestore index exists for efficiently querying user conversations
+                                            (filtering by 'participants' and ordering by 'lastMessageAt').
+                                        </p>
+                                        <button
+                                            className="admin-button"
+                                            onClick={handleCheckConversationIndex}
+                                            disabled={conversationIndexStatus.loading}
+                                        >
+                                            {conversationIndexStatus.loading ? 'Checking...' : 'Check Conversation Index'}
+                                        </button>
+                                        {conversationIndexStatus.message && (
+                                            <div className={`message ${conversationIndexStatus.type} index-status`}>
+                                                {conversationIndexStatus.message}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
 
                                 <div className="admin-section">
                                     <h2>Database Maintenance</h2>

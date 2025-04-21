@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
-import { updateProfile } from 'firebase/auth';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { updateProfile, signOut, deleteUser } from 'firebase/auth'; // Import signOut and deleteUser
+import { doc, updateDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
 import '../styles/ProfilePage.css';
@@ -13,7 +13,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
-    const { currentUser, userProfile, updateUserProfile, userRole, addUserRole, hasRole } = useUser();
+    const { currentUser, userProfile, updateUserProfile, userRole, addUserRole, hasRole, logout } = useUser();
     const [activeTab, setActiveTab] = useState('personal');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -150,8 +150,6 @@ const ProfilePage = () => {
         const percentage = Math.min(((product.currentFunding || 0) / product.fundingGoal) * 100, 100);
         return Math.round(percentage);
     };
-
-    // ... existing code for profile photo handling ...
 
     const handleProfilePhotoClick = () => {
         profilePhotoRef.current.click();
@@ -370,6 +368,54 @@ const ProfilePage = () => {
             setMessage({ type: 'error', text: 'An error occurred while processing your request.' });
         } finally {
             setProcessingRoleRequest(false);
+        }
+    };
+
+    const handleLogout = async () => {
+        try {
+            await signOut(auth); // Use signOut directly from firebase/auth
+            if (logout) {
+                logout();
+            }
+            navigate('/login'); // Redirect to login page after logout
+        } catch (error) {
+            console.error("Error logging out:", error);
+            setMessage({ type: 'error', text: 'Failed to log out. Please try again.' });
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!currentUser) return;
+
+        const confirmation = window.confirm(
+            'Are you absolutely sure you want to delete your account? This action is irreversible and will remove all your data.'
+        );
+
+        if (confirmation) {
+            setLoading(true);
+            setMessage({ type: '', text: '' });
+            try {
+                const userId = currentUser.uid;
+
+                // 1. Delete Firestore user document (add other related data deletion if needed)
+                await deleteDoc(doc(db, 'users', userId));
+
+                // 2. Delete Firebase Auth user
+                await deleteUser(auth.currentUser);
+
+                setMessage({ type: 'success', text: 'Account deleted successfully.' });
+                navigate('/login'); // Redirect after deletion
+
+            } catch (error) {
+                console.error("Error deleting account:", error);
+                if (error.code === 'auth/requires-recent-login') {
+                    setMessage({ type: 'error', text: 'This action requires recent login. Please log out and log back in to delete your account.' });
+                } else {
+                    setMessage({ type: 'error', text: 'Failed to delete account. Please try again.' });
+                }
+            } finally {
+                setLoading(false);
+            }
         }
     };
 
@@ -697,6 +743,32 @@ const ProfilePage = () => {
                                     <label>Account Status</label>
                                     <p>Your account is <strong>Active</strong></p>
                                 </div>
+
+                                {isOwnProfile && (
+                                    <div className="account-actions">
+                                        <hr />
+                                        <h4>Account Management</h4>
+                                        <button
+                                            type="button"
+                                            className="button secondary-button logout-button"
+                                            onClick={handleLogout}
+                                            disabled={loading}
+                                        >
+                                            Log Out
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="button danger-button delete-account-button"
+                                            onClick={handleDeleteAccount}
+                                            disabled={loading}
+                                        >
+                                            {loading ? 'Deleting...' : 'Delete Account'}
+                                        </button>
+                                        <p className="delete-warning">
+                                            Deleting your account is permanent and cannot be undone.
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div className="form-actions">
                                     <button

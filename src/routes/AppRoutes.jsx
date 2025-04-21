@@ -36,6 +36,7 @@ const ManufacturerQuotesPage = lazy(() => import('../pages/ManufacturerQuotesPag
 const ManufacturerQuoteDetailPage = lazy(() => import('../pages/ManufacturerQuoteDetailPage'));
 const ManufacturingManagementQuotesPage = lazy(() => import('../pages/ManufacturingManagementQuotesPage'));
 const MessagesPage = lazy(() => import('../pages/MessagesPage'));
+const ConversationPage = lazy(() => import('../pages/ConversationPage')); // Import ConversationPage instead
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
 const ToastDemoPage = lazy(() => import('../pages/ToastDemoPage'));
 const UserSettingsPage = lazy(() => import('../pages/UserSettingsPage'));
@@ -128,6 +129,12 @@ const AppRoutes = () => {
                 <Route path="/messages" element={
                     <AuthGuard>
                         <MessagesPage />
+                    </AuthGuard>
+                } />
+                {/* Add route for individual conversation details */}
+                <Route path="/messages/:conversationId" element={
+                    <AuthGuard>
+                        <ConversationPage />
                     </AuthGuard>
                 } />
                 <Route path="/notifications" element={
