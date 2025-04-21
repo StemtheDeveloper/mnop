@@ -1,0 +1,463 @@
+// Messaging service for handling conversations and messages
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  getDoc,
+  doc,
+  orderBy,
+  updateDoc,
+  serverTimestamp,
+  onSnapshot,
+} from "firebase/firestore";
+import { db } from "../config/firebase";
+import encryptionService from "./encryptionService";
+
+class MessagingService {
+  /**
+   * Find or create a conversation between two users
+   * @param {string} user1Id - First user's ID
+   * @param {string} user2Id - Second user's ID
+   * @returns {Promise<Object>} - Conversation object with ID
+   */
+  async findOrCreateConversation(user1Id, user2Id) {
+    try {
+      // Check if a conversation already exists between these users
+      const conversationsRef = collection(db, "conversations");
+
+      // Query where user1 and user2 are participants (in either order)
+      const q1 = query(
+        conversationsRef,
+        where("participants", "array-contains", user1Id)
+      );
+
+      const querySnapshot = await getDocs(q1);
+
+      // Find a conversation that includes both users
+      const existingConversation = querySnapshot.docs.find((doc) => {
+        const data = doc.data();
+        return data.participants.includes(user2Id);
+      });
+
+      if (existingConversation) {
+        return {
+          id: existingConversation.id,
+          ...existingConversation.data(),
+        };
+      }
+
+      // If no conversation exists, create a new one
+      const newConversation = {
+        participants: [user1Id, user2Id],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        lastMessage: null,
+        encrypted: true, // All messages will be encrypted
+      };
+
+      const docRef = await addDoc(conversationsRef, newConversation);
+
+      return {
+        id: docRef.id,
+        ...newConversation,
+      };
+    } catch (error) {
+      console.error("Error finding or creating conversation:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send a message in a conversation
+   * @param {string} conversationId - Conversation ID
+   * @param {string} senderId - Sender's user ID
+   * @param {string} recipientId - Recipient's user ID
+   * @param {string} content - Message content (plaintext)
+   * @returns {Promise<Object>} - Sent message object
+   */
+  async sendMessage(conversationId, senderId, recipientId, content) {
+    try {
+      // Generate encryption key for this conversation
+      const encryptionKey = encryptionService.generateConversationKey(
+        senderId,
+        recipientId
+      );
+
+      // Encrypt the message content
+      const encryptedContent = encryptionService.encryptMessage(
+        content,
+        encryptionKey
+      );
+
+      if (!encryptedContent) {
+        throw new Error("Failed to encrypt message");
+      }
+
+      const messagesRef = collection(db, "messages");
+
+      // Create the message object with encrypted content
+      const message = {
+        conversationId,
+        senderId,
+        encryptedContent,
+        createdAt: serverTimestamp(),
+        read: false,
+        encrypted: true,
+      };
+
+      // Add the message to Firestore
+      const docRef = await addDoc(messagesRef, message);
+
+      // Update the conversation with the last message
+      const conversationRef = doc(db, "conversations", conversationId);
+      await updateDoc(conversationRef, {
+        lastMessage: {
+          senderId,
+          preview: "Encrypted message", // Don't show actual content in preview
+          timestamp: serverTimestamp(),
+        },
+        updatedAt: serverTimestamp(),
+      });
+
+      // Get the notification service and send a message notification
+      const notificationService = (await import("./notificationService"))
+        .default;
+
+      try {
+        // Get sender's display name or email
+        const senderDoc = await getDoc(doc(db, "users", senderId));
+        const senderName =
+          senderDoc.data()?.displayName || senderDoc.data()?.email || "Someone";
+
+        // Send notification to recipient
+        await notificationService.sendMessageNotification(
+          recipientId,
+          senderName,
+          "You received a new message", // Generic preview for encrypted messages
+          conversationId
+        );
+      } catch (notifError) {
+        console.error("Error sending message notification:", notifError);
+      }
+
+      return {
+        id: docRef.id,
+        ...message,
+      };
+    } catch (error) {
+      console.error("Error sending message:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all conversations for a user
+   * @param {string} userId - User ID
+   * @returns {Promise<Array>} - Array of conversation objects
+   */
+  async getUserConversations(userId) {
+    try {
+      const conversationsRef = collection(db, "conversations");
+
+      // Modified query to avoid index requirement - we'll sort client-side
+      const q = query(
+        conversationsRef,
+        where("participants", "array-contains", userId)
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      const conversations = [];
+
+      // Get user data for each participant to show names
+      for (const docSnapshot of querySnapshot.docs) {
+        const conversation = {
+          id: docSnapshot.id,
+          ...docSnapshot.data(),
+        };
+
+        // Get the other participant's info
+        const otherParticipantId = conversation.participants.find(
+          (id) => id !== userId
+        );
+
+        try {
+          const userDocRef = doc(db, "users", otherParticipantId);
+          const userDocSnapshot = await getDoc(userDocRef);
+
+          if (userDocSnapshot.exists()) {
+            conversation.otherParticipant = {
+              id: otherParticipantId,
+              ...userDocSnapshot.data(),
+            };
+          } else {
+            conversation.otherParticipant = {
+              id: otherParticipantId,
+              displayName: "Unknown User",
+            };
+          }
+        } catch (error) {
+          console.error("Error getting participant info:", error);
+          conversation.otherParticipant = {
+            id: otherParticipantId,
+            displayName: "Unknown User",
+          };
+        }
+
+        conversations.push(conversation);
+      }
+
+      // Sort conversations by updatedAt timestamp client-side
+      return conversations.sort((a, b) => {
+        // Handle missing updatedAt fields
+        if (!a.updatedAt) return 1;
+        if (!b.updatedAt) return -1;
+
+        // Convert timestamps to dates for comparison
+        const dateA = a.updatedAt.toDate ? a.updatedAt.toDate() : new Date(0);
+        const dateB = b.updatedAt.toDate ? b.updatedAt.toDate() : new Date(0);
+
+        // Sort descending (newest first)
+        return dateB - dateA;
+      });
+    } catch (error) {
+      console.error("Error getting user conversations:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get messages for a conversation
+   * @param {string} conversationId - Conversation ID
+   * @param {string} userId - Current user's ID
+   * @param {string} otherUserId - Other participant's ID
+   * @returns {Promise<Array>} - Array of message objects with decrypted content
+   */
+  async getConversationMessages(conversationId, userId, otherUserId) {
+    try {
+      const messagesRef = collection(db, "messages");
+      const q = query(
+        messagesRef,
+        where("conversationId", "==", conversationId),
+        orderBy("createdAt", "asc")
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      // Generate encryption key for this conversation
+      const encryptionKey = encryptionService.generateConversationKey(
+        userId,
+        otherUserId
+      );
+
+      // Decrypt all messages
+      const messages = querySnapshot.docs.map((doc) => {
+        const message = {
+          id: doc.id,
+          ...doc.data(),
+        };
+
+        // Add decrypted content if this is an encrypted message
+        if (message.encrypted && message.encryptedContent) {
+          message.decryptedContent = encryptionService.decryptMessage(
+            message.encryptedContent,
+            encryptionKey
+          );
+        }
+
+        return message;
+      });
+
+      // Mark unread messages as read if they're for the current user
+      const unreadMessages = messages.filter(
+        (message) => !message.read && message.senderId !== userId
+      );
+
+      if (unreadMessages.length > 0) {
+        const batch = [];
+        for (const message of unreadMessages) {
+          const messageRef = doc(db, "messages", message.id);
+          batch.push(updateDoc(messageRef, { read: true }));
+        }
+
+        await Promise.all(batch);
+      }
+
+      return messages;
+    } catch (error) {
+      console.error("Error getting conversation messages:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get real-time updates for a conversation's messages
+   * @param {string} conversationId - Conversation ID
+   * @param {string} userId - Current user's ID
+   * @param {string} otherUserId - Other participant's ID
+   * @param {Function} callback - Callback function to receive updates
+   * @returns {Function} - Unsubscribe function
+   */
+  subscribeToMessages(conversationId, userId, otherUserId, callback) {
+    try {
+      const messagesRef = collection(db, "messages");
+      // Modified query to avoid index requirement - we'll sort client-side
+      const q = query(
+        messagesRef,
+        where("conversationId", "==", conversationId)
+        // orderBy("createdAt", "asc") - removed to avoid needing composite index
+      );
+
+      // Generate encryption key for this conversation
+      const encryptionKey = encryptionService.generateConversationKey(
+        userId,
+        otherUserId
+      );
+
+      // Set up real-time listener
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const messages = [];
+
+        snapshot.forEach((doc) => {
+          const message = {
+            id: doc.id,
+            ...doc.data(),
+          };
+
+          // Add decrypted content
+          if (message.encrypted && message.encryptedContent) {
+            message.decryptedContent = encryptionService.decryptMessage(
+              message.encryptedContent,
+              encryptionKey
+            );
+          }
+
+          messages.push(message);
+        });
+
+        // Sort messages by createdAt timestamp client-side
+        messages.sort((a, b) => {
+          // Handle missing createdAt fields
+          if (!a.createdAt) return -1;
+          if (!b.createdAt) return 1;
+
+          // Convert timestamps to dates for comparison
+          const dateA = a.createdAt.toDate ? a.createdAt.toDate() : new Date(0);
+          const dateB = b.createdAt.toDate ? b.createdAt.toDate() : new Date(0);
+
+          // Sort ascending (oldest first)
+          return dateA - dateB;
+        });
+
+        // Mark messages as read in a separate operation
+        const unreadMessages = messages.filter(
+          (message) => !message.read && message.senderId !== userId
+        );
+
+        if (unreadMessages.length > 0) {
+          unreadMessages.forEach(async (message) => {
+            const messageRef = doc(db, "messages", message.id);
+            await updateDoc(messageRef, { read: true });
+          });
+        }
+
+        callback(messages);
+      });
+
+      return unsubscribe;
+    } catch (error) {
+      console.error("Error subscribing to messages:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search for users to start a conversation with
+   * @param {string} searchTerm - Search term
+   * @param {string} currentUserId - Current user's ID
+   * @returns {Promise<Array>} - Array of user objects
+   */
+  async searchUsers(searchTerm, currentUserId) {
+    try {
+      const usersRef = collection(db, "users");
+
+      // Get all users (we'll filter client-side since Firestore doesn't support
+      // case-insensitive search well)
+      const querySnapshot = await getDocs(usersRef);
+
+      const users = [];
+
+      querySnapshot.forEach((doc) => {
+        // Skip the current user
+        if (doc.id === currentUserId) return;
+
+        const userData = doc.data();
+
+        // Check if the user matches the search term (case-insensitive)
+        const displayName = userData.displayName || "";
+        const email = userData.email || "";
+
+        if (
+          displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          email.toLowerCase().includes(searchTerm.toLowerCase())
+        ) {
+          users.push({
+            id: doc.id,
+            ...userData,
+          });
+        }
+      });
+
+      return users;
+    } catch (error) {
+      console.error("Error searching users:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the number of unread messages across all conversations
+   * @param {string} userId - User ID
+   * @returns {Promise<number>} - Number of unread messages
+   */
+  async getUnreadMessagesCount(userId) {
+    try {
+      const messagesRef = collection(db, "messages");
+      const q = query(
+        messagesRef,
+        where("read", "==", false),
+        where("senderId", "!=", userId)
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      // Filter to only include messages from conversations where the user is a participant
+      const unreadMessages = [];
+
+      for (const messageDoc of querySnapshot.docs) {
+        const message = messageDoc.data();
+
+        // Get the conversation
+        const conversationDoc = await getDoc(
+          doc(db, "conversations", message.conversationId)
+        );
+
+        if (
+          conversationDoc.exists() &&
+          conversationDoc.data().participants.includes(userId)
+        ) {
+          unreadMessages.push(message);
+        }
+      }
+
+      return unreadMessages.length;
+    } catch (error) {
+      console.error("Error getting unread messages count:", error);
+      return 0;
+    }
+  }
+}
+
+export default new MessagingService();

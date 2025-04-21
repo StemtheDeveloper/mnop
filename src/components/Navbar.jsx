@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "../styles/Navbar.css";
 import Logo from "../assets/logos/Logo full black_1.svg";
-import { onAuthStateChanged, signOut, getAuth } from "firebase/auth";
 import { auth } from "../config/firebase.js";
 import { useUser } from "../context/UserContext";
-import { useTheme } from "../context/ThemeContext"; // Import ThemeContext
+import { useTheme } from "../context/ThemeContext";
 import Burger from "../assets/Burger 3@4x.png"
 import CloseBurger from "../assets/Close-Burger@4x.png"
 import MessageIcon from "../assets/message icon mini.png";
@@ -16,8 +15,8 @@ import NotificationCenter from "./NotificationCenter";
 import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';
 import NotificationInbox from './NotificationInbox';
-import ThemeToggle from './ThemeToggle'; // Import ThemeToggle component
-import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
+import ThemeToggle from './ThemeToggle';
+import { useToast } from '../contexts/ToastContext';
 import { useNotifications } from './notifications/NotificationSystem';
 
 const AdminEmails = [
@@ -25,7 +24,7 @@ const AdminEmails = [
 ];
 
 const Navbar = () => {
-  const { user, userProfile, userRole, loading, signOut: userSignOut } = useUser();
+  const { user, userProfile, userRole, loading, signOut: userSignOut, getWalletBalance } = useUser();
   const [isOpen, setIsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(null);
@@ -36,9 +35,9 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
-  const auth = getAuth();
   const { unreadCount } = useNotifications();
 
+  // Handle window resize
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 912);
@@ -51,6 +50,7 @@ const Navbar = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Handle clicks outside menu
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -61,19 +61,37 @@ const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
+  // Load wallet balance when user changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => { });
-    return () => unsubscribe();
-  }, []);
+    const loadWalletBalance = async () => {
+      if (user) {
+        try {
+          const balance = await getWalletBalance();
+          setWalletBalance(balance);
+        } catch (err) {
+          console.error('Error loading wallet balance:', err);
+        }
+      } else {
+        setWalletBalance(null);
+      }
+    };
 
+    loadWalletBalance();
+  }, [user, getWalletBalance]);
+
+  // Handle sign out
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
-      showSuccess('Successfully logged out');
-      navigate('/login');
+      const result = await userSignOut();
+      if (result.success) {
+        showSuccess('Successfully logged out');
+        navigate('/');
+      } else {
+        showError('Failed to log out');
+      }
     } catch (error) {
-      showError('Failed to log out');
       console.error('Logout error:', error);
+      showError('Failed to log out');
     }
   };
 
@@ -85,27 +103,6 @@ const Navbar = () => {
   };
 
   const isMobileMenu = isMobile || isOpen;
-
-  useEffect(() => {
-    const loadUnreadCount = async () => {
-      if (!user?.uid) return;
-
-      try {
-        const response = await notificationService.getUnreadCount(user.uid);
-        if (response.success) {
-          setUnreadCount(response.data.count);
-        }
-      } catch (err) {
-        console.error('Error loading unread notifications count:', err);
-      }
-    };
-
-    if (user) {
-      loadUnreadCount();
-      const interval = setInterval(loadUnreadCount, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
 
   const handleNotificationClick = () => {
     setNotificationsOpen(true);

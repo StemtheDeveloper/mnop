@@ -1,165 +1,256 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, doc, getDoc, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { useUser } from '../context/UserContext';
-import { useToast } from '../context/ToastContext';
-import messageService from '../services/messageService';
-import cryptoService from '../services/cryptoService';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { FaLock, FaPlus, FaSearch, FaArrowLeft, FaPaperPlane } from 'react-icons/fa';
 import '../styles/MessagesPage.css';
-
-// Default no-op functions if ToastContext is not available
-const defaultToastFunctions = {
-    showSuccess: () => console.warn('ToastProvider not found.'),
-    showError: () => console.warn('ToastProvider not found.'),
-};
+import { useUser } from '../context/UserContext';
+import messagingService from '../services/messagingService';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const MessagesPage = () => {
+    const { user, userProfile, loading: userLoading } = useUser();
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [newConversation, setNewConversation] = useState(false);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [composing, setComposing] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
-    const [initialMessage, setInitialMessage] = useState('');
-    const [creatingConversation, setCreatingConversation] = useState(false);
-
-    const { currentUser } = useUser();
-    // Use default functions if useToast() returns undefined/null
-    const { showSuccess, showError } = useToast() || defaultToastFunctions;
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [message, setMessage] = useState('');
+    const [sendingMessage, setSendingMessage] = useState(false);
     const navigate = useNavigate();
-    const messageInputRef = useRef(null);
 
     useEffect(() => {
-        if (newConversation && selectedUser && messageInputRef.current) {
-            messageInputRef.current.focus();
-        }
-    }, [newConversation, selectedUser]);
+        const loadConversations = async () => {
+            if (!user?.uid) return;
 
-    useEffect(() => {
-        if (!currentUser) {
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-
-        const unsubscribe = messageService.subscribeToConversations(
-            currentUser.uid,
-            (conversationsData) => {
-                setConversations(conversationsData);
+            try {
+                setLoading(true);
+                const userConversations = await messagingService.getUserConversations(user.uid);
+                setConversations(userConversations);
+            } catch (err) {
+                console.error('Error loading conversations:', err);
+                setError('Failed to load conversations. Please try again.');
+            } finally {
                 setLoading(false);
             }
-        );
+        };
 
-        cryptoService.generateKeyPair(currentUser.uid)
-            .then(() => {
-                console.log('Crypto initialized for user');
-            })
-            .catch(err => {
-                console.error('Error initializing crypto:', err);
-            });
+        loadConversations();
+    }, [user]);
 
-        return () => unsubscribe();
-    }, [currentUser]);
+    const handleNewMessage = () => {
+        setComposing(true);
+        setSelectedUser(null);
+        setMessage('');
+        setSearchTerm('');
+        setSearchResults([]);
+    };
+
+    const handleBackToList = () => {
+        setComposing(false);
+        setSelectedUser(null);
+    };
 
     const handleUserSearch = async (e) => {
         e.preventDefault();
-
-        if (!userSearchQuery.trim()) return;
-
-        setSearching(true);
+        if (!searchTerm.trim() || !user?.uid) return;
 
         try {
-            const usersRef = collection(db, 'users');
-            const q = query(
-                usersRef,
-                where('email', '>=', userSearchQuery),
-                where('email', '<=', userSearchQuery + '\uf8ff'),
-                orderBy('email'),
-            );
-
-            const querySnapshot = await getDocs(q);
-
-            const users = querySnapshot.docs
-                .map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }))
-                .filter(user => user.id !== currentUser.uid);
-
-            setSearchResults(users);
+            setSearching(true);
+            const results = await messagingService.searchUsers(searchTerm, user.uid);
+            setSearchResults(results);
         } catch (err) {
             console.error('Error searching for users:', err);
-            showError('Failed to search for users');
         } finally {
             setSearching(false);
         }
     };
 
-    const handleSelectUser = (user) => {
-        setSelectedUser(user);
+    const handleUserSelect = (selectedUser) => {
+        setSelectedUser(selectedUser);
         setSearchResults([]);
-        setUserSearchQuery('');
+        setSearchTerm('');
     };
 
-    const handleStartConversation = async (e) => {
-        e.preventDefault();
-
-        if (!initialMessage.trim() || !selectedUser) return;
-
-        setCreatingConversation(true);
+    const handleSendMessage = async () => {
+        if (!message.trim() || !user?.uid || !selectedUser?.id) return;
 
         try {
-            const conversationId = await messageService.createConversation(
-                currentUser.uid,
-                selectedUser.id,
-                initialMessage
+            setSendingMessage(true);
+
+            // Find or create a conversation between these users
+            const conversation = await messagingService.findOrCreateConversation(
+                user.uid,
+                selectedUser.id
             );
 
-            navigate(`/messages/${conversationId}`);
+            // Send the message
+            await messagingService.sendMessage(
+                conversation.id,
+                user.uid,
+                selectedUser.id,
+                message
+            );
 
-            showSuccess('Conversation started!');
+            // Navigate to the conversation
+            navigate(`/messages/${conversation.id}`);
         } catch (err) {
-            console.error('Error starting conversation:', err);
-            showError('Failed to start conversation');
-            setCreatingConversation(false);
+            console.error('Error sending message:', err);
+            setError('Failed to send message. Please try again.');
+        } finally {
+            setSendingMessage(false);
         }
     };
 
-    const formatConversationTime = (timestamp) => {
-        if (!timestamp) return '';
-
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        const now = new Date();
-
-        if (date.toDateString() === now.toDateString()) {
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
-
-        const daysDiff = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-        if (daysDiff < 7) {
-            return date.toLocaleDateString([], { weekday: 'short' });
-        }
-
-        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    };
-
-    const cancelNewConversation = () => {
-        setNewConversation(false);
-        setSelectedUser(null);
-        setInitialMessage('');
-    };
-
-    if (!currentUser) {
+    if (userLoading) {
         return (
             <div className="messages-page">
-                <div className="messages-container">
-                    <h1>Messages</h1>
-                    <p className="auth-required-message">Please sign in to view your messages.</p>
+                <div className="loading-container">
+                    <LoadingSpinner />
+                    <p>Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="messages-page">
+                <div className="auth-required-message">
+                    <h2>Sign In Required</h2>
+                    <p>Please sign in to access your messages.</p>
+                    <Link to="/signin" className="back-link">Sign In</Link>
+                </div>
+            </div>
+        );
+    }
+
+    if (composing) {
+        return (
+            <div className="messages-page">
+                <div className="messages-container new-conversation-container">
+                    <div className="new-conversation-header">
+                        <button className="back-button" onClick={handleBackToList}>
+                            <FaArrowLeft />
+                        </button>
+                        <h2>New Message</h2>
+                    </div>
+
+                    {!selectedUser ? (
+                        <div className="user-search-section">
+                            <form onSubmit={handleUserSearch} className="search-form">
+                                <div className="search-input-container">
+                                    <input
+                                        type="text"
+                                        placeholder="Search for a user..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="search-input"
+                                    />
+                                    <button type="submit" className="search-button" disabled={searching}>
+                                        <FaSearch />
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div className="search-results">
+                                {searching ? (
+                                    <div className="searching-indicator">
+                                        <LoadingSpinner size="small" />
+                                        <span>Searching...</span>
+                                    </div>
+                                ) : searchResults.length > 0 ? (
+                                    searchResults.map((user) => (
+                                        <div
+                                            key={user.id}
+                                            className="user-result"
+                                            onClick={() => handleUserSelect(user)}
+                                        >
+                                            <div className="user-avatar">
+                                                {user.photoURL ? (
+                                                    <img src={user.photoURL} alt={user.displayName} />
+                                                ) : (
+                                                    <div className="default-avatar">
+                                                        {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="user-info">
+                                                <h3 className="user-name">
+                                                    {user.displayName || 'User'}
+                                                </h3>
+                                                <p className="user-email">{user.email}</p>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : searchTerm ? (
+                                    <div className="no-results">No users found matching "{searchTerm}"</div>
+                                ) : null}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="compose-message-section">
+                            <div className="selected-user">
+                                <div className="user-avatar">
+                                    {selectedUser.photoURL ? (
+                                        <img src={selectedUser.photoURL} alt={selectedUser.displayName} />
+                                    ) : (
+                                        <div className="default-avatar">
+                                            {selectedUser.displayName?.charAt(0) || selectedUser.email?.charAt(0) || 'U'}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="user-info">
+                                    <h3 className="user-name">
+                                        {selectedUser.displayName || 'User'}
+                                    </h3>
+                                    <p className="user-email">{selectedUser.email}</p>
+                                </div>
+                            </div>
+
+                            <div className="encrypt-badge">
+                                <FaLock />
+                                <span>End-to-end encrypted</span>
+                            </div>
+
+                            <form className="compose-form" onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}>
+                                <textarea
+                                    placeholder="Type your message..."
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                    rows={5}
+                                />
+
+                                <div className="compose-actions">
+                                    <button
+                                        type="button"
+                                        className="cancel-button"
+                                        onClick={handleBackToList}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="send-button"
+                                        disabled={!message.trim() || sendingMessage}
+                                    >
+                                        {sendingMessage ? (
+                                            <>
+                                                <LoadingSpinner size="small" />
+                                                <span>Sending</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FaPaperPlane />
+                                                <span>Send</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -170,17 +261,10 @@ const MessagesPage = () => {
             <div className="messages-container">
                 <div className="messages-header">
                     <h1>Messages</h1>
-                    {!newConversation && (
-                        <button
-                            className="new-message-button"
-                            onClick={() => setNewConversation(true)}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                            </svg>
-                            New Message
-                        </button>
-                    )}
+                    <button className="new-message-button" onClick={handleNewMessage}>
+                        <FaPlus />
+                        <span>New Message</span>
+                    </button>
                 </div>
 
                 {loading ? (
@@ -188,205 +272,72 @@ const MessagesPage = () => {
                         <LoadingSpinner />
                         <p>Loading conversations...</p>
                     </div>
-                ) : newConversation ? (
-                    <div className="new-conversation-container">
-                        <div className="new-conversation-header">
-                            <button
-                                className="back-button"
-                                onClick={cancelNewConversation}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M19 12H5M12 19l-7-7 7-7" />
-                                </svg>
-                            </button>
-                            <h2>New Secure Message</h2>
-                        </div>
-
-                        {!selectedUser ? (
-                            <div className="user-search-section">
-                                <p className="search-info">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                    </svg>
-                                    <span>Messages are end-to-end encrypted</span>
-                                </p>
-
-                                <form onSubmit={handleUserSearch} className="user-search-form">
-                                    <input
-                                        type="text"
-                                        value={userSearchQuery}
-                                        onChange={(e) => setUserSearchQuery(e.target.value)}
-                                        placeholder="Search by email address"
-                                    />
-                                    <button
-                                        type="submit"
-                                        disabled={!userSearchQuery.trim() || searching}
-                                    >
-                                        {searching ? (
-                                            <LoadingSpinner size="small" />
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <circle cx="11" cy="11" r="8"></circle>
-                                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                            </svg>
-                                        )}
-                                    </button>
-                                </form>
-
-                                {searchResults.length > 0 ? (
-                                    <div className="search-results">
-                                        <h3>Search Results</h3>
-                                        <ul className="users-list">
-                                            {searchResults.map(user => (
-                                                <li
-                                                    key={user.id}
-                                                    className="user-item"
-                                                    onClick={() => handleSelectUser(user)}
-                                                >
-                                                    <div className="user-avatar">
-                                                        {user.photoURL ? (
-                                                            <img src={user.photoURL} alt={user.displayName || 'User'} />
-                                                        ) : (
-                                                            <div className="default-avatar">
-                                                                {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="user-info">
-                                                        <p className="user-name">{user.displayName || 'User'}</p>
-                                                        <p className="user-email">{user.email}</p>
-                                                    </div>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                ) : userSearchQuery && !searching ? (
-                                    <div className="no-results">
-                                        <p>No users found matching "{userSearchQuery}"</p>
-                                    </div>
-                                ) : null}
-                            </div>
-                        ) : (
-                            <div className="compose-message-section">
-                                <div className="selected-user">
-                                    <div className="user-avatar">
-                                        {selectedUser.photoURL ? (
-                                            <img src={selectedUser.photoURL} alt={selectedUser.displayName || 'User'} />
-                                        ) : (
-                                            <div className="default-avatar">
-                                                {selectedUser.displayName?.charAt(0) || selectedUser.email?.charAt(0) || '?'}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="user-info">
-                                        <p className="user-name">{selectedUser.displayName || 'User'}</p>
-                                        <p className="user-email">{selectedUser.email}</p>
-                                    </div>
-                                </div>
-
-                                <form onSubmit={handleStartConversation} className="compose-form">
-                                    <div className="encrypt-badge">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                        </svg>
-                                        <span>End-to-end encrypted</span>
-                                    </div>
-
-                                    <textarea
-                                        ref={messageInputRef}
-                                        value={initialMessage}
-                                        onChange={(e) => setInitialMessage(e.target.value)}
-                                        placeholder="Type your message..."
-                                        required
-                                        rows={4}
-                                    />
-
-                                    <div className="compose-actions">
-                                        <button
-                                            type="button"
-                                            className="cancel-button"
-                                            onClick={cancelNewConversation}
-                                            disabled={creatingConversation}
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            className="send-button"
-                                            disabled={!initialMessage.trim() || creatingConversation}
-                                        >
-                                            {creatingConversation ? (
-                                                <>
-                                                    <LoadingSpinner size="small" />
-                                                    <span>Sending...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <line x1="22" y1="2" x2="11" y2="13"></line>
-                                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                                                    </svg>
-                                                    <span>Send Message</span>
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        )}
-                    </div>
+                ) : error ? (
+                    <div className="error-message">{error}</div>
                 ) : conversations.length === 0 ? (
                     <div className="no-messages">
-                        <h2>No conversations yet</h2>
-                        <p>Start a new conversation by clicking "New Message"</p>
+                        <h2>No messages yet</h2>
+                        <p>Start a new conversation to message other users</p>
+                        <button className="new-message-button" onClick={handleNewMessage}>
+                            <FaPlus />
+                            <span>New Message</span>
+                        </button>
                     </div>
                 ) : (
                     <div className="conversations-list">
-                        {conversations.map(conversation => (
+                        {conversations.map((conversation) => (
                             <Link
-                                key={conversation.id}
                                 to={`/messages/${conversation.id}`}
-                                className={`conversation-item ${conversation.unreadCount > 0 ? 'unread' : ''}`}
+                                key={conversation.id}
+                                className={`conversation-item ${conversation.lastMessage && conversation.lastMessage.senderId !== user.uid && !conversation.read ? 'unread' : ''}`}
                             >
                                 <div className="conversation-avatar">
-                                    {conversation.otherUserPhoto ? (
+                                    {conversation.otherParticipant?.photoURL ? (
                                         <img
-                                            src={conversation.otherUserPhoto}
-                                            alt={conversation.otherUserName || 'User'}
+                                            src={conversation.otherParticipant.photoURL}
+                                            alt={conversation.otherParticipant.displayName}
                                         />
                                     ) : (
                                         <div className="default-avatar">
-                                            {conversation.otherUserName?.charAt(0) || '?'}
+                                            {conversation.otherParticipant?.displayName?.charAt(0) ||
+                                                conversation.otherParticipant?.email?.charAt(0) || 'U'}
                                         </div>
                                     )}
                                 </div>
+
                                 <div className="conversation-content">
                                     <div className="conversation-header">
-                                        <h3 className="conversation-name">{conversation.otherUserName || 'Unknown User'}</h3>
+                                        <h3 className="conversation-name">
+                                            {conversation.otherParticipant?.displayName ||
+                                                conversation.otherParticipant?.email ||
+                                                'Unknown User'}
+                                        </h3>
                                         <span className="conversation-time">
-                                            {formatConversationTime(conversation.lastMessageAt)}
+                                            {conversation.lastMessage?.timestamp?.toDate ?
+                                                new Date(conversation.lastMessage.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                         </span>
                                     </div>
-                                    <div className="conversation-preview">
-                                        <p>{conversation.lastMessage}</p>
 
+                                    <div className="conversation-preview">
+                                        <p>
+                                            {conversation.encrypted ? (
+                                                <>
+                                                    <FaLock size={12} style={{ marginRight: '4px' }} />
+                                                    Encrypted message
+                                                </>
+                                            ) : conversation.lastMessage?.preview || 'Start a conversation'}
+                                        </p>
                                         <div className="conversation-meta">
                                             {conversation.encrypted && (
                                                 <span className="encrypted-badge">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                                    </svg>
+                                                    <FaLock />
                                                 </span>
                                             )}
-
-                                            {conversation.unreadCount > 0 && (
-                                                <span className="unread-badge">
-                                                    {conversation.unreadCount}
-                                                </span>
-                                            )}
+                                            {conversation.lastMessage &&
+                                                conversation.lastMessage.senderId !== user.uid &&
+                                                !conversation.read && (
+                                                    <span className="unread-badge">1</span>
+                                                )}
                                         </div>
                                     </div>
                                 </div>

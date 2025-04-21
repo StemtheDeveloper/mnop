@@ -11,6 +11,7 @@
     "deploy": "npm run build && firebase deploy"
   },
   "dependencies": {
+    "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "firebase": "^11.4.0",
     "heroicons": "^2.2.0",

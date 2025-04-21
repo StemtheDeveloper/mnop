@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import walletService from '../services/walletService';
 
@@ -154,14 +154,34 @@ export const UserProvider = ({ children }) => {
         }
     };
 
+    // Custom sign out function
+    const userSignOut = async () => {
+        try {
+            await firebaseSignOut(auth);
+            // Clear user data
+            setCurrentUser(null);
+            setUserProfile(null);
+            setUserRole(null);
+            setUserWallet(null);
+
+            // Return success for handling navigation in components
+            return { success: true };
+        } catch (error) {
+            console.error("Sign out error:", error);
+            return { success: false, error };
+        }
+    };
+
     // When the auth state changes, update the user state
     useEffect(() => {
+        // Ensure auth is initialized
+        setLoading(true);
+
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             setAuthInitialized(true);
 
             if (user) {
                 setCurrentUser(user);
-                setLoading(true);
                 await fetchUserData(user.uid);
             } else {
                 setCurrentUser(null);
@@ -176,7 +196,19 @@ export const UserProvider = ({ children }) => {
         return () => unsubscribe();
     }, []);
 
+    const refreshUserData = async () => {
+        if (currentUser) {
+            try {
+                setLoading(true);
+                await fetchUserData(currentUser.uid);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
     const value = {
+        user: currentUser, // Make sure we expose 'user' for compatibility
         currentUser,
         userProfile,
         userRole,
@@ -187,7 +219,9 @@ export const UserProvider = ({ children }) => {
         hasRole,
         getWalletBalance,
         getTransactionHistory,
-        fundProduct
+        fundProduct,
+        signOut: userSignOut,
+        refreshUserData
     };
 
     return (
