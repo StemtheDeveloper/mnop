@@ -115,6 +115,8 @@ const NotificationCenter = () => {
             case 'transfer':
             case 'interest':
                 return '💳';
+            case 'pending_review':
+                return '⏳';
             default:
                 return '🔔';
         }

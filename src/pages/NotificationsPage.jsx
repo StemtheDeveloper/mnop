@@ -60,6 +60,8 @@ const NotificationsPage = () => {
                 return '📝';
             case 'product_approved':
                 return '✅';
+            case 'product_rejected':
+                return '❌';
             case 'investment':
             case 'investment_confirmation':
                 return '💰';
@@ -71,6 +73,8 @@ const NotificationsPage = () => {
             case 'transfer':
             case 'interest':
                 return '💳';
+            case 'pending_review':
+                return '⏳';
             default:
                 return '🔔';
         }

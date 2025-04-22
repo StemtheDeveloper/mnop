@@ -2,7 +2,15 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import ToastNotification from '../components/ToastNotification';
 import { createPortal } from 'react-dom';
 
-const ToastContext = createContext(null);
+// Create the context with default values to avoid 'undefined' errors
+const ToastContext = createContext({
+    showToast: () => { },
+    hideToast: () => { },
+    success: () => { },
+    error: () => { },
+    warning: () => { },
+    info: () => { }
+});
 
 export const useToast = () => {
     const context = useContext(ToastContext);
@@ -59,4 +67,5 @@ export const ToastProvider = ({ children }) => {
     );
 };
 
+// Export the context as default for backward compatibility
 export default ToastContext;

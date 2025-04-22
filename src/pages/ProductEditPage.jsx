@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, collection, updateDoc, getDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, updateDoc, getDoc, getDocs, serverTimestamp, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../contexts/ToastContext';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import '../styles/ProductUpload.css';
 
@@ -28,11 +28,11 @@ const ProductEditPage = () => {
     const navigate = useNavigate();
     const { productId } = useParams();
     const { currentUser, userRole } = useUser();
-    const { showSuccess, showError } = useToast();
+    const { success, error } = useToast();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState('');
+    const [errorState, setErrorState] = useState('');
     const [product, setProduct] = useState(null);
 
     // Product form state
@@ -118,7 +118,7 @@ const ProductEditPage = () => {
                 setLoading(false);
             } catch (err) {
                 console.error('Error fetching product:', err);
-                setError(err.message || 'Failed to load product data');
+                setErrorState(err.message || 'Failed to load product data');
                 setLoading(false);
             }
         };
@@ -216,24 +216,24 @@ const ProductEditPage = () => {
 
             // Validate file size (max 5MB)
             if (file.size > 5 * 1024 * 1024) {
-                setError('Image size exceeds 5MB limit');
+                setErrorState('Image size exceeds 5MB limit');
                 return;
             }
 
             // Validate file type
             if (!file.type.match('image.*')) {
-                setError('Only image files are allowed');
+                setErrorState('Only image files are allowed');
                 return;
             }
 
             // Check if we've reached the image limit (existing + new)
             if ((existingImageUrls.length + productImages.length) >= MAX_IMAGES) {
-                setError(`You can upload a maximum of ${MAX_IMAGES} images`);
+                setErrorState(`You can upload a maximum of ${MAX_IMAGES} images`);
                 return;
             }
 
             // Clear previous error
-            setError('');
+            setErrorState('');
 
             // Create URL for the cropper
             const imageUrl = URL.createObjectURL(file);
@@ -264,46 +264,46 @@ const ProductEditPage = () => {
             }
         } catch (error) {
             console.error("Error processing cropped image:", error);
-            setError('Error processing the cropped image');
+            setErrorState('Error processing the cropped image');
         }
     };
 
     // Validate form before submission
     const validateForm = () => {
         if (!formData.name.trim()) {
-            setError('Product name is required');
+            setErrorState('Product name is required');
             return false;
         }
 
         if (!formData.description.trim()) {
-            setError('Product description is required');
+            setErrorState('Product description is required');
             return false;
         }
 
         if (!formData.price || isNaN(parseFloat(formData.price)) || parseFloat(formData.price) <= 0) {
-            setError('Please enter a valid price');
+            setErrorState('Please enter a valid price');
             return false;
         }
 
         // Validate category: either regular category is selected or custom category is provided
         if (useCustomCategory) {
             if (!formData.customCategory.trim()) {
-                setError('Please enter a custom category');
+                setErrorState('Please enter a custom category');
                 return false;
             }
         } else if (!formData.category) {
-            setError('Please select a category');
+            setErrorState('Please select a category');
             return false;
         }
 
         if (!formData.fundingGoal || isNaN(parseFloat(formData.fundingGoal)) || parseFloat(formData.fundingGoal) <= 0) {
-            setError('Please enter a valid funding goal');
+            setErrorState('Please enter a valid funding goal');
             return false;
         }
 
         // Make sure there's at least one image (either existing or new)
         if (existingImageUrls.length === 0 && productImages.length === 0) {
-            setError('At least one product image is required');
+            setErrorState('At least one product image is required');
             return false;
         }
 
@@ -315,7 +315,7 @@ const ProductEditPage = () => {
         e.preventDefault();
 
         // Reset error state
-        setError('');
+        setErrorState('');
 
         // Validate form
         if (!validateForm()) {
@@ -361,14 +361,40 @@ const ProductEditPage = () => {
             // 3. Combine existing (that weren't deleted) and new image URLs
             const allImageUrls = [...existingImageUrls, ...newImageUrls];
 
-            // 4. Update product document in Firestore
+            // 4. If it's a custom category, add it to the categories collection
+            let categoryToUse = formData.category;
+            let categoryTypeToUse = 'standard';
+
+            if (useCustomCategory && formData.customCategory.trim()) {
+                const customCategoryData = {
+                    name: sanitizeString(formData.customCategory.trim()),
+                    createdAt: serverTimestamp(),
+                    createdBy: currentUser.uid,
+                    type: 'user-created'
+                };
+
+                try {
+                    const categoryRef = await addDoc(collection(db, 'categories'), customCategoryData);
+                    console.log('Added custom category with ID:', categoryRef.id);
+
+                    // Use the new category ID instead
+                    categoryToUse = categoryRef.id;
+                    categoryTypeToUse = 'standard'; // now it's stored in the database
+                } catch (categoryError) {
+                    console.error('Failed to add custom category, using text value instead:', categoryError);
+                    categoryToUse = sanitizeString(formData.customCategory.trim());
+                    categoryTypeToUse = 'custom';
+                }
+            }
+
+            // 5. Update product document in Firestore
             const productData = {
                 name: sanitizeString(formData.name),
                 description: sanitizeString(formData.description),
                 price: parseFloat(formData.price),
                 fundingGoal: parseFloat(formData.fundingGoal),
-                category: useCustomCategory ? sanitizeString(formData.customCategory.trim()) : sanitizeString(formData.category),
-                categoryType: useCustomCategory ? 'custom' : 'standard',
+                category: categoryToUse,
+                categoryType: categoryTypeToUse,
                 imageUrls: allImageUrls,
                 updatedAt: serverTimestamp()
             };
@@ -377,14 +403,14 @@ const ProductEditPage = () => {
             await updateDoc(doc(db, 'products', productId), productData);
 
             // Show success message
-            showSuccess("Product updated successfully!");
+            success("Product updated successfully!");
 
             // Redirect back to product detail or management page
             navigate(`/product/${productId}`);
         } catch (error) {
             console.error('Error updating product:', error);
-            setError(error.message || 'Failed to update product. Please try again.');
-            showError("Failed to update product");
+            setErrorState(error.message || 'Failed to update product. Please try again.');
+            error("Failed to update product");
         } finally {
             setSaving(false);
         }
@@ -419,12 +445,12 @@ const ProductEditPage = () => {
     }
 
     // Display error state if product couldn't be loaded
-    if (error && !product) {
+    if (errorState && !product) {
         return (
             <div className="product-upload-page">
                 <div className="product-upload-container">
                     <h1>Edit Product</h1>
-                    <div className="error-message">{error}</div>
+                    <div className="error-message">{errorState}</div>
                     <button
                         className="back-button"
                         onClick={() => navigate(-1)}
@@ -441,7 +467,7 @@ const ProductEditPage = () => {
             <div className="product-upload-container">
                 <h1>Edit Product</h1>
 
-                {error && <div className="error-message">{error}</div>}
+                {errorState && <div className="error-message">{errorState}</div>}
 
                 {showImageCropper && (
                     <ImageCropper

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
+import notificationService from '../../services/notificationService';
 import '../../styles/AdminTools.css';
 
 const ProductApprovalPanel = () => {
@@ -91,11 +92,32 @@ const ProductApprovalPanel = () => {
     // Approve product
     const approveProduct = async (productId) => {
         try {
+            // Get product details first to get designer ID and product name
             const productRef = doc(db, 'products', productId);
+            const productDoc = await getDoc(productRef);
+
+            if (!productDoc.exists()) {
+                throw new Error('Product not found');
+            }
+
+            const productData = productDoc.data();
+            const designerId = productData.designerId;
+            const productName = productData.name;
+
+            // Update product status
             await updateDoc(productRef, {
                 status: 'active',
                 updatedAt: new Date()
             });
+
+            // Send notification to designer
+            if (designerId) {
+                await notificationService.sendProductApprovalNotification(
+                    designerId,
+                    productId,
+                    productName
+                );
+            }
 
             // Update local state
             setPendingProducts(prevProducts =>
@@ -117,11 +139,32 @@ const ProductApprovalPanel = () => {
     // Reject product
     const rejectProduct = async (productId) => {
         try {
+            // Get product details first to get designer ID and product name
             const productRef = doc(db, 'products', productId);
+            const productDoc = await getDoc(productRef);
+
+            if (!productDoc.exists()) {
+                throw new Error('Product not found');
+            }
+
+            const productData = productDoc.data();
+            const designerId = productData.designerId;
+            const productName = productData.name;
+
+            // Update product status
             await updateDoc(productRef, {
                 status: 'rejected',
                 updatedAt: new Date()
             });
+
+            // Send notification to designer
+            if (designerId) {
+                await notificationService.sendProductRejectionNotification(
+                    designerId,
+                    productId,
+                    productName
+                );
+            }
 
             // Update local state
             setPendingProducts(prevProducts =>

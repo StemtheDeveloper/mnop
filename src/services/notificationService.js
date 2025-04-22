@@ -211,6 +211,22 @@ class NotificationService {
   }
 
   /**
+   * Send product rejected notification
+   * @param {string} userId - Designer's user ID
+   * @param {string} productId - Product ID
+   * @param {string} productName - Product name
+   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   */
+  async sendProductRejectionNotification(userId, productId, productName) {
+    return this.createNotification(userId, {
+      type: "product_rejected",
+      title: "Product Rejected",
+      message: `Your product "${productName}" has been rejected. Please check the details and consider making improvements.`,
+      link: `/product/${productId}`,
+    });
+  }
+
+  /**
    * Send investment notification
    */
   async sendInvestmentNotification(
@@ -340,6 +356,30 @@ class NotificationService {
         currency: "USD",
       }).format(amount)} in interest on your wallet balance.`,
       link: "/wallet?tab=interest",
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
+  }
+
+  /**
+   * Send notification to admins about pending products
+   * @param {string} adminId - Admin user ID
+   * @param {number} pendingCount - Number of pending products
+   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   */
+  async sendPendingProductsNotification(adminId, pendingCount) {
+    const notificationData = {
+      userId: adminId,
+      type: "pending_review",
+      title: "Products Awaiting Review",
+      message: `There ${
+        pendingCount === 1 ? "is" : "are"
+      } ${pendingCount} product${
+        pendingCount === 1 ? "" : "s"
+      } waiting for your review.`,
+      link: "/admin?tab=product-approval",
       read: false,
       createdAt: serverTimestamp(),
     };

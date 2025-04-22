@@ -11,6 +11,7 @@
     "deploy": "npm run build && firebase deploy"
   },
   "dependencies": {
+    "@formspree/react": "^3.0.0",
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "firebase": "^11.4.0",
