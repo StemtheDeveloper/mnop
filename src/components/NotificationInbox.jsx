@@ -108,6 +108,8 @@ const NotificationInbox = ({ isOpen, onClose }) => {
             case 'transfer':
             case 'interest':
                 return '💳';
+            case 'order_received':
+                return '📦';
             case 'pending_review':
                 return '⏳';
             default:

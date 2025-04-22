@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import notificationService from '../services/notificationService';
 import { formatDistanceToNow } from 'date-fns';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import './NotificationCenter.css';
 
 const NotificationCenter = () => {
@@ -21,6 +23,40 @@ const NotificationCenter = () => {
             setNotifications([]);
             setUnreadCount(0);
         }
+    }, [currentUser]);
+
+    // Set up real-time notification listener
+    useEffect(() => {
+        if (!currentUser?.uid) return;
+
+        setLoading(true);
+
+        // Create a query for this user's notifications
+        const notificationsRef = collection(db, 'notifications');
+        const notificationsQuery = query(
+            notificationsRef,
+            where('userId', '==', currentUser.uid),
+            orderBy('createdAt', 'desc')
+        );
+
+        // Subscribe to real-time updates
+        const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+            setLoading(false);
+
+            const notificationsList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            setNotifications(notificationsList);
+            setUnreadCount(notificationsList.filter(n => !n.read).length);
+        }, (error) => {
+            console.error('Error fetching notifications:', error);
+            setLoading(false);
+        });
+
+        // Clean up subscription on unmount
+        return () => unsubscribe();
     }, [currentUser]);
 
     // Close dropdown when clicking outside
@@ -105,6 +141,8 @@ const NotificationCenter = () => {
                 return '📝';
             case 'product_approved':
                 return '✅';
+            case 'product_rejected':
+                return '❌';
             case 'investment':
                 return '💰';
             case 'trending':

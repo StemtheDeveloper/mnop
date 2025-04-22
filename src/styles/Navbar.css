@@ -5,6 +5,7 @@ a {
 
 .navbar {
   position: fixed;
+  display: flex;
   align-items: center;
   justify-content: center;
   top: 0;
@@ -12,22 +13,26 @@ a {
   border-bottom: 4px solid #ef3c23;
   z-index: 11;
   width: 100%;
-  min-height: 80px;
-  max-height: 110px;
+  max-width: 100vw;
+  min-height: 70px;
+  max-height: none; /* Remove fixed height constraint */
   left: 0;
   right: 0;
+  overflow: visible; /* Ensure dropdown menus are visible */
 }
 
 .navbar-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem;
   width: 100%;
   margin: 0 auto;
   max-width: 1400px;
   box-sizing: border-box;
   flex-wrap: wrap; /* Allow wrapping for mobile layout */
+  position: relative; /* For positioning child elements */
+  overflow: visible;
 }
 
 ul {
@@ -41,16 +46,16 @@ ul {
 .logo {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
-  max-width: 200px;
+  flex-shrink: 1; /* Allow logo to shrink if needed */
+  max-width: 180px; /* Slightly reduced */
 }
 
 .logo img {
   width: auto;
   max-width: 100%;
   height: auto;
-  margin-left: 10px;
-  min-width: 100px;
+  margin-left: 5px;
+  min-width: 80px; /* Reduced min width */
 }
 
 /* Desktop Navigation */
@@ -59,7 +64,8 @@ ul {
   align-items: center;
   justify-content: space-between;
   flex-grow: 1;
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to visible */
+  flex-wrap: wrap;
 }
 
 .nav-links-desktop {
@@ -70,6 +76,12 @@ ul {
   margin: 0;
   padding: 0;
   flex-wrap: wrap;
+  gap: 0.5rem; /* Add gap instead of margins for better spacing */
+}
+
+.nav-links-desktop a {
+  white-space: nowrap;
+  display: block;
 }
 
 /* Mobile Navigation */
@@ -81,9 +93,9 @@ ul {
   display: none; /* Hidden by default */
   position: absolute;
   top: 100%;
-  left: 0;
-  right: 0;
+
   width: 100%;
+  min-width: 300px;
   background-color: rgb(255, 255, 255);
   flex-direction: column;
   align-items: center;
@@ -228,29 +240,47 @@ li {
 
 .c-h-r {
   background-color: #ef3c23;
-  height: 30px;
-  font-weight: bold;
-  margin: 0 0.3rem;
+  width: 2px; /* Make divider smaller */
+  height: 25px;
+  margin: 0 0.2rem;
+  display: none; /* Hide by default on smaller screens */
+}
+
+@media (min-width: 768px) {
+  .c-h-r {
+    display: block; /* Show dividers on larger screens */
+  }
 }
 
 .quick-links {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: center;
   flex-shrink: 0;
-  margin-left: auto;
+  margin-left: 10px;
+  gap: 5px; /* Reduced gap for better spacing */
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.quick-links ul {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
 }
 
 .navbar-icons {
   height: auto;
-  max-height: 50px;
+  max-height: 40px; /* Reduced from 50px */
   transition: transform 0.2s ease;
   flex-shrink: 0;
+  margin: 0 3px; /* Add smaller margin for spacing */
 }
 
 .navbar-icons img {
   max-width: 100%;
-  max-height: 40px;
+  max-height: 30px; /* Reduced from 40px */
   width: auto;
   height: auto;
   display: block;
@@ -360,22 +390,15 @@ li {
   .mobile-nav {
     display: flex;
     align-items: center;
-  }
-
-  /* Show mobile quick links */
-  .quick-links-mobile {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-right: 15px;
+    position: relative; /* Position relative for burger icon */
   }
 
   /* Burger menu icon */
   #burger-icon {
     display: block;
-    width: 50px;
-
+    width: 40px; /* Reduced size */
     transition: all 0.3s ease;
+    margin-left: auto; /* Push to the right */
   }
 
   #burger-icon:hover {
@@ -388,7 +411,7 @@ li {
 
   #close-burger-icon {
     display: block;
-    width: 40px;
+    width: 35px; /* Reduced size */
     margin: 5px auto;
     transition: all 0.3s ease;
   }
@@ -403,41 +426,103 @@ li {
 
   /* Mobile navigation links */
   .nav-links-mobile {
-    left: 0;
+    right: 0;
     width: 100%;
+    z-index: 100; /* Higher z-index to ensure it's above other content */
+    max-height: 80vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .navbar-container {
     flex-wrap: wrap;
     justify-content: space-between;
     padding: 0.5rem;
+    gap: 5px; /* Add gap for spacing */
   }
 
   .logo {
-    flex-basis: 50%;
+    flex-basis: auto; /* Allow natural sizing */
+    max-width: 150px; /* Limit logo width on mobile */
     order: 1;
   }
 
   .mobile-nav {
-    flex-basis: 10%;
+    flex-basis: auto;
     order: 2;
     display: flex;
     justify-content: flex-end;
-    align-items: center;
   }
 
   .search-container {
     flex-basis: 100%;
     order: 3;
     margin: 0.5rem 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .quick-links-mobile {
-    flex-basis: 30%;
+    flex-basis: auto;
     order: 1;
-    justify-content: center;
-    gap: 10px;
+    display: flex;
+    justify-content: flex-start;
+    gap: 8px; /* Reduced gap */
     margin-right: 0;
+  }
+}
+
+/* Responsive adjustments for desktop navigation */
+@media (min-width: 913px) and (max-width: 1100px) {
+  .desktop-nav {
+    flex-wrap: wrap;
+  }
+
+  .nav-links-desktop {
+    font-size: 0.9rem;
+  }
+
+  .nav-links-desktop li {
+    margin: 0 0.3rem;
+  }
+
+  .desktop-nav a {
+    font-size: 1rem;
+  }
+
+  .navbar-icons img {
+    max-height: 25px;
+  }
+
+  .c-h-r {
+    height: 20px;
+    margin: 0 0.1rem;
+  }
+
+  .sign-out-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+  }
+}
+
+/* Make the navbar more compact on medium screens */
+@media (min-width: 913px) and (max-width: 1200px) {
+  .navbar-container {
+    padding: 0.4rem;
+  }
+
+  .search-container {
+    max-width: 180px;
+  }
+
+  .search-input {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .search-button {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
   }
 }
 
@@ -447,46 +532,56 @@ li {
     min-height: auto;
   }
 
+  .logo {
+    max-width: 120px; /* Further reduce logo size on smallest screens */
+  }
+
   .logo img {
-    min-width: 80px;
+    min-width: 70px;
     margin-left: 0;
   }
 
   .navbar-icons img {
-    max-height: 40px;
+    max-height: 28px; /* Further reduced */
   }
 
   .menu-icons {
-    height: 50px;
-    width: 50px;
+    height: 45px;
+    width: 45px;
     padding: 0.25rem;
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
   }
 
   #burger-icon,
   #close-burger-icon {
-    width: 50px;
+    width: 35px; /* Smaller burger icon */
   }
 
   .navbar-container {
-    padding: 0.5rem 0.5rem 0.75rem;
+    padding: 0.3rem 0.4rem; /* Tighter padding */
   }
 
   .search-container {
-    margin-top: 0;
-    padding: 0 0.5rem;
+    margin: 0.3rem 0;
+    padding: 0 0.3rem;
   }
 
   .search-input {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.9rem;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
   }
 
   .search-button {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.9rem;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  /* Make nav links more compact for small screens */
+  .nav-links-mobile li {
+    margin: 0.5rem 0;
+  }
+
+  .mobile-nav a {
+    font-size: 1rem;
   }
 }
 
@@ -497,8 +592,8 @@ li {
 
 .notification-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -6px;
+  right: -6px;
   background-color: #ef3c23;
   color: white;
   border-radius: 50%;
@@ -568,8 +663,8 @@ li {
 
 .notification-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -6px;
+  right: -6px;
   background-color: #ef3c23;
   color: white;
   border-radius: 50%;
@@ -587,7 +682,8 @@ li {
 .search-container {
   width: 100%;
   order: 3;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
+  max-width: 100%;
 }
 
 @media (min-width: 768px) {
@@ -601,15 +697,17 @@ li {
 
 .search-form {
   display: flex;
+  width: 100%;
 }
 
 .search-input {
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
   width: 100%;
   border-radius: 0.25rem 0 0 0.25rem;
   border: 1px solid #e2e8f0;
-  font-size: 1rem;
+  font-size: 0.9rem;
   outline: none;
+  min-width: 0; /* Prevent input from overflowing */
 }
 
 @media (min-width: 768px) {
@@ -677,4 +775,17 @@ li {
     border-top: 1px solid var(--border-color);
     margin-top: 10px;
   }
+}
+
+.auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
 }

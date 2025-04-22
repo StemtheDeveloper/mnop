@@ -6,6 +6,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's'
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
+import notificationService from '../services/notificationService';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import '../styles/CheckoutPage.css';
 
@@ -231,6 +232,19 @@ const CheckoutPage = () => {
         setProcessing(true);
         setError(null);
 
+        await createOrder();
+    };
+
+    // Format price as currency
+    const formatPrice = (price) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(price);
+    };
+
+    // Create order in database
+    const createOrder = async () => {
         try {
             // Process payment based on selected method
             let paymentStatus = 'pending';
@@ -257,7 +271,7 @@ const CheckoutPage = () => {
                 paymentStatus = 'paid';
             }
 
-            // Create order in database
+            // Create order in Firestore
             const orderData = {
                 userId: currentUser?.uid || 'guest',
                 items: cartItems,
@@ -287,19 +301,7 @@ const CheckoutPage = () => {
             const orderRef = await addDoc(collection(db, 'orders'), orderData);
             setOrderId(orderRef.id);
 
-            // Clear cart after successful order
-            if (currentUser && cartId) {
-                // For authenticated users, clear Firestore cart
-                await updateDoc(doc(db, 'carts', cartId), {
-                    items: [],
-                    updatedAt: serverTimestamp()
-                });
-            } else {
-                // For guest users, clear localStorage
-                localStorage.removeItem('cart');
-            }
-
-            // Create notification for order confirmation
+            // Create notification for order confirmation for the buyer
             if (currentUser) {
                 await addDoc(collection(db, 'notifications'), {
                     userId: currentUser.uid,
@@ -310,6 +312,67 @@ const CheckoutPage = () => {
                     read: false,
                     createdAt: serverTimestamp()
                 });
+            }
+
+            // Notify designers about their products being ordered
+            // Group products by designer for notification
+            const designerProducts = {};
+            for (const item of cartItems) {
+                try {
+                    // Fetch the product to get the designer info
+                    const productRef = doc(db, 'products', item.id);
+                    const productDoc = await getDoc(productRef);
+
+                    if (productDoc.exists()) {
+                        const productData = productDoc.data();
+                        const designerId = productData.designerId;
+
+                        // Only notify if there's a designer ID
+                        if (designerId) {
+                            if (!designerProducts[designerId]) {
+                                designerProducts[designerId] = [];
+                            }
+
+                            designerProducts[designerId].push({
+                                id: item.id,
+                                name: item.name || productData.name,
+                                quantity: item.quantity
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Error fetching product ${item.id}:`, err);
+                }
+            }
+
+            // Send notifications to each designer
+            for (const designerId in designerProducts) {
+                for (const product of designerProducts[designerId]) {
+                    try {
+                        await notificationService.sendOrderNotification(
+                            designerId,
+                            product.id,
+                            product.name,
+                            orderRef.id
+                        );
+                        console.log(`Successfully sent order notification to designer ${designerId} for product ${product.name}`);
+                    } catch (err) {
+                        console.error(`Error sending notification to designer ${designerId} for product ${product.id}:`, err);
+                        // Continue with order processing even if notification fails
+                    }
+                }
+            }
+
+            // Clear cart after successful order
+            if (currentUser && cartId) {
+                // For authenticated users, clear Firestore cart
+                await updateDoc(doc(db, 'carts', cartId), {
+                    items: [],
+                    updatedAt: serverTimestamp()
+                });
+            } else {
+                // For guest users, clear localStorage
+                localStorage.removeItem('cart');
             }
 
             // Show success message
@@ -327,14 +390,6 @@ const CheckoutPage = () => {
             setProcessing(false);
             showError("Order processing failed. Please try again.");
         }
-    };
-
-    // Format price as currency
-    const formatPrice = (price) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(price);
     };
 
     // Calculate estimated delivery date based on shipping method

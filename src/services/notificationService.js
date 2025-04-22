@@ -202,12 +202,17 @@ class NotificationService {
    * Send product approved notification
    */
   async sendProductApprovalNotification(userId, productId, productName) {
-    return this.createNotification(userId, {
+    const notificationData = {
+      userId,
       type: "product_approved",
       title: "Product Approved",
       message: `Your product "${productName}" has been approved and is now live!`,
       link: `/product/${productId}`,
-    });
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
   }
 
   /**
@@ -218,12 +223,17 @@ class NotificationService {
    * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
    */
   async sendProductRejectionNotification(userId, productId, productName) {
-    return this.createNotification(userId, {
+    const notificationData = {
+      userId,
       type: "product_rejected",
       title: "Product Rejected",
       message: `Your product "${productName}" has been rejected. Please check the details and consider making improvements.`,
       link: `/product/${productId}`,
-    });
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
   }
 
   /**
@@ -236,12 +246,17 @@ class NotificationService {
     productId,
     productName
   ) {
-    return this.createNotification(designerId, {
+    const notificationData = {
+      userId: designerId,
       type: "investment",
       title: "New Investment",
       message: `${investorName} has invested $${amount} in your product "${productName}"`,
       link: `/product/${productId}`,
-    });
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
   }
 
   /**
@@ -280,64 +295,89 @@ class NotificationService {
     messagePreview,
     conversationId
   ) {
-    return this.createNotification(recipientId, {
+    const notificationData = {
+      userId: recipientId,
       type: "message",
       title: "New Message",
       message: `${senderName}: ${messagePreview.substring(0, 100)}${
         messagePreview.length > 100 ? "..." : ""
       }`,
       link: `/messages/${conversationId}`,
-    });
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
   }
 
   /**
    * Send trending product notification
    */
   async sendTrendingNotification(designerId, productId, productName) {
-    return this.createNotification(designerId, {
+    const notificationData = {
+      userId: designerId,
       type: "trending",
       title: "Trending Product",
       message: `Your product "${productName}" is trending! It's receiving a lot of attention.`,
       link: `/product/${productId}`,
-    });
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
   }
 
   /**
    * Send expiring product notification
    */
   async sendExpiringNotification(designerId, productId, productName, daysLeft) {
-    return this.createNotification(designerId, {
+    const notificationData = {
+      userId: designerId,
       type: "expiring",
       title: "Product Expiring Soon",
       message: `Your product "${productName}" will expire in ${daysLeft} days. Consider extending it if it's trending.`,
       link: `/product/${productId}`,
-    });
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
   }
 
   /**
    * Send role change notification
    */
   async sendRoleChangeNotification(userId, role) {
-    return this.createNotification(userId, {
+    const notificationData = {
+      userId: userId,
       type: "role_change",
       title: "Role Updated",
       message: `Your account now has the ${role} role.`,
       link: `/profile`,
-    });
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
   }
 
   /**
    * Send currency transfer notification
    */
   async sendTransferNotification(userId, amount, isDeposit) {
-    return this.createNotification(userId, {
+    const notificationData = {
+      userId: userId,
       type: "transfer",
       title: isDeposit ? "Deposit Successful" : "Withdrawal Successful",
       message: isDeposit
         ? `$${amount} has been added to your wallet.`
         : `$${amount} has been withdrawn from your wallet.`,
       link: `/wallet`,
-    });
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
   }
 
   /**
@@ -380,6 +420,30 @@ class NotificationService {
         pendingCount === 1 ? "" : "s"
       } waiting for your review.`,
       link: "/admin?tab=product-approval",
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
+  }
+
+  /**
+   * Send order notification to a designer when their product is ordered
+   * @param {string} designerId - Designer's user ID
+   * @param {string} productId - Product ID
+   * @param {string} productName - Product name
+   * @param {string} orderId - Order ID
+   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   */
+  async sendOrderNotification(designerId, productId, productName, orderId) {
+    const notificationData = {
+      userId: designerId,
+      type: "order_received",
+      title: "New Order Received",
+      message: `Your product "${productName}" has been ordered and is awaiting delivery.`,
+      link: `/orders/designer/${orderId}`,
+      productId,
+      orderId,
       read: false,
       createdAt: serverTimestamp(),
     };

@@ -182,7 +182,8 @@ const ProductEditPage = () => {
             }
         }
         else {
-            setFormData({ ...formData, [name]: sanitizeString(value) });
+            // Store unsanitized value for display in the form
+            setFormData({ ...formData, [name]: value });
         }
     };
 

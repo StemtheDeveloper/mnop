@@ -11,6 +11,7 @@ const ShopPage = lazy(() => import('../pages/ShopPage'));
 const SearchPage = lazy(() => import('../pages/SearchPage')); // Import SearchPage
 const ProductDetailPage = lazy(() => import('../pages/ProductDetailPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
+const UserProfilePage = lazy(() => import('../pages/UserProfilePage')); // Import the new UserProfilePage
 const WalletPage = lazy(() => import('../pages/WalletPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
@@ -80,6 +81,7 @@ const AppRoutes = () => {
                     </AuthGuard>
                 } />
                 <Route path="/profile/:id" element={<ProfilePage />} />
+                <Route path="/user/:userId" element={<UserProfilePage />} />
                 <Route path="/wallet" element={
                     <AuthGuard>
                         <WalletPage />

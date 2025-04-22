@@ -285,7 +285,7 @@ const Navbar = () => {
             </ul>
 
             <div className="quick-links">
-              <ul>
+              <ul className="icon-links">
                 <li className="nav-item navbar-icons">
                   <Link to="/messages">
                     <img src={MessageIcon} alt="Message icon" title="Messages" />
@@ -310,25 +310,22 @@ const Navbar = () => {
                 <li className="nav-item navbar-icons wallet-icon-container">
                   <Link to="/wallet">
                     <img src={WalletIcon} alt="Wallet icon" title="Wallet" style={{ width: 40 }} />
-                    {/* {walletBalance !== null && (
-                      <span className="wallet-balance-badge">
-                        ${walletBalance.toFixed(0)}
-                      </span>
-                    )} */}
                   </Link>
                 </li>
               </ul>
               <div className="c-h-r"></div>
-              {user && AdminEmails.includes(user.email) ? (
-                <li className="nav-item">
-                  <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
-                </li>
-              ) : (
-                <li className="nav-item">
-                  <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
-                </li>
-              )}
-              <ThemeToggle />
+              <div className="auth-actions">
+                {user && AdminEmails.includes(user.email) ? (
+                  <li className="nav-item">
+                    <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
+                  </li>
+                ) : (
+                  <li className="nav-item">
+                    <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
+                  </li>
+                )}
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         </div>

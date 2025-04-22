@@ -141,7 +141,8 @@ const ProductUploadPage = () => {
             }
         }
         else {
-            setFormData({ ...formData, [name]: sanitizeString(value) });
+            // Store unsanitized value for display in the form
+            setFormData({ ...formData, [name]: value });
         }
     };
 
@@ -369,8 +370,13 @@ const ProductUploadPage = () => {
             setImagePreviewUrls([]);
             setUseCustomCategory(false);
 
-            // On successful upload, check for achievements
-            await checkProductAchievements();
+            // On successful upload, check for achievements, but don't let failures affect success state
+            try {
+                await checkProductAchievements();
+            } catch (achievementError) {
+                console.error('Error checking achievements (non-critical):', achievementError);
+                // Don't set error state here as the product was successfully created
+            }
 
             // Redirect to the new product page after a delay
             setTimeout(() => {

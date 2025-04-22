@@ -24,6 +24,7 @@ const ProductDetailPage = () => {
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
     const [isAddingToCart, setIsAddingToCart] = useState(false);
     const [buttonAnimation, setButtonAnimation] = useState('');
+    const [designer, setDesigner] = useState(null);
 
     // Calculate if product is fully funded
     const isFullyFunded = product && product.currentFunding >= product.fundingGoal;
@@ -55,10 +56,30 @@ const ProductDetailPage = () => {
                     return;
                 }
 
-                setProduct({
+                const productData = {
                     id: productDoc.id,
                     ...productDoc.data()
-                });
+                };
+
+                setProduct(productData);
+
+                // Fetch the designer data if designer ID exists
+                if (productData.designerId) {
+                    try {
+                        const designerRef = doc(db, 'users', productData.designerId);
+                        const designerDoc = await getDoc(designerRef);
+
+                        if (designerDoc.exists()) {
+                            setDesigner({
+                                id: designerDoc.id,
+                                ...designerDoc.data()
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Error fetching designer info:', err);
+                    }
+                }
+
                 setLoading(false);
             } catch (err) {
                 console.error('Error fetching product:', err);
@@ -343,6 +364,25 @@ const ProductDetailPage = () => {
                     <h1 className="product-title">{product.name}</h1>
                     <p className="product-price">{formatPrice(product.price || 0)}</p>
 
+                    {/* Designer information */}
+                    {designer && (
+                        <div className="product-designer">
+                            <h3>Designed by</h3>
+                            <Link to={`/user/${designer.id}`} className="designer-info">
+                                <div className="designer-avatar">
+                                    {designer.photoURL ? (
+                                        <img src={designer.photoURL} alt={designer.displayName || 'Designer'} />
+                                    ) : (
+                                        <div className="default-avatar">
+                                            {designer.displayName?.charAt(0).toUpperCase() || 'D'}
+                                        </div>
+                                    )}
+                                </div>
+                                <span className="designer-name">{designer.displayName || product.designerName || 'Unknown Designer'}</span>
+                            </Link>
+                        </div>
+                    )}
+
                     <div className="product-description">
                         <h3>Description</h3>
                         <p>{product.description}</p>
@@ -429,7 +469,7 @@ const ProductDetailPage = () => {
                     <div className="product-actions">
                         {/* Add to Cart Button - only enabled if product is fully funded */}
                         <button
-                            className={`add-to-cart-button ${!isFullyFunded ? 'disabled' : ''} ${buttonAnimation}`}
+                            className={`btn-primary add-to-cart-button ${!isFullyFunded ? 'disabled' : ''} ${buttonAnimation}`}
                             disabled={!isFullyFunded || isAddingToCart}
                             onClick={handleAddToCart}
                         >
@@ -439,7 +479,7 @@ const ProductDetailPage = () => {
                         {/* Investment Button - only show for users with investor role */}
                         {currentUser && hasRole('investor') && product.fundingGoal && !isFullyFunded && (
                             <button
-                                className="invest-button"
+                                className="invest-button btn-secondary"
                                 onClick={() => setShowInvestModal(true)}
                             >
                                 Invest in This Product

@@ -5,6 +5,7 @@ import Nav from './components/Navbar.jsx';
 import Footer from './components/Footer';
 import { UserProvider } from './context/UserContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider, AuthConsumer } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ToastProvider } from './contexts/ToastContext';
 import NotificationToastContainer from './components/NotificationToastContainer';
@@ -16,20 +17,24 @@ function App() {
   return (
     <ThemeProvider>
       <UserProvider>
-        <NotificationProvider>
-          <ToastProvider>
-            <div className="app">
-              <br /><br /><br /><br /><br /><br /><br />
-              <Nav />
-              <NotificationToastContainer />
-              <AdminProductNotifier />
-              <main className="main-content">
-                <AppRoutes />
-              </main>
-              <Footer />
-            </div>
-          </ToastProvider>
-        </NotificationProvider>
+        <AuthProvider>
+          <AuthConsumer>
+            <NotificationProvider>
+              <ToastProvider>
+                <div className="app">
+                  <br /><br /><br /><br /><br /><br /><br />
+                  <Nav />
+                  <NotificationToastContainer />
+                  <AdminProductNotifier />
+                  <main className="main-content">
+                    <AppRoutes />
+                  </main>
+                  <Footer />
+                </div>
+              </ToastProvider>
+            </NotificationProvider>
+          </AuthConsumer>
+        </AuthProvider>
       </UserProvider>
     </ThemeProvider>
   );

@@ -13,7 +13,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
-    const { currentUser, userProfile, updateUserProfile, userRole, addUserRole, hasRole, logout } = useUser();
+    const { currentUser, userProfile, userRole, addUserRole, hasRole, logout } = useUser();
     const [activeTab, setActiveTab] = useState('personal');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -26,6 +26,15 @@ const ProfilePage = () => {
         website: '',
         birthday: '',
         notifications: true,
+        // Add privacy settings
+        privacy: {
+            showRole: true,
+            showBio: true,
+            showLocation: true,
+            showWebsite: true,
+            showBirthday: false,
+            showProducts: true
+        }
     });
     const [requestedRole, setRequestedRole] = useState('');
     const [processingRoleRequest, setProcessingRoleRequest] = useState(false);
@@ -70,6 +79,14 @@ const ProfilePage = () => {
                 website: userProfile.website || '',
                 birthday: userProfile.birthday || '',
                 notifications: userProfile.notifications !== false,
+                privacy: userProfile.privacy || {
+                    showRole: true,
+                    showBio: true,
+                    showLocation: true,
+                    showWebsite: true,
+                    showBirthday: false,
+                    showProducts: true
+                }
             });
             setHeaderPhotoURL(userProfile.headerPhotoURL || '');
         }
@@ -316,8 +333,8 @@ const ProfilePage = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            // Update Firestore profile
-            await updateUserProfile({
+            // Update the Firestore profile directly using doc and updateDoc since updateUserProfile is not available
+            await updateDoc(doc(db, 'users', currentUser.uid), {
                 displayName: formData.displayName,
                 phone: formData.phone,
                 bio: formData.bio,
@@ -325,7 +342,15 @@ const ProfilePage = () => {
                 website: formData.website,
                 birthday: formData.birthday,
                 notifications: formData.notifications,
+                updatedAt: new Date()
             });
+
+            // If the displayName changed, update the Auth profile as well
+            if (formData.displayName !== currentUser.displayName) {
+                await updateProfile(auth.currentUser, {
+                    displayName: formData.displayName
+                });
+            }
 
             setMessage({ type: 'success', text: 'Profile updated successfully!' });
         } catch (error) {
@@ -454,7 +479,8 @@ const ProfilePage = () => {
         const tabs = [
             { id: 'personal', label: 'Personal Info', roles: ['all'] },
             { id: 'account', label: 'Account Settings', roles: ['all'] },
-            { id: 'preferences', label: 'Preferences', roles: ['all'] }
+            { id: 'preferences', label: 'Preferences', roles: ['all'] },
+            { id: 'privacy', label: 'Privacy Settings', roles: ['all'] }
         ];
 
         // Designer-specific tabs
@@ -473,6 +499,36 @@ const ProfilePage = () => {
         }
 
         return tabs;
+    };
+
+    // Function to check if a field should be displayed based on privacy settings
+    const shouldShowField = (fieldName) => {
+        // If viewing own profile, always show everything
+        if (isOwnProfile) return true;
+
+        // If not viewing own profile, check privacy settings
+        // Make sure privacy settings exist and the field is explicitly allowed
+        return userProfile?.privacy?.[fieldName] === true;
+    };
+
+    const handlePrivacySubmit = async () => {
+        setLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            // Update Firestore profile privacy settings
+            await updateDoc(doc(db, 'users', currentUser.uid), {
+                privacy: formData.privacy,
+                updatedAt: new Date()
+            });
+
+            setMessage({ type: 'success', text: 'Privacy settings updated successfully!' });
+        } catch (error) {
+            console.error("Error updating privacy settings:", error);
+            setMessage({ type: 'error', text: 'Failed to update privacy settings. Please try again.' });
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -551,9 +607,11 @@ const ProfilePage = () => {
                 <div className="profile-left">
                     <div className="profile-picture-section">
                         <h2>{formData.displayName || 'User'}</h2>
-                        <div className="roles-list">
-                            {renderRolePills()}
-                        </div>
+                        {(isOwnProfile || shouldShowField('showRole')) && (
+                            <div className="roles-list">
+                                {renderRolePills()}
+                            </div>
+                        )}
                     </div>
 
                     <div className="action-buttons">
@@ -597,89 +655,130 @@ const ProfilePage = () => {
                                 <div className="settings-section">
                                     <h3>Personal Information</h3>
 
-                                    <div className="form-row">
-                                        <div className="form-group form-field-half">
-                                            <label htmlFor="displayName">Full Name</label>
-                                            <input
-                                                type="text"
-                                                id="displayName"
-                                                name="displayName"
-                                                value={formData.displayName}
-                                                onChange={handleChange}
-                                                placeholder="Your full name"
-                                            />
+                                    {isOwnProfile ? (
+                                        // Full editable form for the profile owner
+                                        <>
+                                            <div className="form-row">
+                                                <div className="form-group form-field-half">
+                                                    <label htmlFor="displayName">Full Name</label>
+                                                    <input
+                                                        type="text"
+                                                        id="displayName"
+                                                        name="displayName"
+                                                        value={formData.displayName}
+                                                        onChange={handleChange}
+                                                        placeholder="Your full name"
+                                                    />
+                                                </div>
+
+                                                <div className="form-group form-field-half">
+                                                    <label htmlFor="email">Email Address</label>
+                                                    <input
+                                                        type="email"
+                                                        id="email"
+                                                        name="email"
+                                                        value={formData.email}
+                                                        readOnly
+                                                        disabled
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="form-row">
+                                                <div className="form-group form-field-half">
+                                                    <label htmlFor="phone">Phone Number</label>
+                                                    <input
+                                                        type="tel"
+                                                        id="phone"
+                                                        name="phone"
+                                                        value={formData.phone}
+                                                        onChange={handleChange}
+                                                        placeholder="Your phone number"
+                                                    />
+                                                </div>
+
+                                                <div className="form-group form-field-half">
+                                                    <label htmlFor="birthday">Birthday</label>
+                                                    <input
+                                                        type="date"
+                                                        id="birthday"
+                                                        name="birthday"
+                                                        value={formData.birthday}
+                                                        onChange={handleChange}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label htmlFor="location">Location</label>
+                                                <input
+                                                    type="text"
+                                                    id="location"
+                                                    name="location"
+                                                    value={formData.location}
+                                                    onChange={handleChange}
+                                                    placeholder="City, Country"
+                                                />
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label htmlFor="bio">Bio</label>
+                                                <textarea
+                                                    id="bio"
+                                                    name="bio"
+                                                    value={formData.bio}
+                                                    onChange={handleChange}
+                                                    placeholder="Tell us about yourself"
+                                                />
+                                            </div>
+
+                                            <div className="form-actions">
+                                                <button
+                                                    type="submit"
+                                                    className="submit-button"
+                                                    disabled={loading}
+                                                >
+                                                    {loading ? 'Saving...' : 'Save Changes'}
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        // Read-only view for visitors with privacy settings respected
+                                        <div className="profile-view-only">
+                                            <div className="profile-info-item">
+                                                <h4>Name</h4>
+                                                <p>{formData.displayName || 'Not specified'}</p>
+                                            </div>
+
+                                            {shouldShowField('showBio') && formData.bio && (
+                                                <div className="profile-info-item">
+                                                    <h4>Bio</h4>
+                                                    <p>{formData.bio}</p>
+                                                </div>
+                                            )}
+
+                                            {shouldShowField('showLocation') && formData.location && (
+                                                <div className="profile-info-item">
+                                                    <h4>Location</h4>
+                                                    <p>{formData.location}</p>
+                                                </div>
+                                            )}
+
+                                            {shouldShowField('showWebsite') && formData.website && (
+                                                <div className="profile-info-item">
+                                                    <h4>Website</h4>
+                                                    <p><a href={formData.website} target="_blank" rel="noopener noreferrer">{formData.website}</a></p>
+                                                </div>
+                                            )}
+
+                                            {shouldShowField('showBirthday') && formData.birthday && (
+                                                <div className="profile-info-item">
+                                                    <h4>Birthday</h4>
+                                                    <p>{new Date(formData.birthday).toLocaleDateString()}</p>
+                                                </div>
+                                            )}
                                         </div>
-
-                                        <div className="form-group form-field-half">
-                                            <label htmlFor="email">Email Address</label>
-                                            <input
-                                                type="email"
-                                                id="email"
-                                                name="email"
-                                                value={formData.email}
-                                                readOnly
-                                                disabled
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="form-row">
-                                        <div className="form-group form-field-half">
-                                            <label htmlFor="phone">Phone Number</label>
-                                            <input
-                                                type="tel"
-                                                id="phone"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleChange}
-                                                placeholder="Your phone number"
-                                            />
-                                        </div>
-
-                                        <div className="form-group form-field-half">
-                                            <label htmlFor="birthday">Birthday</label>
-                                            <input
-                                                type="date"
-                                                id="birthday"
-                                                name="birthday"
-                                                value={formData.birthday}
-                                                onChange={handleChange}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label htmlFor="location">Location</label>
-                                        <input
-                                            type="text"
-                                            id="location"
-                                            name="location"
-                                            value={formData.location}
-                                            onChange={handleChange}
-                                            placeholder="City, Country"
-                                        />
-                                    </div>
-
-                                    <div className="form-group">
-                                        <label htmlFor="bio">Bio</label>
-                                        <textarea
-                                            id="bio"
-                                            name="bio"
-                                            value={formData.bio}
-                                            onChange={handleChange}
-                                            placeholder="Tell us about yourself"
-                                        />
-                                    </div>
-
-                                    <div className="form-actions">
-                                        <button
-                                            type="submit"
-                                            className="submit-button"
-                                            disabled={loading}
-                                        >
-                                            {loading ? 'Saving...' : 'Save Changes'}
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
                             </form>
                         )}
@@ -819,85 +918,265 @@ const ProfilePage = () => {
                             </div>
                         )}
 
-                        {activeTab === 'products' && isDesigner && (
+                        {activeTab === 'privacy' && isOwnProfile && (
+                            <div className="settings-section privacy-settings-section">
+                                <h3>Privacy Settings</h3>
+                                <p>Control what information visitors can see on your profile</p>
+
+                                <div className="form-group checkbox">
+                                    <input
+                                        type="checkbox"
+                                        id="showRole"
+                                        name="privacy.showRole"
+                                        checked={formData.privacy.showRole}
+                                        onChange={(e) => {
+                                            setFormData({
+                                                ...formData,
+                                                privacy: {
+                                                    ...formData.privacy,
+                                                    showRole: e.target.checked
+                                                }
+                                            });
+                                        }}
+                                    />
+                                    <label htmlFor="showRole">Show my roles</label>
+                                </div>
+
+                                <div className="form-group checkbox">
+                                    <input
+                                        type="checkbox"
+                                        id="showBio"
+                                        name="privacy.showBio"
+                                        checked={formData.privacy.showBio}
+                                        onChange={(e) => {
+                                            setFormData({
+                                                ...formData,
+                                                privacy: {
+                                                    ...formData.privacy,
+                                                    showBio: e.target.checked
+                                                }
+                                            });
+                                        }}
+                                    />
+                                    <label htmlFor="showBio">Show my bio</label>
+                                </div>
+
+                                <div className="form-group checkbox">
+                                    <input
+                                        type="checkbox"
+                                        id="showLocation"
+                                        name="privacy.showLocation"
+                                        checked={formData.privacy.showLocation}
+                                        onChange={(e) => {
+                                            setFormData({
+                                                ...formData,
+                                                privacy: {
+                                                    ...formData.privacy,
+                                                    showLocation: e.target.checked
+                                                }
+                                            });
+                                        }}
+                                    />
+                                    <label htmlFor="showLocation">Show my location</label>
+                                </div>
+
+                                <div className="form-group checkbox">
+                                    <input
+                                        type="checkbox"
+                                        id="showWebsite"
+                                        name="privacy.showWebsite"
+                                        checked={formData.privacy.showWebsite}
+                                        onChange={(e) => {
+                                            setFormData({
+                                                ...formData,
+                                                privacy: {
+                                                    ...formData.privacy,
+                                                    showWebsite: e.target.checked
+                                                }
+                                            });
+                                        }}
+                                    />
+                                    <label htmlFor="showWebsite">Show my website</label>
+                                </div>
+
+                                <div className="form-group checkbox">
+                                    <input
+                                        type="checkbox"
+                                        id="showBirthday"
+                                        name="privacy.showBirthday"
+                                        checked={formData.privacy.showBirthday}
+                                        onChange={(e) => {
+                                            setFormData({
+                                                ...formData,
+                                                privacy: {
+                                                    ...formData.privacy,
+                                                    showBirthday: e.target.checked
+                                                }
+                                            });
+                                        }}
+                                    />
+                                    <label htmlFor="showBirthday">Show my birthday</label>
+                                </div>
+
+                                <div className="form-group checkbox">
+                                    <input
+                                        type="checkbox"
+                                        id="showProducts"
+                                        name="privacy.showProducts"
+                                        checked={formData.privacy.showProducts}
+                                        onChange={(e) => {
+                                            setFormData({
+                                                ...formData,
+                                                privacy: {
+                                                    ...formData.privacy,
+                                                    showProducts: e.target.checked
+                                                }
+                                            });
+                                        }}
+                                    />
+                                    <label htmlFor="showProducts">Show my products</label>
+                                </div>
+
+                                <div className="form-actions">
+                                    <button
+                                        type="button"
+                                        className="submit-button"
+                                        onClick={handlePrivacySubmit}
+                                        disabled={loading}
+                                    >
+                                        {loading ? 'Saving...' : 'Save Privacy Settings'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'products' && (
                             <div className="settings-section products-section">
                                 <h3>Manage Products</h3>
 
-                                <div className="section-actions">
-                                    <Link to="/product-upload" className="btn-primary">
-                                        Upload New Product
-                                    </Link>
-                                </div>
-
-                                {loadingProducts ? (
-                                    <div className="loading-container">
-                                        <LoadingSpinner />
-                                        <p>Loading your products...</p>
-                                    </div>
-                                ) : designerProducts.length === 0 ? (
-                                    <div className="empty-state">
-                                        <p>You haven't uploaded any products yet.</p>
-                                        <Link to="/product-upload" className="btn-secondary">
-                                            Create Your First Product
+                                {isOwnProfile && (
+                                    <div className="section-actions">
+                                        <Link to="/product-upload" className="btn-primary">
+                                            Upload New Product
                                         </Link>
                                     </div>
-                                ) : (
-                                    <div className="product-management-list">
-                                        {designerProducts.map(product => (
-                                            <div key={product.id} className="managed-product-card">
-                                                <div className="product-image">
-                                                    <img
-                                                        src={Array.isArray(product.imageUrls) && product.imageUrls.length > 0
-                                                            ? product.imageUrls[0]
-                                                            : product.imageUrl || '/placeholder-product.jpg'}
-                                                        alt={product.name}
-                                                    />
-                                                    <span className={`product-status status-${product.status || 'pending'}`}>
-                                                        {product.status || 'Pending'}
-                                                    </span>
-                                                </div>
-                                                <div className="product-info">
-                                                    <h3>{product.name}</h3>
-                                                    <div className="product-meta">
-                                                        <span className="product-price">{formatPrice(product.price)}</span>
-                                                        <span className="product-date">Created: {formatDate(product.createdAt)}</span>
-                                                    </div>
-                                                    {product.fundingGoal > 0 && (
-                                                        <div className="product-funding">
-                                                            <div className="funding-progress-bar">
-                                                                <div
-                                                                    className="funding-bar"
-                                                                    style={{ width: `${calculateFundingPercentage(product)}%` }}
-                                                                ></div>
+                                )}
+
+                                {isOwnProfile ? (
+                                    // Product management for profile owner
+                                    <>
+                                        {loadingProducts ? (
+                                            <div className="loading-container">
+                                                <LoadingSpinner />
+                                                <p>Loading your products...</p>
+                                            </div>
+                                        ) : designerProducts.length === 0 ? (
+                                            <div className="empty-state">
+                                                <p>You haven't uploaded any products yet.</p>
+                                                <Link to="/product-upload" className="btn-secondary">
+                                                    Create Your First Product
+                                                </Link>
+                                            </div>
+                                        ) : (
+                                            <div className="product-management-list">
+                                                {designerProducts.map(product => (
+                                                    <div key={product.id} className="managed-product-card">
+                                                        <div className="product-image">
+                                                            <img
+                                                                src={Array.isArray(product.imageUrls) && product.imageUrls.length > 0
+                                                                    ? product.imageUrls[0]
+                                                                    : product.imageUrl || '/placeholder-product.jpg'}
+                                                                alt={product.name}
+                                                            />
+                                                            <span className={`product-status status-${product.status || 'pending'}`}>
+                                                                {product.status || 'Pending'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="product-info">
+                                                            <h3>{product.name}</h3>
+                                                            <div className="product-meta">
+                                                                <span className="product-price">{formatPrice(product.price)}</span>
+                                                                <span className="product-date">Created: {formatDate(product.createdAt)}</span>
                                                             </div>
-                                                            <div className="funding-text">
-                                                                <span className="funding-percentage">
-                                                                    {calculateFundingPercentage(product)}% funded
-                                                                </span>
-                                                                <span className="funding-amount">
-                                                                    {formatPrice(product.currentFunding || 0)} of {formatPrice(product.fundingGoal)}
-                                                                </span>
+                                                            {product.fundingGoal > 0 && (
+                                                                <div className="product-funding">
+                                                                    <div className="funding-progress-bar">
+                                                                        <div
+                                                                            className="funding-bar"
+                                                                            style={{ width: `${calculateFundingPercentage(product)}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                    <div className="funding-text">
+                                                                        <span className="funding-percentage">
+                                                                            {calculateFundingPercentage(product)}% funded
+                                                                        </span>
+                                                                        <span className="funding-amount">
+                                                                            {formatPrice(product.currentFunding || 0)} of {formatPrice(product.fundingGoal)}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            <div className="product-actions">
+                                                                <button
+                                                                    onClick={() => handleEditProduct(product.id)}
+                                                                    className="btn-edit"
+                                                                >
+                                                                    Edit Product
+                                                                </button>
+                                                                <Link
+                                                                    to={`/product/${product.id}`}
+                                                                    className="btn-view"
+                                                                >
+                                                                    View Details
+                                                                </Link>
                                                             </div>
                                                         </div>
-                                                    )}
-                                                    <div className="product-actions">
-                                                        <button
-                                                            onClick={() => handleEditProduct(product.id)}
-                                                            className="btn-edit"
-                                                        >
-                                                            Edit Product
-                                                        </button>
-                                                        <Link
-                                                            to={`/product/${product.id}`}
-                                                            className="btn-view"
-                                                        >
-                                                            View Details
-                                                        </Link>
                                                     </div>
-                                                </div>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    // Products view for visitors respecting privacy settings
+                                    <>
+                                        {!shouldShowField('showProducts') ? (
+                                            <div className="profile-private-notice">
+                                                <p>This user has chosen to keep their products private.</p>
+                                            </div>
+                                        ) : loadingProducts ? (
+                                            <div className="loading-container">
+                                                <LoadingSpinner />
+                                                <p>Loading products...</p>
+                                            </div>
+                                        ) : designerProducts.length === 0 ? (
+                                            <div className="empty-state">
+                                                <p>This user hasn't uploaded any products yet.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="product-grid visitor-view">
+                                                {designerProducts
+                                                    .filter(product => product.status === 'active')
+                                                    .map(product => (
+                                                        <div key={product.id} className="product-card">
+                                                            <Link to={`/product/${product.id}`} className="product-link">
+                                                                <div className="product-image">
+                                                                    <img
+                                                                        src={Array.isArray(product.imageUrls) && product.imageUrls.length > 0
+                                                                            ? product.imageUrls[0]
+                                                                            : product.imageUrl || '/placeholder-product.jpg'}
+                                                                        alt={product.name}
+                                                                    />
+                                                                </div>
+                                                                <div className="product-info">
+                                                                    <h3>{product.name}</h3>
+                                                                    <div className="product-price">{formatPrice(product.price)}</div>
+                                                                </div>
+                                                            </Link>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         )}

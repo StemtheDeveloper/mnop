@@ -23,6 +23,17 @@ const WalletFundingModal = ({ isOpen, onClose }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        // Check if user has admin role
+        const userDoc = await db.collection("users").doc(currentUser.uid).get();
+        const userData = userDoc.data();
+        const roles = Array.isArray(userData?.roles) ? userData.roles :
+            userData?.role ? [userData.role] : ["customer"];
+
+        if (!roles.includes("admin")) {
+            showError("Only administrators can add credits to wallets");
+            return;
+        }
+
         const parsedAmount = parseFloat(amount);
         if (isNaN(parsedAmount) || parsedAmount <= 0) {
             showError('Please enter a valid amount');

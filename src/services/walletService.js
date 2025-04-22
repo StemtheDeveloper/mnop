@@ -252,6 +252,29 @@ class WalletService {
    */
   async simulateDeposit(userId, amount, description = "Deposit") {
     try {
+      // First, verify that the user has admin role
+      const userRef = doc(db, "users", userId);
+      const userDoc = await getDoc(userRef);
+
+      if (!userDoc.exists()) {
+        return { success: false, error: "User not found" };
+      }
+
+      const userData = userDoc.data();
+      const userRoles = Array.isArray(userData.roles)
+        ? userData.roles
+        : userData.role
+        ? [userData.role]
+        : ["customer"];
+
+      // Only allow admins to deposit funds
+      if (!userRoles.includes("admin")) {
+        return {
+          success: false,
+          error: "Only administrators can add credits to wallets",
+        };
+      }
+
       // Update the wallet balance
       const walletRef = doc(db, "wallets", userId);
       await updateDoc(walletRef, {

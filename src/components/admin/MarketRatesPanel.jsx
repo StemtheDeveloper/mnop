@@ -51,12 +51,12 @@ const MarketRatesPanel = () => {
         setMessage(null);
 
         try {
-            const result = await externalApiService.fetchFinancialIndicators();
+            const result = await externalApiService.fetchNZFinancialIndicators();
             if (result.success) {
                 setMarketRates(result.data);
-                setMessage('Successfully fetched latest market rates');
+                setMessage('Successfully fetched latest NZ market rates');
             } else {
-                setError(result.error || 'Failed to fetch market rates');
+                setError(result.error || 'Failed to fetch NZ market rates');
             }
         } catch (err) {
             setError('Error fetching market rates');
@@ -114,7 +114,7 @@ const MarketRatesPanel = () => {
 
     return (
         <div className="market-rates-panel">
-            <h2>Market Interest Rates</h2>
+            <h2>New Zealand Market Interest Rates</h2>
 
             {error && <div className="error-message">{error}</div>}
             {message && <div className="success-message">{message}</div>}
@@ -126,7 +126,7 @@ const MarketRatesPanel = () => {
                         onClick={fetchLatestRates}
                         disabled={fetching}
                     >
-                        {fetching ? 'Fetching...' : 'Fetch Latest Market Rates'}
+                        {fetching ? 'Fetching...' : 'Fetch Latest NZ Market Rates'}
                     </button>
 
                     {currentConfig?.marketData && (
@@ -138,29 +138,32 @@ const MarketRatesPanel = () => {
 
                 {marketRates && (
                     <div className="market-rates-info">
-                        <h3>Current Market Rates</h3>
+                        <h3>Current NZ Market Rates</h3>
                         <div className="rates-grid">
                             <div className="rate-item">
-                                <div className="rate-name">Federal Funds Rate</div>
+                                <div className="rate-name">Official Cash Rate (OCR)</div>
                                 <div className="rate-value">
-                                    {formatPercentage(marketRates.federalFundsRate?.value)}
+                                    {formatPercentage(marketRates.ocrRate?.value)}
                                 </div>
                             </div>
                             <div className="rate-item">
-                                <div className="rate-name">3-Month Treasury</div>
+                                <div className="rate-name">90-Day Bank Bill Rate</div>
                                 <div className="rate-value">
-                                    {formatPercentage(marketRates.treasury3Month?.value)}
+                                    {formatPercentage(marketRates.nz90DayRate?.value)}
                                 </div>
                             </div>
                             <div className="rate-item">
-                                <div className="rate-name">6-Month Treasury</div>
+                                <div className="rate-name">6-Month Bank Bill Rate</div>
                                 <div className="rate-value">
-                                    {formatPercentage(marketRates.treasury6Month?.value)}
+                                    {formatPercentage(marketRates.nz6MonthRate?.value)}
                                 </div>
                             </div>
                         </div>
                         <div className="fetched-at">
                             Fetched at: {formatDate(marketRates.fetchedAt)}
+                            {marketRates.source === 'backup' && (
+                                <span className="backup-note"> (using backup rates)</span>
+                            )}
                         </div>
                     </div>
                 )}
@@ -178,7 +181,7 @@ const MarketRatesPanel = () => {
                             checked={useMarketRate}
                             onChange={() => setUseMarketRate(true)}
                         />
-                        <label htmlFor="useMarketRate">Use Market Rate (with offset)</label>
+                        <label htmlFor="useMarketRate">Use NZ Market Rate (with offset)</label>
                     </div>
 
                     <div className="rate-option">
@@ -204,7 +207,7 @@ const MarketRatesPanel = () => {
                             step="0.1"
                         />
                         <div className="offset-info">
-                            Add or subtract from market rate (e.g., +0.5 adds half a percent)
+                            Add or subtract from OCR rate (e.g., +0.5 adds half a percent)
                         </div>
                     </div>
                 )}
@@ -234,13 +237,14 @@ const MarketRatesPanel = () => {
             </div>
 
             <div className="market-rates-info-box">
-                <h4>About Market-Based Interest Rates</h4>
+                <h4>About NZ Market-Based Interest Rates</h4>
                 <ul>
-                    <li>The system can automatically set interest rates based on real market indicators.</li>
-                    <li>The base rate used is the 3-Month Treasury Bill rate, a commonly used risk-free rate.</li>
-                    <li>A small spread is added to the treasury rate to make it competitive.</li>
+                    <li>The system automatically sets interest rates based on New Zealand market indicators.</li>
+                    <li>The base rate used is the RBNZ Official Cash Rate (OCR), the primary benchmark in New Zealand.</li>
+                    <li>A small spread is added to the OCR to make it competitive with retail banking rates.</li>
                     <li>You can adjust the offset to fine-tune the offered rate.</li>
                     <li>Changes are applied during the next interest calculation cycle.</li>
+                    <li>Data is sourced from the Reserve Bank of New Zealand (RBNZ).</li>
                 </ul>
             </div>
         </div>

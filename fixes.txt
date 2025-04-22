@@ -73,3 +73,10 @@ Restrict quote visibility by role
 Restrict wallet and investment writes to authenticated user only
 Add full-text indexing to product names and categories
 Add skeleton loading for all cards and lists
+The styling for the navbar is unresponsive and it overflows off the screen. Please fix this.
+Notifications for approved or rejected products aren't working. I want the designer to be notified when the product is either rejected or approved.
+Designers need to be notified when one of their products are orders so they can deliver the product
+If a designer edits a product, it needs to be resubmitted for approval before it updates
+Designers need to be able to archive and delete their products
+When the admin gets a product to review, they get two notifications for the same product. It should only be one.
+Create a virtual bank account for M'NOP which will hold the virtual funds for products which have been partially funded. This account will gain interest and is owned by the business. When the products have been fully funded, the funds will be sent to the Designer who made the product.
