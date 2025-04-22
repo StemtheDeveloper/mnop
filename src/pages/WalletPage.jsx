@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -81,6 +81,36 @@ const WalletPage = () => {
         return true;
     };
 
+    // Memoize loadWalletData to prevent recreation on each render
+    const loadWalletData = useCallback(async () => {
+        setLoading(true);
+        if (!currentUser) {
+            // Instead of returning, we'll wait for the user context to be available
+            console.log("Waiting for user authentication...");
+            setTimeout(() => {
+                if (currentUser) {
+                    loadWalletData();
+                } else {
+                    setLoading(false);
+                }
+            }, 2000);
+            return;
+        }
+
+        try {
+            // Get the most up-to-date wallet data
+            const walletData = await walletService.getUserWallet(currentUser.uid);
+            if (walletData) {
+                setBalance(walletData.balance || 0);
+            }
+        } catch (error) {
+            console.error('Error loading wallet:', error);
+            showError('Failed to load wallet information');
+        } finally {
+            setLoading(false);
+        }
+    }, [currentUser, showError]);
+
     // Set up real-time listener for wallet updates
     useEffect(() => {
         if (!currentUser) return;
@@ -106,30 +136,22 @@ const WalletPage = () => {
         loadWalletData();
 
         return () => unsubscribe();
-    }, [currentUser]);
-
-    const loadWalletData = async () => {
-        setLoading(true);
-        if (!currentUser) return;
-
-        try {
-            // Get the most up-to-date wallet data
-            const walletData = await walletService.getUserWallet(currentUser.uid);
-            if (walletData) {
-                setBalance(walletData.balance || 0);
-            }
-        } catch (error) {
-            console.error('Error loading wallet:', error);
-            showError('Failed to load wallet information');
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [currentUser, loadWalletData]);
 
     // Real-time listener for transactions
     useEffect(() => {
         const loadTransactions = async () => {
-            if (!currentUser) return;
+            if (!currentUser) {
+                // If no user yet, set a timeout to check again
+                setTimeout(() => {
+                    if (currentUser) {
+                        loadTransactions();
+                    } else {
+                        setTransactionLoading(false);
+                    }
+                }, 2000);
+                return;
+            }
 
             setTransactionLoading(true);
             try {
