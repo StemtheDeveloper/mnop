@@ -13,7 +13,7 @@ import { useToast } from '../context/ToastContext';
  * @returns {React.ReactNode}
  */
 const ProtectedRoute = ({ children, requiredRoles }) => {
-    const { currentUser, userRole, loading, authInitialized } = useUser();
+    const { currentUser, hasRole, loading, authInitialized } = useUser();
     const location = useLocation();
     const { showError } = useToast();
 
@@ -49,16 +49,11 @@ const ProtectedRoute = ({ children, requiredRoles }) => {
     if (requiredRoles) {
         const roles = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
 
-        // Check if the user has at least one of the required roles
-        const hasRequiredRole = roles.some(role =>
-            userRole && (typeof userRole === 'string'
-                ? userRole === role
-                : Array.isArray(userRole) && userRole.includes(role))
-        );
+        // Use the hasRole function from UserContext to check if user has any of the required roles
+        const hasRequiredRole = roles.some(role => hasRole(role));
 
         // Special case for trending product extension requests
-        if (location.pathname.includes('/extend-trending-product') &&
-            (userRole && Array.isArray(userRole) && userRole.includes('designer'))) {
+        if (location.pathname.includes('/extend-trending-product') && hasRole('designer')) {
             return children;
         }
 

@@ -82,8 +82,23 @@ const ProductEditPage = () => {
 
                 const productData = productSnap.data();
 
-                // Check if the current user is the designer of this product
-                if (productData.designerId !== currentUser.uid) {
+                // Check if the current user is the designer of this product or an admin
+                const isAdmin = Array.isArray(userRole)
+                    ? userRole.includes('admin')
+                    : userRole === 'admin';
+
+                const isProductDesigner = productData.designerId === currentUser.uid;
+
+                // Log user and product info for debugging authorization issues
+                console.log('Product Edit Authorization Check:', {
+                    currentUserId: currentUser.uid,
+                    productDesignerId: productData.designerId,
+                    userRoles: userRole,
+                    isAdmin,
+                    isProductDesigner
+                });
+
+                if (!isProductDesigner && !isAdmin) {
                     throw new Error('You do not have permission to edit this product');
                 }
 

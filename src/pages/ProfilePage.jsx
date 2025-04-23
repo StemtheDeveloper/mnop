@@ -65,7 +65,11 @@ const ProfilePage = () => {
     const isOwnProfile = currentUser && userId === currentUser.uid;
 
     // Check if user has designer role
-    const isDesigner = hasRole('designer');
+    const isDesigner = userRole && (
+        typeof userRole === 'string' ?
+            userRole === 'designer' :
+            Array.isArray(userRole) && userRole.includes('designer')
+    );
 
     // Load user data into form
     useEffect(() => {
@@ -98,7 +102,7 @@ const ProfilePage = () => {
             if (!userId) return;
 
             // Only try to fetch products if the user has designer role
-            // Use hasRole to check for designer role consistently
+            // We'll check both string and array formats of userRole
             const userIsDesigner = hasRole('designer');
             if (!userIsDesigner) return;
 

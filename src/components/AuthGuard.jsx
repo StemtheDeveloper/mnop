@@ -1,9 +1,9 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useUser } from '../context/UserContext';  // Updated to use UserContext
 
 const AuthGuard = ({ children, allowedRoles }) => {
-  const { currentUser, hasRole, loading } = useAuth();
+  const { currentUser, hasRole, loading } = useUser();  // Use the consistent UserContext
   const location = useLocation();
 
   // Wait for authentication to initialize
@@ -17,8 +17,13 @@ const AuthGuard = ({ children, allowedRoles }) => {
   }
 
   // If roles are specified, check if user has access
-  if (allowedRoles && !hasRole(allowedRoles)) {
-    return <Navigate to="/unauthorized" replace />;
+  if (allowedRoles) {
+    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+    const hasRequiredRole = roles.some(role => hasRole(role));
+
+    if (!hasRequiredRole) {
+      return <Navigate to="/unauthorized" state={{ requiredRoles: roles }} replace />;
+    }
   }
 
   // If user is authenticated and has permission, render the protected component
