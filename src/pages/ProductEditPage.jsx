@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, collection, updateDoc, getDoc, getDocs, serverTimestamp, addDoc } from 'firebase/firestore';
+import { doc, collection, updateDoc, getDoc, getDocs, serverTimestamp, addDoc, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
@@ -403,7 +403,23 @@ const ProductEditPage = () => {
                 }
             }
 
-            // 5. Update product document in Firestore
+            // 5. Check if approval is required for edited products
+            let productStatus = product.status; // Default to current status
+            let statusMessage = "Product updated successfully!";
+
+            // Check product approval setting
+            const settingsRef = doc(db, 'settings', 'productSettings');
+            const settingsSnap = await getDoc(settingsRef);
+            const requireApproval = settingsSnap.exists() ?
+                (settingsSnap.data().requireApproval ?? true) : true;
+
+            // If approval is required and the product was active, change to pending
+            if (requireApproval && productStatus === 'active') {
+                productStatus = 'pending';
+                statusMessage = "Product updated successfully and sent for review. It will be hidden from the shop until approved.";
+            }
+
+            // 6. Update product document in Firestore
             const productData = {
                 name: sanitizeString(formData.name),
                 description: sanitizeString(formData.description),
@@ -412,14 +428,40 @@ const ProductEditPage = () => {
                 category: categoryToUse,
                 categoryType: categoryTypeToUse,
                 imageUrls: allImageUrls,
-                updatedAt: serverTimestamp()
+                updatedAt: serverTimestamp(),
+                status: productStatus,
+                wasEdited: true, // Flag to indicate this was an edit
+                lastEditedAt: serverTimestamp()
             };
 
             // Update the product document
             await updateDoc(doc(db, 'products', productId), productData);
 
+            // 7. Notify admins if the product needs approval
+            if (productStatus === 'pending') {
+                // Get all admin users
+                const usersRef = collection(db, 'users');
+                const adminQuery = query(usersRef, where('roles', 'array-contains', 'admin'));
+                const adminSnapshot = await getDocs(adminQuery);
+
+                // Create notifications for each admin
+                for (const adminDoc of adminSnapshot.docs) {
+                    const adminId = adminDoc.id;
+
+                    await addDoc(collection(db, 'notifications'), {
+                        userId: adminId,
+                        title: 'Product Edit Needs Review',
+                        message: `An edited product "${formData.name}" needs approval before returning to the shop.`,
+                        type: 'product_edit_pending',
+                        productId: productId,
+                        read: false,
+                        createdAt: serverTimestamp()
+                    });
+                }
+            }
+
             // Show success message
-            success("Product updated successfully!");
+            success(statusMessage);
 
             // Redirect back to product detail or management page
             navigate(`/product/${productId}`);

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import notificationService from '../services/notificationService';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 const NotificationContext = createContext();
 
@@ -19,16 +21,48 @@ export const NotificationProvider = ({ children }) => {
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState(Date.now());
 
-    // Fetch notifications when user changes or refresh is triggered
+    // Set up real-time notification listener
     useEffect(() => {
-        if (currentUser?.uid) {
-            fetchNotifications();
-        } else {
+        if (!currentUser?.uid) {
             setNotifications([]);
             setUnreadCount(0);
+            return;
         }
-    }, [currentUser, lastRefresh]);
 
+        setLoading(true);
+
+        // Create a query for this user's notifications
+        const notificationsRef = collection(db, 'notifications');
+        const notificationsQuery = query(
+            notificationsRef,
+            where('userId', '==', currentUser.uid),
+            orderBy('createdAt', 'desc')
+        );
+
+        // Subscribe to real-time updates
+        const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+            setLoading(false);
+
+            const notificationsList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            setNotifications(notificationsList);
+            setUnreadCount(notificationsList.filter(n => !n.read).length);
+        }, (error) => {
+            console.error('Error fetching notifications:', error);
+            setLoading(false);
+
+            // Fallback to regular fetch if real-time updates fail
+            fetchNotifications();
+        });
+
+        // Clean up subscription on unmount
+        return () => unsubscribe();
+    }, [currentUser]);
+
+    // Legacy fetch method as backup and for manual refresh
     const fetchNotifications = async () => {
         if (!currentUser?.uid) return;
 
@@ -48,7 +82,10 @@ export const NotificationProvider = ({ children }) => {
         }
     };
 
+    // Manual refresh function - mostly for legacy support
     const refresh = () => {
+        // With real-time updates, manual refresh is less necessary
+        // but we keep it for fallback purposes
         setLastRefresh(Date.now());
     };
 

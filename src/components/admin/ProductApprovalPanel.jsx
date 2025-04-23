@@ -267,6 +267,11 @@ const ProductApprovalPanel = () => {
                                         alt={product.name}
                                         className="product-thumbnail"
                                     />
+                                    {product.wasEdited && (
+                                        <div className="edited-badge">
+                                            Edited
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="product-details">
                                     <h4>{product.name}</h4>
@@ -275,7 +280,11 @@ const ProductApprovalPanel = () => {
                                         <span className="product-price">{formatPrice(product.price)}</span>
                                         <span className="product-category">{product.category}</span>
                                         <span className="product-date">
-                                            Submitted: {formatDate(product.createdAt)}
+                                            {product.wasEdited ? (
+                                                <>Edited: {formatDate(product.lastEditedAt?.toDate() || product.updatedAt?.toDate() || new Date())}</>
+                                            ) : (
+                                                <>Submitted: {formatDate(product.createdAt)}</>
+                                            )}
                                         </span>
                                         <span className="product-designer">
                                             By: {product.designerName || 'Unknown Designer'}
