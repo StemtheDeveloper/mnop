@@ -4,10 +4,8 @@ import { FaArrowLeft, FaPaperPlane, FaLock, FaFileAlt, FaImage, FaVideo, FaFile,
 import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
-import encryptionService from '../services/encryptionService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format } from 'date-fns';
-import { getDownloadURL, getBlob } from 'firebase/storage';
 
 const ConversationPage = () => {
     const { conversationId } = useParams();
@@ -20,8 +18,6 @@ const ConversationPage = () => {
     const [sendingMessage, setSendingMessage] = useState(false);
     const [attachment, setAttachment] = useState(null);
     const [attachmentPreview, setAttachmentPreview] = useState(null);
-    const [decryptedFiles, setDecryptedFiles] = useState({});
-    const [decryptingFiles, setDecryptingFiles] = useState({});
     const messagesEndRef = useRef(null);
     const messageListRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -95,170 +91,6 @@ const ConversationPage = () => {
 
         loadConversation();
     }, [user, userLoading, conversationId]);
-
-    // Effect to decrypt file attachments when messages change
-    useEffect(() => {
-        if (!user || !conversation || messages.length === 0) return;
-
-        // Find attachments that need decrypting
-        const attachmentsToDecrypt = messages
-            .filter(message => message.hasAttachment &&
-                (message.attachmentData || message.fileData) &&
-                !decryptedFiles[message.id])
-            .map(message => ({
-                messageId: message.id,
-                fileData: message.attachmentData || message.fileData
-            }));
-
-        if (attachmentsToDecrypt.length === 0) return;
-
-        // Decrypt attachments
-        const decryptFiles = async () => {
-            for (const attachment of attachmentsToDecrypt) {
-                const { messageId, fileData } = attachment;
-
-                // Skip if already decrypting
-                if (decryptingFiles[messageId]) continue;
-
-                // Mark as decrypting
-                setDecryptingFiles(prev => ({ ...prev, [messageId]: true }));
-
-                try {
-                    // If the file is encrypted, decrypt it
-                    if (fileData.isEncrypted || (fileData.decryptedData && fileData.decryptedData.isEncrypted)) {
-                        try {
-                            // SOLUTION 1: If we have a storage reference, use getBlob instead of fetch to avoid CORS
-                            if (fileData.storageRef) {
-                                try {
-                                    // Get blob directly from Firebase Storage
-                                    const encryptedBlob = await getBlob(fileData.storageRef);
-
-                                    // Get encryption key from fileData or generate it
-                                    const encryptionKey = fileData.encryptionKey ||
-                                        encryptionService.generateConversationKey(
-                                            user.uid,
-                                            conversation.otherParticipant.id
-                                        );
-
-                                    // Extract metadata
-                                    const metadata = {
-                                        originalType: fileData.originalType || fileData.type,
-                                        originalSize: fileData.originalSize || fileData.size,
-                                        originalName: fileData.originalName || fileData.name
-                                    };
-
-                                    // Decrypt the blob
-                                    const decryptedBlob = await encryptionService.decryptFile(
-                                        encryptedBlob,
-                                        encryptionKey,
-                                        metadata
-                                    );
-
-                                    if (!decryptedBlob) {
-                                        throw new Error("Failed to decrypt file");
-                                    }
-
-                                    // Create object URL from the decrypted blob
-                                    const objectUrl = URL.createObjectURL(decryptedBlob);
-
-                                    // Save the decrypted URL
-                                    setDecryptedFiles(prev => ({ ...prev, [messageId]: objectUrl }));
-                                } catch (storageError) {
-                                    console.error("Failed to get or decrypt blob:", storageError);
-                                    setDecryptedFiles(prev => ({ ...prev, [messageId]: null }));
-                                }
-                            } else {
-                                // SOLUTION 2: Try to create a new storage reference from the path if available
-                                if (fileData.path || fileData.storagePath || fileData.decryptedData?.storagePath) {
-                                    const path = fileData.path || fileData.storagePath || fileData.decryptedData?.storagePath;
-                                    try {
-                                        // Import Firebase storage
-                                        const { ref } = await import('firebase/storage');
-                                        const { storage } = await import('../config/firebase');
-
-                                        // Create storage reference
-                                        const storageRef = ref(storage, path);
-
-                                        // Get blob directly
-                                        const encryptedBlob = await getBlob(storageRef);
-
-                                        // Get encryption key
-                                        const encryptionKey = fileData.encryptionKey ||
-                                            encryptionService.generateConversationKey(
-                                                user.uid,
-                                                conversation.otherParticipant.id
-                                            );
-
-                                        // Extract metadata
-                                        const metadata = {
-                                            originalType: fileData.originalType || fileData.decryptedData?.originalType || fileData.type,
-                                            originalSize: fileData.originalSize || fileData.decryptedData?.originalSize || fileData.size,
-                                            originalName: fileData.originalName || fileData.decryptedData?.originalName || fileData.name
-                                        };
-
-                                        // Decrypt the blob
-                                        const decryptedBlob = await encryptionService.decryptFile(
-                                            encryptedBlob,
-                                            encryptionKey,
-                                            metadata
-                                        );
-
-                                        if (!decryptedBlob) {
-                                            throw new Error("Failed to decrypt file");
-                                        }
-
-                                        // Create object URL
-                                        const objectUrl = URL.createObjectURL(decryptedBlob);
-
-                                        // Save the decrypted URL
-                                        setDecryptedFiles(prev => ({ ...prev, [messageId]: objectUrl }));
-                                        return;
-                                    } catch (err) {
-                                        console.error("Failed to create storage reference:", err);
-                                        // Continue to next fallback
-                                    }
-                                }
-
-                                // SOLUTION 3: Last resort - show a download button instead
-                                // Since direct file fetching is blocked by CORS, we'll show a message instead
-                                console.warn("CORS issues prevented direct file decryption. Setting a placeholder.");
-                                setDecryptedFiles(prev => ({
-                                    ...prev,
-                                    [messageId]: "cors-error"
-                                }));
-                            }
-                        } catch (error) {
-                            console.error("Failed to decrypt file:", error);
-                            setDecryptedFiles(prev => ({ ...prev, [messageId]: null }));
-                        }
-                    } else {
-                        // If not encrypted, just use the original URL
-                        setDecryptedFiles(prev => ({
-                            ...prev,
-                            [messageId]: fileData.url || fileData.downloadURL
-                        }));
-                    }
-                } catch (error) {
-                    console.error("Failed to process file attachment:", error);
-                    setDecryptedFiles(prev => ({ ...prev, [messageId]: null }));
-                } finally {
-                    // Mark as not decrypting anymore
-                    setDecryptingFiles(prev => ({ ...prev, [messageId]: false }));
-                }
-            }
-        };
-
-        decryptFiles();
-
-        // Cleanup function to revoke object URLs when component unmounts
-        return () => {
-            Object.values(decryptedFiles).forEach(url => {
-                if (url && typeof url === 'string' && url.startsWith('blob:')) {
-                    URL.revokeObjectURL(url);
-                }
-            });
-        };
-    }, [messages, user, conversation, decryptedFiles, decryptingFiles]);
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -346,45 +178,17 @@ const ConversationPage = () => {
         );
     };
 
-    const renderFileAttachment = (fileData, messageId) => {
+    const renderFileAttachment = (fileData) => {
         if (!fileData) return null;
 
         const fileType = fileData.type ? messagingService.getFileTypeCategory(fileData.type) : 'other';
-        const decryptedUrl = decryptedFiles[messageId];
-        const isDecrypting = decryptingFiles[messageId];
-
-        // Show loading indicator while decrypting
-        if (isDecrypting) {
-            return (
-                <div className="attachment-container loading-attachment">
-                    <div className="file-icon">
-                        <LoadingSpinner size="small" />
-                    </div>
-                    <div className="file-info">
-                        <span className="file-name">Decrypting file...</span>
-                    </div>
-                </div>
-            );
-        }
-
-        // If we don't have a decrypted URL yet (and not decrypting), show placeholder
-        if (!decryptedUrl && !isDecrypting) {
-            return (
-                <div className="attachment-container file-attachment">
-                    <div className="file-icon"><FaFile /></div>
-                    <div className="file-info">
-                        <span className="file-name">Unable to decrypt file</span>
-                    </div>
-                </div>
-            );
-        }
 
         // For images
         if (fileType === 'image') {
             return (
                 <div className="attachment-container image-attachment">
-                    <a href={decryptedUrl} target="_blank" rel="noopener noreferrer">
-                        <img src={decryptedUrl} alt={fileData.name || fileData.fileName || "Image attachment"} />
+                    <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer">
+                        <img src={fileData.url || fileData.downloadURL} alt={fileData.name || fileData.fileName || "Image attachment"} />
                     </a>
                 </div>
             );
@@ -395,7 +199,7 @@ const ConversationPage = () => {
             return (
                 <div className="attachment-container video-attachment">
                     <video controls>
-                        <source src={decryptedUrl} type={fileData.originalType || fileData.type || fileData.fileType} />
+                        <source src={fileData.url || fileData.downloadURL} type={fileData.type || fileData.fileType} />
                         Your browser does not support the video tag.
                     </video>
                 </div>
@@ -410,7 +214,7 @@ const ConversationPage = () => {
 
         return (
             <div className="attachment-container file-attachment">
-                <a href={decryptedUrl} target="_blank" rel="noopener noreferrer" className="file-download-link">
+                <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer" className="file-download-link">
                     <div className="file-icon">{icon}</div>
                     <div className="file-info">
                         <span className="file-name">{fileData.name || fileData.fileName || "File attachment"}</span>
@@ -541,7 +345,7 @@ const ConversationPage = () => {
                                             )}
 
                                             {message.hasAttachment && (message.attachmentData || message.fileData) && (
-                                                renderFileAttachment(message.attachmentData || message.fileData, message.id)
+                                                renderFileAttachment(message.attachmentData || message.fileData)
                                             )}
 
                                             <div className="message-info">
