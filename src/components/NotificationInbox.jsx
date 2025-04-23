@@ -9,17 +9,19 @@ const NotificationInbox = ({ isOpen, onClose }) => {
     const { currentUser } = useAuth();
     const {
         notifications,
-        loading,
+        loading: contextLoading,
         refresh,
         markAsRead,
         markAllAsRead,
         deleteNotification,
-        unreadCount
+        unreadCount,
+        lastRefresh
     } = useNotifications();
     const inboxRef = useRef(null);
     const [isClosing, setIsClosing] = useState(false);
     const [notificationsList, setNotificationsList] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const refreshAttemptedRef = useRef(false);
 
     // Handle smooth closing animation
     const handleClose = () => {
@@ -30,34 +32,23 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         }, 300); // Match animation duration in CSS
     };
 
-    // Load notifications and manage local state to prevent flickering
+    // Load notifications only when inbox is first opened
     useEffect(() => {
-        let isMounted = true;
+        if (isOpen && currentUser && !refreshAttemptedRef.current) {
+            // Set the flag to prevent multiple refresh attempts
+            refreshAttemptedRef.current = true;
 
-        const loadData = async () => {
-            if (isOpen && currentUser) {
-                setIsLoading(true);
-                try {
-                    // Call refresh function which now returns a promise
-                    await refresh();
-                } catch (error) {
-                    console.error("Error refreshing notifications:", error);
-                } finally {
-                    // Only update state if component is still mounted
-                    if (isMounted) {
-                        setIsLoading(false);
-                    }
-                }
-            }
-        };
+            // Don't set isLoading here, rely on the context's loading state
+            refresh().catch(error => {
+                console.error("Error refreshing notifications:", error);
+            });
+        }
 
-        loadData();
-
-        // Cleanup function to prevent setting state on unmounted component
-        return () => {
-            isMounted = false;
-        };
-    }, [isOpen, currentUser]); // Remove refresh from dependency array to prevent infinite loop
+        // Reset the flag when the inbox is closed
+        if (!isOpen) {
+            refreshAttemptedRef.current = false;
+        }
+    }, [isOpen, currentUser]);
 
     // Update local notifications list when notifications change
     useEffect(() => {
@@ -81,7 +72,7 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isOpen, onClose]);
+    }, [isOpen]);
 
     const formatNotificationTime = (timestamp) => {
         if (!timestamp) return '';
@@ -121,42 +112,44 @@ const NotificationInbox = ({ isOpen, onClose }) => {
     };
 
     // Handle refresh button click safely
-    const handleRefresh = async () => {
-        if (isLoading) return; // Prevent multiple refreshes
+    const handleRefresh = () => {
+        if (isLoading || contextLoading) return; // Prevent multiple refreshes
 
         setIsLoading(true);
-        try {
-            // refresh now returns a promise we can await
-            await refresh();
-        } catch (error) {
+        refresh().catch(error => {
             console.error("Error refreshing notifications:", error);
-        } finally {
+        }).finally(() => {
             setIsLoading(false);
-        }
+        });
     };
 
     // Handle notification deletion with local state update to prevent flickering
-    const handleDeleteNotification = async (id) => {
+    const handleDeleteNotification = (id) => {
         // Optimistically update UI first
         setNotificationsList(prev => prev.filter(n => n.id !== id));
 
         // Then perform the actual deletion
-        await deleteNotification(id);
+        deleteNotification(id).catch(error => {
+            console.error("Error deleting notification:", error);
+            // Revert the optimistic update if needed
+        });
     };
 
     // Handle mark as read with local state update
-    const handleMarkAsRead = async (id) => {
+    const handleMarkAsRead = (id) => {
         // Optimistically update UI first
         setNotificationsList(prev =>
             prev.map(n => n.id === id ? { ...n, read: true } : n)
         );
 
         // Then perform the actual update
-        await markAsRead(id);
+        markAsRead(id).catch(error => {
+            console.error("Error marking notification as read:", error);
+        });
     };
 
     // Handle mark all as read with local state update
-    const handleMarkAllAsRead = async () => {
+    const handleMarkAllAsRead = () => {
         if (unreadCount === 0) return;
 
         // Optimistically update UI first
@@ -165,10 +158,15 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         );
 
         // Then perform the actual update
-        await markAllAsRead();
+        markAllAsRead().catch(error => {
+            console.error("Error marking all notifications as read:", error);
+        });
     };
 
     if (!isOpen || !currentUser) return null;
+
+    // Use the loading state from the context OR the local state
+    const loading = contextLoading || isLoading;
 
     return (
         <div className="notification-inbox-overlay">
@@ -179,9 +177,9 @@ const NotificationInbox = ({ isOpen, onClose }) => {
                         <button
                             className="refresh-btn"
                             onClick={handleRefresh}
-                            disabled={isLoading}
+                            disabled={loading}
                         >
-                            Refresh
+                            {loading ? 'Loading...' : 'Refresh'}
                         </button>
                         {unreadCount > 0 && (
                             <button className="mark-all-read-btn" onClick={handleMarkAllAsRead}>
@@ -195,7 +193,7 @@ const NotificationInbox = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="notification-inbox-content">
-                    {isLoading ? (
+                    {loading ? (
                         <div className="notification-loading">Loading notifications...</div>
                     ) : notificationsList.length === 0 ? (
                         <div className="notification-empty">No notifications</div>
