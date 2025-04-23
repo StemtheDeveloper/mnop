@@ -10,8 +10,6 @@ import {
   serverTimestamp,
   writeBatch,
   getDoc,
-  orderBy,
-  limit
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 
@@ -27,23 +25,10 @@ class NotificationService {
    */
   async getUserNotifications(userId) {
     try {
-      if (!userId) {
-        console.error("getUserNotifications called with no userId");
-        return { success: false, error: "No user ID provided", data: [] };
-      }
-
-      console.log(`Fetching notifications for user ${userId} from Firestore`);
       const notificationsRef = collection(db, this.collection);
-      const q = query(
-        notificationsRef, 
-        where("userId", "==", userId),
-        orderBy("createdAt", "desc"),
-        limit(50)
-      );
+      const q = query(notificationsRef, where("userId", "==", userId));
 
       const snapshot = await getDocs(q);
-      console.log(`Found ${snapshot.size} notifications for user ${userId}`);
-      
       const notifications = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -52,7 +37,7 @@ class NotificationService {
       return { success: true, data: notifications };
     } catch (error) {
       console.error("Error getting user notifications:", error);
-      return { success: false, error: error.message, data: [] };
+      return { success: false, error: error.message };
     }
   }
 
