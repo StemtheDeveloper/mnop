@@ -7,6 +7,7 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
+  limit,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../config/firebase";
@@ -21,14 +22,14 @@ class ProductArchiveService {
    */
   async getArchivedProducts(options = {}) {
     try {
-      const { limit = 20 } = options;
+      const { limit: limitCount = 20 } = options;
 
       const productsRef = collection(db, "products");
       const q = query(
         productsRef,
         where("status", "==", "archived"),
         where("archived", "==", true),
-        limit(limit)
+        limit(limitCount)
       );
 
       const snapshot = await getDocs(q);

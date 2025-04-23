@@ -909,6 +909,20 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* Add this to your existing CSS */
+.attachment-container.cors-error {
+  border-left: 3px solid #ff9800;
+  background-color: #fff9e6;
+}
+
+.file-error-message {
+  display: block;
+  font-size: 12px;
+  color: #e65100;
+  margin-top: 4px;
+  font-style: italic;
+}
+
 /* Responsive styles */
 @media (max-width: 768px) {
   .conversation-page {

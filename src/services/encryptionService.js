@@ -140,8 +140,21 @@ class EncryptionService {
    */
   async createDecryptedObjectURL(downloadURL, encryptionKey, metadata) {
     try {
-      // Fetch the encrypted file
-      const response = await fetch(downloadURL);
+      // Fetch the encrypted file with CORS mode to avoid cross-origin issues
+      const response = await fetch(downloadURL, {
+        mode: "cors",
+        credentials: "same-origin",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch file: ${response.status} ${response.statusText}`
+        );
+      }
+
       const encryptedBlob = await response.blob();
 
       // Decrypt the file
@@ -159,7 +172,7 @@ class EncryptionService {
       return URL.createObjectURL(decryptedBlob);
     } catch (error) {
       console.error("Failed to create decrypted object URL:", error);
-      return null;
+      throw error; // Re-throw to allow proper error handling upstream
     }
   }
 }

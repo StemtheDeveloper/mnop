@@ -84,7 +84,7 @@ class MessagingService {
    * @param {string} senderId - Sender's user ID
    * @param {string} recipientId - Recipient's user ID
    * @param {string} content - Message content (plaintext)
-   * @param {File} [attachment] - Optional file attachment
+   * @param {File|Blob} [attachment] - Optional file attachment (will be encrypted)
    * @returns {Promise<Object>} - Sent message object
    */
   async sendMessage(
@@ -423,11 +423,9 @@ class MessagingService {
   subscribeToMessages(conversationId, userId, otherUserId, callback) {
     try {
       const messagesRef = collection(db, "messages");
-      // Modified query to avoid index requirement - we'll sort client-side
       const q = query(
         messagesRef,
         where("conversationId", "==", conversationId)
-        // orderBy("createdAt", "asc") - removed to avoid needing composite index
       );
 
       // Generate encryption key for this conversation
@@ -472,13 +470,33 @@ class MessagingService {
                   decryptedAttachmentDataStr
                 );
 
+                // Add the storage path reference for frontend use
+                const storagePath =
+                  decryptedAttachmentData.storagePath ||
+                  message.attachmentData.storagePath;
+
                 // Replace the attachmentData with the decrypted version for easier access in UI
                 message.fileData = {
                   name: decryptedAttachmentData.fileName,
                   type: decryptedAttachmentData.fileType,
                   size: decryptedAttachmentData.fileSize,
                   url: decryptedAttachmentData.downloadURL,
-                  path: decryptedAttachmentData.storagePath,
+                  path: storagePath,
+                  // Add a direct storage reference for CORS-free access
+                  storageRef: storagePath ? ref(storage, storagePath) : null,
+                  // Add original file metadata for decryption
+                  originalType:
+                    decryptedAttachmentData.originalType ||
+                    decryptedAttachmentData.fileType,
+                  originalSize:
+                    decryptedAttachmentData.originalSize ||
+                    decryptedAttachmentData.fileSize,
+                  originalName:
+                    decryptedAttachmentData.originalName ||
+                    decryptedAttachmentData.fileName,
+                  isEncrypted: true,
+                  // Include the encryption key directly to bypass CORS issues with fetch in the component
+                  encryptionKey: encryptionKey,
                 };
 
                 // Keep the original data too
