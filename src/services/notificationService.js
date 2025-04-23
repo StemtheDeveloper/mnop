@@ -154,38 +154,6 @@ class NotificationService {
   }
 
   /**
-   * Delete all notifications for a user
-   * @param {string} userId - User ID
-   * @returns {Promise<{success: boolean, count: number, error?: string}>}
-   */
-  async deleteAllNotifications(userId) {
-    try {
-      const notificationsRef = collection(db, this.collection);
-      const q = query(notificationsRef, where("userId", "==", userId));
-
-      const snapshot = await getDocs(q);
-
-      if (snapshot.empty) {
-        return { success: true, count: 0 };
-      }
-
-      const batch = writeBatch(db);
-
-      snapshot.docs.forEach((document) => {
-        const docRef = doc(db, this.collection, document.id);
-        batch.delete(docRef);
-      });
-
-      await batch.commit();
-
-      return { success: true, count: snapshot.size };
-    } catch (error) {
-      console.error("Error deleting all notifications:", error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  /**
    * Send a role request approval notification
    * @param {string} userId - User ID receiving the notification
    * @param {string} role - Role that was approved
