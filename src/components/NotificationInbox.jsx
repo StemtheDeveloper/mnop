@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
-import './NotificationInbox.css'; // Use our new CSS file
+import './NotificationInbox.css';
 
 const NotificationInbox = ({ isOpen, onClose }) => {
     const { currentUser } = useAuth();
@@ -30,23 +30,29 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         }, 300); // Match animation duration in CSS
     };
 
-    // Load notifications and manage local state to prevent flickering
+    // Load notifications and refresh when the inbox is opened
     useEffect(() => {
+        console.log('NotificationInbox opened:', isOpen, 'user:', currentUser?.uid);
+        
         if (isOpen && currentUser) {
             setIsLoading(true);
+            
             try {
-                // Call refresh and handle both Promise and non-Promise return values
+                console.log('Refreshing notifications in inbox');
                 const result = refresh();
 
                 if (result && typeof result.then === 'function') {
                     // If refresh returns a Promise
-                    result.then(() => {
+                    result.then((success) => {
+                        console.log('Notification refresh completed:', success);
                         setIsLoading(false);
-                    }).catch(() => {
+                    }).catch((error) => {
+                        console.error('Error in notification refresh promise:', error);
                         setIsLoading(false);
                     });
                 } else {
                     // If refresh doesn't return a Promise
+                    console.log('Notification refresh called (not a promise)');
                     setIsLoading(false);
                 }
             } catch (error) {
@@ -56,12 +62,17 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         }
     }, [isOpen, currentUser, refresh]);
 
-    // Update local notifications list when notifications change
+    // Update local notifications list when notifications change from context
     useEffect(() => {
-        if (notifications) {
+        console.log('Notifications updated in context, count:', notifications?.length);
+        if (notifications && Array.isArray(notifications)) {
             setNotificationsList(notifications);
+            // If we were loading and got notifications, stop loading
+            if (isLoading && notifications.length > 0) {
+                setIsLoading(false);
+            }
         }
-    }, [notifications]);
+    }, [notifications, isLoading]);
 
     // Close the inbox when clicking outside
     useEffect(() => {
@@ -78,13 +89,18 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isOpen, onClose]);
+    }, [isOpen]);
 
     const formatNotificationTime = (timestamp) => {
         if (!timestamp) return '';
 
-        const date = timestamp?.toDate?.() || new Date(timestamp);
-        return formatDistanceToNow(date, { addSuffix: true });
+        try {
+            const date = timestamp?.toDate?.() || new Date(timestamp);
+            return formatDistanceToNow(date, { addSuffix: true });
+        } catch (error) {
+            console.error('Error formatting notification time:', error);
+            return '';
+        }
     };
 
     const getNotificationIcon = (type) => {
@@ -117,64 +133,87 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         }
     };
 
-    // Handle refresh button click safely
+    // Handle refresh button click
     const handleRefresh = () => {
+        console.log('Manual refresh requested');
         setIsLoading(true);
+        
         try {
             const result = refresh();
 
             if (result && typeof result.then === 'function') {
                 result.then(() => {
+                    console.log('Manual refresh completed');
                     setIsLoading(false);
-                }).catch(() => {
+                }).catch((error) => {
+                    console.error('Error in manual refresh:', error);
                     setIsLoading(false);
                 });
             } else {
-                // If refresh doesn't return a Promise, use the loading state from context
-                // Or set a timeout to give time for the refresh to complete
+                // Set a timeout to give time for the refresh to complete
+                console.log('Manual refresh called (not a promise)');
                 setTimeout(() => {
                     setIsLoading(false);
-                }, 500);
+                }, 1000);
             }
         } catch (error) {
-            console.error("Error refreshing notifications:", error);
+            console.error("Error in manual refresh:", error);
             setIsLoading(false);
         }
     };
 
-    // Handle notification deletion with local state update to prevent flickering
+    // Handle notification deletion
     const handleDeleteNotification = async (id) => {
+        console.log('Deleting notification:', id);
         // Optimistically update UI first
         setNotificationsList(prev => prev.filter(n => n.id !== id));
 
         // Then perform the actual deletion
-        await deleteNotification(id);
+        try {
+            const result = await deleteNotification(id);
+            console.log('Notification deletion result:', result);
+        } catch (error) {
+            console.error('Error deleting notification:', error);
+        }
     };
 
-    // Handle mark as read with local state update
+    // Handle mark as read
     const handleMarkAsRead = async (id) => {
+        console.log('Marking notification as read:', id);
         // Optimistically update UI first
         setNotificationsList(prev =>
             prev.map(n => n.id === id ? { ...n, read: true } : n)
         );
 
         // Then perform the actual update
-        await markAsRead(id);
+        try {
+            const result = await markAsRead(id);
+            console.log('Mark as read result:', result);
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
     };
 
-    // Handle mark all as read with local state update
+    // Handle mark all as read
     const handleMarkAllAsRead = async () => {
         if (unreadCount === 0) return;
-
+        
+        console.log('Marking all notifications as read');
         // Optimistically update UI first
         setNotificationsList(prev =>
             prev.map(n => ({ ...n, read: true }))
         );
 
         // Then perform the actual update
-        await markAllAsRead();
+        try {
+            const result = await markAllAsRead();
+            console.log('Mark all as read result:', result);
+        } catch (error) {
+            console.error('Error marking all notifications as read:', error);
+        }
     };
 
+    // Don't render anything if inbox is closed or no user
     if (!isOpen || !currentUser) return null;
 
     return (
@@ -188,7 +227,7 @@ const NotificationInbox = ({ isOpen, onClose }) => {
                             onClick={handleRefresh}
                             disabled={isLoading}
                         >
-                            Refresh
+                            {isLoading ? 'Loading...' : 'Refresh'}
                         </button>
                         {unreadCount > 0 && (
                             <button className="mark-all-read-btn" onClick={handleMarkAllAsRead}>
@@ -202,7 +241,7 @@ const NotificationInbox = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="notification-inbox-content">
-                    {isLoading ? (
+                    {isLoading || loading ? (
                         <div className="notification-loading">Loading notifications...</div>
                     ) : notificationsList.length === 0 ? (
                         <div className="notification-empty">No notifications</div>
@@ -231,7 +270,10 @@ const NotificationInbox = ({ isOpen, onClose }) => {
                                     <div className="notification-actions">
                                         {!notification.read && (
                                             <button
-                                                onClick={() => handleMarkAsRead(notification.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMarkAsRead(notification.id);
+                                                }}
                                                 className="read-btn"
                                                 aria-label="Mark as read"
                                             >
@@ -239,7 +281,10 @@ const NotificationInbox = ({ isOpen, onClose }) => {
                                             </button>
                                         )}
                                         <button
-                                            onClick={() => handleDeleteNotification(notification.id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteNotification(notification.id);
+                                            }}
                                             className="delete-btn"
                                             aria-label="Delete notification"
                                         >

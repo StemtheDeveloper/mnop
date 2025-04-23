@@ -20,6 +20,13 @@ const NotificationsPage = () => {
     const [filter, setFilter] = useState('all');
     const [displayedNotifications, setDisplayedNotifications] = useState([]);
 
+    // Fetch notifications when component mounts
+    useEffect(() => {
+        if (currentUser?.uid) {
+            refresh();
+        }
+    }, [currentUser, refresh]);
+
     useEffect(() => {
         // Apply filters to notifications
         let filtered = [...notifications];
