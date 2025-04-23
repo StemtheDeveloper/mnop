@@ -183,20 +183,36 @@ const ProductUploadPage = () => {
             // Clear previous error
             setError('');
 
-            // Create URL for the cropper
+            // Create URL for the cropper and store reference to original file
             const imageUrl = URL.createObjectURL(file);
             setCropImageSrc(imageUrl);
             setShowImageCropper(true);
+
+            // Store the original file to pass to the image cropper
+            // This way we can preserve WEBP files
+            sessionStorage.setItem('currentUploadFile', JSON.stringify({
+                type: file.type,
+                name: file.name
+            }));
         }
     };
 
     // Handle image crop completion
-    const handleCropComplete = async (blob) => {
+    const handleCropComplete = async (blob, originalFile) => {
         try {
             setShowImageCropper(false);
 
-            // Create a File from the blob
-            const croppedFile = new File([blob], `product-image-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            // Determine whether to keep original format (for WEBP) or use JPEG
+            const isWebP = originalFile && originalFile.type === 'image/webp';
+            const fileType = isWebP ? 'image/webp' : 'image/jpeg';
+            const fileExt = isWebP ? 'webp' : 'jpg';
+
+            // Create a File from the blob with the appropriate type
+            const croppedFile = new File(
+                [blob],
+                `product-image-${Date.now()}.${fileExt}`,
+                { type: fileType }
+            );
 
             // Add the new image to the array
             setProductImages(prevImages => [...prevImages, croppedFile]);
@@ -280,7 +296,19 @@ const ProductUploadPage = () => {
             for (let i = 0; i < productImages.length; i++) {
                 const image = productImages[i];
                 const timestamp = Date.now();
-                const fileName = `${timestamp}-product-${i}.jpg`;
+
+                // Get the appropriate file extension based on the file type
+                // This ensures WebP files keep their .webp extension
+                let fileExt = 'jpg'; // Default
+                if (image.type === 'image/webp') {
+                    fileExt = 'webp';
+                } else if (image.type === 'image/png') {
+                    fileExt = 'png';
+                } else if (image.type === 'image/gif') {
+                    fileExt = 'gif';
+                }
+
+                const fileName = `${timestamp}-product-${i}.${fileExt}`;
                 const storagePath = `products/${currentUser.uid}/${fileName}`;
 
                 // Add storage path to the array
@@ -296,7 +324,7 @@ const ProductUploadPage = () => {
                 const imageUrl = await getDownloadURL(storageRef);
                 imageUrls.push(imageUrl);
 
-                console.log(`Image ${i + 1} uploaded: ${imageUrl}`);
+                console.log(`Image ${i + 1} uploaded: ${imageUrl} (${fileExt} format)`);
             }
 
             // 2. Create product document in Firestore with the image URLs

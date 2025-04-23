@@ -1,5 +1,5 @@
 // FIXED: ImageCropper.js (updates aspect ratio support and sizing)
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import '../styles/ImageCropper.css';
@@ -19,7 +19,20 @@ const ImageCropper = ({
         aspect: aspect || undefined,
     });
     const [completedCrop, setCompletedCrop] = useState(null);
+    const [originalFile, setOriginalFile] = useState(null);
     const imgRef = useRef(null);
+
+    // Retrieve original file info from sessionStorage
+    useEffect(() => {
+        try {
+            const fileInfo = JSON.parse(sessionStorage.getItem('currentUploadFile'));
+            if (fileInfo) {
+                setOriginalFile(fileInfo);
+            }
+        } catch (error) {
+            console.error("Error retrieving original file info:", error);
+        }
+    }, []);
 
     const onImageLoad = (e) => {
         const { width, height } = e.currentTarget;
@@ -75,13 +88,21 @@ const ImageCropper = ({
             cropHeight
         );
 
+        // Use webP format if the original was webP
+        const isWebP = originalFile && originalFile.type === 'image/webp';
+        const mimeType = isWebP ? 'image/webp' : 'image/jpeg';
+        const quality = isWebP ? 0.95 : 0.95;
+
         canvas.toBlob(
             (blob) => {
                 if (!blob) return console.error('Failed to create cropped blob.');
-                onCropComplete(blob);
+                // Pass the original file information to handleCropComplete
+                onCropComplete(blob, originalFile);
+                // Clean up session storage
+                sessionStorage.removeItem('currentUploadFile');
             },
-            'image/jpeg',
-            0.95
+            mimeType,
+            quality
         );
     };
 
@@ -113,6 +134,9 @@ const ImageCropper = ({
             </div>
             <div className="cropper-instructions">
                 <p>Drag to position • Resize from corners</p>
+                {originalFile && originalFile.type === 'image/webp' && (
+                    <p className="format-note">WebP format will be preserved</p>
+                )}
             </div>
         </div>
     );
