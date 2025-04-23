@@ -32,29 +32,32 @@ const NotificationInbox = ({ isOpen, onClose }) => {
 
     // Load notifications and manage local state to prevent flickering
     useEffect(() => {
-        if (isOpen && currentUser) {
-            setIsLoading(true);
-            try {
-                // Call refresh and handle both Promise and non-Promise return values
-                const result = refresh();
+        let isMounted = true;
 
-                if (result && typeof result.then === 'function') {
-                    // If refresh returns a Promise
-                    result.then(() => {
+        const loadData = async () => {
+            if (isOpen && currentUser) {
+                setIsLoading(true);
+                try {
+                    // Call refresh function which now returns a promise
+                    await refresh();
+                } catch (error) {
+                    console.error("Error refreshing notifications:", error);
+                } finally {
+                    // Only update state if component is still mounted
+                    if (isMounted) {
                         setIsLoading(false);
-                    }).catch(() => {
-                        setIsLoading(false);
-                    });
-                } else {
-                    // If refresh doesn't return a Promise
-                    setIsLoading(false);
+                    }
                 }
-            } catch (error) {
-                console.error("Error refreshing notifications:", error);
-                setIsLoading(false);
             }
-        }
-    }, [isOpen, currentUser, refresh]);
+        };
+
+        loadData();
+
+        // Cleanup function to prevent setting state on unmounted component
+        return () => {
+            isMounted = false;
+        };
+    }, [isOpen, currentUser]); // Remove refresh from dependency array to prevent infinite loop
 
     // Update local notifications list when notifications change
     useEffect(() => {
@@ -118,26 +121,16 @@ const NotificationInbox = ({ isOpen, onClose }) => {
     };
 
     // Handle refresh button click safely
-    const handleRefresh = () => {
+    const handleRefresh = async () => {
+        if (isLoading) return; // Prevent multiple refreshes
+
         setIsLoading(true);
         try {
-            const result = refresh();
-
-            if (result && typeof result.then === 'function') {
-                result.then(() => {
-                    setIsLoading(false);
-                }).catch(() => {
-                    setIsLoading(false);
-                });
-            } else {
-                // If refresh doesn't return a Promise, use the loading state from context
-                // Or set a timeout to give time for the refresh to complete
-                setTimeout(() => {
-                    setIsLoading(false);
-                }, 500);
-            }
+            // refresh now returns a promise we can await
+            await refresh();
         } catch (error) {
             console.error("Error refreshing notifications:", error);
+        } finally {
             setIsLoading(false);
         }
     };

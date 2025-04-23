@@ -4,6 +4,7 @@ import { FaArrowLeft, FaPaperPlane, FaLock, FaFileAlt, FaImage, FaVideo, FaFile,
 import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
+import encryptionService from '../services/encryptionService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format } from 'date-fns';
 
@@ -182,13 +183,91 @@ const ConversationPage = () => {
         if (!fileData) return null;
 
         const fileType = fileData.type ? messagingService.getFileTypeCategory(fileData.type) : 'other';
+        const [decryptedUrl, setDecryptedUrl] = useState(null);
+        const [decrypting, setDecrypting] = useState(false);
+        const encryptionKey = encryptionService.generateConversationKey(
+            user.uid,
+            conversation.otherParticipant.id
+        );
+
+        // Effect to decrypt the file when component mounts
+        useEffect(() => {
+            const decryptFile = async () => {
+                if (fileData.isEncrypted || (fileData.decryptedData && fileData.decryptedData.isEncrypted)) {
+                    try {
+                        setDecrypting(true);
+                        // Extract metadata from decrypted data if available
+                        const metadata = {
+                            originalType: fileData.originalType || fileData.decryptedData?.originalType || fileData.type || fileData.fileType,
+                            originalSize: fileData.originalSize || fileData.decryptedData?.originalSize || fileData.size || fileData.fileSize,
+                            originalName: fileData.originalName || fileData.decryptedData?.originalName || fileData.name || fileData.fileName
+                        };
+
+                        // Get the encrypted file URL
+                        const fileUrl = fileData.url || fileData.downloadURL ||
+                            fileData.decryptedData?.downloadURL;
+
+                        // Create a decrypted object URL
+                        const decryptedObjUrl = await encryptionService.createDecryptedObjectURL(
+                            fileUrl,
+                            encryptionKey,
+                            metadata
+                        );
+
+                        setDecryptedUrl(decryptedObjUrl);
+                    } catch (error) {
+                        console.error("Failed to decrypt file:", error);
+                    } finally {
+                        setDecrypting(false);
+                    }
+                } else {
+                    // If the file is not encrypted, just use the original URL
+                    setDecryptedUrl(fileData.url || fileData.downloadURL);
+                }
+            };
+
+            decryptFile();
+
+            // Cleanup function to revoke object URL when component unmounts
+            return () => {
+                if (decryptedUrl) {
+                    URL.revokeObjectURL(decryptedUrl);
+                }
+            };
+        }, [fileData, encryptionKey]);
+
+        // Show loading indicator while decrypting
+        if (decrypting) {
+            return (
+                <div className="attachment-container loading-attachment">
+                    <div className="file-icon">
+                        <LoadingSpinner size="small" />
+                    </div>
+                    <div className="file-info">
+                        <span className="file-name">Decrypting file...</span>
+                    </div>
+                </div>
+            );
+        }
+
+        // If we don't have a decrypted URL yet (and not decrypting), show placeholder
+        if (!decryptedUrl && !decrypting) {
+            return (
+                <div className="attachment-container file-attachment">
+                    <div className="file-icon"><FaFile /></div>
+                    <div className="file-info">
+                        <span className="file-name">Unable to decrypt file</span>
+                    </div>
+                </div>
+            );
+        }
 
         // For images
         if (fileType === 'image') {
             return (
                 <div className="attachment-container image-attachment">
-                    <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer">
-                        <img src={fileData.url || fileData.downloadURL} alt={fileData.name || fileData.fileName || "Image attachment"} />
+                    <a href={decryptedUrl} target="_blank" rel="noopener noreferrer">
+                        <img src={decryptedUrl} alt={fileData.name || fileData.fileName || "Image attachment"} />
                     </a>
                 </div>
             );
@@ -199,7 +278,7 @@ const ConversationPage = () => {
             return (
                 <div className="attachment-container video-attachment">
                     <video controls>
-                        <source src={fileData.url || fileData.downloadURL} type={fileData.type || fileData.fileType} />
+                        <source src={decryptedUrl} type={fileData.originalType || fileData.type || fileData.fileType} />
                         Your browser does not support the video tag.
                     </video>
                 </div>
@@ -214,7 +293,7 @@ const ConversationPage = () => {
 
         return (
             <div className="attachment-container file-attachment">
-                <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer" className="file-download-link">
+                <a href={decryptedUrl} target="_blank" rel="noopener noreferrer" className="file-download-link">
                     <div className="file-icon">{icon}</div>
                     <div className="file-info">
                         <span className="file-name">{fileData.name || fileData.fileName || "File attachment"}</span>

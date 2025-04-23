@@ -82,11 +82,11 @@ export const NotificationProvider = ({ children }) => {
         }
     };
 
-    // Manual refresh function - mostly for legacy support
+    // Manual refresh function - returns a promise for better handling
     const refresh = () => {
-        // With real-time updates, manual refresh is less necessary
-        // but we keep it for fallback purposes
+        // Return a promise that resolves after fetching notifications
         setLastRefresh(Date.now());
+        return fetchNotifications(); // This will return the promise from fetchNotifications
     };
 
     const markAsRead = async (notificationId) => {
@@ -125,6 +125,18 @@ export const NotificationProvider = ({ children }) => {
         return false;
     };
 
+    const deleteAllNotifications = async () => {
+        if (!currentUser?.uid) return false;
+
+        const result = await notificationService.deleteAllNotifications(currentUser.uid);
+        if (result.success) {
+            setNotifications([]);
+            setUnreadCount(0);
+            return true;
+        }
+        return false;
+    };
+
     const value = {
         notifications,
         unreadCount,
@@ -133,6 +145,7 @@ export const NotificationProvider = ({ children }) => {
         markAsRead,
         markAllAsRead,
         deleteNotification,
+        deleteAllNotifications,
     };
 
     return (

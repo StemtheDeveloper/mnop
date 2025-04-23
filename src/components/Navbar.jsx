@@ -31,6 +31,7 @@ const Navbar = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 912);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchMode, setSearchMode] = useState('products'); // 'products' or 'users'
   const menuRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -115,7 +116,11 @@ const Navbar = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
-      navigate(`/search?query=${encodeURIComponent(searchTerm.trim())}`);
+      if (searchMode === 'products') {
+        navigate(`/search?query=${encodeURIComponent(searchTerm.trim())}`);
+      } else if (searchMode === 'users') {
+        navigate(`/users/search?query=${encodeURIComponent(searchTerm.trim())}`);
+      }
     }
   };
 
@@ -263,9 +268,20 @@ const Navbar = () => {
 
           <div className="search-container">
             <form onSubmit={handleSearch} className="search-form">
+              <div className="search-mode-container">
+                <select 
+                  className="search-mode-select"
+                  value={searchMode}
+                  onChange={(e) => setSearchMode(e.target.value)}
+                  aria-label="Search mode"
+                >
+                  <option value="products">Products</option>
+                  <option value="users">Users</option>
+                </select>
+              </div>
               <input
                 type="search"
-                placeholder="Search products..."
+                placeholder={searchMode === 'products' ? "Search products..." : "Search users..."}
                 className="search-input"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

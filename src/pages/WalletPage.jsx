@@ -24,6 +24,8 @@ const WalletPage = () => {
     // UI state
     const [activeTab, setActiveTab] = useState('summary');
     const [activeTransactionType, setActiveTransactionType] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [expandedMonths, setExpandedMonths] = useState({});
 
     // Transfer state
     const [transferTo, setTransferTo] = useState('');
@@ -301,10 +303,69 @@ const WalletPage = () => {
         }
     };
 
-    // Filter transactions based on active type
-    const filteredTransactions = () => {
-        if (activeTransactionType === 'all') return transactions;
-        return transactions.filter(tx => tx.type === activeTransactionType);
+    // Filter and search transactions
+    const filteredAndSearchedTransactions = () => {
+        // First filter by type
+        let filtered = activeTransactionType === 'all'
+            ? transactions
+            : transactions.filter(tx => tx.type === activeTransactionType);
+
+        // Then filter by search query if one exists
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(tx =>
+                (tx.description && tx.description.toLowerCase().includes(query)) ||
+                (tx.amount && tx.amount.toString().includes(query)) ||
+                (tx.type && tx.type.toLowerCase().includes(query))
+            );
+        }
+
+        return filtered;
+    };
+
+    // Group transactions by month
+    const groupTransactionsByMonth = (transactions) => {
+        const groups = {};
+
+        transactions.forEach(transaction => {
+            const date = transaction.createdAt?.toDate?.() || new Date(transaction.createdAt);
+            const monthYear = `${date.getFullYear()}-${date.getMonth() + 1}`;
+            const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+            if (!groups[monthYear]) {
+                groups[monthYear] = {
+                    name: monthName,
+                    transactions: []
+                };
+            }
+
+            groups[monthYear].transactions.push(transaction);
+        });
+
+        // Sort months in reverse chronological order (newest first)
+        return Object.entries(groups)
+            .sort(([keyA], [keyB]) => keyB.localeCompare(keyA))
+            .map(([key, value]) => ({
+                id: key,
+                name: value.name,
+                transactions: value.transactions
+            }));
+    };
+
+    // Toggle month expansion
+    const toggleMonthExpansion = (monthId) => {
+        setExpandedMonths(prev => ({
+            ...prev,
+            [monthId]: !prev[monthId]
+        }));
+    };
+
+    // Check if month is expanded
+    const isMonthExpanded = (monthId) => {
+        // If it's undefined (not set yet), default to true for first month, false for others
+        return expandedMonths[monthId] !== undefined
+            ? expandedMonths[monthId]
+            : monthId === Object.keys(groupTransactionsByMonth(filteredAndSearchedTransactions()))[0];
     };
 
     // Render roles badges 
@@ -382,6 +443,24 @@ const WalletPage = () => {
                         <div className="summary-tab">
                             <div className="transaction-filters">
                                 <h3>Transaction History</h3>
+                                <div className="search-bar">
+                                    <input
+                                        type="text"
+                                        placeholder="Search transactions..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="transaction-search"
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            className="clear-search"
+                                            onClick={() => setSearchQuery('')}
+                                            aria-label="Clear search"
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
                                 <div className="filter-buttons">
                                     <button
                                         className={activeTransactionType === 'all' ? 'active' : ''}
@@ -415,30 +494,59 @@ const WalletPage = () => {
                                     <LoadingSpinner size="small" />
                                     <p>Loading transactions...</p>
                                 </div>
-                            ) : filteredTransactions().length === 0 ? (
+                            ) : filteredAndSearchedTransactions().length === 0 ? (
                                 <div className="no-transactions">
-                                    <p>No transactions found.</p>
+                                    {searchQuery ? (
+                                        <p>No transactions match your search for "{searchQuery}".</p>
+                                    ) : (
+                                        <p>No {activeTransactionType !== 'all' ? activeTransactionType : ''} transactions found.</p>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="transactions-list">
-                                    {filteredTransactions().map(transaction => (
-                                        <div key={transaction.id} className="transaction-item">
-                                            <div className="transaction-icon">
-                                                {transaction.type === 'deposit' && <span className="icon deposit">+</span>}
-                                                {transaction.type === 'transfer' && <span className="icon transfer">↑</span>}
-                                                {transaction.type === 'purchase' && <span className="icon purchase">-</span>}
-                                            </div>
-                                            <div className="transaction-details">
-                                                <div className="transaction-description">
-                                                    {transaction.description || 'Transaction'}
+                                    {groupTransactionsByMonth(filteredAndSearchedTransactions()).map(month => (
+                                        <div key={month.id} className="month-group">
+                                            <div
+                                                className="month-header"
+                                                onClick={() => toggleMonthExpansion(month.id)}
+                                            >
+                                                <h4>{month.name}</h4>
+                                                <div className="month-summary">
+                                                    <span>{month.transactions.length} transaction{month.transactions.length !== 1 ? 's' : ''}</span>
+                                                    <span className="expand-icon">
+                                                        {isMonthExpanded(month.id) ? '▼' : '►'}
+                                                    </span>
                                                 </div>
-                                                <div className="transaction-date">
-                                                    {formatDate(transaction.createdAt)}
+                                            </div>
+
+                                            {isMonthExpanded(month.id) && (
+                                                <div className="month-transactions">
+                                                    {month.transactions.map(transaction => (
+                                                        <div key={transaction.id} className="transaction-item">
+                                                            <div className="transaction-icon">
+                                                                {transaction.type === 'deposit' && <span className="icon deposit">+</span>}
+                                                                {transaction.type === 'transfer' && <span className="icon transfer">↑</span>}
+                                                                {transaction.type === 'purchase' && <span className="icon purchase">-</span>}
+                                                                {transaction.type === 'investment' && <span className="icon investment">↗</span>}
+                                                                {transaction.type === 'interest' && <span className="icon interest">%</span>}
+                                                                {!['deposit', 'transfer', 'purchase', 'investment', 'interest'].includes(transaction.type) &&
+                                                                    <span className="icon other">•</span>}
+                                                            </div>
+                                                            <div className="transaction-details">
+                                                                <div className="transaction-description">
+                                                                    {transaction.description || 'Transaction'}
+                                                                </div>
+                                                                <div className="transaction-date">
+                                                                    {formatDate(transaction.createdAt)}
+                                                                </div>
+                                                            </div>
+                                                            <div className={`transaction-amount ${transaction.amount < 0 ? 'negative' : 'positive'}`}>
+                                                                {transaction.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(transaction.amount))}
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            </div>
-                                            <div className={`transaction-amount ${transaction.amount < 0 ? 'negative' : 'positive'}`}>
-                                                {transaction.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(transaction.amount))}
-                                            </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

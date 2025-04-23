@@ -39,9 +39,10 @@ const ProductUploadPage = () => {
         name: '',
         description: '',
         price: '',
-        category: '',
+        category: '', // Keep for backward compatibility
+        categories: [], // New array for multiple categories
         fundingGoal: '',
-        customCategory: '',  // New field for custom category
+        customCategory: '',
     });
 
     // Multiple image handling state
@@ -146,6 +147,20 @@ const ProductUploadPage = () => {
         }
     };
 
+    // Handle category selection (for multi-select)
+    const handleCategoryChange = (e) => {
+        const selectedOptions = Array.from(e.target.selectedOptions).map(option => option.value);
+
+        // Update both the categories array and the category field for backward compatibility
+        const primaryCategory = selectedOptions.length > 0 ? selectedOptions[0] : '';
+
+        setFormData(prev => ({
+            ...prev,
+            categories: selectedOptions,
+            category: primaryCategory // Keep first selected category in the single category field
+        }));
+    };
+
     // Toggle custom category
     const toggleCustomCategory = () => {
         const newValue = !useCustomCategory;
@@ -248,14 +263,14 @@ const ProductUploadPage = () => {
             return false;
         }
 
-        // Validate category: either regular category is selected or custom category is provided
+        // Validate category: either regular categories are selected or custom category is provided
         if (useCustomCategory) {
             if (!formData.customCategory.trim()) {
                 setError('Please enter a custom category');
                 return false;
             }
-        } else if (!formData.category) {
-            setError('Please select a category');
+        } else if (formData.categories.length === 0) {
+            setError('Please select at least one category');
             return false;
         }
 
@@ -334,6 +349,7 @@ const ProductUploadPage = () => {
                 price: parseFloat(formData.price),
                 fundingGoal: parseFloat(formData.fundingGoal),
                 category: useCustomCategory ? sanitizeString(formData.customCategory.trim()) : formData.category,
+                categories: useCustomCategory ? [sanitizeString(formData.customCategory.trim())] : formData.categories, // Store the array of categories
                 categoryType: useCustomCategory ? 'custom' : 'standard',
                 imageUrls: imageUrls, // Store all image URLs from Firebase Storage
                 designerId: currentUser.uid,
@@ -560,21 +576,31 @@ const ProductUploadPage = () => {
 
                                     {!useCustomCategory ? (
                                         <>
-                                            <label htmlFor="category">Category*</label>
+                                            <label htmlFor="categories">Categories* (Hold Ctrl/Cmd to select multiple)</label>
                                             <select
-                                                id="category"
-                                                name="category"
-                                                value={formData.category}
-                                                onChange={handleChange}
+                                                id="categories"
+                                                name="categories"
+                                                multiple
+                                                size={Math.min(5, categories.length)}
+                                                value={formData.categories}
+                                                onChange={handleCategoryChange}
                                                 disabled={loading || loadingCategories || useCustomCategory}
+                                                className="multi-select"
                                             >
-                                                <option value="">Select a category</option>
                                                 {categories.map(category => (
                                                     <option key={category.id} value={category.id}>
                                                         {category.name}
                                                     </option>
                                                 ))}
                                             </select>
+                                            {formData.categories.length > 0 && (
+                                                <div className="selected-categories">
+                                                    <p>Selected: {formData.categories.map(catId => {
+                                                        const category = categories.find(c => c.id === catId);
+                                                        return category ? category.name : catId;
+                                                    }).join(', ')}</p>
+                                                </div>
+                                            )}
                                             {loadingCategories && <span className="loading-text">Loading categories...</span>}
                                         </>
                                     ) : (

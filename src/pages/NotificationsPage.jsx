@@ -14,11 +14,40 @@ const NotificationsPage = () => {
         refresh,
         markAsRead,
         markAllAsRead,
-        deleteNotification
+        deleteNotification,
+        deleteAllNotifications
     } = useNotifications();
     const toast = useToast();
     const [filter, setFilter] = useState('all');
     const [displayedNotifications, setDisplayedNotifications] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+    // Refresh notifications when page loads
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadNotifications = async () => {
+            if (currentUser) {
+                setIsLoading(true);
+                try {
+                    await refresh();
+                } catch (error) {
+                    console.error("Error refreshing notifications:", error);
+                } finally {
+                    if (isMounted) {
+                        setIsLoading(false);
+                    }
+                }
+            }
+        };
+
+        loadNotifications();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [currentUser]);
 
     useEffect(() => {
         // Apply filters to notifications
@@ -50,6 +79,28 @@ const NotificationsPage = () => {
         if (success) {
             toast.success('Notification deleted');
         }
+    };
+
+    const handleDeleteAllNotifications = async () => {
+        if (notifications.length === 0) return;
+
+        // Show confirmation dialog
+        setShowDeleteConfirm(true);
+    };
+
+    const confirmDeleteAll = async () => {
+        setIsLoading(true);
+        const success = await deleteAllNotifications();
+        setIsLoading(false);
+        setShowDeleteConfirm(false);
+
+        if (success) {
+            toast.success('All notifications deleted');
+        }
+    };
+
+    const cancelDeleteAll = () => {
+        setShowDeleteConfirm(false);
     };
 
     const getNotificationIcon = (type) => {
@@ -121,6 +172,13 @@ const NotificationsPage = () => {
                         >
                             Mark all as read
                         </button>
+                        <button
+                            className="delete-all-btn"
+                            onClick={handleDeleteAllNotifications}
+                            disabled={loading || notifications.length === 0}
+                        >
+                            Delete all
+                        </button>
                     </div>
                 </div>
 
@@ -139,7 +197,7 @@ const NotificationsPage = () => {
                     </button>
                 </div>
 
-                {loading ? (
+                {(loading || isLoading) ? (
                     <div className="loading-message">Loading notifications...</div>
                 ) : displayedNotifications.length === 0 ? (
                     <div className="empty-notifications">
@@ -199,6 +257,30 @@ const NotificationsPage = () => {
                     </div>
                 )}
             </div>
+
+            {showDeleteConfirm && (
+                <div className="delete-confirmation-overlay">
+                    <div className="delete-confirmation-dialog">
+                        <h3>Delete All Notifications</h3>
+                        <p>Are you sure you want to delete all notifications? This action cannot be undone.</p>
+                        <div className="confirmation-actions">
+                            <button
+                                className="cancel-btn"
+                                onClick={cancelDeleteAll}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="confirm-btn"
+                                onClick={confirmDeleteAll}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'Deleting...' : 'Delete All'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

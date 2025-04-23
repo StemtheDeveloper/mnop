@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   onSnapshot,
   deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import {
@@ -126,20 +127,35 @@ class MessagingService {
           .substring(2, 15)}.${fileExtension}`;
         const storagePath = `message_attachments/${conversationId}/${fileName}`;
 
-        // Upload file to storage
+        // Encrypt the file before uploading
+        const encryptionResult = await encryptionService.encryptFile(
+          attachment,
+          encryptionKey
+        );
+
+        if (!encryptionResult) {
+          throw new Error("Failed to encrypt file attachment");
+        }
+
+        // Upload the encrypted file to storage
         const storageRef = ref(storage, storagePath);
-        await uploadBytes(storageRef, attachment);
+        await uploadBytes(storageRef, encryptionResult.encryptedFile);
 
         // Get download URL
         const downloadURL = await getDownloadURL(storageRef);
 
-        // Create attachment data
+        // Create attachment data including original file metadata
         attachmentData = {
           fileName: attachment.name,
           fileType: attachment.type,
           fileSize: attachment.size,
           storagePath: storagePath,
           downloadURL: downloadURL,
+          // Include original file metadata for decryption
+          originalType: encryptionResult.metadata.originalType,
+          originalSize: encryptionResult.metadata.originalSize,
+          originalName: encryptionResult.metadata.originalName,
+          isEncrypted: true,
         };
 
         // Encrypt attachment metadata
@@ -632,6 +648,157 @@ class MessagingService {
       return true;
     } catch (error) {
       console.error("Error deleting message:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a conversation and all its messages
+   * @param {string} conversationId - ID of the conversation to delete
+   * @param {string} userId - Current user's ID (for verification)
+   * @returns {Promise<boolean>} - Success status
+   */
+  async deleteConversation(conversationId, userId) {
+    try {
+      // 1. Verify the user is a participant in this conversation
+      const conversationRef = doc(db, "conversations", conversationId);
+      const conversationDoc = await getDoc(conversationRef);
+
+      if (!conversationDoc.exists()) {
+        throw new Error("Conversation not found");
+      }
+
+      const conversationData = conversationDoc.data();
+      if (!conversationData.participants.includes(userId)) {
+        throw new Error("Not authorized to delete this conversation");
+      }
+
+      // 2. Get all messages in the conversation
+      const messagesRef = collection(db, "messages");
+      const q = query(
+        messagesRef,
+        where("conversationId", "==", conversationId)
+      );
+      const messageSnapshot = await getDocs(q);
+
+      // 3. Delete all message attachments from storage
+      const deleteAttachmentPromises = [];
+      messageSnapshot.forEach((messageDoc) => {
+        const messageData = messageDoc.data();
+        if (
+          messageData.hasAttachment &&
+          messageData.attachmentData?.storagePath
+        ) {
+          const fileRef = ref(storage, messageData.attachmentData.storagePath);
+          deleteAttachmentPromises.push(deleteObject(fileRef));
+        }
+      });
+
+      // Wait for all attachment deletions to complete
+      await Promise.all(deleteAttachmentPromises);
+
+      // 4. Delete all messages using a batch
+      const batch = writeBatch(db);
+      messageSnapshot.forEach((messageDoc) => {
+        batch.delete(messageDoc.ref);
+      });
+
+      // 5. Delete the conversation document
+      batch.delete(conversationRef);
+
+      // Commit all deletions
+      await batch.commit();
+
+      return true;
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Edit a message's content
+   * @param {string} messageId - ID of the message to edit
+   * @param {string} userId - Current user's ID (must be the sender)
+   * @param {string} newContent - New message content
+   * @param {string} otherUserId - ID of the other participant (needed for encryption)
+   * @returns {Promise<Object>} - Updated message object
+   */
+  async editMessage(messageId, userId, newContent, otherUserId) {
+    try {
+      // 1. Verify the message exists and user is the sender
+      const messageRef = doc(db, "messages", messageId);
+      const messageDoc = await getDoc(messageRef);
+
+      if (!messageDoc.exists()) {
+        throw new Error("Message not found");
+      }
+
+      const messageData = messageDoc.data();
+
+      // Verify the user is the sender of this message
+      if (messageData.senderId !== userId) {
+        throw new Error("Not authorized to edit this message");
+      }
+
+      // 2. Get the conversation to verify participants
+      const conversationRef = doc(
+        db,
+        "conversations",
+        messageData.conversationId
+      );
+      const conversationDoc = await getDoc(conversationRef);
+
+      if (!conversationDoc.exists()) {
+        throw new Error("Associated conversation not found");
+      }
+
+      const conversationData = conversationDoc.data();
+
+      // Verify both users are participants in the conversation
+      if (
+        !conversationData.participants.includes(userId) ||
+        !conversationData.participants.includes(otherUserId)
+      ) {
+        throw new Error("Invalid conversation participants");
+      }
+
+      // 3. Generate encryption key for this conversation
+      const encryptionKey = encryptionService.generateConversationKey(
+        userId,
+        otherUserId
+      );
+
+      // 4. Encrypt the new content
+      const encryptedContent = encryptionService.encryptMessage(
+        newContent,
+        encryptionKey
+      );
+
+      if (!encryptedContent && newContent.trim()) {
+        throw new Error("Failed to encrypt message");
+      }
+
+      // 5. Update the message
+      const updates = {
+        encryptedContent,
+        edited: true,
+        editedAt: serverTimestamp(),
+      };
+
+      await updateDoc(messageRef, updates);
+
+      // 6. Return updated message with decrypted content
+      const updatedMessage = {
+        id: messageId,
+        ...messageData,
+        ...updates,
+        decryptedContent: newContent,
+      };
+
+      return updatedMessage;
+    } catch (error) {
+      console.error("Error editing message:", error);
       throw error;
     }
   }

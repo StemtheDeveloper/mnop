@@ -41,6 +41,7 @@ const ProductEditPage = () => {
         description: '',
         price: '',
         category: '',
+        categories: [], // New array for multiple categories
         fundingGoal: '',
         customCategory: '',
     });
@@ -113,6 +114,7 @@ const ProductEditPage = () => {
                     description: productData.description || '',
                     price: productData.price ? productData.price.toString() : '',
                     category: productData.category || '',
+                    categories: productData.categories || [productData.category || ''], // Get multiple categories or fallback to single category
                     fundingGoal: productData.fundingGoal ? productData.fundingGoal.toString() : '',
                     customCategory: productData.categoryType === 'custom' ? productData.category : '',
                 });
@@ -200,6 +202,20 @@ const ProductEditPage = () => {
             // Store unsanitized value for display in the form
             setFormData({ ...formData, [name]: value });
         }
+    };
+
+    // Handle category selection (for multi-select)
+    const handleCategoryChange = (e) => {
+        const selectedOptions = Array.from(e.target.selectedOptions).map(option => option.value);
+
+        // Update both the categories array and the category field for backward compatibility
+        const primaryCategory = selectedOptions.length > 0 ? selectedOptions[0] : '';
+
+        setFormData(prev => ({
+            ...prev,
+            categories: selectedOptions,
+            category: primaryCategory // Keep first selected category in the single category field
+        }));
     };
 
     // Toggle custom category
@@ -301,14 +317,14 @@ const ProductEditPage = () => {
             return false;
         }
 
-        // Validate category: either regular category is selected or custom category is provided
+        // Validate category: either regular categories are selected or custom category is provided
         if (useCustomCategory) {
             if (!formData.customCategory.trim()) {
                 setErrorState('Please enter a custom category');
                 return false;
             }
-        } else if (!formData.category) {
-            setErrorState('Please select a category');
+        } else if (formData.categories.length === 0) {
+            setErrorState('Please select at least one category');
             return false;
         }
 
@@ -426,6 +442,7 @@ const ProductEditPage = () => {
                 price: parseFloat(formData.price),
                 fundingGoal: parseFloat(formData.fundingGoal),
                 category: categoryToUse,
+                categories: useCustomCategory ? [categoryToUse] : formData.categories, // Store multiple categories
                 categoryType: categoryTypeToUse,
                 imageUrls: allImageUrls,
                 updatedAt: serverTimestamp(),
@@ -625,21 +642,31 @@ const ProductEditPage = () => {
 
                                     {!useCustomCategory ? (
                                         <>
-                                            <label htmlFor="category">Category*</label>
+                                            <label htmlFor="categories">Categories* (Hold Ctrl/Cmd to select multiple)</label>
                                             <select
-                                                id="category"
-                                                name="category"
-                                                value={formData.category}
-                                                onChange={handleChange}
+                                                id="categories"
+                                                name="categories"
+                                                multiple
+                                                size={Math.min(5, categories.length)}
+                                                value={formData.categories}
+                                                onChange={handleCategoryChange}
                                                 disabled={saving || loadingCategories || useCustomCategory}
+                                                className="multi-select"
                                             >
-                                                <option value="">Select a category</option>
                                                 {categories.map(category => (
                                                     <option key={category.id} value={category.id}>
                                                         {category.name}
                                                     </option>
                                                 ))}
                                             </select>
+                                            {formData.categories.length > 0 && (
+                                                <div className="selected-categories">
+                                                    <p>Selected: {formData.categories.map(catId => {
+                                                        const category = categories.find(c => c.id === catId);
+                                                        return category ? category.name : catId;
+                                                    }).join(', ')}</p>
+                                                </div>
+                                            )}
                                             {loadingCategories && <span className="loading-text">Loading categories...</span>}
                                         </>
                                     ) : (

@@ -52,6 +52,140 @@ class EncryptionService {
       return "[Encrypted message - unable to decrypt]";
     }
   }
+
+  /**
+   * Encrypts a file using AES encryption
+   * @param {File|Blob} file - The file to encrypt
+   * @param {string} encryptionKey - The key to use for encryption
+   * @returns {Promise<{encryptedFile: Blob, metadata: Object}>} - The encrypted file and its metadata
+   */
+  async encryptFile(file, encryptionKey) {
+    if (!file || !encryptionKey) {
+      console.error("Missing required parameters for file encryption");
+      return null;
+    }
+
+    try {
+      // Read the file as ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+
+      // Convert ArrayBuffer to WordArray for CryptoJS
+      const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
+
+      // Encrypt the file content
+      const encryptedContent = CryptoJS.AES.encrypt(
+        wordArray,
+        encryptionKey
+      ).toString();
+
+      // Create a new Blob with the encrypted content
+      const encryptedBlob = new Blob([encryptedContent], {
+        type: "application/encrypted",
+      });
+
+      // Return the encrypted file and original metadata
+      return {
+        encryptedFile: encryptedBlob,
+        metadata: {
+          originalType: file.type,
+          originalSize: file.size,
+          originalName: file.name,
+          encrypted: true,
+        },
+      };
+    } catch (error) {
+      console.error("Failed to encrypt file:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Decrypts a file using AES decryption
+   * @param {Blob} encryptedBlob - The encrypted file blob
+   * @param {string} encryptionKey - The key to use for decryption
+   * @param {Object} metadata - Original file metadata including type
+   * @returns {Promise<Blob>} - The decrypted file blob
+   */
+  async decryptFile(encryptedBlob, encryptionKey, metadata) {
+    if (!encryptedBlob || !encryptionKey || !metadata) {
+      console.error("Missing required parameters for file decryption");
+      return null;
+    }
+
+    try {
+      // Read the encrypted blob as text
+      const encryptedContent = await encryptedBlob.text();
+
+      // Decrypt the content
+      const decrypted = CryptoJS.AES.decrypt(encryptedContent, encryptionKey);
+
+      // Convert WordArray to Uint8Array
+      const wordArray = decrypted;
+      const arrayBuffer = wordArrayToArrayBuffer(wordArray);
+
+      // Create a new Blob with the decrypted content and original type
+      return new Blob([arrayBuffer], { type: metadata.originalType });
+    } catch (error) {
+      console.error("Failed to decrypt file:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Creates an object URL for an encrypted file
+   * @param {string} downloadURL - URL to the encrypted file
+   * @param {string} encryptionKey - The key to use for decryption
+   * @param {Object} metadata - Original file metadata
+   * @returns {Promise<string>} - Object URL for the decrypted file
+   */
+  async createDecryptedObjectURL(downloadURL, encryptionKey, metadata) {
+    try {
+      // Fetch the encrypted file
+      const response = await fetch(downloadURL);
+      const encryptedBlob = await response.blob();
+
+      // Decrypt the file
+      const decryptedBlob = await this.decryptFile(
+        encryptedBlob,
+        encryptionKey,
+        metadata
+      );
+
+      if (!decryptedBlob) {
+        throw new Error("Failed to decrypt file");
+      }
+
+      // Create and return an object URL
+      return URL.createObjectURL(decryptedBlob);
+    } catch (error) {
+      console.error("Failed to create decrypted object URL:", error);
+      return null;
+    }
+  }
+}
+
+/**
+ * Helper function to convert CryptoJS WordArray to ArrayBuffer
+ * @param {WordArray} wordArray - CryptoJS WordArray
+ * @returns {ArrayBuffer} - ArrayBuffer
+ */
+function wordArrayToArrayBuffer(wordArray) {
+  const words = wordArray.words;
+  const sigBytes = wordArray.sigBytes;
+
+  // Create a new ArrayBuffer and Uint8Array based on it
+  const buffer = new ArrayBuffer(sigBytes);
+  const view = new Uint8Array(buffer);
+
+  // Copy the bytes from WordArray to ArrayBuffer
+  for (let i = 0; i < sigBytes; i++) {
+    const byteIndex = Math.floor(i / 4);
+    const byteOffset = i % 4;
+    const wordValue = words[byteIndex];
+    view[i] = (wordValue >> (24 - 8 * byteOffset)) & 0xff;
+  }
+
+  return buffer;
 }
 
 export default new EncryptionService();

@@ -9,6 +9,7 @@ import { AuthProvider, AuthConsumer } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ToastProvider } from './contexts/ToastContext';
 import NotificationToastContainer from './components/NotificationToastContainer';
+import NotificationRefresher from './components/NotificationRefresher';
 import AdminProductNotifier from './components/admin/AdminProductNotifier';
 import './styles/App.css';
 import './styles/Buttons.css'; // Importing common button styles
@@ -25,6 +26,7 @@ function App() {
                   <br /><br /><br /><br /><br /><br /><br />
                   <Nav />
                   <NotificationToastContainer />
+                  <NotificationRefresher />
                   <AdminProductNotifier />
                   <main className="main-content">
                     <AppRoutes />
