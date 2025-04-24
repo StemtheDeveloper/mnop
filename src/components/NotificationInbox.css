@@ -56,6 +56,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .notification-inbox-actions button {
@@ -64,6 +66,7 @@
   padding: 5px 10px;
   cursor: pointer;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .notification-inbox-actions .refresh-btn {
@@ -74,8 +77,12 @@
   color: #4caf50;
 }
 
-.notification-inbox-actions .close-btn {
+.notification-inbox-actions .delete-all-btn {
   color: #f44336;
+}
+
+.notification-inbox-actions .close-btn {
+  color: #333;
 }
 
 .notification-inbox-content {
@@ -196,4 +203,72 @@
   text-align: center;
   color: #888;
   font-size: 14px;
+}
+
+/* Confirmation dialog styles */
+.confirmation-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1100;
+}
+
+.confirmation-dialog {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 20px;
+  max-width: 300px;
+  width: 90%;
+}
+
+.confirmation-dialog h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.confirmation-dialog p {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.confirmation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.confirmation-actions button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  background-color: white;
+  transition: all 0.2s;
+}
+
+.confirmation-actions .cancel-btn {
+  color: #333;
+}
+
+.confirmation-actions .cancel-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.confirmation-actions .confirm-btn {
+  background-color: #f44336;
+  color: white;
+  border-color: #f44336;
+}
+
+.confirmation-actions .confirm-btn:hover {
+  background-color: #d32f2f;
 }

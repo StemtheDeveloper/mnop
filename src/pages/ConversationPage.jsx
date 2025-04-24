@@ -1,6 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { FaArrowLeft, FaPaperPlane, FaLock, FaFileAlt, FaImage, FaVideo, FaFile, FaPaperclip, FaTimes } from 'react-icons/fa';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import {
+    FaArrowLeft,
+    FaPaperPlane,
+    FaLock,
+    FaFileAlt,
+    FaImage,
+    FaVideo,
+    FaFile,
+    FaPaperclip,
+    FaTimes,
+    FaExclamationTriangle,
+    FaEllipsisV,
+    FaPen,
+    FaTrash,
+    FaTrashAlt
+} from 'react-icons/fa';
 import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
@@ -16,13 +31,20 @@ const ConversationPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [sendingMessage, setSendingMessage] = useState(false);
+    const [sendProgress, setSendProgress] = useState(0);
     const [attachment, setAttachment] = useState(null);
     const [attachmentPreview, setAttachmentPreview] = useState(null);
+    const [activeMessageOptions, setActiveMessageOptions] = useState(null);
+    const [editingMessage, setEditingMessage] = useState(null);
+    const [editingContent, setEditingContent] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const messagesEndRef = useRef(null);
     const messageListRef = useRef(null);
     const fileInputRef = useRef(null);
+    const navigate = useNavigate();
+    const optionsMenuRef = useRef(null);
 
-    // Group messages by date
     const groupedMessages = messages.reduce((groups, message) => {
         const date = message.createdAt?.toDate ?
             format(message.createdAt.toDate(), 'yyyy-MM-dd') :
@@ -36,7 +58,6 @@ const ConversationPage = () => {
         return groups;
     }, {});
 
-    // Scroll to bottom of messages
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
@@ -46,7 +67,6 @@ const ConversationPage = () => {
     }, [messages]);
 
     useEffect(() => {
-        // Wait until the user authentication state is resolved
         if (userLoading) return;
 
         const loadConversation = async () => {
@@ -55,10 +75,7 @@ const ConversationPage = () => {
             try {
                 setLoading(true);
 
-                // Get all user conversations
                 const userConversations = await messagingService.getUserConversations(user.uid);
-
-                // Find the current conversation
                 const currentConversation = userConversations.find(c => c.id === conversationId);
 
                 if (!currentConversation) {
@@ -69,7 +86,6 @@ const ConversationPage = () => {
 
                 setConversation(currentConversation);
 
-                // Set up real-time subscription to messages
                 const unsubscribe = messagingService.subscribeToMessages(
                     conversationId,
                     user.uid,
@@ -80,7 +96,6 @@ const ConversationPage = () => {
                     }
                 );
 
-                // Cleanup subscription on unmount
                 return () => unsubscribe();
             } catch (err) {
                 console.error('Error loading conversation:', err);
@@ -95,11 +110,21 @@ const ConversationPage = () => {
     const handleSendMessage = async (e) => {
         e.preventDefault();
 
-        // Allow sending if there's either text or an attachment (or both)
         if ((!newMessage.trim() && !attachment) || !user?.uid || !conversation) return;
 
         try {
             setSendingMessage(true);
+            setSendProgress(10);
+
+            const progressInterval = setInterval(() => {
+                setSendProgress(prev => {
+                    if (prev >= 90) {
+                        clearInterval(progressInterval);
+                        return 90;
+                    }
+                    return prev + 10;
+                });
+            }, 200);
 
             await messagingService.sendMessage(
                 conversationId,
@@ -109,9 +134,16 @@ const ConversationPage = () => {
                 attachment
             );
 
+            clearInterval(progressInterval);
+            setSendProgress(100);
+
             setNewMessage('');
             setAttachment(null);
             setAttachmentPreview(null);
+
+            setTimeout(() => {
+                setSendProgress(0);
+            }, 500);
         } catch (err) {
             console.error('Error sending message:', err);
             setError('Failed to send message. Please try again.');
@@ -128,7 +160,6 @@ const ConversationPage = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Check file size (max 20MB)
         if (file.size > 20 * 1024 * 1024) {
             setError('File size exceeds 20MB limit');
             return;
@@ -136,7 +167,6 @@ const ConversationPage = () => {
 
         setAttachment(file);
 
-        // Create preview URL for images
         if (file.type.startsWith('image/')) {
             const previewUrl = URL.createObjectURL(file);
             setAttachmentPreview(previewUrl);
@@ -183,7 +213,6 @@ const ConversationPage = () => {
 
         const fileType = fileData.type ? messagingService.getFileTypeCategory(fileData.type) : 'other';
 
-        // For images
         if (fileType === 'image') {
             return (
                 <div className="attachment-container image-attachment">
@@ -194,7 +223,6 @@ const ConversationPage = () => {
             );
         }
 
-        // For videos
         if (fileType === 'video') {
             return (
                 <div className="attachment-container video-attachment">
@@ -206,7 +234,6 @@ const ConversationPage = () => {
             );
         }
 
-        // For other files
         let icon = <FaFile />;
         if (fileType === 'document') icon = <FaFileAlt />;
         if (fileType === 'image') icon = <FaImage />;
@@ -221,6 +248,121 @@ const ConversationPage = () => {
                         <span className="file-size">{fileData.size || fileData.fileSize ? `${((fileData.size || fileData.fileSize) / 1024).toFixed(2)} KB` : ''}</span>
                     </div>
                 </a>
+            </div>
+        );
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target)) {
+                setActiveMessageOptions(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const handleEditMessage = (message) => {
+        setEditingMessage(message);
+        setEditingContent(message.decryptedContent);
+        setActiveMessageOptions(null);
+    };
+
+    const cancelEditing = () => {
+        setEditingMessage(null);
+        setEditingContent('');
+    };
+
+    const saveEditedMessage = async () => {
+        if (!editingContent.trim() || !user?.uid || !conversation || !editingMessage) return;
+
+        try {
+            setIsDeleting(true);
+            await messagingService.editMessage(
+                editingMessage.id,
+                editingContent,
+                user.uid,
+                conversation.otherParticipant.id
+            );
+            setEditingMessage(null);
+            setEditingContent('');
+        } catch (err) {
+            console.error('Error editing message:', err);
+            setError('Failed to edit message. Please try again.');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteMessage = async (messageId) => {
+        if (!user?.uid || !messageId) return;
+
+        try {
+            setIsDeleting(true);
+            await messagingService.deleteMessage(messageId, user.uid);
+            setActiveMessageOptions(null);
+        } catch (err) {
+            console.error('Error deleting message:', err);
+            setError('Failed to delete message. Please try again.');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteConversation = async () => {
+        if (!user?.uid || !conversationId) return;
+
+        try {
+            setIsDeleting(true);
+            await messagingService.deleteConversation(conversationId, user.uid);
+            navigate('/messages');
+        } catch (err) {
+            console.error('Error deleting conversation:', err);
+            setError('Failed to delete conversation. Please try again.');
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteConfirm(false);
+        }
+    };
+
+    const toggleMessageOptions = (messageId) => {
+        setActiveMessageOptions(activeMessageOptions === messageId ? null : messageId);
+    };
+
+    const renderMessageOptions = (message) => {
+        if (message.senderId !== user?.uid) return null;
+
+        return (
+            <div className="message-options">
+                <button
+                    className="message-options-btn"
+                    onClick={() => toggleMessageOptions(message.id)}
+                    aria-label="Message options"
+                >
+                    <FaEllipsisV />
+                </button>
+
+                {activeMessageOptions === message.id && (
+                    <div className="message-options-menu" ref={optionsMenuRef}>
+                        {!message.hasAttachment && (
+                            <button
+                                className="option-btn edit-btn"
+                                onClick={() => handleEditMessage(message)}
+                            >
+                                <FaPen /> Edit
+                            </button>
+                        )}
+                        <button
+                            className="option-btn delete-btn"
+                            onClick={() => handleDeleteMessage(message.id)}
+                        >
+                            <FaTrash /> Delete
+                        </button>
+                    </div>
+                )}
             </div>
         );
     };
@@ -300,9 +442,18 @@ const ConversationPage = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="encryption-badge">
-                        <FaLock />
-                        <span>End-to-end encrypted</span>
+                    <div className="header-controls">
+                        <div className="encryption-badge">
+                            <FaLock />
+                            <span>End-to-end encrypted</span>
+                        </div>
+                        <button
+                            className="delete-conversation-btn"
+                            onClick={() => setShowDeleteConfirm(true)}
+                            aria-label="Delete conversation"
+                        >
+                            <FaTrashAlt />
+                        </button>
                     </div>
                 </div>
 
@@ -338,27 +489,59 @@ const ConversationPage = () => {
                                         className={`message ${message.senderId === user.uid ? 'sent' : 'received'}`}
                                     >
                                         <div className="message-content">
-                                            {message.decryptedContent && (
-                                                <div className="message-text">
-                                                    {message.decryptedContent}
+                                            {editingMessage?.id === message.id ? (
+                                                <div className="edit-message-form">
+                                                    <textarea
+                                                        value={editingContent}
+                                                        onChange={(e) => setEditingContent(e.target.value)}
+                                                        className="edit-message-input"
+                                                    />
+                                                    <div className="edit-message-actions">
+                                                        <button
+                                                            onClick={cancelEditing}
+                                                            className="cancel-edit-btn"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button
+                                                            onClick={saveEditedMessage}
+                                                            className="save-edit-btn"
+                                                            disabled={!editingContent.trim() || isDeleting}
+                                                        >
+                                                            Save
+                                                        </button>
+                                                    </div>
                                                 </div>
+                                            ) : (
+                                                <>
+                                                    {message.decryptedContent && (
+                                                        <div className="message-text">
+                                                            {message.decryptedContent}
+                                                        </div>
+                                                    )}
+
+                                                    {message.hasAttachment && (message.attachmentData || message.fileData) && (
+                                                        renderFileAttachment(message.attachmentData || message.fileData)
+                                                    )}
+
+                                                    <div className="message-info">
+                                                        <span className="message-time">
+                                                            {message.createdAt?.toDate ?
+                                                                format(message.createdAt.toDate(), 'h:mm a') : ''}
+                                                            {message.edited && <span className="edited-indicator"> (edited)</span>}
+                                                        </span>
+
+                                                        <span className="message-encrypted">
+                                                            <FaLock size={10} />
+                                                        </span>
+                                                    </div>
+                                                </>
                                             )}
-
-                                            {message.hasAttachment && (message.attachmentData || message.fileData) && (
-                                                renderFileAttachment(message.attachmentData || message.fileData)
-                                            )}
-
-                                            <div className="message-info">
-                                                <span className="message-time">
-                                                    {message.createdAt?.toDate ?
-                                                        format(message.createdAt.toDate(), 'h:mm a') : ''}
-                                                </span>
-
-                                                <span className="message-encrypted">
-                                                    <FaLock size={10} />
-                                                </span>
-                                            </div>
                                         </div>
+
+                                        {message.senderId === user.uid && !editingMessage && (
+                                            renderMessageOptions(message)
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -370,6 +553,11 @@ const ConversationPage = () => {
                 {attachment && renderAttachmentPreview()}
 
                 <div className="message-input-container">
+                    {sendingMessage && (
+                        <div className="send-progress-bar">
+                            <div className="send-progress" style={{ width: `${sendProgress}%` }}></div>
+                        </div>
+                    )}
                     <form className="input-wrapper" onSubmit={handleSendMessage}>
                         <button
                             type="button"
@@ -384,7 +572,6 @@ const ConversationPage = () => {
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
                             onKeyDown={(e) => {
-                                // Send on Enter (without shift)
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
                                     handleSendMessage(e);
@@ -394,7 +581,7 @@ const ConversationPage = () => {
                         <button
                             type="submit"
                             className="send-button"
-                            disabled={((!newMessage.trim() && !attachment) || sendingMessage)}
+                            disabled={(!newMessage.trim() && !attachment) || sendingMessage}
                         >
                             <FaPaperPlane />
                         </button>
@@ -408,10 +595,41 @@ const ConversationPage = () => {
                     />
                     <div className="encryption-notice">
                         <FaLock size={12} />
-                        <span>End-to-end encrypted</span>
+                        <span>End-to-end encrypted messages</span>
+                        {attachment && (
+                            <div className="file-encryption-warning">
+                                <FaExclamationTriangle size={12} />
+                                <span>Note: Files are not encrypted</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {showDeleteConfirm && (
+                <div className="modal-overlay">
+                    <div className="delete-confirm-modal">
+                        <h3>Delete Conversation</h3>
+                        <p>Are you sure you want to delete this entire conversation? This action cannot be undone.</p>
+                        <div className="delete-confirm-actions">
+                            <button
+                                className="cancel-delete-btn"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="confirm-delete-btn"
+                                onClick={handleDeleteConversation}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? 'Deleting...' : 'Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

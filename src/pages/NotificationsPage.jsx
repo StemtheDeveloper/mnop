@@ -14,11 +14,13 @@ const NotificationsPage = () => {
         refresh,
         markAsRead,
         markAllAsRead,
-        deleteNotification
+        deleteNotification,
+        deleteAllNotifications
     } = useNotifications();
     const toast = useToast();
     const [filter, setFilter] = useState('all');
     const [displayedNotifications, setDisplayedNotifications] = useState([]);
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
     useEffect(() => {
         // Apply filters to notifications
@@ -50,6 +52,28 @@ const NotificationsPage = () => {
         if (success) {
             toast.success('Notification deleted');
         }
+    };
+
+    // Show delete all confirmation dialog
+    const promptDeleteAll = () => {
+        if (notifications.length === 0) return;
+        setShowDeleteConfirmation(true);
+    };
+
+    // Handle delete all notifications
+    const handleDeleteAllNotifications = async () => {
+        // Close the confirmation dialog
+        setShowDeleteConfirmation(false);
+
+        const success = await deleteAllNotifications();
+        if (success) {
+            toast.success('All notifications deleted');
+        }
+    };
+
+    // Close delete confirmation dialog
+    const closeDeleteConfirmation = () => {
+        setShowDeleteConfirmation(false);
     };
 
     const getNotificationIcon = (type) => {
@@ -121,6 +145,15 @@ const NotificationsPage = () => {
                         >
                             Mark all as read
                         </button>
+                        {notifications.length > 0 && (
+                            <button
+                                className="delete-all-btn"
+                                onClick={promptDeleteAll}
+                                disabled={loading}
+                            >
+                                Delete all
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -199,6 +232,24 @@ const NotificationsPage = () => {
                     </div>
                 )}
             </div>
+
+            {/* Delete All Confirmation Dialog */}
+            {showDeleteConfirmation && (
+                <div className="delete-confirmation-overlay">
+                    <div className="delete-confirmation-dialog">
+                        <h3>Delete All Notifications</h3>
+                        <p>Are you sure you want to delete all notifications? This action cannot be undone.</p>
+                        <div className="confirmation-actions">
+                            <button className="cancel-btn" onClick={closeDeleteConfirmation}>
+                                Cancel
+                            </button>
+                            <button className="confirm-btn" onClick={handleDeleteAllNotifications}>
+                                Delete All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

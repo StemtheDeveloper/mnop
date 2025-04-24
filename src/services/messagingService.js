@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   onSnapshot,
   deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import {
@@ -226,6 +227,236 @@ class MessagingService {
       };
     } catch (error) {
       console.error("Error sending message:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Edit a message
+   * @param {string} messageId - Message ID to edit
+   * @param {string} newContent - New message content
+   * @param {string} senderId - ID of the sender (to verify permissions)
+   * @param {string} recipientId - ID of the recipient (for encryption)
+   * @returns {Promise<Object>} - Updated message object
+   */
+  async editMessage(messageId, newContent, senderId, recipientId) {
+    try {
+      const messageRef = doc(db, "messages", messageId);
+      const messageDoc = await getDoc(messageRef);
+
+      if (!messageDoc.exists()) {
+        throw new Error("Message not found");
+      }
+
+      const messageData = messageDoc.data();
+
+      // Verify the user is the sender
+      if (messageData.senderId !== senderId) {
+        throw new Error("You can only edit your own messages");
+      }
+
+      // Generate encryption key for this conversation
+      const encryptionKey = encryptionService.generateConversationKey(
+        senderId,
+        recipientId
+      );
+
+      // Encrypt the new content
+      const encryptedContent = encryptionService.encryptMessage(
+        newContent,
+        encryptionKey
+      );
+
+      if (!encryptedContent) {
+        throw new Error("Failed to encrypt message");
+      }
+
+      // Update the message with the new encrypted content and add edited flag
+      await updateDoc(messageRef, {
+        encryptedContent,
+        edited: true,
+        editedAt: serverTimestamp(),
+      });
+
+      // Get the updated message
+      const updatedMessageDoc = await getDoc(messageRef);
+      const updatedMessage = {
+        id: updatedMessageDoc.id,
+        ...updatedMessageDoc.data(),
+      };
+
+      // Add decrypted content
+      updatedMessage.decryptedContent = encryptionService.decryptMessage(
+        updatedMessage.encryptedContent,
+        encryptionKey
+      );
+
+      return updatedMessage;
+    } catch (error) {
+      console.error("Error editing message:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a message and its attachment if it has one
+   * @param {string} messageId - Message ID to delete
+   * @param {string} userId - ID of the user attempting to delete (for permission check)
+   * @returns {Promise<boolean>} - Success status
+   */
+  async deleteMessage(messageId, userId) {
+    try {
+      const messageRef = doc(db, "messages", messageId);
+      const messageDoc = await getDoc(messageRef);
+
+      if (!messageDoc.exists()) {
+        throw new Error("Message not found");
+      }
+
+      const messageData = messageDoc.data();
+
+      // Verify the user is the sender
+      if (messageData.senderId !== userId) {
+        throw new Error("You can only delete your own messages");
+      }
+
+      // If there's a file attachment, delete it from storage first
+      if (
+        messageData.hasAttachment &&
+        messageData.attachmentData?.storagePath
+      ) {
+        const fileRef = ref(storage, messageData.attachmentData.storagePath);
+        try {
+          await deleteObject(fileRef);
+        } catch (storageError) {
+          console.error("Error deleting file from storage:", storageError);
+          // Continue with message deletion even if file deletion fails
+        }
+      }
+
+      // Now delete the message document
+      await deleteDoc(messageRef);
+
+      // Update the conversation's lastMessage if this was the last message
+      const conversationRef = doc(
+        db,
+        "conversations",
+        messageData.conversationId
+      );
+      const conversationDoc = await getDoc(conversationRef);
+
+      if (conversationDoc.exists()) {
+        const conversationData = conversationDoc.data();
+
+        // Get all messages in the conversation
+        const messagesQuery = query(
+          collection(db, "messages"),
+          where("conversationId", "==", messageData.conversationId),
+          orderBy("createdAt", "desc")
+        );
+
+        const messagesSnapshot = await getDocs(messagesQuery);
+
+        if (messagesSnapshot.empty) {
+          // If no messages left, update lastMessage to null
+          await updateDoc(conversationRef, {
+            lastMessage: null,
+            updatedAt: serverTimestamp(),
+          });
+        } else if (messagesSnapshot.docs[0].id === messageId) {
+          // If the deleted message was the last one, update with the new last message
+          const newLastMessage = messagesSnapshot.docs[1]?.data();
+
+          if (newLastMessage) {
+            await updateDoc(conversationRef, {
+              lastMessage: {
+                senderId: newLastMessage.senderId,
+                preview: newLastMessage.hasAttachment
+                  ? "Attachment"
+                  : "Encrypted message",
+                timestamp: newLastMessage.createdAt,
+              },
+              updatedAt: newLastMessage.createdAt,
+            });
+          }
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an entire conversation and all its messages
+   * @param {string} conversationId - Conversation ID to delete
+   * @param {string} userId - ID of the user attempting to delete (for permission check)
+   * @returns {Promise<boolean>} - Success status
+   */
+  async deleteConversation(conversationId, userId) {
+    try {
+      const conversationRef = doc(db, "conversations", conversationId);
+      const conversationDoc = await getDoc(conversationRef);
+
+      if (!conversationDoc.exists()) {
+        throw new Error("Conversation not found");
+      }
+
+      const conversationData = conversationDoc.data();
+
+      // Verify the user is a participant
+      if (!conversationData.participants.includes(userId)) {
+        throw new Error("You can only delete conversations you're a part of");
+      }
+
+      // Get all messages in the conversation
+      const messagesQuery = query(
+        collection(db, "messages"),
+        where("conversationId", "==", conversationId)
+      );
+
+      const messagesSnapshot = await getDocs(messagesQuery);
+
+      // Delete all message attachments from storage
+      const fileDeletePromises = [];
+      messagesSnapshot.forEach((messageDoc) => {
+        const messageData = messageDoc.data();
+        if (
+          messageData.hasAttachment &&
+          messageData.attachmentData?.storagePath
+        ) {
+          const fileRef = ref(storage, messageData.attachmentData.storagePath);
+          fileDeletePromises.push(
+            deleteObject(fileRef).catch((err) =>
+              console.error(
+                `Error deleting file ${messageData.attachmentData.storagePath}:`,
+                err
+              )
+            )
+          );
+        }
+      });
+
+      // Wait for all files to be deleted
+      await Promise.all(fileDeletePromises);
+
+      // Use a batch to delete all messages
+      const batch = writeBatch(db);
+      messagesSnapshot.forEach((messageDoc) => {
+        batch.delete(messageDoc.ref);
+      });
+
+      // Delete the conversation document
+      batch.delete(conversationRef);
+
+      // Commit the batch
+      await batch.commit();
+
+      return true;
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
       throw error;
     }
   }
@@ -598,41 +829,6 @@ class MessagingService {
     } catch (error) {
       console.error("Error getting unread messages count:", error);
       return 0;
-    }
-  }
-
-  /**
-   * Delete a message and its attachment if it has one
-   * @param {string} messageId - Message ID to delete
-   * @returns {Promise<boolean>} - Success status
-   */
-  async deleteMessage(messageId) {
-    try {
-      const messageRef = doc(db, "messages", messageId);
-      const messageDoc = await getDoc(messageRef);
-
-      if (!messageDoc.exists()) {
-        throw new Error("Message not found");
-      }
-
-      const messageData = messageDoc.data();
-
-      // If there's a file attachment, delete it from storage first
-      if (
-        messageData.hasAttachment &&
-        messageData.attachmentData?.storagePath
-      ) {
-        const fileRef = ref(storage, messageData.attachmentData.storagePath);
-        await deleteObject(fileRef);
-      }
-
-      // Now delete the message document
-      await deleteDoc(messageRef);
-
-      return true;
-    } catch (error) {
-      console.error("Error deleting message:", error);
-      throw error;
     }
   }
 

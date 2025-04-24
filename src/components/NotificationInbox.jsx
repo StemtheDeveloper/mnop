@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +14,7 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         markAsRead,
         markAllAsRead,
         deleteNotification,
+        deleteAllNotifications,
         unreadCount,
         lastRefresh
     } = useNotifications();
@@ -21,6 +22,7 @@ const NotificationInbox = ({ isOpen, onClose }) => {
     const [isClosing, setIsClosing] = useState(false);
     const [notificationsList, setNotificationsList] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
     const refreshAttemptedRef = useRef(false);
 
     // Handle smooth closing animation
@@ -31,6 +33,11 @@ const NotificationInbox = ({ isOpen, onClose }) => {
             onClose();
         }, 300); // Match animation duration in CSS
     };
+
+    // Close delete confirmation dialog
+    const closeDeleteConfirmation = useCallback(() => {
+        setShowDeleteConfirmation(false);
+    }, []);
 
     // Load notifications only when inbox is first opened
     useEffect(() => {
@@ -48,7 +55,7 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         if (!isOpen) {
             refreshAttemptedRef.current = false;
         }
-    }, [isOpen, currentUser]);
+    }, [isOpen, currentUser, refresh]);
 
     // Update local notifications list when notifications change
     useEffect(() => {
@@ -135,6 +142,27 @@ const NotificationInbox = ({ isOpen, onClose }) => {
         });
     };
 
+    // Show delete all confirmation dialog
+    const promptDeleteAll = () => {
+        if (notificationsList.length === 0) return;
+        setShowDeleteConfirmation(true);
+    };
+
+    // Handle delete all notifications
+    const handleDeleteAllNotifications = () => {
+        // Close the confirmation dialog
+        setShowDeleteConfirmation(false);
+
+        // Optimistically update UI first
+        setNotificationsList([]);
+
+        // Then perform the actual deletion
+        deleteAllNotifications().catch(error => {
+            console.error("Error deleting all notifications:", error);
+            // Could revert the optimistic update if needed
+        });
+    };
+
     // Handle mark as read with local state update
     const handleMarkAsRead = (id) => {
         // Optimistically update UI first
@@ -184,6 +212,11 @@ const NotificationInbox = ({ isOpen, onClose }) => {
                         {unreadCount > 0 && (
                             <button className="mark-all-read-btn" onClick={handleMarkAllAsRead}>
                                 Mark all as read
+                            </button>
+                        )}
+                        {notificationsList.length > 0 && (
+                            <button className="delete-all-btn" onClick={promptDeleteAll}>
+                                Delete all
                             </button>
                         )}
                         <button className="close-btn" onClick={handleClose}>
@@ -249,6 +282,24 @@ const NotificationInbox = ({ isOpen, onClose }) => {
                     </Link>
                 </div>
             </div>
+
+            {/* Delete All Confirmation Dialog */}
+            {showDeleteConfirmation && (
+                <div className="confirmation-overlay" onClick={closeDeleteConfirmation}>
+                    <div className="confirmation-dialog" onClick={e => e.stopPropagation()}>
+                        <h3>Delete All Notifications</h3>
+                        <p>Are you sure you want to delete all notifications? This action cannot be undone.</p>
+                        <div className="confirmation-actions">
+                            <button className="cancel-btn" onClick={closeDeleteConfirmation}>
+                                Cancel
+                            </button>
+                            <button className="confirm-btn" onClick={handleDeleteAllNotifications}>
+                                Delete All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

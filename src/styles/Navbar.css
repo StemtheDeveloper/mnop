@@ -43,6 +43,12 @@ ul {
   padding: 0;
 }
 
+#quick-links-notifications-badge {
+  position: absolute;
+  top: 15px;
+  right: 50%;
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -470,6 +476,12 @@ li {
     gap: 8px; /* Reduced gap */
     margin-right: 0;
   }
+
+  .notification-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
 }
 
 /* Responsive adjustments for desktop navigation */
@@ -588,22 +600,6 @@ li {
 .icon-container {
   position: relative;
   cursor: pointer;
-}
-
-.notification-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background-color: #ef3c23;
-  color: white;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
 }
 
 .dropdown-user-info {

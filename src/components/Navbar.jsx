@@ -249,8 +249,8 @@ const Navbar = () => {
             <li className="nav-item navbar-icons">
               <Link to="/notifications">
                 <img src={NotificationsIcon} alt="Notifications icon" />
-                {unreadCount > 0 && (
-                  <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                {user && unreadCount > 0 && (
+                  <span className="notification-badge" id="quick-links-notifications-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                 )}
               </Link>
             </li>
@@ -295,7 +295,7 @@ const Navbar = () => {
                 <li className="nav-item navbar-icons">
                   <div className="icon-container" onClick={handleNotificationClick}>
                     <img src={NotificationsIcon} alt="Notifications" title="Notifications" className="nav-icons" />
-                    {unreadCount > 0 && (
+                    {user && unreadCount > 0 && (
                       <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                     )}
                   </div>
