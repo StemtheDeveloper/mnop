@@ -121,9 +121,10 @@ const ShopPage = () => {
 
                 // Apply category filter and status filter (only active products)
                 if (category !== 'all') {
+                    // Use array-contains to match products with multiple categories
                     productsQuery = query(
                         productsRef,
-                        where('category', '==', category),
+                        where('categories', 'array-contains', category),  // Changed from category field to categories array
                         where('status', '==', 'active') // Only fetch active products
                     );
                 } else {
@@ -205,7 +206,7 @@ const ShopPage = () => {
             if (category !== 'all') {
                 moreProductsQuery = query(
                     productsRef,
-                    where('category', '==', category),
+                    where('categories', 'array-contains', category),  // Changed from category field to categories array
                     where('status', '==', 'active') // Only fetch active products
                 );
             } else {

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { collection, doc, updateDoc, deleteDoc, onSnapshot, query, where, addDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../contexts/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import '../styles/CartPage.css';
 
@@ -13,6 +14,7 @@ const CartPage = () => {
     const [total, setTotal] = useState(0);
     const [cartId, setCartId] = useState(null);
     const { currentUser } = useUser();
+    const { showSuccess, showError } = useToast();
 
     // Calculate total price of cart items
     const calculateTotal = (items) => {
@@ -143,6 +145,12 @@ const CartPage = () => {
                 localStorage.setItem('cart', JSON.stringify(updatedCart));
                 setCartItems(updatedCart);
                 setTotal(calculateTotal(updatedCart));
+
+                // Show success message
+                const removedItem = cartItems.find(item => item.id === itemId);
+                if (removedItem) {
+                    showSuccess(`Removed ${removedItem.name} from your cart`);
+                }
                 return;
             }
 
@@ -152,15 +160,24 @@ const CartPage = () => {
             // Create a new items array without the removed item
             const updatedItems = cartItems.filter(item => item.id !== itemId);
 
+            // Get the item that was removed for the success message
+            const removedItem = cartItems.find(item => item.id === itemId);
+
             // Update the cart document
             await updateDoc(doc(db, 'carts', cartId), {
                 items: updatedItems,
                 updatedAt: new Date()
             });
+
+            // Show success message
+            if (removedItem) {
+                showSuccess(`Removed ${removedItem.name} from your cart`);
+            }
             // No need to update state here as onSnapshot will handle it
         } catch (err) {
             console.error("Error removing item:", err);
             setError("Could not remove item. Please try again.");
+            showError("Failed to remove item from cart");
         }
     };
 

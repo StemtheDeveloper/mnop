@@ -14,6 +14,7 @@ const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const UserProfilePage = lazy(() => import('../pages/UserProfilePage')); // Import the new UserProfilePage
 const WalletPage = lazy(() => import('../pages/WalletPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
+const AdminDataFixerPage = lazy(() => import('../pages/AdminDataFixerPage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage'));
 const ProductsPage = lazy(() => import('../pages/ProductsPage'));
@@ -189,6 +190,11 @@ const AppRoutes = () => {
                 <Route path="/admin/achievements" element={
                     <AuthGuard allowedRoles="admin">
                         <AdminPage activeTab="achievements" />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/data-fixer" element={
+                    <AuthGuard allowedRoles="admin">
+                        <AdminDataFixerPage />
                     </AuthGuard>
                 } />
 

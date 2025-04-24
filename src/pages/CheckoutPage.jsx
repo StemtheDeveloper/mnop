@@ -375,8 +375,11 @@ const CheckoutPage = () => {
                 localStorage.removeItem('cart');
             }
 
-            // Show success message
-            showSuccess('Your order has been placed successfully!');
+            // Show detailed success message
+            const itemCount = cartItems.length;
+            const itemText = itemCount === 1 ? 'item' : 'items';
+            const orderNumber = orderRef.id.slice(-6);
+            showSuccess(`Order #${orderNumber} with ${itemCount} ${itemText} has been successfully placed! Total: ${formatPrice(total)}`);
 
             // Simulate payment processing
             setTimeout(() => {

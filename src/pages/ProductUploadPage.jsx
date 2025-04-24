@@ -43,6 +43,7 @@ const ProductUploadPage = () => {
         categories: [], // New array for multiple categories
         fundingGoal: '',
         customCategory: '',
+        isCrowdfunded: true, // New field to track if product requires crowdfunding
     });
 
     // Multiple image handling state
@@ -145,6 +146,15 @@ const ProductUploadPage = () => {
             // Store unsanitized value for display in the form
             setFormData({ ...formData, [name]: value });
         }
+    };
+
+    // Toggle product type (crowdfunded vs. direct sell)
+    const handleProductTypeToggle = (e) => {
+        const isCrowdfunded = e.target.value === 'crowdfunded';
+        setFormData(prev => ({
+            ...prev,
+            isCrowdfunded
+        }));
     };
 
     // Handle category selection (for multi-select)
@@ -274,9 +284,12 @@ const ProductUploadPage = () => {
             return false;
         }
 
-        if (!formData.fundingGoal || isNaN(parseFloat(formData.fundingGoal)) || parseFloat(formData.fundingGoal) <= 0) {
-            setError('Please enter a valid funding goal');
-            return false;
+        // Only validate funding goal for crowdfunded products
+        if (formData.isCrowdfunded) {
+            if (!formData.fundingGoal || isNaN(parseFloat(formData.fundingGoal)) || parseFloat(formData.fundingGoal) <= 0) {
+                setError('Please enter a valid funding goal');
+                return false;
+            }
         }
 
         if (productImages.length === 0) {
@@ -347,7 +360,8 @@ const ProductUploadPage = () => {
                 name: sanitizeString(formData.name),
                 description: sanitizeString(formData.description),
                 price: parseFloat(formData.price),
-                fundingGoal: parseFloat(formData.fundingGoal),
+                // For direct selling products, set fundingGoal to 0 and currentFunding to the goal (fully funded)
+                fundingGoal: formData.isCrowdfunded ? parseFloat(formData.fundingGoal) : 0,
                 category: useCustomCategory ? sanitizeString(formData.customCategory.trim()) : formData.category,
                 categories: useCustomCategory ? [sanitizeString(formData.customCategory.trim())] : formData.categories, // Store the array of categories
                 categoryType: useCustomCategory ? 'custom' : 'standard',
@@ -355,7 +369,10 @@ const ProductUploadPage = () => {
                 designerId: currentUser.uid,
                 designerName: userProfile?.displayName || 'Designer',
                 status: requireApproval ? 'pending' : 'active', // Set status based on approval setting
-                currentFunding: 0, // Initial funding amount
+                // For direct selling products, set currentFunding equal to fundingGoal (mark as fully funded)
+                currentFunding: formData.isCrowdfunded ? 0 : parseFloat(formData.price), // Initial funding amount or fully funded for direct selling
+                isCrowdfunded: formData.isCrowdfunded, // Store whether product is crowdfunded
+                isDirectSell: !formData.isCrowdfunded, // Add a direct sell flag for filtering
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
                 storagePaths: storagePaths // Store the correct paths for future reference
@@ -493,6 +510,41 @@ const ProductUploadPage = () => {
                 <form onSubmit={handleSubmit} className="product-form">
                     <div className="form-layout">
                         <div className="form-left">
+                            <div className="form-group product-type-selection">
+                                <label>Product Type*</label>
+                                <div className="product-type-toggle">
+                                    <label htmlFor="productTypeCrowdfunded">
+                                        <input
+                                            type="radio"
+                                            id="productTypeCrowdfunded"
+                                            name="productType"
+                                            value="crowdfunded"
+                                            checked={formData.isCrowdfunded}
+                                            onChange={handleProductTypeToggle}
+                                            disabled={loading}
+                                        />
+                                        Crowdfunded Product
+                                    </label>
+                                    <label htmlFor="productTypeDirect">
+                                        <input
+                                            type="radio"
+                                            id="productTypeDirect"
+                                            name="productType"
+                                            value="direct"
+                                            checked={!formData.isCrowdfunded}
+                                            onChange={handleProductTypeToggle}
+                                            disabled={loading}
+                                        />
+                                        Direct Selling (Existing Product)
+                                    </label>
+                                </div>
+                                <p className="form-hint">
+                                    {formData.isCrowdfunded
+                                        ? "Crowdfunded products need to reach a funding goal before they can be purchased."
+                                        : "Direct selling products are immediately available for purchase without funding."}
+                                </p>
+                            </div>
+
                             <div className="form-group">
                                 <label htmlFor="name">Product Name*</label>
                                 <input
@@ -533,18 +585,20 @@ const ProductUploadPage = () => {
                                     />
                                 </div>
 
-                                <div className="form-group">
-                                    <label htmlFor="fundingGoal">Funding Goal ($)*</label>
-                                    <input
-                                        type="text"
-                                        id="fundingGoal"
-                                        name="fundingGoal"
-                                        value={formData.fundingGoal}
-                                        onChange={handleChange}
-                                        placeholder="0.00"
-                                        disabled={loading}
-                                    />
-                                </div>
+                                {formData.isCrowdfunded && (
+                                    <div className="form-group">
+                                        <label htmlFor="fundingGoal">Funding Goal ($)*</label>
+                                        <input
+                                            type="text"
+                                            id="fundingGoal"
+                                            name="fundingGoal"
+                                            value={formData.fundingGoal}
+                                            onChange={handleChange}
+                                            placeholder="0.00"
+                                            disabled={loading}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             <div className="form-group">

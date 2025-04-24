@@ -25,6 +25,7 @@ const ProductDetailPage = () => {
     const [isAddingToCart, setIsAddingToCart] = useState(false);
     const [buttonAnimation, setButtonAnimation] = useState('');
     const [designer, setDesigner] = useState(null);
+    const [categoryNames, setCategoryNames] = useState([]); // Add this state for category names
 
     // Calculate if product is fully funded
     const isFullyFunded = product && product.currentFunding >= product.fundingGoal;
@@ -62,6 +63,39 @@ const ProductDetailPage = () => {
                 };
 
                 setProduct(productData);
+
+                // Fetch category names if categories exist
+                if (productData.categories && Array.isArray(productData.categories) && productData.categories.length > 0) {
+                    try {
+                        const fetchedCategoryNames = [];
+                        for (const categoryId of productData.categories) {
+                            const categoryRef = doc(db, 'categories', categoryId);
+                            const categoryDoc = await getDoc(categoryRef);
+                            if (categoryDoc.exists()) {
+                                fetchedCategoryNames.push(categoryDoc.data().name || categoryId);
+                            } else {
+                                fetchedCategoryNames.push(categoryId); // Fallback to ID if name not found
+                            }
+                        }
+                        setCategoryNames(fetchedCategoryNames);
+                    } catch (err) {
+                        console.error('Error fetching category names:', err);
+                    }
+                } else if (productData.category) {
+                    // Handle legacy single-category products
+                    try {
+                        const categoryRef = doc(db, 'categories', productData.category);
+                        const categoryDoc = await getDoc(categoryRef);
+                        if (categoryDoc.exists()) {
+                            setCategoryNames([categoryDoc.data().name || productData.category]);
+                        } else {
+                            setCategoryNames([productData.category]); // Fallback to ID if name not found
+                        }
+                    } catch (err) {
+                        console.error('Error fetching category name:', err);
+                        setCategoryNames([productData.category]); // Fallback to category ID
+                    }
+                }
 
                 // Fetch the designer data if designer ID exists
                 if (productData.designerId) {
@@ -338,6 +372,7 @@ const ProductDetailPage = () => {
         productImages.push('https://placehold.co/600x400?text=Product+Image');
     }
 
+    // Product info section - conditional rendering based on product type
     return (
         <div className="product-detail-page">
             <div className="product-detail-container">
@@ -363,6 +398,27 @@ const ProductDetailPage = () => {
                 <div className="product-info">
                     <h1 className="product-title">{product.name}</h1>
                     <p className="product-price">{formatPrice(product.price || 0)}</p>
+
+                    {/* Product Type Badge */}
+                    <div className="product-type-badge">
+                        {product.isCrowdfunded !== false ? (
+                            <span className="badge crowdfunding">Crowdfunded Product</span>
+                        ) : (
+                            <span className="badge direct-sell">Direct Purchase</span>
+                        )}
+                    </div>
+
+                    {/* Categories */}
+                    {categoryNames.length > 0 && (
+                        <div className="product-categories">
+                            <h3>Categories</h3>
+                            <div className="category-tags">
+                                {categoryNames.map((category, index) => (
+                                    <span key={index} className="category-tag">{category}</span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Designer information */}
                     {designer && (
@@ -415,8 +471,8 @@ const ProductDetailPage = () => {
                         </div>
                     )}
 
-                    {/* Funding information for investment products */}
-                    {product.fundingGoal && (
+                    {/* Funding information for crowdfunded products only */}
+                    {product.fundingGoal > 0 && product.isCrowdfunded !== false && (
                         <div className="product-funding">
                             <h3>Funding Progress</h3>
                             <div className="funding-stats">
@@ -428,7 +484,7 @@ const ProductDetailPage = () => {
                             </div>
                             <div className="funding-percentage">{Math.round(fundingPercentage)}% funded</div>
 
-                            {/* Funding Form */}
+                            {/* Funding Form - only show for crowdfunded products that aren't fully funded */}
                             {!isFullyFunded && currentUser && (
                                 <div className="funding-form">
                                     <h4>Help fund this product</h4>
@@ -467,24 +523,27 @@ const ProductDetailPage = () => {
                     )}
 
                     <div className="product-actions">
-                        {/* Add to Cart Button - only enabled if product is fully funded */}
+                        {/* Add to Cart Button - enabled if product is direct sell or fully funded */}
                         <button
-                            className={`btn-primary add-to-cart-button ${!isFullyFunded ? 'disabled' : ''} ${buttonAnimation}`}
-                            disabled={!isFullyFunded || isAddingToCart}
+                            className={`btn-primary add-to-cart-button ${(!isFullyFunded && product.isCrowdfunded !== false) ? 'disabled' : ''} ${buttonAnimation}`}
+                            disabled={(product.isCrowdfunded !== false && !isFullyFunded) || isAddingToCart}
                             onClick={handleAddToCart}
                         >
-                            {isAddingToCart ? 'Adding...' : isFullyFunded ? 'Add to Cart' : 'Funding Required'}
+                            {isAddingToCart ? 'Adding...' :
+                                (product.isCrowdfunded === false || isFullyFunded) ?
+                                    'Add to Cart' : 'Funding Required'}
                         </button>
 
-                        {/* Investment Button - only show for users with investor role */}
-                        {currentUser && hasRole('investor') && product.fundingGoal && !isFullyFunded && (
-                            <button
-                                className="invest-button btn-secondary"
-                                onClick={() => setShowInvestModal(true)}
-                            >
-                                Invest in This Product
-                            </button>
-                        )}
+                        {/* Investment Button - only show for crowdfunded products */}
+                        {currentUser && hasRole('investor') && product.fundingGoal > 0 &&
+                            product.isCrowdfunded !== false && !isFullyFunded && (
+                                <button
+                                    className="invest-button btn-secondary"
+                                    onClick={() => setShowInvestModal(true)}
+                                >
+                                    Invest in This Product
+                                </button>
+                            )}
                     </div>
                 </div>
             </div>

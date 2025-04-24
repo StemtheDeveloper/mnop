@@ -44,6 +44,7 @@ const ProductEditPage = () => {
         categories: [], // New array for multiple categories
         fundingGoal: '',
         customCategory: '',
+        isCrowdfunded: true, // New field to track if product requires crowdfunding
     });
 
     // Multiple image handling state
@@ -117,6 +118,7 @@ const ProductEditPage = () => {
                     categories: productData.categories || [productData.category || ''], // Get multiple categories or fallback to single category
                     fundingGoal: productData.fundingGoal ? productData.fundingGoal.toString() : '',
                     customCategory: productData.categoryType === 'custom' ? productData.category : '',
+                    isCrowdfunded: productData.isCrowdfunded !== false, // Default to true for backward compatibility
                 });
 
                 // Set useCustomCategory based on categoryType
@@ -202,6 +204,15 @@ const ProductEditPage = () => {
             // Store unsanitized value for display in the form
             setFormData({ ...formData, [name]: value });
         }
+    };
+
+    // Toggle product type (crowdfunded vs. direct sell)
+    const handleProductTypeToggle = (e) => {
+        const isCrowdfunded = e.target.value === 'crowdfunded';
+        setFormData(prev => ({
+            ...prev,
+            isCrowdfunded
+        }));
     };
 
     // Handle category selection (for multi-select)
@@ -328,9 +339,12 @@ const ProductEditPage = () => {
             return false;
         }
 
-        if (!formData.fundingGoal || isNaN(parseFloat(formData.fundingGoal)) || parseFloat(formData.fundingGoal) <= 0) {
-            setErrorState('Please enter a valid funding goal');
-            return false;
+        // Only validate funding goal for crowdfunded products
+        if (formData.isCrowdfunded) {
+            if (!formData.fundingGoal || isNaN(parseFloat(formData.fundingGoal)) || parseFloat(formData.fundingGoal) <= 0) {
+                setErrorState('Please enter a valid funding goal');
+                return false;
+            }
         }
 
         // Make sure there's at least one image (either existing or new)
@@ -440,7 +454,8 @@ const ProductEditPage = () => {
                 name: sanitizeString(formData.name),
                 description: sanitizeString(formData.description),
                 price: parseFloat(formData.price),
-                fundingGoal: parseFloat(formData.fundingGoal),
+                // Handle direct selling products appropriately
+                fundingGoal: formData.isCrowdfunded ? parseFloat(formData.fundingGoal) : 0,
                 category: categoryToUse,
                 categories: useCustomCategory ? [categoryToUse] : formData.categories, // Store multiple categories
                 categoryType: categoryTypeToUse,
@@ -448,7 +463,11 @@ const ProductEditPage = () => {
                 updatedAt: serverTimestamp(),
                 status: productStatus,
                 wasEdited: true, // Flag to indicate this was an edit
-                lastEditedAt: serverTimestamp()
+                lastEditedAt: serverTimestamp(),
+                isCrowdfunded: formData.isCrowdfunded, // Store whether product is crowdfunded
+                isDirectSell: !formData.isCrowdfunded, // Flag for direct selling products
+                // For direct selling products, set currentFunding equal to price (mark as ready to purchase)
+                currentFunding: formData.isCrowdfunded ? product.currentFunding || 0 : parseFloat(formData.price)
             };
 
             // Update the product document
@@ -559,6 +578,41 @@ const ProductEditPage = () => {
                 <form onSubmit={handleSubmit} className="product-form">
                     <div className="form-layout">
                         <div className="form-left">
+                            <div className="form-group product-type-selection">
+                                <label>Product Type*</label>
+                                <div className="product-type-toggle">
+                                    <label htmlFor="productTypeCrowdfunded">
+                                        <input
+                                            type="radio"
+                                            id="productTypeCrowdfunded"
+                                            name="productType"
+                                            value="crowdfunded"
+                                            checked={formData.isCrowdfunded}
+                                            onChange={handleProductTypeToggle}
+                                            disabled={saving}
+                                        />
+                                        Crowdfunded Product
+                                    </label>
+                                    <label htmlFor="productTypeDirect">
+                                        <input
+                                            type="radio"
+                                            id="productTypeDirect"
+                                            name="productType"
+                                            value="direct"
+                                            checked={!formData.isCrowdfunded}
+                                            onChange={handleProductTypeToggle}
+                                            disabled={saving}
+                                        />
+                                        Direct Selling (Existing Product)
+                                    </label>
+                                </div>
+                                <p className="form-hint">
+                                    {formData.isCrowdfunded
+                                        ? "Crowdfunded products need to reach a funding goal before they can be purchased."
+                                        : "Direct selling products are immediately available for purchase without funding."}
+                                </p>
+                            </div>
+
                             <div className="form-group">
                                 <label htmlFor="name">Product Name*</label>
                                 <input
@@ -599,18 +653,20 @@ const ProductEditPage = () => {
                                     />
                                 </div>
 
-                                <div className="form-group">
-                                    <label htmlFor="fundingGoal">Funding Goal ($)*</label>
-                                    <input
-                                        type="text"
-                                        id="fundingGoal"
-                                        name="fundingGoal"
-                                        value={formData.fundingGoal}
-                                        onChange={handleChange}
-                                        placeholder="0.00"
-                                        disabled={saving}
-                                    />
-                                </div>
+                                {formData.isCrowdfunded && (
+                                    <div className="form-group">
+                                        <label htmlFor="fundingGoal">Funding Goal ($)*</label>
+                                        <input
+                                            type="text"
+                                            id="fundingGoal"
+                                            name="fundingGoal"
+                                            value={formData.fundingGoal}
+                                            onChange={handleChange}
+                                            placeholder="0.00"
+                                            disabled={saving}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             <div className="form-group">

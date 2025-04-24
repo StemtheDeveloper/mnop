@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { updateProfile, signOut, deleteUser } from 'firebase/auth'; // Import signOut and deleteUser
-import { doc, updateDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
+import { doc, updateDoc, collection, query, where, getDocs, deleteDoc, getDoc, addDoc } from 'firebase/firestore'; // Import deleteDoc, getDoc, addDoc
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
 import '../styles/ProfilePage.css';
@@ -40,6 +40,20 @@ const ProfilePage = () => {
     const [processingRoleRequest, setProcessingRoleRequest] = useState(false);
     const [designerProducts, setDesignerProducts] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+
+    // State for designer sales
+    const [designerSales, setDesignerSales] = useState([]);
+    const [loadingSales, setLoadingSales] = useState(false);
+
+    // State for customer orders
+    const [customerOrders, setCustomerOrders] = useState([]);
+    const [loadingOrders, setLoadingOrders] = useState(false);
+
+    // State for order filtering and organization
+    const [orderFilter, setOrderFilter] = useState('all'); // 'all', 'complete', 'incomplete'
+    const [orderSearchTerm, setOrderSearchTerm] = useState('');
+    const [orderTimeFrame, setOrderTimeFrame] = useState('all'); // 'all', 'week', 'month', 'year'
+    const [expandedOrderId, setExpandedOrderId] = useState(null);
 
     // Refs for file inputs
     const profilePhotoRef = useRef(null);
@@ -131,6 +145,74 @@ const ProfilePage = () => {
 
         fetchDesignerProducts();
     }, [userId, hasRole]); // Depend directly on hasRole to ensure role changes are detected
+
+    // Fetch customer orders for products created by this designer
+    useEffect(() => {
+        const fetchCustomerOrders = async () => {
+            if (!userId || !isDesigner) return;
+
+            setLoadingOrders(true);
+
+            try {
+                // First get all products by this designer
+                const productsRef = collection(db, 'products');
+                const designerProductsQuery = query(productsRef, where('designerId', '==', userId));
+                const productSnapshot = await getDocs(designerProductsQuery);
+
+                if (productSnapshot.empty) {
+                    setCustomerOrders([]);
+                    setLoadingOrders(false);
+                    return;
+                }
+
+                // Get all product IDs
+                const productIds = productSnapshot.docs.map(doc => doc.id);
+
+                // Find all orders that contain these products
+                const ordersRef = collection(db, 'orders');
+                const orderSnapshot = await getDocs(ordersRef);
+
+                // Filter orders that contain this designer's products
+                const relevantOrders = [];
+
+                orderSnapshot.forEach(orderDoc => {
+                    const orderData = orderDoc.data();
+
+                    // Skip if order has no items
+                    if (!orderData.items || !Array.isArray(orderData.items)) return;
+
+                    // Check if any item in this order is from this designer's products
+                    const designerItems = orderData.items.filter(item => productIds.includes(item.id));
+
+                    if (designerItems.length > 0) {
+                        // Only include relevant items from this designer
+                        relevantOrders.push({
+                            id: orderDoc.id,
+                            ...orderData,
+                            // Only include items from this designer
+                            designerItems: designerItems,
+                            // Calculate subtotal for just this designer's items
+                            designerSubtotal: designerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+                            // Format date if it's a timestamp
+                            createdAt: orderData.createdAt?.toDate ? orderData.createdAt.toDate() : new Date(orderData.createdAt)
+                        });
+                    }
+                });
+
+                // Sort orders by date (newest first)
+                relevantOrders.sort((a, b) => b.createdAt - a.createdAt);
+
+                setCustomerOrders(relevantOrders);
+            } catch (error) {
+                console.error('Error fetching customer orders:', error);
+                setMessage({ type: 'error', text: 'Failed to load customer orders.' });
+            } finally {
+                setLoadingOrders(false);
+            }
+        };
+
+        fetchCustomerOrders();
+    }, [userId, isDesigner]);
 
     // Format price as currency
     const formatPrice = (price) => {
@@ -448,6 +530,87 @@ const ProfilePage = () => {
         }
     };
 
+    // Function to handle updating order status
+    const handleUpdateOrderStatus = async (orderId, newStatus) => {
+        if (!orderId || !newStatus) return;
+
+        // Confirm before cancelling an order
+        if (newStatus === 'cancelled') {
+            const confirmCancel = window.confirm('Are you sure you want to reject this order? This action cannot be undone.');
+            if (!confirmCancel) return;
+        }
+
+        setLoading(true);
+
+        try {
+            const orderRef = doc(db, 'orders', orderId);
+
+            // Create status update data
+            const updateData = {
+                status: newStatus,
+                updatedAt: new Date()
+            };
+
+            // Add additional data for delivery
+            if (newStatus === 'delivered') {
+                updateData.deliveredAt = new Date();
+            }
+
+            // Update order in Firestore
+            await updateDoc(orderRef, updateData);
+
+            // Create notification for the customer
+            const orderDoc = await getDoc(orderRef);
+            if (orderDoc.exists()) {
+                const orderData = orderDoc.data();
+
+                // Add notification for customer
+                await addDoc(collection(db, 'notifications'), {
+                    userId: orderData.userId,
+                    title: newStatus === 'delivered' ? 'Order Delivered' : 'Order Status Update',
+                    message: newStatus === 'delivered'
+                        ? 'Your order has been marked as delivered.'
+                        : `Your order status has been updated to ${newStatus}.`,
+                    type: 'order_status',
+                    orderId: orderId,
+                    read: false,
+                    createdAt: new Date()
+                });
+            }
+
+            // Update local state to reflect the change
+            setCustomerOrders(prev =>
+                prev.map(order =>
+                    order.id === orderId
+                        ? {
+                            ...order,
+                            status: newStatus,
+                            ...(newStatus === 'delivered' ? { deliveredAt: new Date() } : {})
+                        }
+                        : order
+                )
+            );
+
+            setMessage({
+                type: 'success',
+                text: newStatus === 'delivered'
+                    ? 'Order has been marked as delivered'
+                    : newStatus === 'cancelled'
+                        ? 'Order has been rejected'
+                        : `Order status updated to ${newStatus}`
+            });
+
+        } catch (error) {
+            console.error('Error updating order status:', error);
+            setMessage({
+                type: 'error',
+                text: 'Failed to update order status. Please try again.'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const getRoleClass = () => {
         if (!userRole) return 'customer-role';
 
@@ -490,6 +653,8 @@ const ProfilePage = () => {
         // Designer-specific tabs
         if (isDesigner) {
             tabs.push({ id: 'products', label: 'My Products', roles: ['designer'] });
+            tabs.push({ id: 'sales', label: 'My Sales', roles: ['designer'] });
+            tabs.push({ id: 'customer-orders', label: 'Customer Orders', roles: ['designer'] });
         }
 
         // Manufacturer-specific tabs
@@ -535,6 +700,19 @@ const ProfilePage = () => {
         }
     };
 
+    const getStatusBadgeClass = (status) => {
+        switch (status) {
+            case 'pending':
+                return 'status-pending';
+            case 'completed':
+                return 'status-completed';
+            case 'cancelled':
+                return 'status-cancelled';
+            default:
+                return 'status-default';
+        }
+    };
+
     return (
         <div className="profile-page">
             {showProfileCropper && (
@@ -576,7 +754,7 @@ const ProfilePage = () => {
                     />
                     {isOwnProfile && (
                         <div className="photo-upload-button" onClick={handleProfilePhotoClick}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="55" height="55" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                                 <circle cx="12" cy="13" r="4"></circle>
                             </svg>
@@ -1185,19 +1363,6 @@ const ProfilePage = () => {
                             </div>
                         )}
 
-                        {/* Placeholder for future tabs */}
-                        {activeTab === 'quotes' && hasRole('manufacturer') && (
-                            <div className="settings-section">
-                                <h3>Manufacturing Quotes</h3>
-                                <p>Manage your manufacturing quotes and production requests.</p>
-                                <div className="section-actions">
-                                    <Link to="/manufacturer/quotes" className="btn-primary">
-                                        View All Quotes
-                                    </Link>
-                                </div>
-                            </div>
-                        )}
-
                         {activeTab === 'investments' && hasRole('investor') && (
                             <div className="settings-section">
                                 <h3>Your Investments</h3>
@@ -1207,6 +1372,350 @@ const ProfilePage = () => {
                                         Go to Portfolio
                                     </Link>
                                 </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'customer-orders' && isDesigner && (
+                            <div className="settings-section">
+                                <h3>Customer Orders</h3>
+                                <p>View and manage orders for your products</p>
+
+                                {/* Search and filtering controls */}
+                                <div className="order-filters">
+                                    <div className="search-filter">
+                                        <input
+                                            type="text"
+                                            placeholder="Search by order # or customer name"
+                                            value={orderSearchTerm}
+                                            onChange={(e) => setOrderSearchTerm(e.target.value)}
+                                            className="search-orders-input"
+                                        />
+                                    </div>
+                                    <div className="filter-controls">
+                                        <select
+                                            value={orderFilter}
+                                            onChange={(e) => setOrderFilter(e.target.value)}
+                                            className="order-status-filter"
+                                        >
+                                            <option value="all">All Orders</option>
+                                            <option value="incomplete">Incomplete</option>
+                                            <option value="complete">Completed</option>
+                                        </select>
+                                        <select
+                                            value={orderTimeFrame}
+                                            onChange={(e) => setOrderTimeFrame(e.target.value)}
+                                            className="order-time-filter"
+                                        >
+                                            <option value="all">All Time</option>
+                                            <option value="week">This Week</option>
+                                            <option value="month">This Month</option>
+                                            <option value="year">This Year</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {loadingOrders ? (
+                                    <div className="loading-container">
+                                        <LoadingSpinner />
+                                        <p>Loading customer orders...</p>
+                                    </div>
+                                ) : customerOrders.length === 0 ? (
+                                    <div className="empty-state">
+                                        <p>No orders have been placed for your products yet.</p>
+                                        <p>When customers purchase your products, their orders will appear here.</p>
+                                    </div>
+                                ) : (
+                                    <div className="orders-container">
+                                        {/* Group orders by completion status */}
+                                        {orderFilter !== 'complete' && (
+                                            <div className="orders-group">
+                                                <h4 className="orders-group-title">Pending Orders</h4>
+                                                <div className="orders-list">
+                                                    {customerOrders
+                                                        .filter(order => {
+                                                            // Filter by search term
+                                                            const searchMatch = orderSearchTerm === '' ||
+                                                                order.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) ||
+                                                                (order.shippingInfo?.fullName || '').toLowerCase().includes(orderSearchTerm.toLowerCase());
+
+                                                            // Filter by status
+                                                            const statusMatch = order.status !== 'delivered' && order.status !== 'completed';
+
+                                                            // Filter by time period
+                                                            let timeMatch = true;
+                                                            const orderDate = new Date(order.createdAt);
+                                                            const now = new Date();
+
+                                                            if (orderTimeFrame === 'week') {
+                                                                const weekAgo = new Date();
+                                                                weekAgo.setDate(now.getDate() - 7);
+                                                                timeMatch = orderDate >= weekAgo;
+                                                            } else if (orderTimeFrame === 'month') {
+                                                                const monthAgo = new Date();
+                                                                monthAgo.setMonth(now.getMonth() - 1);
+                                                                timeMatch = orderDate >= monthAgo;
+                                                            } else if (orderTimeFrame === 'year') {
+                                                                const yearAgo = new Date();
+                                                                yearAgo.setFullYear(now.getFullYear() - 1);
+                                                                timeMatch = orderDate >= yearAgo;
+                                                            }
+
+                                                            return searchMatch && statusMatch && timeMatch;
+                                                        })
+                                                        .map(order => (
+                                                            <div key={order.id} className="order-card">
+                                                                <div className="order-header">
+                                                                    <div className="order-id">
+                                                                        <h3>Order #{order.id.slice(-6)}</h3>
+                                                                        <span className={`status-badge ${getStatusBadgeClass(order.status)}`}>
+                                                                            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="order-date">
+                                                                        <div>{formatDate(order.createdAt)}</div>
+                                                                        <div className="order-time">
+                                                                            {new Date(order.createdAt).toLocaleTimeString('en-US', {
+                                                                                hour: '2-digit',
+                                                                                minute: '2-digit'
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="order-customer-info">
+                                                                    <strong>Customer:</strong> {order.shippingInfo?.fullName || 'Unknown'}
+                                                                </div>
+
+                                                                <div className="order-items-preview">
+                                                                    {order.designerItems.slice(0, 3).map((item, index) => (
+                                                                        <div key={index} className="preview-item-image">
+                                                                            <img
+                                                                                src={item.imageUrl || 'https://via.placeholder.com/40?text=Product'}
+                                                                                alt={item.name}
+                                                                            />
+                                                                            {item.quantity > 1 && <span className="preview-quantity">{item.quantity}</span>}
+                                                                        </div>
+                                                                    ))}
+                                                                    {order.designerItems.length > 3 && (
+                                                                        <div className="more-items">
+                                                                            +{order.designerItems.length - 3} more
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Toggle details button */}
+                                                                <button
+                                                                    className="toggle-details-button"
+                                                                    onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                                                                >
+                                                                    {expandedOrderId === order.id ? 'Hide Details' : 'Show Details'}
+                                                                </button>
+
+                                                                {/* Expanded details section */}
+                                                                {expandedOrderId === order.id && (
+                                                                    <>
+                                                                        <div className="order-details">
+                                                                            <div className="order-items-details">
+                                                                                {order.designerItems.map((item, index) => (
+                                                                                    <div key={index} className="order-item-line">
+                                                                                        <span className="item-name">{item.name}</span>
+                                                                                        <span className="item-quantity">x{item.quantity}</span>
+                                                                                        <span className="item-price">{formatPrice(item.price * item.quantity)}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                            <div className="order-subtotal">
+                                                                                <strong>Designer total:</strong> {formatPrice(order.designerSubtotal)}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Shipping address */}
+                                                                        <div className="shipping-address">
+                                                                            <h4>Shipping Address</h4>
+                                                                            <p>{order.shippingInfo?.fullName}</p>
+                                                                            <p>{order.shippingInfo?.address}</p>
+                                                                            <p>{order.shippingInfo?.city}, {order.shippingInfo?.state} {order.shippingInfo?.zipCode}</p>
+                                                                            <p>{order.shippingInfo?.country}</p>
+                                                                            <p><strong>Phone:</strong> {order.shippingInfo?.phone}</p>
+                                                                            <p><strong>Email:</strong> {order.shippingInfo?.email}</p>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+
+                                                                <div className="shipping-preview">
+                                                                    <div className="shipping-method">
+                                                                        <strong>Shipping:</strong> {order.shippingInfo?.shippingMethod === 'express' ? 'Express' : 'Standard'}
+                                                                    </div>
+                                                                    {order.estimatedDelivery && (
+                                                                        <div className="estimated-delivery">
+                                                                            <strong>Est. Delivery:</strong> {
+                                                                                new Date(order.estimatedDelivery.seconds * 1000).toLocaleDateString('en-US', {
+                                                                                    year: 'numeric',
+                                                                                    month: 'long',
+                                                                                    day: 'numeric'
+                                                                                })
+                                                                            }
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Order action buttons */}
+                                                                <div className="order-actions">
+                                                                    <button
+                                                                        className="btn-mark-delivered"
+                                                                        onClick={() => handleUpdateOrderStatus(order.id, 'delivered')}
+                                                                    >
+                                                                        Mark as Delivered
+                                                                    </button>
+                                                                    <button
+                                                                        className="btn-reject-order"
+                                                                        onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}
+                                                                    >
+                                                                        Reject Order
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Completed orders */}
+                                        {orderFilter !== 'incomplete' && (
+                                            <div className="orders-group">
+                                                <h4 className="orders-group-title">Completed Orders</h4>
+                                                <div className="orders-list">
+                                                    {customerOrders
+                                                        .filter(order => {
+                                                            // Filter by search term
+                                                            const searchMatch = orderSearchTerm === '' ||
+                                                                order.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) ||
+                                                                (order.shippingInfo?.fullName || '').toLowerCase().includes(orderSearchTerm.toLowerCase());
+
+                                                            // Filter by status
+                                                            const statusMatch = order.status === 'delivered' || order.status === 'completed';
+
+                                                            // Filter by time period
+                                                            let timeMatch = true;
+                                                            const orderDate = new Date(order.createdAt);
+                                                            const now = new Date();
+
+                                                            if (orderTimeFrame === 'week') {
+                                                                const weekAgo = new Date();
+                                                                weekAgo.setDate(now.getDate() - 7);
+                                                                timeMatch = orderDate >= weekAgo;
+                                                            } else if (orderTimeFrame === 'month') {
+                                                                const monthAgo = new Date();
+                                                                monthAgo.setMonth(now.getMonth() - 1);
+                                                                timeMatch = orderDate >= monthAgo;
+                                                            } else if (orderTimeFrame === 'year') {
+                                                                const yearAgo = new Date();
+                                                                yearAgo.setFullYear(now.getFullYear() - 1);
+                                                                timeMatch = orderDate >= yearAgo;
+                                                            }
+
+                                                            return searchMatch && statusMatch && timeMatch;
+                                                        })
+                                                        .map(order => (
+                                                            <div key={order.id} className="order-card completed">
+                                                                <div className="order-header">
+                                                                    <div className="order-id">
+                                                                        <h3>Order #{order.id.slice(-6)}</h3>
+                                                                        <span className={`status-badge ${getStatusBadgeClass(order.status)}`}>
+                                                                            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="order-date">
+                                                                        <div>{formatDate(order.createdAt)}</div>
+                                                                        <div className="order-time">
+                                                                            {new Date(order.createdAt).toLocaleTimeString('en-US', {
+                                                                                hour: '2-digit',
+                                                                                minute: '2-digit'
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="order-customer-info">
+                                                                    <strong>Customer:</strong> {order.shippingInfo?.fullName || 'Unknown'}
+                                                                </div>
+
+                                                                <div className="order-items-preview">
+                                                                    {order.designerItems.slice(0, 3).map((item, index) => (
+                                                                        <div key={index} className="preview-item-image">
+                                                                            <img
+                                                                                src={item.imageUrl || 'https://via.placeholder.com/40?text=Product'}
+                                                                                alt={item.name}
+                                                                            />
+                                                                            {item.quantity > 1 && <span className="preview-quantity">{item.quantity}</span>}
+                                                                        </div>
+                                                                    ))}
+                                                                    {order.designerItems.length > 3 && (
+                                                                        <div className="more-items">
+                                                                            +{order.designerItems.length - 3} more
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Toggle details button */}
+                                                                <button
+                                                                    className="toggle-details-button"
+                                                                    onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                                                                >
+                                                                    {expandedOrderId === order.id ? 'Hide Details' : 'Show Details'}
+                                                                </button>
+
+                                                                {/* Expanded details section */}
+                                                                {expandedOrderId === order.id && (
+                                                                    <>
+                                                                        <div className="order-details">
+                                                                            <div className="order-items-details">
+                                                                                {order.designerItems.map((item, index) => (
+                                                                                    <div key={index} className="order-item-line">
+                                                                                        <span className="item-name">{item.name}</span>
+                                                                                        <span className="item-quantity">x{item.quantity}</span>
+                                                                                        <span className="item-price">{formatPrice(item.price * item.quantity)}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                            <div className="order-subtotal">
+                                                                                <strong>Designer total:</strong> {formatPrice(order.designerSubtotal)}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Shipping address */}
+                                                                        <div className="shipping-address">
+                                                                            <h4>Shipping Address</h4>
+                                                                            <p>{order.shippingInfo?.fullName}</p>
+                                                                            <p>{order.shippingInfo?.address}</p>
+                                                                            <p>{order.shippingInfo?.city}, {order.shippingInfo?.state} {order.shippingInfo?.zipCode}</p>
+                                                                            <p>{order.shippingInfo?.country}</p>
+                                                                            <p><strong>Phone:</strong> {order.shippingInfo?.phone}</p>
+                                                                            <p><strong>Email:</strong> {order.shippingInfo?.email}</p>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+
+                                                                <div className="shipping-preview">
+                                                                    <div className="shipping-method">
+                                                                        <strong>Shipping:</strong> {order.shippingInfo?.shippingMethod === 'express' ? 'Express' : 'Standard'}
+                                                                    </div>
+                                                                    <div className="completed-date">
+                                                                        <strong>Completed:</strong> {order.deliveredAt ?
+                                                                            new Date(order.deliveredAt.seconds * 1000).toLocaleDateString('en-US', {
+                                                                                year: 'numeric',
+                                                                                month: 'long',
+                                                                                day: 'numeric'
+                                                                            }) : 'Unknown'}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 

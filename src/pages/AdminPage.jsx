@@ -989,6 +989,17 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                             {loading && operation === 'cleanup' ? 'Processing...' : 'Cleanup Data'}
                                         </button>
                                     </div>
+
+                                    <div className="admin-card">
+                                        <h3>Product Category Data Fixer</h3>
+                                        <p>
+                                            Fix product category data issues. Use this tool to ensure all products have proper
+                                            category fields in the correct format (arrays).
+                                        </p>
+                                        <a href="/admin/data-fixer" className="admin-button">
+                                            Open Data Fixer Tool
+                                        </a>
+                                    </div>
                                 </div>
 
                                 {result.message && (

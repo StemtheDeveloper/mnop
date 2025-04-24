@@ -325,11 +325,11 @@
 
 .photo-upload-button {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 30px;
-  height: 30px;
-  background-color: rgba(239, 60, 35, 0.9);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
   color: white;
   border-radius: 50%;
   display: flex;
@@ -338,12 +338,13 @@
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  transition: background-color 0.3s;
+  transition: background-color, opacity 0.3s;
   z-index: 11;
 }
 
 .photo-upload-button:hover {
   background-color: rgba(239, 60, 35, 1);
+  opacity: 0.8;
 }
 
 .background-upload {
@@ -1200,4 +1201,367 @@
 .visitor-view .product-price {
   font-weight: 600;
   color: #ef3c23;
+}
+
+/* Customer Orders tab styling */
+.order-card {
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 15px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 15px;
+  align-items: flex-start;
+}
+
+.order-id h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 5px;
+  color: #333;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.status-processing,
+.status-default {
+  background-color: #e3f2fd;
+  color: #0d47a1;
+}
+
+.status-shipped {
+  background-color: #fff9c4;
+  color: #f57f17;
+}
+
+.status-delivered,
+.status-completed {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-cancelled {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.status-pending {
+  background-color: #fff8e1;
+  color: #ff8f00;
+}
+
+.order-date {
+  text-align: right;
+  color: #666;
+  font-size: 14px;
+}
+
+.order-time {
+  font-size: 12px;
+  color: #888;
+}
+
+.order-customer-info {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+  color: #555;
+}
+
+.order-items-preview {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  align-items: center;
+}
+
+.preview-item-image {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #f5f5f5;
+  position: relative;
+}
+
+.preview-item-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-quantity {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #ef3c23;
+  color: white;
+  font-size: 10px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.more-items {
+  color: #666;
+  font-size: 12px;
+  padding: 0 5px;
+}
+
+.order-details {
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.order-items-details {
+  margin-bottom: 10px;
+}
+
+.order-item-line {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.item-name {
+  flex: 1;
+  margin-right: 10px;
+}
+
+.item-quantity {
+  margin-right: 15px;
+  color: #777;
+}
+
+.item-price {
+  font-weight: 500;
+  color: #333;
+}
+
+.order-subtotal {
+  padding-top: 10px;
+  border-top: 1px dashed #ddd;
+  text-align: right;
+  font-size: 15px;
+}
+
+.shipping-preview {
+  color: #777;
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.shipping-method,
+.estimated-delivery {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .order-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .order-date {
+    text-align: left;
+  }
+
+  .shipping-preview {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* Customer Orders tab styling - additional styles */
+.orders-container {
+  margin-top: 20px;
+}
+
+.orders-group {
+  margin-bottom: 30px;
+}
+
+.orders-group-title {
+  font-size: 18px;
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+  color: #333;
+}
+
+.order-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 20px;
+  background-color: #f9f9f9;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.search-filter {
+  flex: 1;
+  min-width: 250px;
+}
+
+.filter-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.search-orders-input,
+.order-status-filter,
+.order-time-filter {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.search-orders-input {
+  width: 100%;
+}
+
+.order-status-filter,
+.order-time-filter {
+  min-width: 120px;
+}
+
+.order-card {
+  margin-bottom: 20px;
+}
+
+.order-card.completed {
+  background-color: #f8f8f8;
+}
+
+.toggle-details-button {
+  background-color: transparent;
+  border: none;
+  color: #ef3c23;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 5px 0;
+  margin: 5px 0;
+  text-decoration: underline;
+}
+
+.toggle-details-button:hover {
+  color: #c5321b;
+}
+
+.shipping-address {
+  background-color: #f0f9ff;
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.shipping-address h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #0d47a1;
+  font-size: 16px;
+}
+
+.shipping-address p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.order-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.btn-mark-delivered,
+.btn-reject-order {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-mark-delivered {
+  background-color: #4caf50;
+  color: white;
+}
+
+.btn-mark-delivered:hover {
+  background-color: #388e3c;
+}
+
+.btn-reject-order {
+  background-color: #f44336;
+  color: white;
+}
+
+.btn-reject-order:hover {
+  background-color: #d32f2f;
+}
+
+.completed-date {
+  color: #2e7d32;
+}
+
+@media (max-width: 768px) {
+  .order-filters {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .filter-controls {
+    width: 100%;
+  }
+
+  .order-status-filter,
+  .order-time-filter {
+    flex: 1;
+  }
+
+  .order-actions {
+    flex-direction: column;
+  }
+
+  .btn-mark-delivered,
+  .btn-reject-order {
+    width: 100%;
+    text-align: center;
+  }
 }
