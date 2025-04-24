@@ -1643,3 +1643,412 @@ input:checked + .toggle-slider:before {
     width: 100%;
   }
 }
+
+/* Schema manager and data fixer tool styles */
+.schema-manager-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.schema-manager-content {
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  padding: 25px;
+  overflow-y: auto;
+}
+
+.schema-manager-content h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 24px;
+  color: #333;
+}
+
+.schema-actions-top {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.create-schema-btn,
+.sample-schema-btn {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.create-schema-btn:hover,
+.sample-schema-btn:hover {
+  background-color: #2980b9;
+}
+
+.close-schema-btn {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  color: #333;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 20px;
+  transition: background-color 0.2s;
+}
+
+.close-schema-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.schema-editor textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.helper-text {
+  font-size: 12px;
+  color: #777;
+  margin-top: 5px;
+}
+
+.schema-item {
+  background-color: #f8f9fa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.schema-item:hover {
+  border-color: #3498db;
+}
+
+.schema-item.active {
+  border-color: #3498db;
+  background-color: #ebf7ff;
+}
+
+.schema-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.schema-item-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.schema-item-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.edit-schema-btn,
+.delete-schema-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+.edit-schema-btn {
+  color: #2980b9;
+}
+
+.edit-schema-btn:hover {
+  background-color: #ebf7ff;
+}
+
+.delete-schema-btn {
+  color: #e74c3c;
+}
+
+.delete-schema-btn:hover {
+  background-color: #ffebee;
+}
+
+.schema-details {
+  margin-top: 10px;
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.no-schemas {
+  color: #777;
+  font-style: italic;
+  padding: 20px;
+  text-align: center;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+/* Batch mode styles */
+.button-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.schema-manager-btn {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.schema-manager-btn:hover {
+  background-color: #388e3c;
+}
+
+.batch-mode-btn {
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.batch-mode-btn:hover {
+  background-color: #f57c00;
+}
+
+.batch-mode-btn.active {
+  background-color: #e65100;
+}
+
+.batch-controls {
+  background-color: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 4px;
+  padding: 15px;
+  margin-top: 15px;
+  margin-bottom: 15px;
+}
+
+.batch-selection {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.batch-selection input[type="checkbox"] {
+  margin-right: 8px;
+  width: 16px;
+  height: 16px;
+}
+
+.batch-selection label {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: #555;
+}
+
+.no-schema-warning {
+  color: #e65100;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.validate-btn {
+  background-color: #673ab7;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.validate-btn:hover {
+  background-color: #512da8;
+}
+
+.data-item.batch-selected {
+  border-left: 3px solid #ff9800;
+  background-color: #fff8e1;
+}
+
+.batch-checkbox {
+  margin-right: 10px;
+}
+
+.batch-checkbox input {
+  width: 16px;
+  height: 16px;
+}
+
+/* Validation results styles */
+.validation-results {
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.validation-results h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.validation-summary {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  padding: 10px 15px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+.validation-items {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.validation-item {
+  background-color: #f8f9fa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 10px;
+}
+
+.validation-item-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.validation-item-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.validation-item-id {
+  font-size: 12px;
+  color: #777;
+}
+
+.validation-issues {
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.validation-issue {
+  padding: 8px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.validation-issue:last-child {
+  border-bottom: none;
+}
+
+.issue-fix {
+  color: #2980b9;
+  font-size: 13px;
+  margin-top: 5px;
+  font-style: italic;
+}
+
+.apply-fixes-btn {
+  background-color: #e91e63;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 15px;
+  transition: background-color 0.2s;
+}
+
+.apply-fixes-btn:hover {
+  background-color: #c2185b;
+}
+
+.apply-fixes-btn:disabled {
+  background-color: #f8bbd0;
+  cursor: not-allowed;
+}
+
+.close-validation-btn {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  color: #333;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.close-validation-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.validation-success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  text-align: center;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+.item-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.sample-schema-btn {
+  background-color: #9c27b0;
+  color: white;
+}
