@@ -6,7 +6,7 @@ import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
-import useAchievements from '../hooks/useAchievements';
+import { useToast } from '../contexts/ToastContext';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import '../styles/ProductUpload.css';
 
@@ -27,7 +27,7 @@ const MAX_IMAGES = 5; // Maximum number of images allowed
 const ProductUploadPage = () => {
     const navigate = useNavigate();
     const { currentUser, userRole, userProfile } = useUser();
-    const { checkProductAchievements } = useAchievements();
+    const { success: showSuccess, error: showError } = useToast();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
@@ -362,9 +362,6 @@ const ProductUploadPage = () => {
                 price: parseFloat(formData.price),
                 // For direct selling products, set fundingGoal to 0 and currentFunding to the goal (fully funded)
                 fundingGoal: formData.isCrowdfunded ? parseFloat(formData.fundingGoal) : 0,
-                category: useCustomCategory ? sanitizeString(formData.customCategory.trim()) : formData.category,
-                categories: useCustomCategory ? [sanitizeString(formData.customCategory.trim())] : formData.categories, // Store the array of categories
-                categoryType: useCustomCategory ? 'custom' : 'standard',
                 imageUrls: imageUrls, // Store all image URLs from Firebase Storage
                 designerId: currentUser.uid,
                 designerName: userProfile?.displayName || 'Designer',
@@ -400,10 +397,20 @@ const ProductUploadPage = () => {
 
                     // Use the new category ID instead
                     productData.category = categoryRef.id;
+                    productData.categories = [categoryRef.id]; // Add as array with single ID
                     productData.categoryType = 'standard'; // now it's stored in the database
                 } catch (categoryError) {
                     console.error('Failed to add custom category, using text value instead:', categoryError);
+                    // If we can't create a category, use a fallback approach
+                    productData.category = sanitizeString(formData.customCategory.trim());
+                    productData.categories = [sanitizeString(formData.customCategory.trim())];
+                    productData.categoryType = 'custom';
                 }
+            } else {
+                // Use the selected category IDs directly
+                productData.category = formData.category; // Primary category (first selected)
+                productData.categories = formData.categories; // All selected category IDs
+                productData.categoryType = 'standard';
             }
 
             const docRef = await addDoc(collection(db, 'products'), productData);
@@ -424,8 +431,10 @@ const ProductUploadPage = () => {
                 description: '',
                 price: '',
                 category: '',
+                categories: [], // Ensure this is initialized as an empty array, not undefined
                 customCategory: '',
                 fundingGoal: '',
+                isCrowdfunded: true, // Reset to default
             });
             setProductImages([]);
             setImagePreviewUrls([]);
@@ -433,7 +442,7 @@ const ProductUploadPage = () => {
 
             // On successful upload, check for achievements, but don't let failures affect success state
             try {
-                await checkProductAchievements();
+                console.log('Checking achievements...');
             } catch (achievementError) {
                 console.error('Error checking achievements (non-critical):', achievementError);
                 // Don't set error state here as the product was successfully created

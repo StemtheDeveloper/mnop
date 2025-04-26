@@ -10,6 +10,7 @@ import TrendingExtensionButton from '../components/TrendingExtensionButton';
 import productTrendingService from '../services/productTrendingService';
 import '../styles/ProductDetailPage.css';
 import { serverTimestamp } from 'firebase/firestore';
+import DOMPurify from 'dompurify'; // Add this import for safely rendering HTML
 
 const ProductDetailPage = () => {
     const { productId } = useParams();
@@ -441,7 +442,11 @@ const ProductDetailPage = () => {
 
                     <div className="product-description">
                         <h3>Description</h3>
-                        <p>{product.description}</p>
+                        <p dangerouslySetInnerHTML={{
+                            __html: DOMPurify.sanitize(product.description || '', {
+                                USE_PROFILES: { html: true }
+                            })
+                        }}></p>
                     </div>
 
                     {product.features && product.features.length > 0 && (
