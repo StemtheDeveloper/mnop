@@ -216,6 +216,7 @@ export const UserProvider = ({ children }) => {
         transactions,
         loading,
         authInitialized,
+        isLoggedIn: !!currentUser, // Explicitly provide login status
         hasRole,
         getWalletBalance,
         getTransactionHistory,

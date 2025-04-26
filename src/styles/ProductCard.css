@@ -211,7 +211,7 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  background-color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(255, 255, 255, 0.8);
   border: none;
   border-radius: 50%;
   width: 32px;
@@ -220,17 +220,19 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 2;
+  z-index: 10; /* Increased z-index to ensure buttons appear above other elements */
   opacity: 0;
   transition: opacity 0.2s ease, background-color 0.2s ease;
+  pointer-events: auto; /* Ensure clicks are captured */
 }
 
-.product-card:hover .image-nav-button {
+.product-card:hover .image-nav-button,
+.product-image:hover .image-nav-button {
   opacity: 1;
 }
 
 .image-nav-button:hover {
-  background-color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 1);
 }
 
 .image-nav-button.prev {
@@ -254,8 +256,14 @@
 @media (max-width: 768px) {
   .image-nav-button {
     opacity: 1; /* Always show on mobile */
-    width: 28px;
-    height: 28px;
+    width: 36px; /* Increased from 28px to make touch target larger */
+    height: 36px; /* Increased from 28px to make touch target larger */
+    background-color: rgba(
+      255,
+      255,
+      255,
+      0.8
+    ); /* Slightly more opaque for visibility */
   }
 }
 

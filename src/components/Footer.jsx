@@ -1,5 +1,6 @@
 import React from 'react';
 import './Footer.css';
+import DailyNop from './DailyNop';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -13,22 +14,22 @@ const Footer = () => {
             <h4>Socials</h4>
             <div className="social-links">
               <a href="https://facebook.com" className="social-icon" title="Facebook">
-                <i className="fa fa-facebook"></i>
+                <span className="social-icon-text">FB</span>
               </a>
               <a href="https://twitter.com" className="social-icon" title="X/Twitter">
-                <i className="fa fa-twitter"></i>
+                <span className="social-icon-text">X</span>
               </a>
               <a href="https://telegram.org" className="social-icon" title="Telegram">
-                <i className="fa fa-telegram"></i>
+                <span className="social-icon-text">TG</span>
               </a>
               <a href="https://instagram.com" className="social-icon" title="Instagram">
-                <i className="fa fa-instagram"></i>
+                <span className="social-icon-text">IG</span>
               </a>
               <a href="https://whatsapp.com" className="social-icon" title="WhatsApp">
-                <i className="fa fa-whatsapp"></i>
+                <span className="social-icon-text">WA</span>
               </a>
               <a href="https://linkedin.com" className="social-icon" title="LinkedIn">
-                <i className="fa fa-linkedin"></i>
+                <span className="social-icon-text">LI</span>
               </a>
             </div>
           </div>
@@ -39,7 +40,7 @@ const Footer = () => {
             <ul className="footer-links">
               <li>
                 <a href="tel:+1234567890">
-                  <span>➡️</span> +1 (234) 567-890
+                  <span>📞</span> +1 (234) 567-890
                 </a>
               </li>
               <li>
@@ -49,7 +50,7 @@ const Footer = () => {
               </li>
               <li>
                 <a href="/feedback">
-                  <span>☕</span> Give Feedback
+                  <span>💬</span> Give Feedback
                 </a>
               </li>
               <li>
@@ -87,13 +88,7 @@ const Footer = () => {
         {/* Right Section: Nop of the Day */}
         <div className="nop-section">
           <h4>Nop Of The Day</h4>
-          <div className="nop-card">
-            <div className="nop-character">
-              <img src="/coin-purson.png" alt="Coin Purson" className="coin-purson" />
-              <p className="nop-label">Coin Purson</p>
-            </div>
-            <button className="collect-btn">Collect</button>
-          </div>
+          <DailyNop />
         </div>
       </div>
 

@@ -31,8 +31,18 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
     const [operation, setOperation] = useState('');
     const [conversationIndexStatus, setConversationIndexStatus] = useState({ loading: false, message: '', type: '' });
 
-    const { currentUser, userRole, loading: userLoading } = useUser();
+    const { currentUser, userRole, loading: userLoading, authInitialized } = useUser();
     const userContext = useUser();
+
+    // Debug authentication state
+    useEffect(() => {
+        console.log("Authentication state in AdminPage:", {
+            currentUser: currentUser ? { uid: currentUser.uid, email: currentUser.email } : null,
+            userRole,
+            loading: userLoading,
+            authInitialized
+        });
+    }, [currentUser, userRole, userLoading, authInitialized]);
 
     const [activeTab, setActiveTab] = useState(initialActiveTab || 'users');
 

@@ -11,17 +11,19 @@
   padding: 40px 60px;
   display: flex;
   justify-content: space-between;
-  gap: 40px;
+  gap: 60px; /* Increased gap between column section and nop section */
 }
 
 .footer-columns {
   display: flex;
   flex-grow: 3;
-  gap: 40px;
+  gap: 60px; /* Increased gap between columns */
 }
 
 .footer-column {
   flex: 1;
+  text-align: left; /* Ensure consistent left alignment for all columns */
+  min-width: 120px; /* Ensure columns don't get too compressed */
 }
 
 /* Headings for all sections */
@@ -52,10 +54,9 @@
 }
 
 .social-icon {
-  display: block;
   width: 40px;
   height: 40px;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.15);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -68,7 +69,13 @@
 
 .social-icon:hover {
   transform: scale(1.05);
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+.social-icon-text {
+  font-weight: bold;
+  font-size: 14px;
 }
 
 /* Footer links styling */
@@ -79,7 +86,8 @@
 }
 
 .footer-links li {
-  margin-bottom: 10px;
+  margin-bottom: 15px; /* Increased spacing between links */
+  display: block; /* Ensure links are displayed as blocks */
 }
 
 .footer-links a {
@@ -89,20 +97,25 @@
   align-items: center;
   gap: 10px;
   transition: all 0.3s ease;
+  font-size: 0.95rem;
+  cursor: pointer;
 }
 
 .footer-links a:hover {
   text-decoration: underline;
   transform: translateX(5px);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* Nop section styling */
 .nop-section {
-  flex-grow: 1;
-  flex-basis: 250px;
+  flex-grow: 0;
+  flex-shrink: 0;
+  flex-basis: 280px; /* Fixed width for Nop section */
   display: flex;
   flex-direction: column;
   align-items: center;
+  align-self: flex-start; /* Align with the top of other columns */
 }
 
 .nop-card {
@@ -113,6 +126,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.nop-card.loading,
+.nop-card.error {
+  min-height: 250px;
+  justify-content: center;
 }
 
 .nop-character {
@@ -120,22 +142,77 @@
   flex-direction: column;
   align-items: center;
   margin-bottom: 20px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.nop-card:hover .nop-character {
+  transform: scale(1.05);
 }
 
 .coin-purson {
   width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: contain;
+  height: auto;
+  border-radius: 15px;
+  object-fit: cover;
   margin-bottom: 15px;
   background-color: #fff;
   padding: 5px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.coin-purson:hover {
+  transform: rotate(5deg);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.nop-placeholder {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background-color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  font-weight: bold;
+  color: #999;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
 }
 
 .nop-label {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.9);
   margin: 5px 0;
-  font-size: 0.9rem;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.nop-error {
+  color: #fff;
+  background-color: rgba(220, 53, 69, 0.8);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  margin: 10px 0;
+  text-align: center;
+  width: 100%;
+}
+
+.nop-success {
+  color: #fff;
+  background-color: rgba(40, 167, 69, 0.8);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  margin: 10px 0;
+  text-align: center;
+  width: 100%;
 }
 
 .collect-btn {
@@ -149,11 +226,104 @@
   cursor: pointer;
   transition: all 0.3s ease;
   width: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
 .collect-btn:hover {
-  transform: scale(1.05);
+  transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.collect-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.collect-btn.collecting {
+  background-color: #e0e0e0;
+  color: #666;
+  cursor: wait;
+}
+
+.collect-btn.collected {
+  background-color: #4caf50;
+  color: white;
+  cursor: default;
+}
+
+.collect-btn.retry {
+  background-color: #3f97d3;
+  color: white;
+}
+
+/* Collect button animation */
+.collect-btn:after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.collect-btn:not(.collected):not(.collecting):focus:not(:active)::after {
+  animation: ripple 1s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  20% {
+    transform: scale(25, 25);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(50, 50);
+    opacity: 0;
+  }
+}
+
+.collect-success {
+  color: #fff;
+  background-color: rgba(40, 167, 69, 0.8);
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin: 10px 0 15px;
+  text-align: center;
+  width: 100%;
+  animation: fadeInUp 0.5s ease-out;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-prompt {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  text-align: center;
+  margin-top: 10px;
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 8px 12px;
+  border-radius: 6px;
+  width: 100%;
 }
 
 /* Footer bottom styling */
@@ -166,12 +336,23 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+  gap: 15px; /* Gap between wrapped elements */
+}
+
+.footer-policy-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .footer-policy-links a {
   color: #fff;
   text-decoration: none;
   transition: all 0.3s ease;
+  font-size: 0.9rem;
+  padding: 0 5px;
 }
 
 .footer-policy-links a:hover {
@@ -179,17 +360,19 @@
 }
 
 .separator {
-  margin: 0 10px;
+  margin: 0 5px;
   color: rgba(255, 255, 255, 0.5);
 }
 
 .copyright {
   margin: 0;
   text-align: center;
+  font-size: 0.9rem;
 }
 
 .branding {
   margin: 0;
+  font-size: 0.9rem;
 }
 
 .red-box {
@@ -198,13 +381,38 @@
 }
 
 /* Responsive design for different screen sizes */
+@media (max-width: 1200px) {
+  .footer-main {
+    padding: 40px 40px;
+  }
+
+  .footer-columns {
+    gap: 40px; /* Slightly reduced gap on medium screens */
+  }
+}
+
 @media (max-width: 1024px) {
   .footer-main {
     padding: 40px 30px;
   }
 
   .footer-columns {
-    gap: 20px;
+    gap: 30px;
+  }
+
+  .nop-section {
+    flex-basis: 250px;
+  }
+}
+
+@media (max-width: 900px) {
+  .footer-columns {
+    flex-wrap: wrap;
+  }
+
+  .footer-column {
+    flex-basis: calc(50% - 15px);
+    min-width: 200px;
   }
 }
 
@@ -217,22 +425,36 @@
   .footer-columns {
     flex-direction: column;
     width: 100%;
+    gap: 30px;
   }
 
   .footer-column {
-    margin-bottom: 30px;
+    margin-bottom: 0; /* Remove extra margin, we're using gap instead */
+    width: 100%;
+    flex-basis: 100%;
   }
 
   .nop-section {
     width: 100%;
+    margin-top: 30px;
+    padding-top: 30px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .footer-bottom-content {
     flex-direction: column;
-    gap: 15px;
+    gap: 20px;
+    text-align: center;
   }
 
-  .footer-policy-links,
+  .footer-policy-links {
+    justify-content: center;
+  }
+
+  .footer-policy-links a {
+    padding: 0 15px;
+  }
+
   .copyright,
   .branding {
     text-align: center;
@@ -247,8 +469,8 @@
   .social-links {
     flex-direction: row;
     flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
+    justify-content: flex-start;
+    gap: 15px;
   }
 
   .social-icon {
@@ -260,14 +482,13 @@
   }
 
   .coin-purson {
-    width: 80px;
-    height: 80px;
+    width: 100px;
+    height: 100px;
   }
 
   .footer-policy-links {
-    display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 15px;
   }
 
   .separator {

@@ -10,6 +10,7 @@ import ImageCropper from '../components/ImageCropper';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 import LoadingSpinner from '../components/LoadingSpinner';
+import NopCollection from '../components/NopCollection';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
@@ -647,7 +648,8 @@ const ProfilePage = () => {
             { id: 'personal', label: 'Personal Info', roles: ['all'] },
             { id: 'account', label: 'Account Settings', roles: ['all'] },
             { id: 'preferences', label: 'Preferences', roles: ['all'] },
-            { id: 'privacy', label: 'Privacy Settings', roles: ['all'] }
+            { id: 'privacy', label: 'Privacy Settings', roles: ['all'] },
+            { id: 'collectibles', label: 'Collectibles', roles: ['all'] } // Add Collectibles tab for all users
         ];
 
         // Designer-specific tabs
@@ -1716,6 +1718,19 @@ const ProfilePage = () => {
                                         )}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {activeTab === 'collectibles' && (
+                            <div className="settings-section collectibles-section">
+                                <h3>Your Nop Collection</h3>
+                                <p>View all the Nops you've collected from the daily Nop feature.</p>
+
+                                <NopCollection userId={userId} />
+
+                                <div className="collectibles-info">
+                                    <p>Don't forget to check the footer each day for a new collectible Nop!</p>
+                                </div>
                             </div>
                         )}
 

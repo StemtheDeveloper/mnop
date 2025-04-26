@@ -29,9 +29,20 @@ const DataFixerTool = () => {
                 name: 'string',
                 description: 'string',
                 price: 'number',
-                categories: 'array', // This should be an array
+                categories: 'array',
                 status: 'string',
                 imageUrls: 'array',
+                category: 'string',
+                categoryType: 'string',
+                createdAt: 'timestamp',
+                currentFunding: 'number',
+                designerId: 'string',
+                designerName: 'string',
+                fundingGoal: 'number',
+                lastEditedAt: 'timestamp',
+                storagePaths: 'array',
+                updatedAt: 'timestamp',
+                wasEdited: 'boolean',
             }
         }
     });
