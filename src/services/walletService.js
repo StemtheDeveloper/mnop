@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import notificationService from "./notificationService";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 class WalletService {
   /**
@@ -612,6 +613,100 @@ class WalletService {
         success: false,
         error: error.message || "Failed to process business commission",
         commissionAmount: 0,
+      };
+    }
+  }
+
+  /**
+   * Distribute revenue to investors for a product sale
+   * @param {string} productId - The product ID
+   * @param {number} saleAmount - The total sale amount
+   * @param {number} manufacturingCost - The manufacturing cost per unit
+   * @param {number} quantity - The quantity of items sold
+   * @param {string} orderId - The order ID
+   * @returns {Promise<Object>} Result with success status and distribution info
+   */
+  async distributeInvestorRevenue(
+    productId,
+    saleAmount,
+    manufacturingCost,
+    quantity = 1,
+    orderId
+  ) {
+    try {
+      // Use Firebase Cloud Function to distribute revenue
+      const functions = getFunctions();
+      const distributeRevenue = httpsCallable(functions, "distributeInvestorRevenue");
+
+      const result = await distributeRevenue({
+        productId,
+        saleAmount,
+        manufacturingCost,
+        quantity,
+        orderId
+      });
+
+      return {
+        success: true,
+        data: result.data
+      };
+    } catch (error) {
+      console.error("Error distributing investor revenue:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to distribute investor revenue",
+      };
+    }
+  }
+
+  /**
+   * Process a product sale - handles both business commission and investor revenue distribution
+   * @param {string} productId - The product ID
+   * @param {string} productName - The product name
+   * @param {number} saleAmount - The total sale amount
+   * @param {number} manufacturingCost - The manufacturing cost per unit
+   * @param {number} quantity - The quantity of items sold
+   * @param {string} orderId - The order ID
+   * @returns {Promise<Object>} Result with status and processing details
+   */
+  async processProductSale(
+    productId,
+    productName,
+    saleAmount,
+    manufacturingCost,
+    quantity = 1,
+    orderId
+  ) {
+    try {
+      // First, process business commission
+      const commissionResult = await this.processBusinessCommission(
+        saleAmount,
+        manufacturingCost,
+        quantity,
+        productId,
+        productName
+      );
+
+      // Next, distribute revenue to investors
+      const distributionResult = await this.distributeInvestorRevenue(
+        productId,
+        saleAmount,
+        manufacturingCost,
+        quantity,
+        orderId
+      );
+
+      return {
+        success: true,
+        commissionResult: commissionResult.success ? commissionResult : null,
+        distributionResult: distributionResult.success ? distributionResult.data : null,
+        message: "Sale processed successfully"
+      };
+    } catch (error) {
+      console.error("Error processing product sale:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to process product sale",
       };
     }
   }

@@ -482,6 +482,33 @@ class NotificationService {
 
     return await this.createNotification(notificationData);
   }
+
+  /**
+   * Send revenue share notification
+   * @param {string} investorId - Investor's user ID
+   * @param {number} amount - Revenue share amount
+   * @param {string} productId - Product ID
+   * @param {string} productName - Product name
+   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   */
+  async sendRevenueShareNotification(
+    investorId,
+    amount,
+    productId,
+    productName
+  ) {
+    const notificationData = {
+      userId: investorId,
+      type: "revenue_share",
+      title: "Investment Revenue",
+      message: `You've earned $${amount.toFixed(2)} in revenue from sales of "${productName}" that you invested in!`,
+      link: `/portfolio`,
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
+  }
 }
 
 const notificationService = new NotificationService();

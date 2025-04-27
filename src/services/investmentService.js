@@ -194,6 +194,110 @@ class InvestmentService {
       };
     }
   }
+
+  /**
+   * Get investment returns (revenue sharing) for a user
+   * @param {string} userId - The investor's user ID
+   * @returns {Promise<Object>} - The user's investment returns or error
+   */
+  async getUserInvestmentReturns(userId) {
+    try {
+      const transactionsRef = collection(db, "transactions");
+      const q = query(
+        transactionsRef,
+        where("userId", "==", userId),
+        where("type", "==", "revenue_share"),
+        orderBy("createdAt", "desc")
+      );
+
+      const snapshot = await getDocs(q);
+      const returns = [];
+
+      snapshot.forEach((doc) => {
+        returns.push({
+          id: doc.id,
+          ...doc.data(),
+        });
+      });
+
+      // Calculate totals
+      const totalReturns = returns.reduce((sum, item) => sum + item.amount, 0);
+      
+      return {
+        success: true,
+        data: {
+          returns,
+          totalReturns,
+          count: returns.length
+        }
+      };
+    } catch (error) {
+      console.error("Error getting user investment returns:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Get combined investment statistics for a user
+   * @param {string} userId - The investor's user ID
+   * @returns {Promise<Object>} - The user's investment statistics or error
+   */
+  async getInvestmentStatistics(userId) {
+    try {
+      // Get investments
+      const investmentsResult = await this.getUserInvestments(userId);
+      if (!investmentsResult.success) {
+        throw new Error(investmentsResult.error);
+      }
+      
+      // Get returns
+      const returnsResult = await this.getUserInvestmentReturns(userId);
+      if (!returnsResult.success) {
+        throw new Error(returnsResult.error);
+      }
+      
+      const investments = investmentsResult.data;
+      const returns = returnsResult.data;
+      
+      // Calculate total invested
+      const totalInvested = investments.reduce(
+        (sum, investment) => sum + investment.amount, 
+        0
+      );
+      
+      // Calculate ROI
+      const roi = totalInvested > 0 
+        ? (returns.totalReturns / totalInvested) * 100 
+        : 0;
+      
+      return {
+        success: true,
+        data: {
+          investments: {
+            items: investments,
+            total: totalInvested,
+            count: investments.length
+          },
+          returns: {
+            items: returns.returns,
+            total: returns.totalReturns,
+            count: returns.count
+          },
+          roi: Math.round(roi * 100) / 100, // ROI as percentage, rounded to 2 decimal places
+          totalProfit: returns.totalReturns
+        }
+      };
+    } catch (error) {
+      console.error("Error getting investment statistics:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
 }
 
 const investmentService = new InvestmentService();

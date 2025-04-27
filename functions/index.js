@@ -4,6 +4,7 @@ const processInvestment = require("./processInvestment");
 const trendingProductExtension = require("./trendingProductExtension");
 const updateMarketRates = require("./updateMarketRates");
 const checkProductDeadlines = require("./checkProductDeadlines");
+const distributeRevenue = require("./distributeRevenue");
 
 // Export the functions
 // Daily interest calculation functions
@@ -27,3 +28,6 @@ exports.fetchLatestRates = updateMarketRates.fetchLatestRates;
 
 // Product deadline functions
 exports.checkProductDeadlines = checkProductDeadlines.checkProductDeadlines;
+
+// Revenue distribution functions
+exports.distributeInvestorRevenue = distributeRevenue.distributeInvestorRevenue;
