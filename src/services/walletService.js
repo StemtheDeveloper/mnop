@@ -508,6 +508,113 @@ class WalletService {
       };
     }
   }
+
+  /**
+   * Process business commission for a sale
+   * @param {number} saleAmount - The total sale amount
+   * @param {number} manufacturingCost - The manufacturing cost per unit
+   * @param {number} quantity - The quantity of items sold
+   * @param {string} productId - The product ID
+   * @param {string} productName - The product name
+   * @returns {Promise<Object>} Result with success status and commission amount
+   */
+  async processBusinessCommission(
+    saleAmount,
+    manufacturingCost,
+    quantity = 1,
+    productId,
+    productName
+  ) {
+    try {
+      // Get business account settings
+      const settingsRef = doc(db, "settings", "businessAccount");
+      const settingsDoc = await getDoc(settingsRef);
+
+      // If settings don't exist or commission is disabled, no commission is taken
+      if (!settingsDoc.exists() || !settingsDoc.data().enabled) {
+        return {
+          success: true,
+          commissionAmount: 0,
+          message: "Business commission is disabled",
+        };
+      }
+
+      // Get settings
+      const settings = settingsDoc.data();
+      const commissionRate = settings.commissionRate || 2.0; // Default to 2% if not specified
+
+      // Calculate profit
+      const totalManufacturingCost = manufacturingCost * quantity;
+      const profit = Math.max(0, saleAmount - totalManufacturingCost);
+
+      // Calculate commission (percentage of profit)
+      const commission = profit * (commissionRate / 100);
+      const roundedCommission = Math.round(commission * 100) / 100; // Round to 2 decimal places
+
+      if (roundedCommission <= 0) {
+        return {
+          success: true,
+          commissionAmount: 0,
+          message: "No commission taken (zero or negative profit)",
+        };
+      }
+
+      // Get business wallet reference
+      const businessWalletRef = doc(db, "wallets", "business");
+      const businessWalletDoc = await getDoc(businessWalletRef);
+
+      // Create batch for transaction
+      const batch = writeBatch(db);
+
+      if (businessWalletDoc.exists()) {
+        // Update existing wallet
+        batch.update(businessWalletRef, {
+          balance: increment(roundedCommission),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create business wallet if it doesn't exist
+        batch.set(businessWalletRef, {
+          balance: roundedCommission,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // Record transaction for business account
+      const transactionRef = doc(collection(db, "transactions"));
+      batch.set(transactionRef, {
+        userId: "business", // Special ID for business account
+        amount: roundedCommission,
+        type: "commission",
+        description: `Commission from sale of ${productName || "product"}`,
+        productId,
+        commissionRate: settings.commissionRate,
+        saleAmount,
+        createdAt: serverTimestamp(),
+        status: "completed",
+      });
+
+      // Commit the batch
+      await batch.commit();
+
+      return {
+        success: true,
+        commissionAmount: roundedCommission,
+        commissionRate: settings.commissionRate,
+        message: `Successfully processed ${
+          settings.commissionRate
+        }% commission of $${roundedCommission.toFixed(2)}`,
+      };
+    } catch (error) {
+      console.error("Error processing business commission:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to process business commission",
+        commissionAmount: 0,
+      };
+    }
+  }
 }
 
 const walletService = new WalletService();

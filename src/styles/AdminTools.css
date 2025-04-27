@@ -2052,3 +2052,54 @@ input:checked + .toggle-slider:before {
   background-color: #9c27b0;
   color: white;
 }
+
+/* Business Account Panel */
+.business-account-panel {
+  margin-bottom: 30px;
+}
+
+.business-account-balance {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.business-account-balance h4 {
+  margin-top: 0;
+  color: #333;
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.balance-display {
+  font-size: 32px;
+  font-weight: 600;
+  color: #4a6cf7;
+  margin-bottom: 10px;
+}
+
+.balance-description {
+  color: #6c757d;
+  font-size: 14px;
+}
+
+.commission-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.commission-input input {
+  width: 80px;
+  padding-right: 25px;
+  text-align: right;
+}
+
+.commission-input .unit {
+  position: absolute;
+  right: 10px;
+  font-size: 14px;
+  color: #6c757d;
+}

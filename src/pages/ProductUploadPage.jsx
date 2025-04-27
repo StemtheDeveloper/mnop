@@ -44,6 +44,7 @@ const ProductUploadPage = () => {
         fundingGoal: '',
         customCategory: '',
         isCrowdfunded: true, // New field to track if product requires crowdfunding
+        manufacturingCost: '', // New field to track cost per unit for revenue sharing
     });
 
     // Multiple image handling state
@@ -121,7 +122,7 @@ const ProductUploadPage = () => {
         const { name, value } = e.target;
 
         // Special handling for price and fundingGoal to ensure they're numeric
-        if (name === 'price' || name === 'fundingGoal') {
+        if (name === 'price' || name === 'fundingGoal' || name === 'manufacturingCost') {
             // Allow only numbers and decimal point
             const numericValue = value.replace(/[^0-9.]/g, '');
             // Ensure only one decimal point
@@ -292,6 +293,11 @@ const ProductUploadPage = () => {
             }
         }
 
+        if (!formData.manufacturingCost || isNaN(parseFloat(formData.manufacturingCost)) || parseFloat(formData.manufacturingCost) <= 0) {
+            setError('Please enter a valid manufacturing cost');
+            return false;
+        }
+
         if (productImages.length === 0) {
             setError('At least one product image is required');
             return false;
@@ -362,6 +368,7 @@ const ProductUploadPage = () => {
                 price: parseFloat(formData.price),
                 // For direct selling products, set fundingGoal to 0 and currentFunding to the goal (fully funded)
                 fundingGoal: formData.isCrowdfunded ? parseFloat(formData.fundingGoal) : 0,
+                manufacturingCost: parseFloat(formData.manufacturingCost),
                 imageUrls: imageUrls, // Store all image URLs from Firebase Storage
                 designerId: currentUser.uid,
                 designerName: userProfile?.displayName || 'Designer',
@@ -435,6 +442,7 @@ const ProductUploadPage = () => {
                 customCategory: '',
                 fundingGoal: '',
                 isCrowdfunded: true, // Reset to default
+                manufacturingCost: '', // Reset to default
             });
             setProductImages([]);
             setImagePreviewUrls([]);
@@ -608,6 +616,24 @@ const ProductUploadPage = () => {
                                         />
                                     </div>
                                 )}
+                            </div>
+
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label htmlFor="manufacturingCost">Manufacturing Cost per Unit ($)*</label>
+                                    <input
+                                        type="text"
+                                        id="manufacturingCost"
+                                        name="manufacturingCost"
+                                        value={formData.manufacturingCost}
+                                        onChange={handleChange}
+                                        placeholder="0.00"
+                                        disabled={loading}
+                                    />
+                                    <p className="form-hint">
+                                        This is the cost to produce each unit. It's used to calculate profits and investor revenue sharing.
+                                    </p>
+                                </div>
                             </div>
 
                             <div className="form-group">

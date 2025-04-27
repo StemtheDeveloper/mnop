@@ -11,6 +11,7 @@ import TrendingProductsPanel from '../components/admin/TrendingProductsPanel';
 import ProductApprovalPanel from '../components/admin/ProductApprovalPanel';
 import AllProductsPanel from '../components/admin/AllProductsPanel';
 import PaymentSettingsPanel from '../components/admin/PaymentSettingsPanel';
+import BusinessAccountPanel from '../components/admin/BusinessAccountPanel';
 import FirestoreIndexHelper from '../components/admin/FirestoreIndexHelper';
 import NopsManagementPanel from '../components/admin/NopsManagementPanel';
 import AchievementsManagementPanel from '../components/admin/AchievementsManagementPanel';
@@ -929,6 +930,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                             <div className="finance-tab">
                                 <h2>Financial Management</h2>
 
+                                <BusinessAccountPanel />
                                 <PaymentSettingsPanel />
                                 <MarketRatesPanel />
                                 <InterestRateAdminPanel />

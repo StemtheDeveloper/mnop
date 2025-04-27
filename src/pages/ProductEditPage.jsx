@@ -45,6 +45,7 @@ const ProductEditPage = () => {
         fundingGoal: '',
         customCategory: '',
         isCrowdfunded: true, // New field to track if product requires crowdfunding
+        manufacturingCost: '', // New field for manufacturing cost per unit
     });
 
     // Multiple image handling state
@@ -119,6 +120,7 @@ const ProductEditPage = () => {
                     fundingGoal: productData.fundingGoal ? productData.fundingGoal.toString() : '',
                     customCategory: productData.categoryType === 'custom' ? productData.category : '',
                     isCrowdfunded: productData.isCrowdfunded !== false, // Default to true for backward compatibility
+                    manufacturingCost: productData.manufacturingCost ? productData.manufacturingCost.toString() : '', // Load manufacturing cost
                 });
 
                 // Set useCustomCategory based on categoryType
@@ -456,6 +458,7 @@ const ProductEditPage = () => {
                 price: parseFloat(formData.price),
                 // Handle direct selling products appropriately
                 fundingGoal: formData.isCrowdfunded ? parseFloat(formData.fundingGoal) : 0,
+                manufacturingCost: parseFloat(formData.manufacturingCost), // Add manufacturing cost
                 category: categoryToUse,
                 categories: useCustomCategory ? [categoryToUse] : formData.categories, // Store multiple categories
                 categoryType: categoryTypeToUse,
@@ -667,6 +670,24 @@ const ProductEditPage = () => {
                                         />
                                     </div>
                                 )}
+                            </div>
+
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label htmlFor="manufacturingCost">Manufacturing Cost per Unit ($)*</label>
+                                    <input
+                                        type="text"
+                                        id="manufacturingCost"
+                                        name="manufacturingCost"
+                                        value={formData.manufacturingCost}
+                                        onChange={handleChange}
+                                        placeholder="0.00"
+                                        disabled={saving}
+                                    />
+                                    <p className="form-hint">
+                                        This is the cost to produce each unit. It's used to calculate profits and investor revenue sharing.
+                                    </p>
+                                </div>
                             </div>
 
                             <div className="form-group">

@@ -301,6 +301,35 @@ const CheckoutPage = () => {
             const orderRef = await addDoc(collection(db, 'orders'), orderData);
             setOrderId(orderRef.id);
 
+            // Process business commission
+            for (const item of cartItems) {
+                try {
+                    // Fetch the product to get the manufacturing cost
+                    const productRef = doc(db, 'products', item.id);
+                    const productDoc = await getDoc(productRef);
+
+                    if (productDoc.exists()) {
+                        const productData = productDoc.data();
+                        // Calculate and take commission
+                        const manufacturingCost = productData.manufacturingCost || 0;
+                        const saleAmount = item.price * item.quantity;
+
+                        const commissionResult = await walletService.processBusinessCommission(
+                            saleAmount,
+                            manufacturingCost,
+                            item.quantity,
+                            item.id,
+                            item.name
+                        );
+
+                        console.log('Business commission processed:', commissionResult);
+                    }
+                } catch (err) {
+                    console.error(`Error processing business commission for product ${item.id}:`, err);
+                    // Continue with order processing even if commission processing fails
+                }
+            }
+
             // Create notification for order confirmation for the buyer
             if (currentUser) {
                 await addDoc(collection(db, 'notifications'), {
