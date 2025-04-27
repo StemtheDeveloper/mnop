@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
 import notificationService from '../../services/notificationService';
@@ -69,10 +69,23 @@ const ProductApprovalPanel = () => {
 
         try {
             const settingsRef = doc(db, 'settings', 'productSettings');
-            await updateDoc(settingsRef, {
-                requireApproval: !requireApproval,
-                updatedAt: new Date()
-            });
+            const settingsSnap = await getDoc(settingsRef);
+
+            // Check if document exists and create it if it doesn't
+            if (!settingsSnap.exists()) {
+                // Create the document if it doesn't exist
+                await setDoc(settingsRef, {
+                    requireApproval: !requireApproval,
+                    updatedAt: new Date(),
+                    createdAt: new Date()
+                });
+            } else {
+                // Update the existing document
+                await updateDoc(settingsRef, {
+                    requireApproval: !requireApproval,
+                    updatedAt: new Date()
+                });
+            }
 
             setRequireApproval(!requireApproval);
             setUpdateSuccess(`Product ${!requireApproval ? 'approval' : 'instant activation'} mode enabled`);
