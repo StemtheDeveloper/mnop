@@ -93,6 +93,22 @@
   margin-right: 5px;
 }
 
+.recipient-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.recipient-profile-link {
+  font-size: 12px;
+  color: #4a90e2;
+  text-decoration: none;
+  margin-top: 2px;
+}
+
+.recipient-profile-link:hover {
+  text-decoration: underline;
+}
+
 .message-list {
   flex: 1;
   padding: 16px;

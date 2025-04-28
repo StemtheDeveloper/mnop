@@ -435,10 +435,21 @@ const ConversationPage = () => {
                                     </div>
                                 )}
                             </div>
-                            <div className="recipient-name">
-                                {conversation?.otherParticipant?.displayName ||
-                                    conversation?.otherParticipant?.email ||
-                                    'Unknown User'}
+                            <div className="recipient-details">
+                                <div className="recipient-name">
+                                    {conversation?.otherParticipant?.displayName ||
+                                        conversation?.otherParticipant?.email ||
+                                        'Unknown User'}
+                                </div>
+                                {conversation?.otherParticipant?.id && (
+                                    <Link
+                                        to={`/user/${conversation?.otherParticipant?.id}`}
+                                        className="recipient-profile-link"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        View Profile
+                                    </Link>
+                                )}
                             </div>
                         </div>
                     </div>

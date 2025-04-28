@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaLock, FaPlus, FaSearch, FaArrowLeft, FaPaperPlane } from 'react-icons/fa';
+import { FaLock, FaPlus, FaSearch, FaArrowLeft, FaPaperPlane, FaUser } from 'react-icons/fa';
 import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
@@ -181,6 +181,9 @@ const MessagesPage = () => {
                                                     {user.displayName || 'User'}
                                                 </h3>
                                                 <p className="user-email">{user.email}</p>
+                                                <Link to={`/profile/${user.id}`} className="view-profile-link">
+                                                    <FaUser /> View Profile
+                                                </Link>
                                             </div>
                                         </div>
                                     ))
@@ -206,6 +209,9 @@ const MessagesPage = () => {
                                         {selectedUser.displayName || 'User'}
                                     </h3>
                                     <p className="user-email">{selectedUser.email}</p>
+                                    <Link to={`/profile/${selectedUser.id}`} className="view-profile-link">
+                                        <FaUser /> View Profile
+                                    </Link>
                                 </div>
                             </div>
 
@@ -311,6 +317,16 @@ const MessagesPage = () => {
                                             {conversation.otherParticipant?.displayName ||
                                                 conversation.otherParticipant?.email ||
                                                 'Unknown User'}
+                                            {conversation.otherParticipant?.id && (
+                                                <Link
+                                                    to={`/user/${conversation.otherParticipant.id}`}
+                                                    className="view-profile-link"
+                                                    title="View Profile"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    View Profile
+                                                </Link>
+                                            )}
                                         </h3>
                                         <span className="conversation-time">
                                             {conversation.lastMessage?.timestamp?.toDate ?
