@@ -920,7 +920,7 @@ const AchievementsManagementPanel = () => {
                     ) : (
                         <>
                             <div className="achievements-default-actions">
-                                <button 
+                                <button
                                     onClick={initializeDefaultAchievements}
                                     className="initialize-defaults-button"
                                     disabled={defaultAchievementsLoading || loading}
@@ -931,7 +931,7 @@ const AchievementsManagementPanel = () => {
                                     This will add all missing default achievements from the predefined list.
                                 </p>
                             </div>
-                            
+
                             {achievements.length === 0 ? (
                                 <div className="no-achievements-message">
                                     <p>No achievements found. Create your first achievement or initialize the default ones!</p>

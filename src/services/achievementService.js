@@ -360,31 +360,34 @@ export const achievementService = {
       // Award the achievement by adding to the user's achievements array
       await updateDoc(userRef, {
         achievements: arrayUnion(achievementId),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
 
       // Get achievement details for points
       const achievement = await this.getAchievementById(achievementId);
-      
+
       // Update achievement stats
       const achievementRef = doc(db, "achievements", achievementId);
       await updateDoc(achievementRef, {
         awardCount: (achievement.awardCount || 0) + 1,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
 
       // Also update user achievement points if applicable
       if (achievement.points) {
         const currentPoints = userData.achievementPoints || 0;
         await updateDoc(userRef, {
-          achievementPoints: currentPoints + achievement.points
+          achievementPoints: currentPoints + achievement.points,
         });
       }
 
       console.log(`Achievement ${achievementId} awarded to user ${userId}`);
       return { success: true, achievement };
     } catch (error) {
-      console.error(`Error directly awarding achievement ${achievementId} to user ${userId}:`, error);
+      console.error(
+        `Error directly awarding achievement ${achievementId} to user ${userId}:`,
+        error
+      );
       return { success: false, error: error.message };
     }
   },
@@ -403,58 +406,74 @@ export const achievementService = {
       // Get achievements that need to be checked
       const achievementsRef = collection(db, "achievements");
       const achievementsSnapshot = await getDocs(achievementsRef);
-      
+
       // Get IDs of product-related achievements
       const productAchievementIds = achievementsSnapshot.docs
-        .filter(doc => {
+        .filter((doc) => {
           const data = doc.data();
-          return data.category === "product" || 
-                 (data.triggerConfig && data.triggerConfig.type === "product_upload");
+          return (
+            data.category === "product" ||
+            (data.triggerConfig && data.triggerConfig.type === "product_upload")
+          );
         })
-        .map(doc => doc.id);
+        .map((doc) => doc.id);
 
       // Get user's current achievements
       const userRef = doc(db, "users", userId);
       const userSnap = await getDoc(userRef);
-      
+
       if (!userSnap.exists()) {
         return { earnedIds: [] };
       }
-      
+
       const userData = userSnap.data();
       const userAchievements = userData.achievements || [];
-      
+
       // Filter to achievements user doesn't have yet
       const candidateAchievements = productAchievementIds.filter(
-        id => !userAchievements.includes(id)
+        (id) => !userAchievements.includes(id)
       );
-      
+
       // Check each achievement condition and award if met
       const earnedIds = [];
-      
+
       for (const achievementId of candidateAchievements) {
         // Get specific achievement details
-        const achievementDoc = achievementsSnapshot.docs.find(doc => doc.id === achievementId);
+        const achievementDoc = achievementsSnapshot.docs.find(
+          (doc) => doc.id === achievementId
+        );
         if (!achievementDoc) continue;
-        
+
         const achievement = { id: achievementId, ...achievementDoc.data() };
-        
+
         // Check if condition is met
         let conditionMet = false;
-        
+
         // Handle predefined achievements from achievementsData.js
         if (achievement.id === "first_product" && productCount >= 1) {
           conditionMet = true;
-        } else if (achievement.id === "product_collector_5" && productCount >= 5) {
+        } else if (
+          achievement.id === "product_collector_5" &&
+          productCount >= 5
+        ) {
           conditionMet = true;
-        } else if (achievement.id === "product_collector_10" && productCount >= 10) {
+        } else if (
+          achievement.id === "product_collector_10" &&
+          productCount >= 10
+        ) {
           conditionMet = true;
-        } else if (achievement.id === "product_collector_25" && productCount >= 25) {
+        } else if (
+          achievement.id === "product_collector_25" &&
+          productCount >= 25
+        ) {
           conditionMet = true;
         }
-        
+
         // Handle custom trigger configurations
-        else if (achievement.triggerConfig && achievement.triggerConfig.type === "product_upload") {
+        else if (
+          achievement.triggerConfig &&
+          achievement.triggerConfig.type === "product_upload"
+        ) {
           if (achievement.triggerConfig.condition === "count") {
             const requiredCount = parseInt(achievement.triggerConfig.value);
             if (!isNaN(requiredCount) && productCount >= requiredCount) {
@@ -462,16 +481,19 @@ export const achievementService = {
             }
           }
         }
-        
+
         // Award achievement if condition is met
         if (conditionMet) {
-          const result = await this.directlyAwardAchievement(userId, achievementId);
+          const result = await this.directlyAwardAchievement(
+            userId,
+            achievementId
+          );
           if (result.success && !result.alreadyAwarded) {
             earnedIds.push(achievementId);
           }
         }
       }
-      
+
       return { earnedIds };
     } catch (error) {
       console.error("Error checking product achievements:", error);
@@ -489,56 +511,60 @@ export const achievementService = {
       const q = query(investmentsRef, where("investorId", "==", userId));
       const snapshot = await getDocs(q);
       const investmentCount = snapshot.docs.length;
-      
+
       // Calculate total amount invested
       let totalInvested = 0;
-      snapshot.docs.forEach(doc => {
+      snapshot.docs.forEach((doc) => {
         const investment = doc.data();
-        totalInvested += (investment.amount || 0);
+        totalInvested += investment.amount || 0;
       });
-      
+
       // Get achievements that need to be checked
       const achievementsRef = collection(db, "achievements");
       const achievementsSnapshot = await getDocs(achievementsRef);
-      
+
       // Get IDs of investment-related achievements
       const investmentAchievementIds = achievementsSnapshot.docs
-        .filter(doc => {
+        .filter((doc) => {
           const data = doc.data();
-          return data.category === "investment" || 
-                 (data.triggerConfig && data.triggerConfig.type === "investment");
+          return (
+            data.category === "investment" ||
+            (data.triggerConfig && data.triggerConfig.type === "investment")
+          );
         })
-        .map(doc => doc.id);
+        .map((doc) => doc.id);
 
       // Get user's current achievements
       const userRef = doc(db, "users", userId);
       const userSnap = await getDoc(userRef);
-      
+
       if (!userSnap.exists()) {
         return { earnedIds: [] };
       }
-      
+
       const userData = userSnap.data();
       const userAchievements = userData.achievements || [];
-      
+
       // Filter to achievements user doesn't have yet
       const candidateAchievements = investmentAchievementIds.filter(
-        id => !userAchievements.includes(id)
+        (id) => !userAchievements.includes(id)
       );
-      
+
       // Check each achievement condition and award if met
       const earnedIds = [];
-      
+
       for (const achievementId of candidateAchievements) {
         // Get specific achievement details
-        const achievementDoc = achievementsSnapshot.docs.find(doc => doc.id === achievementId);
+        const achievementDoc = achievementsSnapshot.docs.find(
+          (doc) => doc.id === achievementId
+        );
         if (!achievementDoc) continue;
-        
+
         const achievement = { id: achievementId, ...achievementDoc.data() };
-        
+
         // Check if condition is met
         let conditionMet = false;
-        
+
         // Handle predefined achievements from achievementsData.js
         if (achievement.id === "first_investment" && investmentCount >= 1) {
           conditionMet = true;
@@ -547,23 +573,26 @@ export const achievementService = {
         } else if (achievement.id === "investor_10" && investmentCount >= 10) {
           conditionMet = true;
         }
-        
+
         // Award achievement if condition is met
         if (conditionMet) {
-          const result = await this.directlyAwardAchievement(userId, achievementId);
+          const result = await this.directlyAwardAchievement(
+            userId,
+            achievementId
+          );
           if (result.success && !result.alreadyAwarded) {
             earnedIds.push(achievementId);
           }
         }
       }
-      
+
       return { earnedIds };
     } catch (error) {
       console.error("Error checking investment achievements:", error);
       return { earnedIds: [] };
     }
   },
-  
+
   /**
    * Check achievements related to account age and engagement
    */
@@ -572,71 +601,79 @@ export const achievementService = {
       // Get user data
       const userRef = doc(db, "users", userId);
       const userSnap = await getDoc(userRef);
-      
+
       if (!userSnap.exists()) {
         return { earnedIds: [] };
       }
-      
+
       const userData = userSnap.data();
       const userAchievements = userData.achievements || [];
       const createdAt = userData.createdAt?.toDate() || new Date();
-      
+
       // Calculate account age in days
       const now = new Date();
       const ageInMs = now.getTime() - createdAt.getTime();
       const ageInDays = Math.floor(ageInMs / (1000 * 60 * 60 * 24));
-      
+
       // Get achievements to check
       const achievementsRef = collection(db, "achievements");
       const achievementsSnapshot = await getDocs(achievementsRef);
-      
+
       // Get loyalty achievements
       const loyaltyAchievementIds = achievementsSnapshot.docs
-        .filter(doc => {
+        .filter((doc) => {
           const data = doc.data();
-          return data.category === "loyalty" || 
-                 (data.triggerConfig && data.triggerConfig.type === "time_registered");
+          return (
+            data.category === "loyalty" ||
+            (data.triggerConfig &&
+              data.triggerConfig.type === "time_registered")
+          );
         })
-        .map(doc => doc.id);
-        
+        .map((doc) => doc.id);
+
       // Filter to achievements user doesn't have yet
       const candidateAchievements = loyaltyAchievementIds.filter(
-        id => !userAchievements.includes(id)
+        (id) => !userAchievements.includes(id)
       );
-      
+
       // Check each achievement condition and award if met
       const earnedIds = [];
-      
+
       for (const achievementId of candidateAchievements) {
-        const achievementDoc = achievementsSnapshot.docs.find(doc => doc.id === achievementId);
+        const achievementDoc = achievementsSnapshot.docs.find(
+          (doc) => doc.id === achievementId
+        );
         if (!achievementDoc) continue;
-        
+
         const achievement = { id: achievementId, ...achievementDoc.data() };
-        
+
         // Check if condition is met
         let conditionMet = false;
-        
+
         // "Veteran User" achievement - 3 months (90 days)
         if (achievement.id === "veteran_user" && ageInDays >= 90) {
           conditionMet = true;
         }
-        
+
         // Award achievement if condition is met
         if (conditionMet) {
-          const result = await this.directlyAwardAchievement(userId, achievementId);
+          const result = await this.directlyAwardAchievement(
+            userId,
+            achievementId
+          );
           if (result.success && !result.alreadyAwarded) {
             earnedIds.push(achievementId);
           }
         }
       }
-      
+
       return { earnedIds };
     } catch (error) {
       console.error("Error checking account age achievements:", error);
       return { earnedIds: [] };
     }
   },
-  
+
   /**
    * Placeholder implementation for quote achievements
    */
@@ -645,7 +682,7 @@ export const achievementService = {
     // but for manufacturing quotes
     return { earnedIds: [] };
   },
-  
+
   /**
    * Placeholder implementation for review achievements
    */

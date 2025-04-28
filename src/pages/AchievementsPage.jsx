@@ -173,48 +173,48 @@ const AchievementsPage = () => {
     // Handle check for new achievements
     const handleCheckAchievements = async () => {
         if (!currentUser) return;
-        
+
         setCheckingAchievements(true);
         try {
             // Import achievement service dynamically to avoid circular dependencies
             const achievementService = (await import('../services/achievementService')).default;
-            
+
             // Check for different achievement types
             const productResults = await achievementService.checkProductAchievements(currentUser.uid);
             const investmentResults = await achievementService.checkInvestmentAchievements(currentUser.uid);
             const accountResults = await achievementService.checkAccountAgeAchievements(currentUser.uid);
-            
+
             // Combine earned achievements
             const earnedIds = [
                 ...productResults.earnedIds,
                 ...investmentResults.earnedIds,
                 ...accountResults.earnedIds
             ];
-            
+
             if (earnedIds.length > 0) {
                 showSuccess(`You earned ${earnedIds.length} new achievement${earnedIds.length !== 1 ? 's' : ''}!`);
-                
+
                 // Refresh the achievements data
                 const userRef = doc(db, 'users', currentUser.uid);
                 const userDoc = await getDoc(userRef);
-                
+
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
                     const userAchievements = userData.achievements || [];
-                    
+
                     // Update allAchievements with new earned status
                     const updatedAllAchievements = allAchievements.map(achievement => ({
                         ...achievement,
                         earned: userAchievements.includes(achievement.id)
                     }));
-                    
+
                     setAllAchievements(updatedAllAchievements);
-                    
+
                     // Update earned achievements list
                     const updatedEarnedAchievements = updatedAllAchievements.filter(
                         achievement => userAchievements.includes(achievement.id)
                     );
-                    
+
                     setAchievements(updatedEarnedAchievements);
                 }
             } else {
