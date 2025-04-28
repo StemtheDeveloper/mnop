@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
-import investmentService from '../services/investmentService';
 import LoadingSpinner from './LoadingSpinner';
 import '../styles/InvestmentModal.css';
 
@@ -13,7 +12,7 @@ import '../styles/InvestmentModal.css';
  * @param {Function} props.onSuccess - Function to call after successful investment
  */
 const InvestmentModal = ({ isOpen, onClose, product, onSuccess }) => {
-    const { currentUser, walletBalance, hasRole, getWalletBalance } = useUser();
+    const { currentUser, walletBalance, hasRole, getWalletBalance, fundProduct } = useUser();
     const [amount, setAmount] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -68,11 +67,11 @@ const InvestmentModal = ({ isOpen, onClose, product, onSuccess }) => {
                 message: 'Processing your investment...'
             });
 
-            const result = await investmentService.createInvestment(
-                currentUser.uid,
+            // Use the fundProduct function from UserContext instead of createInvestment
+            const result = await fundProduct(
                 product.id,
-                investmentAmount,
-                product.name
+                product.name,
+                investmentAmount
             );
 
             if (result.success) {
@@ -89,7 +88,7 @@ const InvestmentModal = ({ isOpen, onClose, product, onSuccess }) => {
 
                 // Call the success callback with updated funding progress
                 if (onSuccess) {
-                    onSuccess(investmentAmount, result.data.fundingProgress);
+                    onSuccess(investmentAmount, result.newTotal);
                 }
 
                 // Auto close after successful investment

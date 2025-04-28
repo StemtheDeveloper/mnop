@@ -576,19 +576,19 @@ const ShopPage = () => {
                             >
                                 <ProductCard
                                     id={product.id}
-                                    image={product.imageUrl || 'https://placehold.co/300x300?text=Product'}
-                                    images={product.imageUrls || []}
+                                    image={product.imageUrl || (product.imageUrls && product.imageUrls[0]) || 'https://placehold.co/300x300?text=Product'}
+                                    images={Array.isArray(product.imageUrls) ? product.imageUrls : product.imageUrl ? [product.imageUrl] : []}
                                     title={product.name || 'Unnamed Product'}
-                                    description={product.description?.slice(0, 100) || 'No description'}
-                                    price={product.price || 0}
-                                    rating={product.averageRating || 0}
-                                    reviewCount={product.reviewCount || 0}
-                                    viewers={product.activeViewers || 0}
-                                    fundingProgress={product.currentFunding ? (product.currentFunding / product.fundingGoal) * 100 : 0}
-                                    currentFunding={product.currentFunding || 0}
-                                    fundingGoal={product.fundingGoal || 0}
-                                    status={product.status}
-                                    designerId={product.designerId}
+                                    description={product.description ? product.description.slice(0, 100) + (product.description.length > 100 ? '...' : '') : 'No description available'}
+                                    price={typeof product.price === 'number' ? product.price : parseFloat(product.price) || 0}
+                                    rating={typeof product.averageRating === 'number' ? product.averageRating : 0}
+                                    reviewCount={typeof product.reviewCount === 'number' ? product.reviewCount : 0}
+                                    viewers={typeof product.activeViewers === 'number' ? product.activeViewers : 0}
+                                    fundingProgress={product.fundingGoal > 0 ? Math.min((product.currentFunding || 0) / product.fundingGoal * 100, 100) : 0}
+                                    currentFunding={typeof product.currentFunding === 'number' ? product.currentFunding : 0}
+                                    fundingGoal={typeof product.fundingGoal === 'number' ? product.fundingGoal : 0}
+                                    status={product.status || 'active'}
+                                    designerId={product.designerId || ''}
                                     onClick={() => handleProductClick(product.id)}
                                 />
                             </div>

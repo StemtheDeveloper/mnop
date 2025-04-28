@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, query, where, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import ProductsExcelView from './ProductsExcelView';
 import '../../styles/AdminTools.css';
@@ -81,6 +81,29 @@ const DataFixerTool = () => {
         setSchemaValidation([]);
         setValidationComplete(false);
     }, [dataType]);
+
+    // Load schemas from Firestore on mount
+    useEffect(() => {
+        const loadSchemas = async () => {
+            try {
+                const schemasRef = doc(db, 'settings', 'dataSchemas');
+                const schemasDoc = await getDoc(schemasRef);
+
+                if (schemasDoc.exists()) {
+                    const loadedSchemas = schemasDoc.data();
+                    // Only update if there are schemas saved
+                    if (Object.keys(loadedSchemas).length > 0) {
+                        setSchemas(loadedSchemas);
+                    }
+                }
+            } catch (err) {
+                console.error('Error loading schemas:', err);
+                // Don't show error on load, just keep default schemas
+            }
+        };
+
+        loadSchemas();
+    }, []);
 
     // Fetch data from Firestore
     const fetchData = async () => {
@@ -470,25 +493,35 @@ const DataFixerTool = () => {
     };
 
     // Save schema
-    const saveSchema = () => {
+    const saveSchema = async () => {
         try {
+            setLoading(true);
             const schemaObj = JSON.parse(schemaJSON);
 
-            setSchemas(prev => ({
-                ...prev,
+            // Update local state first for immediate feedback
+            const updatedSchemas = {
+                ...schemas,
                 [dataType]: {
                     name: schemaName,
                     schema: schemaObj
                 }
-            }));
+            };
 
+            setSchemas(updatedSchemas);
             setActiveSchema(dataType);
+
+            // Save to Firestore for persistence
+            const schemasRef = doc(db, 'settings', 'dataSchemas');
+            await setDoc(schemasRef, updatedSchemas, { merge: true });
+
             setEditingSchema(null);
             setSchemaName('');
             setSchemaJSON('');
             setSuccess(`Schema for ${dataType} saved successfully`);
         } catch (err) {
             setError(`Failed to save schema: ${err.message}`);
+        } finally {
+            setLoading(false);
         }
     };
 

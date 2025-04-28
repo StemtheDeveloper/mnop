@@ -4,6 +4,7 @@ import { doc, updateDoc, arrayUnion, arrayRemove, getDoc, query, where, getDocs 
 import { db } from '../config/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '../contexts/ToastContext';
+import DOMPurify from 'dompurify'; // Import DOMPurify for HTML sanitization
 import '../styles/ProductCard.css';
 
 const ProductCard = ({
@@ -32,19 +33,22 @@ const ProductCard = ({
   const [buttonAnimation, setButtonAnimation] = useState('');
   const imageInterval = useRef(null);
 
-  // Process images prop
-  const imageList = Array.isArray(images) && images.length > 0
+  // Process images prop to ensure valid array
+  const allImages = Array.isArray(images) && images.length > 0
     ? images
     : image ? [image] : ['https://placehold.co/300x300?text=Product'];
 
-  // Combine single image and images array, ensuring no duplicates
-  const allImages = images.length > 0
-    ? images
-    : image ? [image] : ['https://via.placeholder.com/300'];
+  // Sanitize the inputs to make sure we're working with proper data types
+  const numericPrice = typeof price === 'number' ? price : parseFloat(price) || 0;
+  const sanitizedRating = typeof rating === 'number' ? rating : 0;
+  const sanitizedReviewCount = typeof reviewCount === 'number' ? reviewCount : 0;
+  const sanitizedViewers = typeof viewers === 'number' ? viewers : 0;
+  const sanitizedFundingGoal = typeof fundingGoal === 'number' ? fundingGoal : 0;
+  const sanitizedCurrentFunding = typeof currentFunding === 'number' ? currentFunding : 0;
 
   // Calculate funding percentage
-  const fundingPercentage = fundingGoal > 0
-    ? Math.min((currentFunding / fundingGoal) * 100, 100)
+  const fundingPercentage = sanitizedFundingGoal > 0
+    ? Math.min((sanitizedCurrentFunding / sanitizedFundingGoal) * 100, 100)
     : fundingProgress;
 
   // Determine if product is fully funded
@@ -148,7 +152,7 @@ const ProductCard = ({
     }
 
     // Check if product is fully funded
-    if (fundingGoal > 0 && !isFullyFunded) {
+    if (sanitizedFundingGoal > 0 && !isFullyFunded) {
       showError("This product needs to be fully funded before purchase");
       return;
     }
@@ -173,7 +177,7 @@ const ProductCard = ({
           items: [{
             id,
             name: title,
-            price,
+            price: numericPrice,
             imageUrl: imageUrl,
             quantity: 1
           }],
@@ -205,7 +209,7 @@ const ProductCard = ({
             items: [...items, {
               id,
               name: title,
-              price,
+              price: numericPrice,
               imageUrl: imageUrl,
               quantity: 1
             }],
@@ -215,7 +219,7 @@ const ProductCard = ({
       }
 
       // Show success notification with product details
-      showSuccess(`Added to cart: ${title} (${formatPrice(price)})`);
+      showSuccess(`Added to cart: ${title} (${formatPrice(numericPrice)})`);
     } catch (error) {
       console.error("Error adding to cart:", error);
       showError("Failed to add to cart");
@@ -342,13 +346,13 @@ const ProductCard = ({
           </>
         )}
 
-        {viewers > 0 && (
+        {sanitizedViewers > 0 && (
           <div className="active-viewers">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
-            {viewers}
+            {sanitizedViewers}
           </div>
         )}
 
@@ -364,10 +368,10 @@ const ProductCard = ({
           </button>
 
           <button
-            className={`add-to-cart-button ${fundingGoal > 0 && !isFullyFunded ? 'disabled' : ''} ${buttonAnimation}`}
+            className={`add-to-cart-button ${sanitizedFundingGoal > 0 && !isFullyFunded ? 'disabled' : ''} ${buttonAnimation}`}
             onClick={handleAddToCart}
-            disabled={isLoading || (fundingGoal > 0 && !isFullyFunded)}
-            title={fundingGoal > 0 && !isFullyFunded ? "Product needs to be fully funded" : "Add to cart"}
+            disabled={isLoading || (sanitizedFundingGoal > 0 && !isFullyFunded)}
+            title={sanitizedFundingGoal > 0 && !isFullyFunded ? "Product needs to be fully funded" : "Add to cart"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="9" cy="21" r="1"></circle>
@@ -380,9 +384,16 @@ const ProductCard = ({
 
       <div className="product-info">
         <h3 className="product-title">{title}</h3>
-        <p className="product-description">{description}</p>
+        <div
+          className="product-description"
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(description || '', {
+              USE_PROFILES: { html: true }
+            })
+          }}
+        ></div>
 
-        {fundingGoal > 0 && (
+        {sanitizedFundingGoal > 0 && (
           <div className="product-funding">
             <div className="funding-progress-bar">
               <div
@@ -392,20 +403,20 @@ const ProductCard = ({
             </div>
             <div className="funding-text">
               <span>{Math.round(fundingPercentage)}% funded</span>
-              <span className="funding-goal">{formatPrice(fundingGoal)} goal</span>
+              <span className="funding-goal">{formatPrice(sanitizedFundingGoal)} goal</span>
             </div>
           </div>
         )}
 
         <div className="product-meta">
-          <div className="product-price">{formatPrice(price)}</div>
+          <div className="product-price">{formatPrice(numericPrice)}</div>
 
-          {rating > 0 && (
+          {sanitizedRating > 0 && (
             <div className="product-rating">
               <span className="star">★</span>
-              <span>{rating.toFixed(1)}</span>
-              {reviewCount > 0 && (
-                <span className="review-count">({reviewCount})</span>
+              <span>{sanitizedRating.toFixed(1)}</span>
+              {sanitizedReviewCount > 0 && (
+                <span className="review-count">({sanitizedReviewCount})</span>
               )}
             </div>
           )}
