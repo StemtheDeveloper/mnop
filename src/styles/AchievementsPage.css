@@ -310,6 +310,33 @@
   color: #00769c;
 }
 
+.check-achievements-button {
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  margin-top: 15px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 200px;
+  align-self: center;
+}
+
+.check-achievements-button:hover {
+  background-color: #d43418;
+}
+
+.check-achievements-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .achievements-grid {
     grid-template-columns: 1fr;

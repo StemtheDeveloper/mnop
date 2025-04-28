@@ -23,6 +23,9 @@ const AchievementsPage = () => {
     const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
     const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
+    // Check achievements state
+    const [checkingAchievements, setCheckingAchievements] = useState(false);
+
     // Get user achievements and profile
     useEffect(() => {
         const fetchUserAndAchievements = async () => {
@@ -167,6 +170,64 @@ const AchievementsPage = () => {
         }
     };
 
+    // Handle check for new achievements
+    const handleCheckAchievements = async () => {
+        if (!currentUser) return;
+        
+        setCheckingAchievements(true);
+        try {
+            // Import achievement service dynamically to avoid circular dependencies
+            const achievementService = (await import('../services/achievementService')).default;
+            
+            // Check for different achievement types
+            const productResults = await achievementService.checkProductAchievements(currentUser.uid);
+            const investmentResults = await achievementService.checkInvestmentAchievements(currentUser.uid);
+            const accountResults = await achievementService.checkAccountAgeAchievements(currentUser.uid);
+            
+            // Combine earned achievements
+            const earnedIds = [
+                ...productResults.earnedIds,
+                ...investmentResults.earnedIds,
+                ...accountResults.earnedIds
+            ];
+            
+            if (earnedIds.length > 0) {
+                showSuccess(`You earned ${earnedIds.length} new achievement${earnedIds.length !== 1 ? 's' : ''}!`);
+                
+                // Refresh the achievements data
+                const userRef = doc(db, 'users', currentUser.uid);
+                const userDoc = await getDoc(userRef);
+                
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    const userAchievements = userData.achievements || [];
+                    
+                    // Update allAchievements with new earned status
+                    const updatedAllAchievements = allAchievements.map(achievement => ({
+                        ...achievement,
+                        earned: userAchievements.includes(achievement.id)
+                    }));
+                    
+                    setAllAchievements(updatedAllAchievements);
+                    
+                    // Update earned achievements list
+                    const updatedEarnedAchievements = updatedAllAchievements.filter(
+                        achievement => userAchievements.includes(achievement.id)
+                    );
+                    
+                    setAchievements(updatedEarnedAchievements);
+                }
+            } else {
+                showSuccess('No new achievements earned. Keep working toward your goals!');
+            }
+        } catch (error) {
+            console.error('Error checking for new achievements:', error);
+            showError('Failed to check for new achievements: ' + error.message);
+        } finally {
+            setCheckingAchievements(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="achievements-page">
@@ -203,6 +264,11 @@ const AchievementsPage = () => {
                 <p>
                     {achievements.length} of {allAchievements.length} achievements earned
                 </p>
+                {isOwnProfile && (
+                    <button className="check-achievements-button" onClick={handleCheckAchievements} disabled={loading || checkingAchievements}>
+                        {checkingAchievements ? <LoadingSpinner /> : "Check for New Achievements"}
+                    </button>
+                )}
             </div>
 
             <div className="achievements-progress-bar">

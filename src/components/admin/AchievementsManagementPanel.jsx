@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, writeBatch, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
+import achievementsData from '../../data/achievementsData';
 import '../../styles/AchievementsManagement.css';
 
 const AchievementsManagementPanel = () => {
@@ -34,6 +35,7 @@ const AchievementsManagementPanel = () => {
     const [selectAll, setSelectAll] = useState(false);
     const [bulkPoints, setBulkPoints] = useState(0);
     const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+    const [defaultAchievementsLoading, setDefaultAchievementsLoading] = useState(false);
 
     const fileInputRef = useRef(null);
 
@@ -549,6 +551,44 @@ const AchievementsManagementPanel = () => {
         }
     };
 
+    const initializeDefaultAchievements = async () => {
+        setDefaultAchievementsLoading(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            const achievementsRef = collection(db, 'achievements');
+            const snapshot = await getDocs(achievementsRef);
+
+            const existingAchievements = snapshot.docs.map(doc => doc.data().name);
+
+            const missingAchievements = achievementsData.filter(
+                defaultAchievement => !existingAchievements.includes(defaultAchievement.name)
+            );
+
+            const batch = writeBatch(db);
+
+            missingAchievements.forEach(achievement => {
+                const achievementData = {
+                    ...achievement,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                };
+                batch.set(doc(achievementsRef), achievementData);
+            });
+
+            await batch.commit();
+
+            setSuccess('Default achievements initialized successfully!');
+            fetchAchievements();
+        } catch (err) {
+            console.error('Error initializing default achievements:', err);
+            setError('Failed to initialize default achievements. Please try again.');
+        } finally {
+            setDefaultAchievementsLoading(false);
+        }
+    };
+
     return (
         <div className="achievements-management-panel">
             <h2>Achievements & Badges Management</h2>
@@ -877,55 +917,72 @@ const AchievementsManagementPanel = () => {
                             <LoadingSpinner />
                             <p>Loading achievements...</p>
                         </div>
-                    ) : achievements.length === 0 ? (
-                        <div className="no-achievements-message">
-                            <p>No achievements found. Create your first achievement!</p>
-                        </div>
                     ) : (
-                        <div className="achievements-grid">
-                            {achievements.map(achievement => (
-                                <div
-                                    key={achievement.id}
-                                    className={`achievement-card ${selectedAchievements.includes(achievement.id) ? 'selected' : ''}`}
+                        <>
+                            <div className="achievements-default-actions">
+                                <button 
+                                    onClick={initializeDefaultAchievements}
+                                    className="initialize-defaults-button"
+                                    disabled={defaultAchievementsLoading || loading}
                                 >
-                                    <div className="achievement-selection">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedAchievements.includes(achievement.id)}
-                                            onChange={() => toggleAchievementSelection(achievement.id)}
-                                            disabled={loading || bulkEditMode || bulkDeleteMode}
-                                        />
-                                    </div>
-                                    <div className="achievement-image-container">
-                                        <img src={achievement.imageUrl} alt={achievement.name} className="achievement-image" />
-                                    </div>
-                                    <div className="achievement-info">
-                                        <h4 className="achievement-name">{achievement.name}</h4>
-                                        <p className="achievement-description">{achievement.description}</p>
-                                        <div className="achievement-meta">
-                                            <span className="achievement-points">{achievement.points || 0} pts</span>
-                                            <span className="achievement-trigger-type">{triggerTypes.find(t => t.id === (achievement.triggerConfig?.type || 'manual'))?.name || 'Manual'}</span>
-                                        </div>
-                                        <div className="achievement-actions">
-                                            <button
-                                                onClick={() => handleEditAchievement(achievement)}
-                                                className="edit-button"
-                                                disabled={loading || bulkEditMode || bulkDeleteMode}
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteAchievement(achievement)}
-                                                className="delete-button"
-                                                disabled={loading || bulkEditMode || bulkDeleteMode}
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
+                                    {defaultAchievementsLoading ? <LoadingSpinner /> : 'Initialize Default Achievements'}
+                                </button>
+                                <p className="form-hint">
+                                    This will add all missing default achievements from the predefined list.
+                                </p>
+                            </div>
+                            
+                            {achievements.length === 0 ? (
+                                <div className="no-achievements-message">
+                                    <p>No achievements found. Create your first achievement or initialize the default ones!</p>
                                 </div>
-                            ))}
-                        </div>
+                            ) : (
+                                <div className="achievements-grid">
+                                    {achievements.map(achievement => (
+                                        <div
+                                            key={achievement.id}
+                                            className={`achievement-card ${selectedAchievements.includes(achievement.id) ? 'selected' : ''}`}
+                                        >
+                                            <div className="achievement-selection">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedAchievements.includes(achievement.id)}
+                                                    onChange={() => toggleAchievementSelection(achievement.id)}
+                                                    disabled={loading || bulkEditMode || bulkDeleteMode}
+                                                />
+                                            </div>
+                                            <div className="achievement-image-container">
+                                                <img src={achievement.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(achievement.name)}&background=random&color=fff&size=128`} alt={achievement.name} className="achievement-image" />
+                                            </div>
+                                            <div className="achievement-info">
+                                                <h4 className="achievement-name">{achievement.name}</h4>
+                                                <p className="achievement-description">{achievement.description}</p>
+                                                <div className="achievement-meta">
+                                                    <span className="achievement-points">{achievement.points || 0} pts</span>
+                                                    <span className="achievement-trigger-type">{triggerTypes.find(t => t.id === (achievement.triggerConfig?.type || 'manual'))?.name || 'Manual'}</span>
+                                                </div>
+                                                <div className="achievement-actions">
+                                                    <button
+                                                        onClick={() => handleEditAchievement(achievement)}
+                                                        className="edit-button"
+                                                        disabled={loading || bulkEditMode || bulkDeleteMode}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteAchievement(achievement)}
+                                                        className="delete-button"
+                                                        disabled={loading || bulkEditMode || bulkDeleteMode}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

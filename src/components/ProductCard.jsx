@@ -77,7 +77,7 @@ const ProductCard = ({
     // Optimistically update UI immediately for better responsiveness
     const newLikedState = !isLiked;
     setIsLiked(newLikedState);
-    
+
     setIsLoading(true);
 
     try {
@@ -102,14 +102,14 @@ const ProductCard = ({
       // Get the current product data
       const productRef = doc(db, 'products', id);
       const productDoc = await getDoc(productRef);
-      
+
       if (!productDoc.exists()) {
         throw new Error("Product document not found");
       }
-      
+
       const productData = productDoc.data();
       const currentLikes = productData.likesCount || 0;
-      
+
       // Calculate new like count based on whether we're adding or removing a like
       let newLikeCount;
       if (isCurrentlyLiked) {
