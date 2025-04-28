@@ -112,7 +112,7 @@
 }
 
 .tab-button.active::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: -2px;
   left: 0;
@@ -579,11 +579,11 @@
   .portfolio-summary {
     grid-template-columns: 1fr;
   }
-  
+
   .portfolio-tabs {
     flex-wrap: wrap;
   }
-  
+
   .tab-button {
     flex-grow: 1;
     padding: 10px;
@@ -593,11 +593,11 @@
   .achievements-container {
     grid-template-columns: 1fr;
   }
-  
+
   .modal-actions {
     flex-direction: column;
   }
-  
+
   .modal-actions button {
     width: 100%;
     margin-bottom: 10px;

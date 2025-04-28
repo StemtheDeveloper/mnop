@@ -19,7 +19,7 @@ const InvestmentWithdrawalModal = ({ investment, onClose, onWithdrawalRequested 
                 const result = await investmentService.getNoticePeriod();
                 if (result.success) {
                     setNoticePeriod(result.data.noticePeriodDays);
-                    
+
                     // Calculate and set the withdrawal date
                     const date = new Date();
                     date.setDate(date.getDate() + result.data.noticePeriodDays);
@@ -53,12 +53,12 @@ const InvestmentWithdrawalModal = ({ investment, onClose, onWithdrawalRequested 
                     message: result.message,
                     type: 'success'
                 });
-                
+
                 // Call the callback after successful request
                 if (onWithdrawalRequested) {
                     onWithdrawalRequested(investment.id, result.withdrawalDate);
                 }
-                
+
                 // Reset form state
                 setIsConfirming(false);
             } else {
@@ -109,8 +109,8 @@ const InvestmentWithdrawalModal = ({ investment, onClose, onWithdrawalRequested 
                         <div className="withdrawal-notice">
                             <h3>Important Notice</h3>
                             <p>
-                                Due to our withdrawal policy, your funds will be returned after a 
-                                <strong> {noticePeriod}-day notice period</strong>. 
+                                Due to our withdrawal policy, your funds will be returned after a
+                                <strong> {noticePeriod}-day notice period</strong>.
                                 This gives product creators time to adjust to funding changes.
                             </p>
                             <p>
@@ -119,7 +119,7 @@ const InvestmentWithdrawalModal = ({ investment, onClose, onWithdrawalRequested 
                             </p>
                             <p>
                                 You can cancel your withdrawal request at any time during this notice period.
-                                If the product reaches its funding goal during the notice period, your withdrawal request 
+                                If the product reaches its funding goal during the notice period, your withdrawal request
                                 will be automatically canceled.
                             </p>
                         </div>
@@ -138,14 +138,14 @@ const InvestmentWithdrawalModal = ({ investment, onClose, onWithdrawalRequested 
                                 </div>
 
                                 <div className="modal-actions">
-                                    <button 
+                                    <button
                                         className="cancel-button"
                                         onClick={onClose}
                                         disabled={isLoading}
                                     >
                                         Cancel
                                     </button>
-                                    <button 
+                                    <button
                                         className="proceed-button"
                                         onClick={() => setIsConfirming(true)}
                                         disabled={isLoading}
@@ -158,20 +158,20 @@ const InvestmentWithdrawalModal = ({ investment, onClose, onWithdrawalRequested 
                             <div className="confirmation-step">
                                 <h3>Confirm Withdrawal</h3>
                                 <p>
-                                    Are you sure you want to withdraw your investment of 
-                                    <strong> ${investment.amount.toFixed(2)}</strong> from 
+                                    Are you sure you want to withdraw your investment of
+                                    <strong> ${investment.amount.toFixed(2)}</strong> from
                                     <strong> {investment.productName}</strong>?
                                 </p>
 
                                 <div className="modal-actions">
-                                    <button 
+                                    <button
                                         className="back-button"
                                         onClick={() => setIsConfirming(false)}
                                         disabled={isLoading}
                                     >
                                         Back
                                     </button>
-                                    <button 
+                                    <button
                                         className="confirm-button"
                                         onClick={handleRequestWithdrawal}
                                         disabled={isLoading}
@@ -191,7 +191,7 @@ const InvestmentWithdrawalModal = ({ investment, onClose, onWithdrawalRequested 
                     </>
                 ) : (
                     <div className="success-actions">
-                        <button 
+                        <button
                             className="close-button"
                             onClick={onClose}
                         >

@@ -25,7 +25,26 @@ const ProductsCsvExportPage = () => {
         categories: true,
         status: true,
         currentFunding: true,
-        designerId: true
+        designerId: true,
+        businessHeldFunds: true,
+        category: true,
+        categoryType: true,
+        createdAt: true,
+        designerName: true,
+        funders: true,
+        fundsSentToManufacturer: true,
+        imageUrls: true,
+        investorCount: true,
+        isCrowdfunded: true,
+        isDirectSell: true,
+        lastFundedAt: true,
+        likesCount: true,
+        manufacturerEmail: true,
+        manufacturerId: true,
+        manufacturingStartDate: true,
+        manufacturingStatus: true,
+        storagePaths: true,
+        updatedAt: true
     });
 
     // Function to fetch products
@@ -92,19 +111,30 @@ const ProductsCsvExportPage = () => {
                 if (field === 'categories' && Array.isArray(value)) {
                     // Convert array to string with semicolons
                     value = value.join(';');
+                } else if (value instanceof Date) {
+                    // Format dates as strings
+                    value = value.toISOString();
                 } else if (typeof value === 'object' && value !== null) {
-                    // Stringify objects
-                    value = JSON.stringify(value);
+                    // Handle Firebase timestamps
+                    if (value.seconds !== undefined && value.nanoseconds !== undefined) {
+                        const date = new Date(value.seconds * 1000);
+                        value = date.toISOString();
+                    } else {
+                        // Stringify other objects
+                        value = JSON.stringify(value);
+                    }
                 } else if (typeof value === 'string') {
-                    // Escape quotes and wrap in quotes if the value contains a comma
+                    // Escape quotes and wrap in quotes if the value contains a comma or newline
                     value = value.replace(/"/g, '""');
-                    if (value.includes(',')) {
+                    if (value.includes(',') || value.includes('\n') || value.includes('"')) {
                         value = `"${value}"`;
                     }
+                } else if (value === undefined || value === null) {
+                    // Return empty string for undefined/null values
+                    value = '';
                 }
 
-                // Return empty string for undefined/null values
-                return value === undefined || value === null ? '' : value;
+                return value;
             }).join(',');
         });
 

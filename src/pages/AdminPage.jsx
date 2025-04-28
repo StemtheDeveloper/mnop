@@ -941,7 +941,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                         {activeTab === 'settings' && (
                             <div className="settings-tab">
                                 <h2>Platform Settings</h2>
-                                
+
                                 <div className="settings-tab-navigation">
                                     <div className="settings-categories">
                                         <div className="settings-category active">
@@ -952,7 +952,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div className="settings-content">
                                     <AdminInvestmentSettings />
                                 </div>

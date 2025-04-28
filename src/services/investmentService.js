@@ -12,7 +12,7 @@ import {
   serverTimestamp,
   arrayUnion,
   Timestamp,
-  deleteDoc
+  deleteDoc,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "../config/firebase";
@@ -309,94 +309,100 @@ class InvestmentService {
    * @param {string} reason - Optional reason for pulling funding
    * @returns {Promise<Object>} - Success or error
    */
-  async requestPullFunding(investmentId, userId, reason = '') {
+  async requestPullFunding(investmentId, userId, reason = "") {
     try {
       // 1. Get the settings to determine notice period
       const settingsRef = doc(db, "settings", "investmentSettings");
       const settingsDoc = await getDoc(settingsRef);
-      
+
       // Default to 7 days if no settings found
-      const noticePeriodDays = settingsDoc.exists() ? 
-        (settingsDoc.data().pullFundingNoticeDays || 7) : 7;
-      
+      const noticePeriodDays = settingsDoc.exists()
+        ? settingsDoc.data().pullFundingNoticeDays || 7
+        : 7;
+
       // Calculate the withdrawal date based on notice period
       const currentDate = new Date();
       const withdrawalDate = new Date(currentDate);
       withdrawalDate.setDate(currentDate.getDate() + noticePeriodDays);
-      
+
       // 2. Get the investment to validate
       const investmentRef = doc(db, "investments", investmentId);
       const investmentDoc = await getDoc(investmentRef);
-      
+
       if (!investmentDoc.exists()) {
         return {
           success: false,
-          error: "Investment not found"
+          error: "Investment not found",
         };
       }
-      
+
       const investmentData = investmentDoc.data();
-      
+
       // 3. Verify the investment belongs to the user
       if (investmentData.userId !== userId) {
         return {
           success: false,
-          error: "You don't have permission to pull this investment"
+          error: "You don't have permission to pull this investment",
         };
       }
-      
+
       // 4. Check if the product is already fully funded
       const productRef = doc(db, "products", investmentData.productId);
       const productDoc = await getDoc(productRef);
-      
+
       if (!productDoc.exists()) {
         return {
           success: false,
-          error: "Product not found"
+          error: "Product not found",
         };
       }
-      
+
       const productData = productDoc.data();
-      const isFullyFunded = productData.currentFunding >= productData.fundingGoal;
-      
+      const isFullyFunded =
+        productData.currentFunding >= productData.fundingGoal;
+
       if (isFullyFunded) {
         return {
           success: false,
-          error: "Cannot pull funding from a product that has already reached its funding goal"
+          error:
+            "Cannot pull funding from a product that has already reached its funding goal",
         };
       }
-      
+
       // 5. Update investment status to pending_withdrawal
       await updateDoc(investmentRef, {
         status: "pending_withdrawal",
         withdrawalRequestDate: serverTimestamp(),
         scheduledWithdrawalDate: Timestamp.fromDate(withdrawalDate),
         withdrawalReason: reason,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
-      
+
       // 6. Notify the product designer about the withdrawal request
       if (investmentData.designerId) {
         await notificationService.createNotification(
           investmentData.designerId,
           "investment_withdrawal",
           "Investment Withdrawal Request",
-          `An investor has requested to withdraw their ${investmentData.amount} investment from your product "${investmentData.productName}". The funds will be withdrawn on ${withdrawalDate.toLocaleDateString()}.`,
+          `An investor has requested to withdraw their ${
+            investmentData.amount
+          } investment from your product "${
+            investmentData.productName
+          }". The funds will be withdrawn on ${withdrawalDate.toLocaleDateString()}.`,
           `/product/${investmentData.productId}`
         );
       }
-      
+
       return {
         success: true,
         message: `Your request to withdraw funding has been submitted. The funds will be returned to your wallet on ${withdrawalDate.toLocaleDateString()}.`,
-        withdrawalDate: withdrawalDate
+        withdrawalDate: withdrawalDate,
       };
-      
     } catch (error) {
       console.error("Error requesting to pull funding:", error);
       return {
         success: false,
-        error: error.message || "Failed to request funding withdrawal"
+        error: error.message || "Failed to request funding withdrawal",
       };
     }
   }
@@ -415,54 +421,62 @@ class InvestmentService {
         where("status", "==", "pending_withdrawal"),
         where("scheduledWithdrawalDate", "<=", Timestamp.fromDate(currentDate))
       );
-      
+
       const snapshot = await getDocs(q);
-      
+
       if (snapshot.empty) {
         return {
           success: true,
           message: "No pending withdrawals to process",
-          processed: 0
+          processed: 0,
         };
       }
-      
+
       let processedCount = 0;
       let failedCount = 0;
-      
+
       for (const doc of snapshot.docs) {
         const investment = {
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         };
-        
+
         try {
           // Process the actual withdrawal for this investment
-          const result = await this.completePullFunding(investment.id, investment.userId);
-          
+          const result = await this.completePullFunding(
+            investment.id,
+            investment.userId
+          );
+
           if (result.success) {
             processedCount++;
           } else {
             failedCount++;
-            console.error(`Failed to process withdrawal for investment ${investment.id}:`, result.error);
+            console.error(
+              `Failed to process withdrawal for investment ${investment.id}:`,
+              result.error
+            );
           }
         } catch (err) {
           failedCount++;
-          console.error(`Error processing withdrawal for investment ${investment.id}:`, err);
+          console.error(
+            `Error processing withdrawal for investment ${investment.id}:`,
+            err
+          );
         }
       }
-      
+
       return {
         success: true,
         message: `Processed ${processedCount} withdrawals (${failedCount} failed)`,
         processed: processedCount,
-        failed: failedCount
+        failed: failedCount,
       };
-      
     } catch (error) {
       console.error("Error processing pending withdrawals:", error);
       return {
         success: false,
-        error: error.message || "Failed to process pending withdrawals"
+        error: error.message || "Failed to process pending withdrawals",
       };
     }
   }
@@ -470,7 +484,7 @@ class InvestmentService {
   /**
    * Complete the withdrawal of an investment - return funds to investor and update product
    * @param {string} investmentId - The investment ID
-   * @param {string} userId - The investor's user ID 
+   * @param {string} userId - The investor's user ID
    * @returns {Promise<Object>} - Success or error
    */
   async completePullFunding(investmentId, userId) {
@@ -478,45 +492,45 @@ class InvestmentService {
       // 1. Get the investment data
       const investmentRef = doc(db, "investments", investmentId);
       const investmentDoc = await getDoc(investmentRef);
-      
+
       if (!investmentDoc.exists()) {
         return {
           success: false,
-          error: "Investment not found"
+          error: "Investment not found",
         };
       }
-      
+
       const investment = investmentDoc.data();
-      
+
       // Verify the investment belongs to the user
       if (investment.userId !== userId) {
         return {
           success: false,
-          error: "You don't have permission to pull this investment"
+          error: "You don't have permission to pull this investment",
         };
       }
-      
+
       // Verify the investment status is pending_withdrawal
       if (investment.status !== "pending_withdrawal") {
         return {
           success: false,
-          error: "This investment is not pending withdrawal"
+          error: "This investment is not pending withdrawal",
         };
       }
-      
+
       // 2. Get the product data
       const productRef = doc(db, "products", investment.productId);
       const productDoc = await getDoc(productRef);
-      
+
       if (!productDoc.exists()) {
         return {
           success: false,
-          error: "Product not found"
+          error: "Product not found",
         };
       }
-      
+
       const product = productDoc.data();
-      
+
       // 3. Check again that the product is not fully funded
       if (product.currentFunding >= product.fundingGoal) {
         await updateDoc(investmentRef, {
@@ -524,35 +538,40 @@ class InvestmentService {
           withdrawalRequestDate: null,
           scheduledWithdrawalDate: null,
           withdrawalReason: null,
-          withdrawalCancellationReason: "Product became fully funded before withdrawal could be processed",
-          updatedAt: serverTimestamp()
+          withdrawalCancellationReason:
+            "Product became fully funded before withdrawal could be processed",
+          updatedAt: serverTimestamp(),
         });
-        
+
         return {
           success: false,
-          error: "Cannot pull funding from a product that has reached its funding goal"
+          error:
+            "Cannot pull funding from a product that has reached its funding goal",
         };
       }
-      
+
       // 4. Process the withdrawal transaction
       // Return funds to investor
       const walletResult = await walletService.getUserWallet(userId);
-      
+
       if (!walletResult) {
         // Create wallet if it doesn't exist
         await walletService.createUserWallet(userId);
       }
-      
+
       // Add funds back to the user's wallet
-      await walletService.addToWallet(userId, investment.amount, 
-        `Refund from investment withdrawal - ${investment.productName}`);
-      
+      await walletService.addToWallet(
+        userId,
+        investment.amount,
+        `Refund from investment withdrawal - ${investment.productName}`
+      );
+
       // 5. Update the product funding
       await updateDoc(productRef, {
         currentFunding: increment(-investment.amount),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
-      
+
       // 6. Record the investment withdrawal transaction
       const transactionRef = collection(db, "transactions");
       await addDoc(transactionRef, {
@@ -563,16 +582,16 @@ class InvestmentService {
         productId: investment.productId,
         investmentId: investmentId,
         createdAt: serverTimestamp(),
-        status: "completed"
+        status: "completed",
       });
-      
+
       // 7. Update the investment status to withdrawn
       await updateDoc(investmentRef, {
         status: "withdrawn",
         withdrawalCompletedDate: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
-      
+
       // 8. Notify the investor
       await notificationService.createNotification(
         userId,
@@ -581,7 +600,7 @@ class InvestmentService {
         `Your investment of ${investment.amount} in "${investment.productName}" has been withdrawn and returned to your wallet.`,
         "/portfolio"
       );
-      
+
       // 9. Notify the product designer
       if (investment.designerId) {
         await notificationService.createNotification(
@@ -592,17 +611,16 @@ class InvestmentService {
           `/product/${investment.productId}`
         );
       }
-      
+
       return {
         success: true,
-        message: `Successfully withdrew investment of ${investment.amount} from "${investment.productName}"`
+        message: `Successfully withdrew investment of ${investment.amount} from "${investment.productName}"`,
       };
-      
     } catch (error) {
       console.error("Error completing funding withdrawal:", error);
       return {
         success: false,
-        error: error.message || "Failed to complete funding withdrawal"
+        error: error.message || "Failed to complete funding withdrawal",
       };
     }
   }
@@ -614,37 +632,37 @@ class InvestmentService {
    * @param {string} reason - Optional reason for cancellation
    * @returns {Promise<Object>} - Success or error
    */
-  async cancelPullFundingRequest(investmentId, userId, reason = '') {
+  async cancelPullFundingRequest(investmentId, userId, reason = "") {
     try {
       // 1. Get the investment data
       const investmentRef = doc(db, "investments", investmentId);
       const investmentDoc = await getDoc(investmentRef);
-      
+
       if (!investmentDoc.exists()) {
         return {
           success: false,
-          error: "Investment not found"
+          error: "Investment not found",
         };
       }
-      
+
       const investment = investmentDoc.data();
-      
+
       // 2. Verify the investment belongs to the user
       if (investment.userId !== userId) {
         return {
           success: false,
-          error: "You don't have permission to cancel this withdrawal request"
+          error: "You don't have permission to cancel this withdrawal request",
         };
       }
-      
+
       // 3. Verify the investment status is pending_withdrawal
       if (investment.status !== "pending_withdrawal") {
         return {
           success: false,
-          error: "This investment is not pending withdrawal"
+          error: "This investment is not pending withdrawal",
         };
       }
-      
+
       // 4. Update the investment status back to active
       await updateDoc(investmentRef, {
         status: "active",
@@ -652,9 +670,9 @@ class InvestmentService {
         scheduledWithdrawalDate: null,
         withdrawalReason: null,
         withdrawalCancellationReason: reason,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
-      
+
       // 5. Notify the product designer
       if (investment.designerId) {
         await notificationService.createNotification(
@@ -665,17 +683,16 @@ class InvestmentService {
           `/product/${investment.productId}`
         );
       }
-      
+
       return {
         success: true,
-        message: "Your withdrawal request has been canceled"
+        message: "Your withdrawal request has been canceled",
       };
-      
     } catch (error) {
       console.error("Error canceling funding withdrawal request:", error);
       return {
         success: false,
-        error: error.message || "Failed to cancel withdrawal request"
+        error: error.message || "Failed to cancel withdrawal request",
       };
     }
   }
@@ -694,36 +711,36 @@ class InvestmentService {
         where("status", "==", "pending_withdrawal"),
         orderBy("scheduledWithdrawalDate", "asc")
       );
-      
+
       const snapshot = await getDocs(q);
       const pendingWithdrawals = [];
-      
+
       snapshot.forEach((doc) => {
         pendingWithdrawals.push({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         });
       });
-      
+
       // Calculate total amount being withdrawn
       const totalWithdrawalAmount = pendingWithdrawals.reduce(
-        (sum, withdrawal) => sum + withdrawal.amount, 0
+        (sum, withdrawal) => sum + withdrawal.amount,
+        0
       );
-      
+
       return {
         success: true,
         data: {
           items: pendingWithdrawals,
           total: totalWithdrawalAmount,
-          count: pendingWithdrawals.length
-        }
+          count: pendingWithdrawals.length,
+        },
       };
-      
     } catch (error) {
       console.error("Error getting product pending withdrawals:", error);
       return {
         success: false,
-        error: error.message || "Failed to get pending withdrawals"
+        error: error.message || "Failed to get pending withdrawals",
       };
     }
   }
@@ -736,22 +753,22 @@ class InvestmentService {
     try {
       const settingsRef = doc(db, "settings", "investmentSettings");
       const settingsDoc = await getDoc(settingsRef);
-      
+
       // Default to 7 days if no settings found
-      const noticePeriodDays = settingsDoc.exists() ? 
-        (settingsDoc.data().pullFundingNoticeDays || 7) : 7;
-      
+      const noticePeriodDays = settingsDoc.exists()
+        ? settingsDoc.data().pullFundingNoticeDays || 7
+        : 7;
+
       return {
         success: true,
-        data: { noticePeriodDays }
+        data: { noticePeriodDays },
       };
-      
     } catch (error) {
       console.error("Error getting notice period:", error);
       return {
         success: false,
         error: error.message || "Failed to get notice period",
-        data: { noticePeriodDays: 7 } // Default fallback
+        data: { noticePeriodDays: 7 }, // Default fallback
       };
     }
   }
@@ -766,37 +783,36 @@ class InvestmentService {
       if (!days || days < 0) {
         return {
           success: false,
-          error: "Invalid notice period. Must be a positive number."
+          error: "Invalid notice period. Must be a positive number.",
         };
       }
-      
+
       const settingsRef = doc(db, "settings", "investmentSettings");
       const settingsDoc = await getDoc(settingsRef);
-      
+
       if (settingsDoc.exists()) {
         await updateDoc(settingsRef, {
           pullFundingNoticeDays: days,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
       } else {
         // Create settings document if it doesn't exist
         await setDoc(settingsRef, {
           pullFundingNoticeDays: days,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
         });
       }
-      
+
       return {
         success: true,
-        message: `Notice period updated to ${days} days`
+        message: `Notice period updated to ${days} days`,
       };
-      
     } catch (error) {
       console.error("Error updating notice period:", error);
       return {
         success: false,
-        error: error.message || "Failed to update notice period"
+        error: error.message || "Failed to update notice period",
       };
     }
   }

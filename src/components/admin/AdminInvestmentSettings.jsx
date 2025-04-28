@@ -50,7 +50,7 @@ const AdminInvestmentSettings = () => {
 
         try {
             const result = await investmentService.updateNoticePeriod(noticePeriod);
-            
+
             if (result.success) {
                 setFeedback({
                     message: result.message || 'Notice period updated successfully',
@@ -76,28 +76,28 @@ const AdminInvestmentSettings = () => {
     return (
         <div className="admin-investment-settings">
             <h2>Investment Settings</h2>
-            
+
             {feedback.message && (
                 <div className={`feedback-message ${feedback.type}`}>
                     {feedback.message}
-                    <button 
-                        className="dismiss-button" 
+                    <button
+                        className="dismiss-button"
                         onClick={() => setFeedback({ message: '', type: '' })}
                     >
                         ×
                     </button>
                 </div>
             )}
-            
+
             <div className="settings-card">
                 <h3>Investment Withdrawal Settings</h3>
-                
+
                 <div className="settings-section">
                     <p className="section-description">
                         Configure the notice period required for investors to withdraw their funding from a product.
                         This period gives designers time to adjust plans if necessary before funds are returned.
                     </p>
-                    
+
                     {isLoading ? (
                         <div className="loading-indicator">Loading settings...</div>
                     ) : (
@@ -121,9 +121,9 @@ const AdminInvestmentSettings = () => {
                             </p>
                         </div>
                     )}
-                    
+
                     <div className="settings-actions">
-                        <button 
+                        <button
                             className="save-button"
                             onClick={handleSaveSettings}
                             disabled={isLoading || isSaving}
@@ -133,10 +133,10 @@ const AdminInvestmentSettings = () => {
                     </div>
                 </div>
             </div>
-            
+
             <div className="settings-card">
                 <h3>Information About Investment Withdrawals</h3>
-                
+
                 <div className="info-section">
                     <h4>Rules for Investment Withdrawals</h4>
                     <ul className="info-list">
@@ -146,10 +146,10 @@ const AdminInvestmentSettings = () => {
                         <li>If a product reaches its funding goal during the notice period, the withdrawal is automatically canceled.</li>
                         <li>After the notice period, funds are automatically returned to the investor's wallet.</li>
                     </ul>
-                    
+
                     <h4>Impact of Withdrawal Notices</h4>
                     <p>
-                        Setting an appropriate notice period helps balance investor flexibility with product development 
+                        Setting an appropriate notice period helps balance investor flexibility with product development
                         stability. A longer period gives designers more time to adjust to potential funding changes,
                         while a shorter period provides more liquidity for investors.
                     </p>

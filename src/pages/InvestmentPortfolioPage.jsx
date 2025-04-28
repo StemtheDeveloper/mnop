@@ -33,7 +33,7 @@ const InvestmentPortfolioPage = () => {
                 if (periodResult.success) {
                     setNoticePeriod(periodResult.data.noticePeriodDays);
                 }
-                
+
                 // Get comprehensive statistics
                 const statsResult = await investmentService.getInvestmentStatistics(currentUser.uid);
 
@@ -43,7 +43,7 @@ const InvestmentPortfolioPage = () => {
                     setTotalInvested(statsResult.data.investments.total);
                     setReturns(statsResult.data.returns.items || []);
                     setTotalReturns(statsResult.data.returns.total || 0);
-                    
+
                     // Get any pending withdrawal requests
                     const pendingWithdrawals = statsResult.data.investments.items.filter(
                         investment => investment.status === 'pending_withdrawal'
@@ -88,7 +88,7 @@ const InvestmentPortfolioPage = () => {
             });
             return;
         }
-        
+
         // Check if product is fully funded
         if (investment.productFullyFunded) {
             setWithdrawalFeedback({
@@ -97,7 +97,7 @@ const InvestmentPortfolioPage = () => {
             });
             return;
         }
-        
+
         setSelectedInvestment(investment);
         setWithdrawalReason('');
         setWithdrawalModalOpen(true);
@@ -111,41 +111,41 @@ const InvestmentPortfolioPage = () => {
 
     const submitWithdrawalRequest = async () => {
         if (!selectedInvestment) return;
-        
+
         try {
             const result = await investmentService.requestPullFunding(
                 selectedInvestment.id,
                 currentUser.uid,
                 withdrawalReason
             );
-            
+
             if (result.success) {
                 // Update the UI to reflect the pending withdrawal
-                setInvestments(prevInvestments => 
-                    prevInvestments.map(inv => 
-                        inv.id === selectedInvestment.id 
-                            ? { 
-                                ...inv, 
+                setInvestments(prevInvestments =>
+                    prevInvestments.map(inv =>
+                        inv.id === selectedInvestment.id
+                            ? {
+                                ...inv,
                                 status: 'pending_withdrawal',
                                 scheduledWithdrawalDate: result.withdrawalDate,
                                 withdrawalReason: withdrawalReason
-                              } 
+                            }
                             : inv
                     )
                 );
-                
+
                 setPendingWithdrawals(prev => [...prev, {
                     ...selectedInvestment,
                     status: 'pending_withdrawal',
                     scheduledWithdrawalDate: result.withdrawalDate,
                     withdrawalReason: withdrawalReason
                 }]);
-                
+
                 setWithdrawalFeedback({
                     type: 'success',
                     message: result.message
                 });
-                
+
                 closeWithdrawalModal();
             } else {
                 setWithdrawalFeedback({
@@ -168,26 +168,26 @@ const InvestmentPortfolioPage = () => {
                 investmentId,
                 currentUser.uid
             );
-            
+
             if (result.success) {
                 // Update the UI to reflect cancellation
-                setInvestments(prevInvestments => 
-                    prevInvestments.map(inv => 
-                        inv.id === investmentId 
-                            ? { 
-                                ...inv, 
+                setInvestments(prevInvestments =>
+                    prevInvestments.map(inv =>
+                        inv.id === investmentId
+                            ? {
+                                ...inv,
                                 status: 'active',
                                 scheduledWithdrawalDate: null,
                                 withdrawalReason: null
-                              } 
+                            }
                             : inv
                     )
                 );
-                
-                setPendingWithdrawals(prev => 
+
+                setPendingWithdrawals(prev =>
                     prev.filter(inv => inv.id !== investmentId)
                 );
-                
+
                 setWithdrawalFeedback({
                     type: 'success',
                     message: result.message
@@ -254,8 +254,8 @@ const InvestmentPortfolioPage = () => {
                 {withdrawalFeedback.message && (
                     <div className={`feedback-message ${withdrawalFeedback.type}`}>
                         {withdrawalFeedback.message}
-                        <button 
-                            className="dismiss-button" 
+                        <button
+                            className="dismiss-button"
                             onClick={() => setWithdrawalFeedback({ message: '', type: '' })}
                         >
                             ×
@@ -264,24 +264,24 @@ const InvestmentPortfolioPage = () => {
                 )}
 
                 <div className="portfolio-tabs">
-                    <button 
+                    <button
                         className={`tab-button ${activeTab === 'investments' ? 'active' : ''}`}
                         onClick={() => setActiveTab('investments')}
                     >
                         Investments
                     </button>
-                    <button 
+                    <button
                         className={`tab-button ${activeTab === 'returns' ? 'active' : ''}`}
                         onClick={() => setActiveTab('returns')}
                     >
                         Revenue
                     </button>
                     {pendingWithdrawals.length > 0 && (
-                        <button 
+                        <button
                             className={`tab-button ${activeTab === 'withdrawals' ? 'active' : ''}`}
                             onClick={() => setActiveTab('withdrawals')}
                         >
-                            Pending Withdrawals 
+                            Pending Withdrawals
                             <span className="badge">{pendingWithdrawals.length}</span>
                         </button>
                     )}
@@ -319,39 +319,39 @@ const InvestmentPortfolioPage = () => {
                                         {investments
                                             .filter(inv => inv.status !== 'pending_withdrawal')
                                             .map(investment => (
-                                            <tr key={investment.id}>
-                                                <td>
-                                                    <Link to={`/product/${investment.productId}`} className="product-link">
-                                                        {investment.productName || 'Product'}
-                                                    </Link>
-                                                </td>
-                                                <td className="investment-amount">{formatCurrency(investment.amount)}</td>
-                                                <td>{formatDate(investment.createdAt)}</td>
-                                                <td>
-                                                    <span className={`status-badge ${investment.status}`}>
-                                                        {investment.status}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    {investment.status === 'active' && (
-                                                        <button 
-                                                            className="action-button withdraw-button"
-                                                            onClick={() => openWithdrawalModal(investment)}
-                                                        >
-                                                            Pull Funding
-                                                        </button>
-                                                    )}
-                                                    {investment.status === 'pending_withdrawal' && (
-                                                        <button 
-                                                            className="action-button cancel-button"
-                                                            onClick={() => cancelWithdrawalRequest(investment.id)}
-                                                        >
-                                                            Cancel Request
-                                                        </button>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                <tr key={investment.id}>
+                                                    <td>
+                                                        <Link to={`/product/${investment.productId}`} className="product-link">
+                                                            {investment.productName || 'Product'}
+                                                        </Link>
+                                                    </td>
+                                                    <td className="investment-amount">{formatCurrency(investment.amount)}</td>
+                                                    <td>{formatDate(investment.createdAt)}</td>
+                                                    <td>
+                                                        <span className={`status-badge ${investment.status}`}>
+                                                            {investment.status}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {investment.status === 'active' && (
+                                                            <button
+                                                                className="action-button withdraw-button"
+                                                                onClick={() => openWithdrawalModal(investment)}
+                                                            >
+                                                                Pull Funding
+                                                            </button>
+                                                        )}
+                                                        {investment.status === 'pending_withdrawal' && (
+                                                            <button
+                                                                className="action-button cancel-button"
+                                                                onClick={() => cancelWithdrawalRequest(investment.id)}
+                                                            >
+                                                                Cancel Request
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
                                     </tbody>
                                 </table>
                             </div>
@@ -378,7 +378,7 @@ const InvestmentPortfolioPage = () => {
                                             <tr key={returnItem.id}>
                                                 <td>
                                                     <Link to={`/product/${returnItem.productId}`} className="product-link">
-                                                        {returnItem.description.includes('from sale of') 
+                                                        {returnItem.description.includes('from sale of')
                                                             ? returnItem.description.split('from sale of ')[1]
                                                             : 'Product'}
                                                     </Link>
@@ -425,7 +425,7 @@ const InvestmentPortfolioPage = () => {
                                                 <td>{formatDate(withdrawal.withdrawalRequestDate)}</td>
                                                 <td>{formatDate(withdrawal.scheduledWithdrawalDate)}</td>
                                                 <td>
-                                                    <button 
+                                                    <button
                                                         className="action-button cancel-button"
                                                         onClick={() => cancelWithdrawalRequest(withdrawal.id)}
                                                     >
@@ -452,7 +452,7 @@ const InvestmentPortfolioPage = () => {
                         <div className="withdrawal-modal">
                             <h2>Request to Pull Funding</h2>
                             <p>You are about to request the withdrawal of your investment from <strong>{selectedInvestment.productName}</strong>.</p>
-                            
+
                             <div className="withdrawal-details">
                                 <div className="detail-row">
                                     <span>Investment Amount:</span>
@@ -467,7 +467,7 @@ const InvestmentPortfolioPage = () => {
                                     <span>{new Date(Date.now() + (noticePeriod * 24 * 60 * 60 * 1000)).toLocaleDateString()}</span>
                                 </div>
                             </div>
-                            
+
                             <div className="form-group">
                                 <label htmlFor="withdrawal-reason">Reason for withdrawal (optional):</label>
                                 <textarea
@@ -478,14 +478,14 @@ const InvestmentPortfolioPage = () => {
                                     rows={3}
                                 />
                             </div>
-                            
+
                             <div className="modal-notice">
                                 <p>
                                     <strong>Note:</strong> You can only withdraw from products that have not yet reached their funding goal.
                                     Once approved, your funds will be returned to your wallet after the {noticePeriod}-day notice period.
                                 </p>
                             </div>
-                            
+
                             <div className="modal-actions">
                                 <button
                                     className="action-button cancel-button"
@@ -530,7 +530,7 @@ const InvestmentPortfolioPage = () => {
                                 <p>Invest $10,000 or more</p>
                             </div>
                         </div>
-                        
+
                         <div className={`achievement ${totalReturns >= 500 ? 'unlocked' : 'locked'}`}>
                             <div className="achievement-icon">💰</div>
                             <div className="achievement-info">
