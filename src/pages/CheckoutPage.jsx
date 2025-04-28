@@ -323,10 +323,25 @@ const CheckoutPage = () => {
                         );
 
                         console.log('Business commission processed:', commissionResult);
+
+                        // Distribute revenue to investors
+                        const distributionResult = await walletService.distributeInvestorRevenue(
+                            item.id,
+                            saleAmount,
+                            manufacturingCost,
+                            item.quantity,
+                            orderRef.id
+                        );
+
+                        if (distributionResult.success) {
+                            console.log('Investor revenue distributed:', distributionResult.data);
+                        } else {
+                            console.error('Error distributing investor revenue:', distributionResult.error);
+                        }
                     }
                 } catch (err) {
-                    console.error(`Error processing business commission for product ${item.id}:`, err);
-                    // Continue with order processing even if commission processing fails
+                    console.error(`Error processing revenue for product ${item.id}:`, err);
+                    // Continue with order processing even if revenue processing fails
                 }
             }
 
