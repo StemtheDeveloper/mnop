@@ -6,6 +6,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
 import LoadingSpinner from '../components/LoadingSpinner';
 import InvestmentModal from '../components/InvestmentModal';
+import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal'; // Add import for new component
 import TrendingExtensionButton from '../components/TrendingExtensionButton';
 import productTrendingService from '../services/productTrendingService';
 import '../styles/ProductDetailPage.css';
@@ -20,6 +21,7 @@ const ProductDetailPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showInvestModal, setShowInvestModal] = useState(false);
+    const [showManufacturerModal, setShowManufacturerModal] = useState(false); // New state for manufacturer modal
     const [fundAmount, setFundAmount] = useState('');
     const [isFunding, setIsFunding] = useState(false);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -208,6 +210,19 @@ const ProductDetailPage = () => {
         setProduct(prev => ({
             ...prev,
             fundingProgress: updatedFundingProgress || (prev.fundingProgress || 0) + amount
+        }));
+    };
+
+    // Handle manufacturer selection success
+    const handleManufacturerSuccess = (result) => {
+        showSuccess(`Successfully transferred ${result.amount?.toLocaleString()} credits to manufacturer`);
+        
+        // Update the product in the UI to reflect the manufacturing status
+        setProduct(prev => ({
+            ...prev,
+            manufacturingStatus: "funded",
+            fundsSentToManufacturer: true,
+            businessHeldFunds: 0, // Reset held funds since they've been transferred
         }));
     };
 
@@ -522,6 +537,31 @@ const ProductDetailPage = () => {
                             {isFullyFunded && (
                                 <div className="funding-complete-message">
                                     This product has been fully funded! 🎉
+                                    
+                                    {/* Show manufacturer selection button for the product designer */}
+                                    {currentUser && product.designerId === currentUser.uid && 
+                                     !product.fundsSentToManufacturer && (
+                                        <div className="manufacturing-options">
+                                            <button 
+                                                className="btn-secondary select-manufacturer-button"
+                                                onClick={() => setShowManufacturerModal(true)}
+                                            >
+                                                Select Manufacturer
+                                            </button>
+                                            <p className="manufacturer-info-text">
+                                                Your product is fully funded. Select a manufacturer to begin production.
+                                            </p>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Show manufacturing in progress message */}
+                                    {product.fundsSentToManufacturer && (
+                                        <div className="manufacturing-status">
+                                            <p className="manufacturing-progress">
+                                                <span className="badge manufacturing">Manufacturing In Progress</span>
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -563,6 +603,16 @@ const ProductDetailPage = () => {
                     onClose={() => setShowInvestModal(false)}
                     product={product}
                     onSuccess={handleInvestSuccess}
+                />
+            )}
+
+            {/* Manufacturer Selection Modal */}
+            {showManufacturerModal && (
+                <ManufacturerSelectionModal
+                    isOpen={showManufacturerModal}
+                    onClose={() => setShowManufacturerModal(false)}
+                    product={product}
+                    onSuccess={handleManufacturerSuccess}
                 />
             )}
         </div>

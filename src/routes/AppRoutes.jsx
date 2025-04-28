@@ -15,6 +15,7 @@ const UserProfilePage = lazy(() => import('../pages/UserProfilePage')); // Impor
 const WalletPage = lazy(() => import('../pages/WalletPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const AdminDataFixerPage = lazy(() => import('../pages/AdminDataFixerPage'));
+const AdminVerificationPage = lazy(() => import('../pages/AdminVerificationPage')); // Import verification page
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage'));
 const ProductsPage = lazy(() => import('../pages/ProductsPage'));
@@ -195,6 +196,11 @@ const AppRoutes = () => {
                 <Route path="/admin/data-fixer" element={
                     <AuthGuard allowedRoles="admin">
                         <AdminDataFixerPage />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/verify/:userId/:role" element={
+                    <AuthGuard allowedRoles="admin">
+                        <AdminVerificationPage />
                     </AuthGuard>
                 } />
 

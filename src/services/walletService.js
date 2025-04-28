@@ -14,6 +14,7 @@ import {
   increment,
   Timestamp,
   writeBatch,
+  arrayUnion
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import notificationService from "./notificationService";
@@ -453,36 +454,62 @@ class WalletService {
       // Begin transaction to update wallet, add investment, and update product funding
       const batch = writeBatch(db);
 
-      // 1. Deduct from wallet
+      // 1. Deduct from user's wallet
       const walletRef = doc(db, "wallets", userId);
       batch.update(walletRef, {
         balance: increment(-amount),
       });
 
-      // 2. Create investment record
+      // 2. Add funds to business wallet (this holds the money until manufacturing)
+      const businessWalletRef = doc(db, "wallets", "business");
+      const businessWalletDoc = await getDoc(businessWalletRef);
+
+      if (businessWalletDoc.exists()) {
+        // Update existing business wallet
+        batch.update(businessWalletRef, {
+          balance: increment(amount),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create business wallet if it doesn't exist
+        batch.set(businessWalletRef, {
+          balance: amount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // 3. Create investment record
       const investmentRef = doc(collection(db, "investments"));
       batch.set(investmentRef, {
         userId,
         productId,
-        designerId, // This might still be undefined, but at least we tried to get it
+        designerId,
         amount,
         createdAt: serverTimestamp(),
         status: "completed",
         transactionId: investmentRef.id,
         productName: productData.name || "Unknown Product",
+        // Track that these funds are held in the business account
+        heldInBusinessAccount: true
       });
 
-      // 3. Update product funding
+      // 4. Update product funding
       const productRef = doc(db, "products", productId);
       batch.update(productRef, {
         currentFunding: increment(amount),
         investorCount: increment(1),
         lastFundedAt: serverTimestamp(),
+        // Add user to funders array if they're not already in it
+        funders: arrayUnion(userId),
+        // Add a record that this amount is held in the business account
+        businessHeldFunds: increment(amount)
       });
 
-      // 4. Add transaction record
-      const transactionRef = doc(collection(db, "transactions"));
-      batch.set(transactionRef, {
+      // 5. Add transaction records
+      // 5.1 Record the investment for the user
+      const userTransactionRef = doc(collection(db, "transactions"));
+      batch.set(userTransactionRef, {
         userId,
         amount: -amount,
         type: "investment",
@@ -492,8 +519,47 @@ class WalletService {
         status: "completed",
       });
 
+      // 5.2 Record the deposit to the business account
+      const businessTransactionRef = doc(collection(db, "transactions"));
+      batch.set(businessTransactionRef, {
+        userId: "business",
+        amount: amount,
+        type: "funding_hold",
+        description: `Holding funds for ${productData.name || "product"}`,
+        productId,
+        createdAt: serverTimestamp(),
+        status: "pending", // Funds are pending until they can be sent to the manufacturer
+        investmentId: investmentRef.id,
+        investorId: userId
+      });
+
       // Commit all changes
       await batch.commit();
+
+      // Send notification about the investment
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      );
+      
+      // Notify the investor
+      await notificationService.createNotification(
+        userId,
+        "investment",
+        "Investment Successful",
+        `Your investment of $${amount} in ${productData.name || "product"} has been processed.`,
+        `/product/${productId}`
+      );
+      
+      // Notify the designer if we have their ID
+      if (designerId) {
+        await notificationService.createNotification(
+          designerId,
+          "funding",
+          "Product Received Funding",
+          `Your product ${productData.name || "product"} received $${amount} in funding.`,
+          `/product/${productId}`
+        );
+      }
 
       return {
         success: true,
@@ -712,6 +778,219 @@ class WalletService {
       return {
         success: false,
         error: error.message || "Failed to process product sale",
+      };
+    }
+  }
+
+  /**
+   * Transfer product funds to manufacturer
+   * @param {string} designerId - Designer's user ID (must be the product owner)
+   * @param {string} productId - Product ID
+   * @param {string} manufacturerEmail - Verified manufacturer's email
+   * @param {string} note - Optional note for the transfer
+   * @returns {Promise<Object>} Result with success status
+   */
+  async transferProductFundsToManufacturer(designerId, productId, manufacturerEmail, note = "") {
+    try {
+      // 1. Verify the product exists and is fully funded
+      const productRef = doc(db, "products", productId);
+      const productDoc = await getDoc(productRef);
+      
+      if (!productDoc.exists()) {
+        return {
+          success: false,
+          error: "Product not found",
+        };
+      }
+      
+      const productData = productDoc.data();
+      
+      // 2. Verify the designer is the product owner
+      if (productData.designerId !== designerId) {
+        return {
+          success: false,
+          error: "Only the product designer can authorize fund transfers",
+        };
+      }
+      
+      // 3. Check if product is fully funded
+      const currentFunding = productData.currentFunding || 0;
+      const fundingGoal = productData.fundingGoal || 0;
+      
+      if (currentFunding < fundingGoal) {
+        return {
+          success: false,
+          error: "Product must be fully funded before transferring to manufacturer",
+        };
+      }
+      
+      // 4. Check if the business account holds the funds
+      const businessHeldFunds = productData.businessHeldFunds || 0;
+      if (businessHeldFunds <= 0) {
+        return {
+          success: false,
+          error: "No funds available for transfer",
+        };
+      }
+      
+      // 5. Find manufacturer by email
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", manufacturerEmail));
+      const manufacturerSnapshot = await getDocs(q);
+      
+      if (manufacturerSnapshot.empty) {
+        return {
+          success: false,
+          error: "Manufacturer not found",
+        };
+      }
+      
+      const manufacturerDoc = manufacturerSnapshot.docs[0];
+      const manufacturerId = manufacturerDoc.id;
+      const manufacturerData = manufacturerDoc.data();
+      
+      // 6. Verify manufacturer has manufacturer role
+      const manufacturerRoles = Array.isArray(manufacturerData.roles)
+        ? manufacturerData.roles
+        : manufacturerData.role
+        ? [manufacturerData.role]
+        : [];
+      
+      if (!manufacturerRoles.includes("manufacturer")) {
+        return {
+          success: false,
+          error: "Selected recipient is not a verified manufacturer",
+        };
+      }
+      
+      // 7. Check business wallet balance
+      const businessWalletRef = doc(db, "wallets", "business");
+      const businessWalletDoc = await getDoc(businessWalletRef);
+      
+      if (!businessWalletDoc.exists() || businessWalletDoc.data().balance < businessHeldFunds) {
+        return {
+          success: false,
+          error: "Insufficient funds in business account",
+        };
+      }
+      
+      // 8. Begin transaction to transfer funds
+      const batch = writeBatch(db);
+      
+      // 8.1 Update business wallet
+      batch.update(businessWalletRef, {
+        balance: increment(-businessHeldFunds),
+        updatedAt: serverTimestamp(),
+      });
+      
+      // 8.2 Update or create manufacturer wallet
+      const manufacturerWalletRef = doc(db, "wallets", manufacturerId);
+      const manufacturerWalletDoc = await getDoc(manufacturerWalletRef);
+      
+      if (manufacturerWalletDoc.exists()) {
+        batch.update(manufacturerWalletRef, {
+          balance: increment(businessHeldFunds),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        batch.set(manufacturerWalletRef, {
+          balance: businessHeldFunds,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      // 8.3 Update product status
+      batch.update(productRef, {
+        manufacturerId,
+        manufacturerEmail,
+        businessHeldFunds: 0, // Reset held funds to 0
+        manufacturingStatus: "funded",
+        fundsSentToManufacturer: true,
+        manufacturingStartDate: serverTimestamp(),
+      });
+      
+      // 8.4 Create transaction records
+      // Business debit transaction
+      const businessTransactionRef = doc(collection(db, "transactions"));
+      batch.set(businessTransactionRef, {
+        userId: "business",
+        amount: -businessHeldFunds,
+        type: "manufacturing_transfer",
+        description: `Transferred funds to manufacturer for ${productData.name || "product"}`,
+        productId,
+        manufacturerId,
+        designerId,
+        createdAt: serverTimestamp(),
+        status: "completed",
+        note: note || "Manufacturing funds transfer",
+      });
+      
+      // Manufacturer credit transaction
+      const manufacturerTransactionRef = doc(collection(db, "transactions"));
+      batch.set(manufacturerTransactionRef, {
+        userId: manufacturerId,
+        amount: businessHeldFunds,
+        type: "manufacturing_funds",
+        description: `Received manufacturing funds for ${productData.name || "product"}`,
+        productId,
+        designerId,
+        createdAt: serverTimestamp(),
+        status: "completed",
+        note: note || "Manufacturing funds transfer",
+      });
+      
+      // Commit all changes
+      await batch.commit();
+      
+      // 9. Send notifications to relevant parties
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      );
+      
+      // Notify the designer
+      await notificationService.createNotification(
+        designerId,
+        "manufacturing",
+        "Funds Transferred to Manufacturer",
+        `$${businessHeldFunds.toFixed(2)} has been transferred to ${manufacturerEmail} for manufacturing ${productData.name || "product"}.`,
+        `/product/${productId}`
+      );
+      
+      // Notify the manufacturer
+      await notificationService.createNotification(
+        manufacturerId,
+        "manufacturing",
+        "Manufacturing Funds Received",
+        `You've received $${businessHeldFunds.toFixed(2)} to manufacture ${productData.name || "product"}.`,
+        `/product/${productId}`
+      );
+      
+      // 10. Notify funders that manufacturing has begun
+      if (Array.isArray(productData.funders) && productData.funders.length > 0) {
+        for (const funderId of productData.funders) {
+          if (funderId !== designerId) { // Don't notify the designer twice
+            await notificationService.createNotification(
+              funderId,
+              "manufacturing",
+              "Manufacturing Started",
+              `Manufacturing has begun for ${productData.name || "product"} that you funded.`,
+              `/product/${productId}`
+            );
+          }
+        }
+      }
+      
+      return {
+        success: true,
+        amount: businessHeldFunds,
+        message: `Successfully transferred $${businessHeldFunds.toFixed(2)} to manufacturer ${manufacturerEmail}`,
+      };
+    } catch (error) {
+      console.error("Error transferring funds to manufacturer:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to transfer funds to manufacturer",
       };
     }
   }

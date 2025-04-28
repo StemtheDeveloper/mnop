@@ -87,6 +87,100 @@
   font-style: italic;
 }
 
+.verification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  color: #2196f3;
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.name-verification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  color: #2196f3;
+  font-weight: bold;
+  font-size: 1rem;
+  background-color: #e3f2fd;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.verification-info {
+  background-color: #e3f2fd;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.verification-status {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: #0d47a1;
+}
+
+.verification-icon {
+  margin-right: 8px;
+  color: #2196f3;
+  font-weight: bold;
+  background-color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-controls {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 6px;
+  border-left: 3px solid #ff9800;
+}
+
+.admin-controls h4 {
+  margin-top: 0;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.admin-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.verify-btn {
+  background-color: #4caf50;
+  color: white;
+}
+
+.verify-btn:hover {
+  background-color: #388e3c;
+}
+
+.revoke-btn {
+  background-color: #f44336;
+  color: white;
+}
+
+.revoke-btn:hover {
+  background-color: #d32f2f;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .user-profile-page {

@@ -403,6 +403,64 @@
 
 .funding-complete-message {
   background-color: #e8f5e9;
+  color: #2e7d32;
+  padding: 15px;
+  border-radius: 6px;
+  margin-top: 15px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.manufacturing-options {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.select-manufacturer-button {
+  background-color: #ffd108;
+  color: #333;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 10px auto;
+  display: block;
+  transition: background-color 0.2s;
+}
+
+.select-manufacturer-button:hover {
+  background-color: #e6bd00;
+}
+
+.manufacturer-info-text {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.manufacturing-status {
+  margin-top: 15px;
+}
+
+.manufacturing-progress {
+  text-align: center;
+  margin: 10px 0;
+}
+
+.badge.manufacturing {
+  background-color: #2196f3;
+  color: white;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  display: inline-block;
+}
+
+.funding-complete-message {
+  background-color: #e8f5e9;
   color: #1b5e20;
   padding: 12px;
   border-radius: 4px;

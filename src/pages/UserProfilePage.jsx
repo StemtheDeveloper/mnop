@@ -9,7 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 
 const UserProfilePage = () => {
-    const { currentUser } = useUser();
+    const { currentUser, hasRole } = useUser();
     const { userId } = useParams();
 
     const [loading, setLoading] = useState(true);
@@ -129,6 +129,13 @@ const UserProfilePage = () => {
         return roles.map((role, index) => (
             <div key={index} className={`role-pill ${role.toLowerCase()}`}>
                 {role.charAt(0).toUpperCase() + role.slice(1)}
+                {/* Show verification badge if user is verified for this role */}
+                {role === 'manufacturer' && userProfile.manufacturerVerified && (
+                    <span className="verification-badge" title="Verified Manufacturer">✓</span>
+                )}
+                {role === 'designer' && userProfile.designerVerified && (
+                    <span className="verification-badge" title="Verified Designer">✓</span>
+                )}
             </div>
         ));
     };
@@ -187,7 +194,13 @@ const UserProfilePage = () => {
             <div className="profile-wrapper">
                 <div className="profile-left">
                     <div className="profile-picture-section">
-                        <h2>{userProfile.displayName || 'User'}</h2>
+                        <h2>
+                            {userProfile.displayName || 'User'}
+                            {/* Show a verification checkmark next to the user's name if verified in any role */}
+                            {(userProfile.manufacturerVerified || userProfile.designerVerified) && (
+                                <span className="name-verification-badge" title="Verified Account">✓</span>
+                            )}
+                        </h2>
                         {shouldShowField('showRole') && (
                             <div className="roles-list">
                                 {renderRolePills()}
@@ -199,6 +212,30 @@ const UserProfilePage = () => {
                         <button className="pill-btn message-button" onClick={() => window.location.href = `/messages/new/${userId}`}>
                             Message User
                         </button>
+                        
+                        {/* Admin verification controls */}
+                        {currentUser && hasRole('admin') && (userId !== currentUser.uid) && (
+                            <div className="admin-controls">
+                                <h4>Admin Controls</h4>
+                                {userProfile.roles?.includes('manufacturer') && (
+                                    <button 
+                                        className={`admin-btn ${userProfile.manufacturerVerified ? 'revoke-btn' : 'verify-btn'}`}
+                                        onClick={() => window.location.href = `/admin/verify/${userId}/manufacturer`}
+                                    >
+                                        {userProfile.manufacturerVerified ? 'Revoke Manufacturer Verification' : 'Verify as Manufacturer'}
+                                    </button>
+                                )}
+                                
+                                {userProfile.roles?.includes('designer') && (
+                                    <button 
+                                        className={`admin-btn ${userProfile.designerVerified ? 'revoke-btn' : 'verify-btn'}`}
+                                        onClick={() => window.location.href = `/admin/verify/${userId}/designer`}
+                                    >
+                                        {userProfile.designerVerified ? 'Revoke Designer Verification' : 'Verify as Designer'}
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -260,7 +297,29 @@ const UserProfilePage = () => {
                                         </div>
                                     )}
 
-                                    {!userProfile.bio && !userProfile.location && !userProfile.website && !userProfile.birthday && (
+                                    {/* Display verification status */}
+                                    {userProfile.manufacturerVerified && (
+                                        <div className="profile-info-item verification-info">
+                                            <h4>Verification Status</h4>
+                                            <p className="verification-status">
+                                                <span className="verification-icon">✓</span> 
+                                                Verified Manufacturer
+                                            </p>
+                                        </div>
+                                    )}
+                                    
+                                    {userProfile.designerVerified && (
+                                        <div className="profile-info-item verification-info">
+                                            <h4>Verification Status</h4>
+                                            <p className="verification-status">
+                                                <span className="verification-icon">✓</span> 
+                                                Verified Designer
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {!userProfile.bio && !userProfile.location && !userProfile.website && !userProfile.birthday && 
+                                     !userProfile.manufacturerVerified && !userProfile.designerVerified && (
                                         <div className="profile-info-item">
                                             <p className="empty-info">This user hasn't added any information to their profile yet.</p>
                                         </div>

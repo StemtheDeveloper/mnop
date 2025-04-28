@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import ReactDOM from 'react-dom';
 import '../styles/Modal.css';
 
 const Modal = ({ title, children, onClose }) => {
@@ -29,7 +28,8 @@ const Modal = ({ title, children, onClose }) => {
         }
     };
 
-    return ReactDOM.createPortal(
+    // Instead of using createPortal, we'll render the modal directly
+    return (
         <div className="modal-overlay" onClick={handleModalClick}>
             <div className="modal-container">
                 <div className="modal-header">
@@ -40,8 +40,7 @@ const Modal = ({ title, children, onClose }) => {
                     {children}
                 </div>
             </div>
-        </div>,
-        document.getElementById('modal-root')
+        </div>
     );
 };
 
