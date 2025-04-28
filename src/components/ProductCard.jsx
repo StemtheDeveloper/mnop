@@ -74,6 +74,10 @@ const ProductCard = ({
       return;
     }
 
+    // Optimistically update UI immediately for better responsiveness
+    const newLikedState = !isLiked;
+    setIsLiked(newLikedState);
+    
     setIsLoading(true);
 
     try {
@@ -88,27 +92,46 @@ const ProductCard = ({
       const likedProducts = userData.likedProducts || [];
       const isCurrentlyLiked = likedProducts.includes(id);
 
-      // Toggle like status
+      // Toggle like status for the user
       await updateDoc(userRef, {
         likedProducts: isCurrentlyLiked
           ? arrayRemove(id)
           : arrayUnion(id)
       });
 
-      // Update product likes count
+      // Get the current product data
       const productRef = doc(db, 'products', id);
+      const productDoc = await getDoc(productRef);
+      
+      if (!productDoc.exists()) {
+        throw new Error("Product document not found");
+      }
+      
+      const productData = productDoc.data();
+      const currentLikes = productData.likesCount || 0;
+      
+      // Calculate new like count based on whether we're adding or removing a like
+      let newLikeCount;
+      if (isCurrentlyLiked) {
+        // If user already liked it, they're removing their like
+        newLikeCount = Math.max(0, currentLikes - 1);
+      } else {
+        // If user hasn't liked it yet, they're adding a like
+        newLikeCount = currentLikes + 1;
+      }
+
+      // Update product likes count correctly
       await updateDoc(productRef, {
-        likesCount: isCurrentlyLiked
-          ? (userData.likesCount || 0) - 1
-          : (userData.likesCount || 0) + 1
+        likesCount: newLikeCount
       });
 
-      setIsLiked(!isCurrentlyLiked);
       showSuccess(isCurrentlyLiked ? "Removed from favorites" : "Added to favorites");
 
     } catch (error) {
       console.error("Error updating like status:", error);
       showError("Failed to update favorites");
+      // Revert optimistic UI update if there was an error
+      setIsLiked(!newLikedState);
     } finally {
       setIsLoading(false);
     }

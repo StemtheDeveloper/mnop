@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's'
+import { useToast } from '../contexts/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import notificationService from '../services/notificationService';
@@ -12,7 +12,7 @@ import '../styles/CheckoutPage.css';
 
 const CheckoutPage = () => {
     const { currentUser, userProfile, userWallet } = useUser();
-    const { showSuccess, showError } = useToast();
+    const { success, error: showError } = useToast();
     const navigate = useNavigate();
 
     const [cartItems, setCartItems] = useState([]);
@@ -408,7 +408,7 @@ const CheckoutPage = () => {
             const itemCount = cartItems.length;
             const itemText = itemCount === 1 ? 'item' : 'items';
             const orderNumber = orderRef.id.slice(-6);
-            showSuccess(`Order #${orderNumber} with ${itemCount} ${itemText} has been successfully placed! Total: ${formatPrice(total)}`);
+            success(`Order #${orderNumber} with ${itemCount} ${itemText} has been successfully placed! Total: ${formatPrice(total)}`);
 
             // Simulate payment processing
             setTimeout(() => {
