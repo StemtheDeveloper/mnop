@@ -501,7 +501,9 @@ class NotificationService {
       userId: investorId,
       type: "revenue_share",
       title: "Investment Revenue",
-      message: `You've earned $${amount.toFixed(2)} in revenue from sales of "${productName}" that you invested in!`,
+      message: `You've earned $${amount.toFixed(
+        2
+      )} in revenue from sales of "${productName}" that you invested in!`,
       link: `/portfolio`,
       read: false,
       createdAt: serverTimestamp(),

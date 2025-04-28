@@ -222,14 +222,14 @@ class InvestmentService {
 
       // Calculate totals
       const totalReturns = returns.reduce((sum, item) => sum + item.amount, 0);
-      
+
       return {
         success: true,
         data: {
           returns,
           totalReturns,
-          count: returns.length
-        }
+          count: returns.length,
+        },
       };
     } catch (error) {
       console.error("Error getting user investment returns:", error);
@@ -252,43 +252,42 @@ class InvestmentService {
       if (!investmentsResult.success) {
         throw new Error(investmentsResult.error);
       }
-      
+
       // Get returns
       const returnsResult = await this.getUserInvestmentReturns(userId);
       if (!returnsResult.success) {
         throw new Error(returnsResult.error);
       }
-      
+
       const investments = investmentsResult.data;
       const returns = returnsResult.data;
-      
+
       // Calculate total invested
       const totalInvested = investments.reduce(
-        (sum, investment) => sum + investment.amount, 
+        (sum, investment) => sum + investment.amount,
         0
       );
-      
+
       // Calculate ROI
-      const roi = totalInvested > 0 
-        ? (returns.totalReturns / totalInvested) * 100 
-        : 0;
-      
+      const roi =
+        totalInvested > 0 ? (returns.totalReturns / totalInvested) * 100 : 0;
+
       return {
         success: true,
         data: {
           investments: {
             items: investments,
             total: totalInvested,
-            count: investments.length
+            count: investments.length,
           },
           returns: {
             items: returns.returns,
             total: returns.totalReturns,
-            count: returns.count
+            count: returns.count,
           },
           roi: Math.round(roi * 100) / 100, // ROI as percentage, rounded to 2 decimal places
-          totalProfit: returns.totalReturns
-        }
+          totalProfit: returns.totalReturns,
+        },
       };
     } catch (error) {
       console.error("Error getting investment statistics:", error);

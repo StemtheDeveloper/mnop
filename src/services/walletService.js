@@ -636,19 +636,22 @@ class WalletService {
     try {
       // Use Firebase Cloud Function to distribute revenue
       const functions = getFunctions();
-      const distributeRevenue = httpsCallable(functions, "distributeInvestorRevenue");
+      const distributeRevenue = httpsCallable(
+        functions,
+        "distributeInvestorRevenue"
+      );
 
       const result = await distributeRevenue({
         productId,
         saleAmount,
         manufacturingCost,
         quantity,
-        orderId
+        orderId,
       });
 
       return {
         success: true,
-        data: result.data
+        data: result.data,
       };
     } catch (error) {
       console.error("Error distributing investor revenue:", error);
@@ -699,8 +702,10 @@ class WalletService {
       return {
         success: true,
         commissionResult: commissionResult.success ? commissionResult : null,
-        distributionResult: distributionResult.success ? distributionResult.data : null,
-        message: "Sale processed successfully"
+        distributionResult: distributionResult.success
+          ? distributionResult.data
+          : null,
+        message: "Sale processed successfully",
       };
     } catch (error) {
       console.error("Error processing product sale:", error);
