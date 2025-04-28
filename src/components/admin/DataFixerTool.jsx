@@ -864,8 +864,8 @@ const DataFixerTool = () => {
                 category/categories fields in products.
                 {dataType === 'products' && (
                     <>
-                        {viewMode === 'excel' ? 
-                            ' Use Excel View for spreadsheet-like bulk editing.' : 
+                        {viewMode === 'excel' ?
+                            ' Use Excel View for spreadsheet-like bulk editing.' :
                             ' Switch to Excel View for spreadsheet-like bulk editing.'}
                     </>
                 )}

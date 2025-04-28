@@ -16,22 +16,22 @@ const ProductsExcelView = () => {
     const [queryField, setQueryField] = useState('');
     const [queryValue, setQueryValue] = useState('');
     const [queryLimit, setQueryLimit] = useState(100);
-    
+
     // Track all possible fields across all products
     const [allFields, setAllFields] = useState([]);
     // Track edited cells to highlight them
     const [editedCells, setEditedCells] = useState({});
     // Track expanded image rows
     const [expandedRows, setExpandedRows] = useState({});
-    
+
     // Add fullscreen state
     const [isFullScreen, setIsFullScreen] = useState(false);
-    
+
     // Toggle fullscreen mode
     const toggleFullScreen = () => {
         setIsFullScreen(!isFullScreen);
     };
-    
+
     // Exit fullscreen when ESC key is pressed
     useEffect(() => {
         const handleEscKey = (event) => {
@@ -39,7 +39,7 @@ const ProductsExcelView = () => {
                 setIsFullScreen(false);
             }
         };
-        
+
         document.addEventListener('keydown', handleEscKey);
         return () => {
             document.removeEventListener('keydown', handleEscKey);
@@ -62,10 +62,10 @@ const ProductsExcelView = () => {
         setLoading(true);
         setError(null);
         setSuccess(null);
-        
+
         try {
             let productsQuery;
-            
+
             if (queryField && queryValue) {
                 productsQuery = query(
                     collection(db, 'products'),
@@ -74,15 +74,15 @@ const ProductsExcelView = () => {
             } else {
                 productsQuery = collection(db, 'products');
             }
-            
+
             const snapshot = await getDocs(productsQuery);
-            
+
             if (snapshot.empty) {
                 setError('No products found with the specified criteria');
                 setLoading(false);
                 return;
             }
-            
+
             // Get all products and limit to queryLimit
             const fetchedProducts = snapshot.docs
                 .map(doc => ({
@@ -91,7 +91,7 @@ const ProductsExcelView = () => {
                     _modified: false // Add a flag to track modified items
                 }))
                 .slice(0, queryLimit);
-                
+
             // Extract all unique field names from all products
             const fieldSet = new Set(['id']);
             fetchedProducts.forEach(product => {
@@ -101,13 +101,13 @@ const ProductsExcelView = () => {
                     }
                 });
             });
-            
+
             // Convert to array and sort
             // Place important fields first
             const priorityFields = ['id', 'name', 'price', 'category', 'categories', 'manufacturingCost', 'status', 'description', 'imageUrls'];
             const otherFields = [...fieldSet].filter(field => !priorityFields.includes(field));
             const sortedFields = [...priorityFields.filter(field => fieldSet.has(field)), ...otherFields.sort()];
-            
+
             setAllFields(sortedFields);
             setProducts(fetchedProducts);
             setOriginalProducts(JSON.parse(JSON.stringify(fetchedProducts)));
@@ -129,13 +129,13 @@ const ProductsExcelView = () => {
                     const newValue = (field === 'price' || field === 'manufacturingCost' || field === 'fundingGoal' || field === 'currentFunding')
                         ? (value === '' ? '' : Number(value))
                         : value;
-                        
+
                     // Track this cell as edited
                     setEditedCells(prev => ({
                         ...prev,
                         [`${productId}-${field}`]: true
                     }));
-                    
+
                     return {
                         ...product,
                         [field]: newValue,
@@ -151,7 +151,7 @@ const ProductsExcelView = () => {
     const handleArrayChange = (productId, field, value) => {
         // Split by comma and trim each value
         const arrayValues = value.split(',').map(v => v.trim()).filter(v => v);
-        
+
         setProducts(prevProducts => {
             return prevProducts.map(product => {
                 if (product.id === productId) {
@@ -160,7 +160,7 @@ const ProductsExcelView = () => {
                         ...prev,
                         [`${productId}-${field}`]: true
                     }));
-                    
+
                     return {
                         ...product,
                         [field]: arrayValues,
@@ -182,7 +182,7 @@ const ProductsExcelView = () => {
                         ...prev,
                         [`${productId}-${field}`]: true
                     }));
-                    
+
                     return {
                         ...product,
                         [field]: value === 'true',
@@ -205,23 +205,23 @@ const ProductsExcelView = () => {
     // Save all changes to Firestore
     const saveChanges = async () => {
         const modifiedProducts = products.filter(p => p._modified);
-        
+
         if (modifiedProducts.length === 0) {
             setError('No changes to save');
             return;
         }
-        
+
         setSaving(true);
         setError(null);
         setSuccess(null);
-        
+
         try {
             const batch = writeBatch(db);
-            
+
             modifiedProducts.forEach(product => {
                 const { id, _modified, ...updateData } = product;
                 const productRef = doc(db, 'products', id);
-                
+
                 // Ensure categories is always an array
                 if (updateData.categories && !Array.isArray(updateData.categories)) {
                     if (typeof updateData.categories === 'string') {
@@ -230,26 +230,26 @@ const ProductsExcelView = () => {
                         updateData.categories = [];
                     }
                 }
-                
+
                 // Ensure category field is consistent with categories array
                 if (updateData.category && (!updateData.categories || updateData.categories.length === 0)) {
                     updateData.categories = [updateData.category];
                 } else if (Array.isArray(updateData.categories) && updateData.categories.length > 0 && !updateData.category) {
                     updateData.category = updateData.categories[0];
                 }
-                
+
                 batch.update(productRef, updateData);
             });
-            
+
             await batch.commit();
-            
+
             // Reset edited cells and modified flags
             setEditedCells({});
-            setProducts(prevProducts => 
+            setProducts(prevProducts =>
                 prevProducts.map(p => ({ ...p, _modified: false }))
             );
             setOriginalProducts(JSON.parse(JSON.stringify(products.map(p => ({ ...p, _modified: false })))));
-            
+
             setSuccess(`Successfully saved changes to ${modifiedProducts.length} products`);
         } catch (err) {
             console.error('Error saving products:', err);
@@ -268,11 +268,11 @@ const ProductsExcelView = () => {
 
     // Filter products based on search term
     const filteredProducts = filter
-        ? products.filter(product => 
+        ? products.filter(product =>
             Object.entries(product).some(([key, value]) => {
                 if (key === '_modified') return false;
-                const stringValue = typeof value === 'object' 
-                    ? JSON.stringify(value) 
+                const stringValue = typeof value === 'object'
+                    ? JSON.stringify(value)
                     : String(value);
                 return stringValue.toLowerCase().includes(filter.toLowerCase());
             })
@@ -285,7 +285,7 @@ const ProductsExcelView = () => {
         if (field === '_modified') {
             return null;
         }
-        
+
         // Handle ID field as read-only
         if (field === 'id') {
             return (
@@ -294,11 +294,11 @@ const ProductsExcelView = () => {
                 </td>
             );
         }
-        
+
         // Handle missing fields
         if (product[field] === undefined) {
             return (
-                <td 
+                <td
                     key={`${product.id}-${field}`}
                     className="empty-cell"
                     onClick={() => handleCellChange(product.id, field, '')}
@@ -307,19 +307,19 @@ const ProductsExcelView = () => {
                 </td>
             );
         }
-        
+
         // Handle array fields (like categories, imageUrls)
         if (Array.isArray(product[field])) {
             // Special handling for imageUrls
             if (field === 'imageUrls') {
                 const imageCount = product[field].length;
                 return (
-                    <td 
+                    <td
                         key={`${product.id}-${field}`}
                         className={`image-cell ${editedCells[`${product.id}-${field}`] ? 'edited-cell' : ''}`}
                     >
                         {imageCount > 0 ? (
-                            <button 
+                            <button
                                 className="image-toggle-btn"
                                 onClick={() => toggleRowExpansion(product.id)}
                             >
@@ -331,10 +331,10 @@ const ProductsExcelView = () => {
                     </td>
                 );
             }
-            
+
             // Regular array field
             return (
-                <td 
+                <td
                     key={`${product.id}-${field}`}
                     className={`array-cell ${editedCells[`${product.id}-${field}`] ? 'edited-cell' : ''}`}
                 >
@@ -347,11 +347,11 @@ const ProductsExcelView = () => {
                 </td>
             );
         }
-        
+
         // Handle boolean fields
         if (typeof product[field] === 'boolean') {
             return (
-                <td 
+                <td
                     key={`${product.id}-${field}`}
                     className={`boolean-cell ${editedCells[`${product.id}-${field}`] ? 'edited-cell' : ''}`}
                 >
@@ -365,11 +365,11 @@ const ProductsExcelView = () => {
                 </td>
             );
         }
-        
+
         // Handle number fields
         if (typeof product[field] === 'number') {
             return (
-                <td 
+                <td
                     key={`${product.id}-${field}`}
                     className={`number-cell ${editedCells[`${product.id}-${field}`] ? 'edited-cell' : ''}`}
                 >
@@ -382,12 +382,12 @@ const ProductsExcelView = () => {
                 </td>
             );
         }
-        
+
         // Handle timestamp objects
         if (product[field] && typeof product[field] === 'object' && product[field].seconds) {
             const date = new Date(product[field].seconds * 1000);
             return (
-                <td 
+                <td
                     key={`${product.id}-${field}`}
                     className="timestamp-cell"
                 >
@@ -395,11 +395,11 @@ const ProductsExcelView = () => {
                 </td>
             );
         }
-        
+
         // Handle objects (nested data)
         if (product[field] && typeof product[field] === 'object') {
             return (
-                <td 
+                <td
                     key={`${product.id}-${field}`}
                     className="object-cell"
                 >
@@ -407,10 +407,10 @@ const ProductsExcelView = () => {
                 </td>
             );
         }
-        
+
         // Default: text input for string fields
         return (
-            <td 
+            <td
                 key={`${product.id}-${field}`}
                 className={`text-cell ${editedCells[`${product.id}-${field}`] ? 'edited-cell' : ''}`}
             >
@@ -428,7 +428,7 @@ const ProductsExcelView = () => {
         if (!expandedRows[product.id] || !product.imageUrls || product.imageUrls.length === 0) {
             return null;
         }
-        
+
         return (
             <tr className="expanded-image-row">
                 <td colSpan={allFields.length}>
@@ -452,7 +452,7 @@ const ProductsExcelView = () => {
                 Edit multiple products at once in a spreadsheet-like interface. All fields are shown, including missing fields.
                 Changes are highlighted and can be saved in batch.
             </p>
-            
+
             <div className="excel-view-controls">
                 <div className="control-section">
                     <label>
@@ -500,7 +500,7 @@ const ProductsExcelView = () => {
                     >
                         {loading ? 'Loading...' : 'Load Products'}
                     </button>
-                    
+
                     {products.length > 0 && (
                         <>
                             <button
@@ -510,7 +510,7 @@ const ProductsExcelView = () => {
                             >
                                 {saving ? 'Saving...' : `Save Changes (${products.filter(p => p._modified).length})`}
                             </button>
-                            
+
                             <button
                                 className="discard-changes-btn"
                                 onClick={discardChanges}
@@ -522,19 +522,19 @@ const ProductsExcelView = () => {
                     )}
                 </div>
             </div>
-            
+
             <div className="fullscreen-toggle">
                 <button onClick={toggleFullScreen}>
                     {isFullScreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
                 </button>
             </div>
-            
+
             {(success || error) && (
                 <div className={`message ${error ? 'error' : 'success'}`}>
                     {error || success}
                 </div>
             )}
-            
+
             {products.length > 0 && (
                 <div className="excel-view-filter">
                     <input
@@ -548,7 +548,7 @@ const ProductsExcelView = () => {
                     </span>
                 </div>
             )}
-            
+
             {loading ? (
                 <div className="loading-container">
                     <LoadingSpinner />
