@@ -318,14 +318,17 @@ const MessagesPage = () => {
                                                 conversation.otherParticipant?.email ||
                                                 'Unknown User'}
                                             {conversation.otherParticipant?.id && (
-                                                <Link
-                                                    to={`/user/${conversation.otherParticipant.id}`}
+                                                <span
                                                     className="view-profile-link"
                                                     title="View Profile"
-                                                    onClick={(e) => e.stopPropagation()}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        navigate(`/user/${conversation.otherParticipant.id}`);
+                                                    }}
                                                 >
                                                     View Profile
-                                                </Link>
+                                                </span>
                                             )}
                                         </h3>
                                         <span className="conversation-time">
