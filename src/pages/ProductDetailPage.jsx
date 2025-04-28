@@ -216,7 +216,7 @@ const ProductDetailPage = () => {
     // Handle manufacturer selection success
     const handleManufacturerSuccess = (result) => {
         showSuccess(`Successfully transferred ${result.amount?.toLocaleString()} credits to manufacturer`);
-        
+
         // Update the product in the UI to reflect the manufacturing status
         setProduct(prev => ({
             ...prev,
@@ -537,23 +537,23 @@ const ProductDetailPage = () => {
                             {isFullyFunded && (
                                 <div className="funding-complete-message">
                                     This product has been fully funded! 🎉
-                                    
+
                                     {/* Show manufacturer selection button for the product designer */}
-                                    {currentUser && product.designerId === currentUser.uid && 
-                                     !product.fundsSentToManufacturer && (
-                                        <div className="manufacturing-options">
-                                            <button 
-                                                className="btn-secondary select-manufacturer-button"
-                                                onClick={() => setShowManufacturerModal(true)}
-                                            >
-                                                Select Manufacturer
-                                            </button>
-                                            <p className="manufacturer-info-text">
-                                                Your product is fully funded. Select a manufacturer to begin production.
-                                            </p>
-                                        </div>
-                                    )}
-                                    
+                                    {currentUser && product.designerId === currentUser.uid &&
+                                        !product.fundsSentToManufacturer && (
+                                            <div className="manufacturing-options">
+                                                <button
+                                                    className="btn-secondary select-manufacturer-button"
+                                                    onClick={() => setShowManufacturerModal(true)}
+                                                >
+                                                    Select Manufacturer
+                                                </button>
+                                                <p className="manufacturer-info-text">
+                                                    Your product is fully funded. Select a manufacturer to begin production.
+                                                </p>
+                                            </div>
+                                        )}
+
                                     {/* Show manufacturing in progress message */}
                                     {product.fundsSentToManufacturer && (
                                         <div className="manufacturing-status">

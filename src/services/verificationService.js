@@ -1,5 +1,13 @@
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
+import { db } from "../config/firebase";
 
 class VerificationService {
   /**
@@ -11,20 +19,20 @@ class VerificationService {
    */
   async verifyUser(userId, role, verified = true) {
     try {
-      if (!userId || !['manufacturer', 'designer'].includes(role)) {
+      if (!userId || !["manufacturer", "designer"].includes(role)) {
         return {
           success: false,
-          error: 'Invalid user ID or role'
+          error: "Invalid user ID or role",
         };
       }
 
-      const userRef = doc(db, 'users', userId);
+      const userRef = doc(db, "users", userId);
       const userDoc = await getDoc(userRef);
 
       if (!userDoc.exists()) {
         return {
           success: false,
-          error: 'User not found'
+          error: "User not found",
         };
       }
 
@@ -32,18 +40,20 @@ class VerificationService {
       const verificationField = `${role}Verified`;
       await updateDoc(userRef, {
         [verificationField]: verified,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
       return {
         success: true,
-        message: `User successfully ${verified ? 'verified' : 'unverified'} as ${role}`
+        message: `User successfully ${
+          verified ? "verified" : "unverified"
+        } as ${role}`,
       };
     } catch (error) {
-      console.error('Error verifying user:', error);
+      console.error("Error verifying user:", error);
       return {
         success: false,
-        error: error.message || 'Failed to verify user'
+        error: error.message || "Failed to verify user",
       };
     }
   }
@@ -55,17 +65,17 @@ class VerificationService {
    */
   async getUsersByRole(role) {
     try {
-      if (!['manufacturer', 'designer'].includes(role)) {
-        throw new Error('Invalid role');
+      if (!["manufacturer", "designer"].includes(role)) {
+        throw new Error("Invalid role");
       }
 
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('roles', 'array-contains', role));
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("roles", "array-contains", role));
       const snapshot = await getDocs(q);
 
-      return snapshot.docs.map(doc => ({
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
     } catch (error) {
       console.error(`Error getting ${role}s:`, error);
@@ -79,20 +89,20 @@ class VerificationService {
    */
   async getVerifiedManufacturers() {
     try {
-      const usersRef = collection(db, 'users');
+      const usersRef = collection(db, "users");
       const q = query(
-        usersRef, 
-        where('roles', 'array-contains', 'manufacturer'),
-        where('manufacturerVerified', '==', true)
+        usersRef,
+        where("roles", "array-contains", "manufacturer"),
+        where("manufacturerVerified", "==", true)
       );
       const snapshot = await getDocs(q);
 
-      return snapshot.docs.map(doc => ({
+      return snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
     } catch (error) {
-      console.error('Error getting verified manufacturers:', error);
+      console.error("Error getting verified manufacturers:", error);
       return []; // Return empty array on error
     }
   }

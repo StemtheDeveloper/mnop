@@ -212,22 +212,22 @@ const UserProfilePage = () => {
                         <button className="pill-btn message-button" onClick={() => window.location.href = `/messages/new/${userId}`}>
                             Message User
                         </button>
-                        
+
                         {/* Admin verification controls */}
                         {currentUser && hasRole('admin') && (userId !== currentUser.uid) && (
                             <div className="admin-controls">
                                 <h4>Admin Controls</h4>
                                 {userProfile.roles?.includes('manufacturer') && (
-                                    <button 
+                                    <button
                                         className={`admin-btn ${userProfile.manufacturerVerified ? 'revoke-btn' : 'verify-btn'}`}
                                         onClick={() => window.location.href = `/admin/verify/${userId}/manufacturer`}
                                     >
                                         {userProfile.manufacturerVerified ? 'Revoke Manufacturer Verification' : 'Verify as Manufacturer'}
                                     </button>
                                 )}
-                                
+
                                 {userProfile.roles?.includes('designer') && (
-                                    <button 
+                                    <button
                                         className={`admin-btn ${userProfile.designerVerified ? 'revoke-btn' : 'verify-btn'}`}
                                         onClick={() => window.location.href = `/admin/verify/${userId}/designer`}
                                     >
@@ -302,28 +302,28 @@ const UserProfilePage = () => {
                                         <div className="profile-info-item verification-info">
                                             <h4>Verification Status</h4>
                                             <p className="verification-status">
-                                                <span className="verification-icon">✓</span> 
+                                                <span className="verification-icon">✓</span>
                                                 Verified Manufacturer
                                             </p>
                                         </div>
                                     )}
-                                    
+
                                     {userProfile.designerVerified && (
                                         <div className="profile-info-item verification-info">
                                             <h4>Verification Status</h4>
                                             <p className="verification-status">
-                                                <span className="verification-icon">✓</span> 
+                                                <span className="verification-icon">✓</span>
                                                 Verified Designer
                                             </p>
                                         </div>
                                     )}
 
-                                    {!userProfile.bio && !userProfile.location && !userProfile.website && !userProfile.birthday && 
-                                     !userProfile.manufacturerVerified && !userProfile.designerVerified && (
-                                        <div className="profile-info-item">
-                                            <p className="empty-info">This user hasn't added any information to their profile yet.</p>
-                                        </div>
-                                    )}
+                                    {!userProfile.bio && !userProfile.location && !userProfile.website && !userProfile.birthday &&
+                                        !userProfile.manufacturerVerified && !userProfile.designerVerified && (
+                                            <div className="profile-info-item">
+                                                <p className="empty-info">This user hasn't added any information to their profile yet.</p>
+                                            </div>
+                                        )}
                                 </div>
                             </div>
                         )}

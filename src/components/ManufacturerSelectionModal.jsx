@@ -26,10 +26,10 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess }) => 
 
     // Check if user is the designer of this product
     const isDesigner = currentUser && product && currentUser.uid === product.designerId;
-    
+
     // Check if product is fully funded
     const isFullyFunded = product && product.currentFunding >= product.fundingGoal;
-    
+
     // Get business held funds amount
     const businessHeldFunds = product?.businessHeldFunds || 0;
 
@@ -44,15 +44,15 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess }) => 
     const fetchManufacturers = async () => {
         setLoadingManufacturers(true);
         setError('');
-        
+
         try {
             // Use verification service to get only verified manufacturers
             const verifiedManufacturers = await verificationService.getVerifiedManufacturers();
-            
+
             if (verifiedManufacturers.length === 0) {
                 setError('No verified manufacturers found. Please contact support for assistance.');
             }
-            
+
             setManufacturers(verifiedManufacturers);
         } catch (err) {
             console.error('Error loading manufacturers:', err);
@@ -65,31 +65,31 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess }) => 
     // Handle form submission
     const handleTransferFunds = async (e) => {
         e.preventDefault();
-        
+
         // Reset status
         setError('');
         setSuccess('');
-        
+
         // Validate input
         if (!selectedManufacturer) {
             setError('Please select a manufacturer');
             return;
         }
-        
+
         // Confirm with user
         if (!window.confirm(`Are you sure you want to transfer ${product.businessHeldFunds?.toLocaleString()} credits to the selected manufacturer?`)) {
             return;
         }
-        
+
         setLoading(true);
-        
+
         try {
             // Get the email of the selected manufacturer
             const manufacturer = manufacturers.find(m => m.id === selectedManufacturer);
             if (!manufacturer) {
                 throw new Error('Selected manufacturer not found');
             }
-            
+
             // Call the wallet service to transfer funds
             const result = await walletService.transferProductFundsToManufacturer(
                 currentUser.uid,
@@ -97,15 +97,15 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess }) => 
                 manufacturer.email,
                 note
             );
-            
+
             if (result.success) {
                 setSuccess(`Successfully transferred ${result.amount?.toLocaleString()} credits to ${manufacturer.displayName || manufacturer.email}`);
-                
+
                 // Call onSuccess callback if provided
                 if (onSuccess) {
                     onSuccess(result);
                 }
-                
+
                 // Auto close after success
                 setTimeout(() => {
                     onClose();
