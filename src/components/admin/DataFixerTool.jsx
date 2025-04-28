@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import ProductsExcelView from './ProductsExcelView';
 import '../../styles/AdminTools.css';
 
 const DataFixerTool = () => {
     const [dataType, setDataType] = useState('products');
+    const [viewMode, setViewMode] = useState('standard'); // 'standard' or 'excel' view
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -860,6 +862,13 @@ const DataFixerTool = () => {
             <p className="tool-description">
                 Use this tool to validate data against schemas and fix inconsistencies like
                 category/categories fields in products.
+                {dataType === 'products' && (
+                    <>
+                        {viewMode === 'excel' ? 
+                            ' Use Excel View for spreadsheet-like bulk editing.' : 
+                            ' Switch to Excel View for spreadsheet-like bulk editing.'}
+                    </>
+                )}
             </p>
 
             <div className="data-fixer-controls">
@@ -877,6 +886,26 @@ const DataFixerTool = () => {
                             <option value="categories">Categories</option>
                         </select>
                     </label>
+
+                    {dataType === 'products' && (
+                        <div className="view-mode-selector">
+                            <label>View Mode:</label>
+                            <div className="view-mode-buttons">
+                                <button
+                                    className={`view-mode-btn ${viewMode === 'standard' ? 'active' : ''}`}
+                                    onClick={() => setViewMode('standard')}
+                                >
+                                    Standard View
+                                </button>
+                                <button
+                                    className={`view-mode-btn ${viewMode === 'excel' ? 'active' : ''}`}
+                                    onClick={() => setViewMode('excel')}
+                                >
+                                    Excel View
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     <label>
                         Limit Results:
@@ -953,131 +982,136 @@ const DataFixerTool = () => {
                 </div>
             )}
 
-            {data.length > 0 && (
-                <div className="data-search">
-                    <input
-                        type="text"
-                        placeholder="Filter results..."
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
-                    />
-                    <span className="results-count">
-                        {filteredData.length} of {data.length} items
-                    </span>
-                </div>
-            )}
-
-            {batchMode && data.length > 0 && (
-                <div className="batch-controls">
-                    <div className="batch-selection">
-                        <label>
+            {dataType === 'products' && viewMode === 'excel' ? (
+                <ProductsExcelView />
+            ) : (
+                <>
+                    {data.length > 0 && (
+                        <div className="data-search">
                             <input
-                                type="checkbox"
-                                checked={selectedItems.length === data.length}
-                                onChange={toggleSelectAll}
+                                type="text"
+                                placeholder="Filter results..."
+                                value={filter}
+                                onChange={(e) => setFilter(e.target.value)}
                             />
-                            Select All ({selectedItems.length} of {data.length} selected)
-                        </label>
-                    </div>
-
-                    {selectedItems.length > 0 && schemas[dataType] && (
-                        <button
-                            className="validate-btn"
-                            onClick={validateAgainstSchema}
-                            disabled={loading}
-                        >
-                            Validate Against Schema
-                        </button>
-                    )}
-
-                    {selectedItems.length > 0 && !schemas[dataType] && (
-                        <div className="no-schema-warning">
-                            No schema defined for {dataType}. Please create a schema first.
+                            <span className="results-count">
+                                {filteredData.length} of {data.length} items
+                            </span>
                         </div>
                     )}
-                </div>
-            )}
 
-            <div className="data-explorer">
-                <div className="data-list">
-                    {filteredData.length > 0 ? (
-                        <div className="data-items-container">
-                            {filteredData.map(item => (
-                                <div
-                                    key={item.id}
-                                    className={`data-item ${selectedItem?.id === item.id ? 'selected' : ''} ${batchMode && selectedItems.includes(item.id) ? 'batch-selected' : ''
-                                        }`}
-                                    onClick={() => batchMode ? toggleItemSelection(item.id) : handleSelectItem(item)}
+                    {batchMode && data.length > 0 && (
+                        <div className="batch-controls">
+                            <div className="batch-selection">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedItems.length === data.length}
+                                        onChange={toggleSelectAll}
+                                    />
+                                    Select All ({selectedItems.length} of {data.length} selected)
+                                </label>
+                            </div>
+
+                            {selectedItems.length > 0 && schemas[dataType] && (
+                                <button
+                                    className="validate-btn"
+                                    onClick={validateAgainstSchema}
+                                    disabled={loading}
                                 >
-                                    {batchMode && (
-                                        <div className="batch-checkbox">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedItems.includes(item.id)}
-                                                onChange={() => toggleItemSelection(item.id)}
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                        </div>
-                                    )}
-                                    <div className="item-name">
-                                        {item.name || item.title || item.id}
-                                    </div>
-                                    <div className="item-preview">
-                                        {dataType === 'products' && (
-                                            <>
-                                                <div>Category: {item.category || 'N/A'}</div>
-                                                <div>Categories: {Array.isArray(item.categories) ? item.categories.join(', ') : 'N/A'}</div>
-                                            </>
-                                        )}
-                                        <div>ID: {item.id}</div>
-                                    </div>
+                                    Validate Against Schema
+                                </button>
+                            )}
+
+                            {selectedItems.length > 0 && !schemas[dataType] && (
+                                <div className="no-schema-warning">
+                                    No schema defined for {dataType}. Please create a schema first.
                                 </div>
-                            ))}
+                            )}
                         </div>
-                    ) : data.length > 0 ? (
-                        <div className="no-results">No matching items found.</div>
-                    ) : !loading && (
-                        <div className="no-data">No data loaded. Click "Load Data" to begin.</div>
                     )}
-                </div>
 
-                <div className="data-preview">
-                    {validationComplete && renderValidationResults()}
-
-                    {!validationComplete && (
-                        selectedItem && !editedItem ? (
-                            <div className="item-details">
-                                <h3>{dataType} Details</h3>
-                                <div className="item-id">ID: {selectedItem.id}</div>
-                                <pre>{JSON.stringify(selectedItem, null, 2)}</pre>
-                                <div className="item-actions">
-                                    <button
-                                        className="edit-btn"
-                                        onClick={() => setEditedItem(JSON.parse(JSON.stringify(selectedItem)))}
-                                    >
-                                        Edit This Item
-                                    </button>
-
-                                    <button
-                                        className="sample-schema-btn"
-                                        onClick={() => createSchemaFromDocument(selectedItem)}
-                                    >
-                                        Create Schema From This
-                                    </button>
+                    <div className="data-explorer">
+                        <div className="data-list">
+                            {filteredData.length > 0 ? (
+                                <div className="data-items-container">
+                                    {filteredData.map(item => (
+                                        <div
+                                            key={item.id}
+                                            className={`data-item ${selectedItem?.id === item.id ? 'selected' : ''} ${batchMode && selectedItems.includes(item.id) ? 'batch-selected' : ''}`}
+                                            onClick={() => batchMode ? toggleItemSelection(item.id) : handleSelectItem(item)}
+                                        >
+                                            {batchMode && (
+                                                <div className="batch-checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedItems.includes(item.id)}
+                                                        onChange={() => toggleItemSelection(item.id)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </div>
+                                            )}
+                                            <div className="item-name">
+                                                {item.name || item.title || item.id}
+                                            </div>
+                                            <div className="item-preview">
+                                                {dataType === 'products' && (
+                                                    <>
+                                                        <div>Category: {item.category || 'N/A'}</div>
+                                                        <div>Categories: {Array.isArray(item.categories) ? item.categories.join(', ') : 'N/A'}</div>
+                                                    </>
+                                                )}
+                                                <div>ID: {item.id}</div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            </div>
-                        ) : editedItem ? (
-                            renderEditor()
-                        ) : (
-                            <div className="no-selection">
-                                {batchMode ?
-                                    'Select items and validate against a schema to fix data inconsistencies.' :
-                                    'Select an item from the list to view details.'}
-                            </div>
-                        )
-                    )}
-                </div>
-            </div>
+                            ) : data.length > 0 ? (
+                                <div className="no-results">No matching items found.</div>
+                            ) : !loading && (
+                                <div className="no-data">No data loaded. Click "Load Data" to begin.</div>
+                            )}
+                        </div>
+
+                        <div className="data-preview">
+                            {validationComplete && renderValidationResults()}
+
+                            {!validationComplete && (
+                                selectedItem && !editedItem ? (
+                                    <div className="item-details">
+                                        <h3>{dataType} Details</h3>
+                                        <div className="item-id">ID: {selectedItem.id}</div>
+                                        <pre>{JSON.stringify(selectedItem, null, 2)}</pre>
+                                        <div className="item-actions">
+                                            <button
+                                                className="edit-btn"
+                                                onClick={() => setEditedItem(JSON.parse(JSON.stringify(selectedItem)))}
+                                            >
+                                                Edit This Item
+                                            </button>
+
+                                            <button
+                                                className="sample-schema-btn"
+                                                onClick={() => createSchemaFromDocument(selectedItem)}
+                                            >
+                                                Create Schema From This
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : editedItem ? (
+                                    renderEditor()
+                                ) : (
+                                    <div className="no-selection">
+                                        {batchMode ?
+                                            'Select items and validate against a schema to fix data inconsistencies.' :
+                                            'Select an item from the list to view details.'}
+                                    </div>
+                                )
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
 
             {showSchemaManager && renderSchemaManager()}
         </div>
