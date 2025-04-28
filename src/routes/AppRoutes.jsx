@@ -43,6 +43,8 @@ const ConversationPage = lazy(() => import('../pages/ConversationPage')); // Imp
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
 const ToastDemoPage = lazy(() => import('../pages/ToastDemoPage'));
 const UserSettingsPage = lazy(() => import('../pages/UserSettingsPage'));
+const ProductsCsvExportPage = lazy(() => import('../pages/ProductsCsvExportPage'));
+const ProductsCsvImportPage = lazy(() => import('../pages/ProductsCsvImportPage'));
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -201,6 +203,16 @@ const AppRoutes = () => {
                 <Route path="/admin/verify/:userId/:role" element={
                     <AuthGuard allowedRoles="admin">
                         <AdminVerificationPage />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/products-csv-export" element={
+                    <AuthGuard allowedRoles="admin">
+                        <ProductsCsvExportPage />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/products-csv-import" element={
+                    <AuthGuard allowedRoles="admin">
+                        <ProductsCsvImportPage />
                     </AuthGuard>
                 } />
 

@@ -1,0 +1,73 @@
+.withdraw-investment-container {
+  margin-top: 15px;
+}
+
+.withdraw-investment-button {
+  background-color: #f8f9fa;
+  border: 1px solid #ef3c23;
+  color: #ef3c23;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.withdraw-investment-button:hover {
+  background-color: #fee0dc;
+}
+
+.withdraw-investment-button:disabled {
+  border-color: #ccc;
+  color: #999;
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.pending-withdrawal-notice {
+  background-color: #fff8e1;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 12px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.notice-content {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.withdrawal-status {
+  font-weight: 600;
+  color: #ff9800;
+  font-size: 14px;
+}
+
+.pending-withdrawal-notice p {
+  margin: 0;
+  font-size: 14px;
+  color: #555;
+}
+
+.cancel-withdrawal-button {
+  background-color: white;
+  border: 1px solid #ff9800;
+  color: #ff9800;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  align-self: flex-end;
+}
+
+.cancel-withdrawal-button:hover {
+  background-color: #fff8e1;
+}

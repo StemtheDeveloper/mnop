@@ -181,7 +181,7 @@ const MessagesPage = () => {
                                                     {user.displayName || 'User'}
                                                 </h3>
                                                 <p className="user-email">{user.email}</p>
-                                                <Link to={`/profile/${user.id}`} className="view-profile-link">
+                                                <Link to={`/user/${user.id}`} className="view-profile-link">
                                                     <FaUser /> View Profile
                                                 </Link>
                                             </div>
@@ -209,7 +209,7 @@ const MessagesPage = () => {
                                         {selectedUser.displayName || 'User'}
                                     </h3>
                                     <p className="user-email">{selectedUser.email}</p>
-                                    <Link to={`/profile/${selectedUser.id}`} className="view-profile-link">
+                                    <Link to={`/user/${selectedUser.id}`} className="view-profile-link">
                                         <FaUser /> View Profile
                                     </Link>
                                 </div>
@@ -318,8 +318,8 @@ const MessagesPage = () => {
                                                 conversation.otherParticipant?.email ||
                                                 'Unknown User'}
                                             {conversation.otherParticipant?.id && (
-                                                <span
-                                                    className="view-profile-link"
+                                                <button
+                                                    className="view-profile-btn"
                                                     title="View Profile"
                                                     onClick={(e) => {
                                                         e.preventDefault();
@@ -327,8 +327,8 @@ const MessagesPage = () => {
                                                         navigate(`/user/${conversation.otherParticipant.id}`);
                                                     }}
                                                 >
-                                                    View Profile
-                                                </span>
+                                                    <FaUser /> View Profile
+                                                </button>
                                             )}
                                         </h3>
                                         <span className="conversation-time">

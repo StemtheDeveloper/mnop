@@ -203,6 +203,26 @@
   padding: 0 6px;
 }
 
+/* Enhanced profile link button styling */
+.conversation-item .view-profile-btn {
+  background-color: #f0f7ff;
+  color: #4a90e2;
+  border: 1px solid #d1e4fc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background-color 0.2s;
+}
+
+.conversation-item .view-profile-btn:hover {
+  background-color: #e0f0ff;
+}
+
 /* New Conversation UI */
 .new-conversation-container {
   padding: 0;
@@ -605,6 +625,25 @@
 
 .encryption-badge svg {
   margin-right: 5px;
+}
+
+/* Conversation page profile link */
+.recipient-profile-link {
+  display: inline-flex;
+  align-items: center;
+  color: #4a90e2;
+  font-size: 13px;
+  text-decoration: none;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background-color: #f0f7ff;
+  border: 1px solid #d1e4fc;
+  transition: background-color 0.2s;
+}
+
+.recipient-profile-link:hover {
+  background-color: #e0f0ff;
 }
 
 .messages-container {

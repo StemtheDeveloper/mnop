@@ -15,6 +15,7 @@ import BusinessAccountPanel from '../components/admin/BusinessAccountPanel';
 import FirestoreIndexHelper from '../components/admin/FirestoreIndexHelper';
 import NopsManagementPanel from '../components/admin/NopsManagementPanel';
 import AchievementsManagementPanel from '../components/admin/AchievementsManagementPanel';
+import AdminInvestmentSettings from '../components/admin/AdminInvestmentSettings';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -939,6 +940,22 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
                         {activeTab === 'settings' && (
                             <div className="settings-tab">
+                                <h2>Platform Settings</h2>
+                                
+                                <div className="settings-tab-navigation">
+                                    <div className="settings-categories">
+                                        <div className="settings-category active">
+                                            Investment Settings
+                                        </div>
+                                        <div className="settings-category">
+                                            Platform Settings
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="settings-content">
+                                    <AdminInvestmentSettings />
+                                </div>
                             </div>
                         )}
 
@@ -1011,6 +1028,22 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                         <a href="/admin/data-fixer" className="admin-button">
                                             Open Data Fixer Tool
                                         </a>
+                                    </div>
+
+                                    <div className="admin-card">
+                                        <h3>Product Data CSV Export/Import</h3>
+                                        <p>
+                                            Export products data to CSV for bulk editing in Excel (including manufacturing costs),
+                                            then import the modified data back to update product information.
+                                        </p>
+                                        <div className="csv-actions">
+                                            <a href="/admin/products-csv-export" className="admin-button">
+                                                Export Products to CSV
+                                            </a>
+                                            <a href="/admin/products-csv-import" className="admin-button">
+                                                Import Products from CSV
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
 

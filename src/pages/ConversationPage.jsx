@@ -14,7 +14,8 @@ import {
     FaEllipsisV,
     FaPen,
     FaTrash,
-    FaTrashAlt
+    FaTrashAlt,
+    FaUser
 } from 'react-icons/fa';
 import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
@@ -447,7 +448,7 @@ const ConversationPage = () => {
                                         className="recipient-profile-link"
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        View Profile
+                                        <FaUser /> View Profile
                                     </Link>
                                 )}
                             </div>
