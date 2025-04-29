@@ -371,12 +371,22 @@ const WalletPage = () => {
 
     // Render roles badges 
     const renderRoleBadges = () => {
+        // If no roles are set, show default customer role
+        if (!userRoles || userRoles.length === 0) {
+            return (
+                <div className="roles-list">
+                    <div className="role-pill customer">Customer</div>
+                </div>
+            );
+        }
+
+        // Display all roles
         return (
-            <div className="user-roles">
+            <div className="roles-list">
                 {userRoles.map((role, index) => (
-                    <span key={index} className={`role-badge ${role}`}>
+                    <div key={index} className={`role-pill ${role.toLowerCase()}`}>
                         {role.charAt(0).toUpperCase() + role.slice(1)}
-                    </span>
+                    </div>
                 ))}
             </div>
         );

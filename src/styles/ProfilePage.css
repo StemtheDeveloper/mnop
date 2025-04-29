@@ -1631,3 +1631,237 @@
   justify-content: flex-start;
   margin-bottom: 15px;
 }
+
+/* Refund Request Styles */
+.refund-requests-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #fff9ef; /* Light warm yellow background */
+  border-radius: 8px;
+  border: 1px solid #ffeed4;
+}
+
+.refund-requests-section .section-title {
+  color: #d97706; /* Amber/orange color */
+  margin-bottom: 5px;
+}
+
+.refund-requests-section .section-description {
+  color: #6b7280;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.refund-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.refund-request-card {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.refund-request-card .request-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.refund-request-card .request-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.refund-request-card .request-id h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.refund-request-card .status-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.refund-request-card .status-warning {
+  background-color: #fff3c9;
+  color: #9a6700;
+}
+
+.refund-request-card .customer-info,
+.refund-request-card .refund-reason {
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.refund-request-card .order-items-preview {
+  display: flex;
+  margin: 15px 0;
+  gap: 8px;
+}
+
+.refund-request-card .preview-item-image {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.refund-request-card .preview-item-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.refund-request-card .preview-quantity {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  border-top-left-radius: 4px;
+}
+
+.refund-request-card .refund-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.refund-request-card .btn-approve-refund {
+  padding: 8px 16px;
+  background-color: #10b981; /* Green */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.refund-request-card .btn-approve-refund:hover {
+  background-color: #059669;
+}
+
+.refund-request-card .btn-deny-refund {
+  padding: 8px 16px;
+  background-color: #ef4444; /* Red */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.refund-request-card .btn-deny-refund:hover {
+  background-color: #dc2626;
+}
+
+/* Refund Denial Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.refund-denial-modal {
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.refund-denial-modal h3 {
+  margin-top: 0;
+  color: #ef4444;
+  font-size: 1.25rem;
+  margin-bottom: 10px;
+}
+
+.refund-info {
+  background-color: #f3f4f6;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 15px 0;
+}
+
+.refund-order-details p {
+  margin: 5px 0;
+  font-size: 0.9rem;
+}
+
+.refund-denial-modal .form-group {
+  margin-bottom: 20px;
+}
+
+.refund-denial-modal label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.refund-denial-modal textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.refund-denial-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.refund-denial-modal .btn-cancel {
+  padding: 8px 16px;
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.refund-denial-modal .btn-deny-confirm {
+  padding: 8px 16px;
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.refund-denial-modal .btn-deny-confirm:disabled {
+  background-color: #f87171;
+  cursor: not-allowed;
+}

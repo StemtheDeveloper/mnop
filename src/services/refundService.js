@@ -536,6 +536,149 @@ class RefundService {
       };
     }
   }
+
+  /**
+   * Get refund requests for a designer's products
+   * @param {string} designerId - Designer's user ID
+   * @returns {Promise<Object>} List of refund requests or error
+   */
+  async getRefundRequestsForDesigner(designerId) {
+    try {
+      // First, get the designer's products
+      const productsRef = collection(db, "products");
+      const productsQuery = query(
+        productsRef,
+        where("designerId", "==", designerId),
+        where("status", "==", "approved")
+      );
+
+      const productsSnapshot = await getDocs(productsQuery);
+
+      if (productsSnapshot.empty) {
+        return {
+          success: true,
+          data: [],
+          message: "No products found for this designer",
+        };
+      }
+
+      // Get product IDs
+      const productIds = productsSnapshot.docs.map((doc) => doc.id);
+
+      // Get orders with refund requests containing these products
+      const ordersRef = collection(db, "orders");
+      const ordersQuery = query(
+        ordersRef,
+        where("refundStatus", "==", "requested"),
+        orderBy("refundRequestDate", "desc")
+      );
+
+      const ordersSnapshot = await getDocs(ordersQuery);
+
+      if (ordersSnapshot.empty) {
+        return {
+          success: true,
+          data: [],
+          message: "No refund requests found",
+        };
+      }
+
+      // Filter orders that contain the designer's products
+      const refundRequests = [];
+
+      ordersSnapshot.docs.forEach((doc) => {
+        const orderData = doc.data();
+        const items = orderData.items || [];
+
+        // Check if any item in the order is from this designer
+        const hasDesignerProduct = items.some((item) =>
+          productIds.includes(item.id)
+        );
+
+        if (hasDesignerProduct) {
+          refundRequests.push({
+            id: doc.id,
+            ...orderData,
+            refundRequestDate:
+              orderData.refundRequestDate?.toDate() || new Date(),
+            createdAt: orderData.createdAt?.toDate() || new Date(),
+          });
+        }
+      });
+
+      return {
+        success: true,
+        data: refundRequests,
+      };
+    } catch (error) {
+      console.error("Error getting refund requests for designer:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to fetch refund requests",
+      };
+    }
+  }
+
+  /**
+   * Deny a refund request
+   * @param {string} orderId - Order ID
+   * @param {string} designerId - Designer's user ID
+   * @param {string} reason - Reason for denying the refund
+   * @returns {Promise<Object>} Result of operation
+   */
+  async denyRefundRequest(orderId, designerId, reason) {
+    try {
+      const orderRef = doc(db, "orders", orderId);
+      const orderDoc = await getDoc(orderRef);
+
+      if (!orderDoc.exists()) {
+        return {
+          success: false,
+          error: "Order not found",
+        };
+      }
+
+      const orderData = orderDoc.data();
+
+      // Make sure order has a refund request
+      if (orderData.refundStatus !== "requested") {
+        return {
+          success: false,
+          error: "This order does not have a pending refund request",
+        };
+      }
+
+      // Update the order status
+      await updateDoc(orderRef, {
+        refundStatus: "denied",
+        refundDeniedDate: serverTimestamp(),
+        refundDeniedReason: reason,
+        refundDeniedBy: designerId,
+      });
+
+      // Send notification to customer
+      await notificationService.createNotification(
+        orderData.userId,
+        "refund_denied",
+        "Refund Request Denied",
+        `Your refund request for order #${orderId.slice(-6)} has been denied${
+          reason ? ": " + reason : ""
+        }. Please contact customer support if you have any questions.`,
+        `/orders`
+      );
+
+      return {
+        success: true,
+        message: "Refund request denied successfully",
+      };
+    } catch (error) {
+      console.error("Error denying refund request:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to deny refund request",
+      };
+    }
+  }
 }
 
 export default new RefundService();

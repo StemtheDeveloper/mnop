@@ -51,6 +51,13 @@ const ProfilePage = () => {
     const [customerOrders, setCustomerOrders] = useState([]);
     const [loadingOrders, setLoadingOrders] = useState(false);
 
+    // State for refund requests
+    const [refundRequests, setRefundRequests] = useState([]);
+    const [loadingRefundRequests, setLoadingRefundRequests] = useState(false);
+    const [refundDenyReason, setRefundDenyReason] = useState('');
+    const [selectedRefundOrder, setSelectedRefundOrder] = useState(null);
+    const [showRefundModal, setShowRefundModal] = useState(false);
+
     // State for order filtering and organization
     const [orderFilter, setOrderFilter] = useState('all'); // 'all', 'complete', 'incomplete'
     const [orderSearchTerm, setOrderSearchTerm] = useState('');
@@ -144,17 +151,13 @@ const ProfilePage = () => {
         fetchDesignerProducts();
     }, [userId, hasRole]); // Depend directly on hasRole to ensure role changes are detected
 
-    // Fetch customer orders for products created by this designer
+    // Fetch customer orders for designer
     useEffect(() => {
+        if (!userId || !hasRole('designer')) return;
+
         const fetchCustomerOrders = async () => {
-            if (!userId) return;
-
-            // Check if user has designer role using the hasRole function
-            const userIsDesigner = hasRole('designer');
-            if (!userIsDesigner) return;
-
-            console.log('Fetching customer orders for designer:', userId);
             setLoadingOrders(true);
+            setMessage({ type: '', text: '' });
 
             try {
                 // First get all products by this designer
@@ -254,6 +257,9 @@ const ProfilePage = () => {
                 relevantOrders.sort((a, b) => b.createdAt - a.createdAt);
 
                 setCustomerOrders(relevantOrders);
+
+                // Also fetch refund requests
+                fetchRefundRequests();
             } catch (error) {
                 console.error('Error fetching customer orders:', error);
                 setMessage({ type: 'error', text: 'Failed to load customer orders.' });
@@ -264,6 +270,28 @@ const ProfilePage = () => {
 
         fetchCustomerOrders();
     }, [userId, hasRole]);
+
+    // Fetch refund requests for designer's products
+    const fetchRefundRequests = async () => {
+        if (!userId || !hasRole('designer')) return;
+
+        setLoadingRefundRequests(true);
+
+        try {
+            const refundService = await import('../services/refundService').then(module => module.default);
+            const result = await refundService.getRefundRequestsForDesigner(userId);
+
+            if (result.success) {
+                setRefundRequests(result.data);
+            } else {
+                console.error('Error fetching refund requests:', result.error);
+            }
+        } catch (error) {
+            console.error('Error fetching refund requests:', error);
+        } finally {
+            setLoadingRefundRequests(false);
+        }
+    };
 
     // Format price as currency
     const formatPrice = (price) => {
@@ -754,6 +782,141 @@ const ProfilePage = () => {
         }
     };
 
+    // Function to handle approving a refund request
+    const handleApproveRefundRequest = async (orderId, reason) => {
+        if (!orderId) return;
+
+        // Confirm before approving refund
+        const confirmApprove = window.confirm('Are you sure you want to approve this refund request? This will process a refund to the customer. This action cannot be undone.');
+        if (!confirmApprove) return;
+
+        setLoading(true);
+
+        try {
+            // Process refund through refundService
+            const result = await refundService.processRefund(
+                orderId,
+                currentUser.uid, // Designer ID as the admin/processor
+                reason || 'Refund request approved by designer',
+                true, // Refund all items
+                [] // No specific items since we're refunding all
+            );
+
+            if (result.success) {
+                // Update local state to reflect the refund
+                setRefundRequests(prev => prev.filter(request => request.id !== orderId));
+
+                // Update customer orders list if the order exists there
+                setCustomerOrders(prev =>
+                    prev.map(order =>
+                        order.id === orderId
+                            ? {
+                                ...order,
+                                refundStatus: 'refunded',
+                                refundDate: new Date(),
+                                refundReason: reason || 'Refund request approved by designer'
+                            }
+                            : order
+                    )
+                );
+
+                setMessage({
+                    type: 'success',
+                    text: `Refund request approved. ${result.refundAmount ? formatPrice(result.refundAmount) : ''} has been returned to the customer.`
+                });
+
+                // Refresh refund requests
+                fetchRefundRequests();
+            } else {
+                setMessage({
+                    type: 'error',
+                    text: result.error || 'Failed to process refund. Please try again.'
+                });
+            }
+        } catch (error) {
+            console.error('Error approving refund request:', error);
+            setMessage({
+                type: 'error',
+                text: 'Failed to process refund. Please try again.'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Function to handle denying a refund request
+    const handleDenyRefundRequest = async (orderId, reason) => {
+        if (!orderId || !reason) {
+            setMessage({
+                type: 'error',
+                text: 'Please provide a reason for denying the refund request.'
+            });
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const result = await refundService.denyRefundRequest(
+                orderId,
+                currentUser.uid,
+                reason
+            );
+
+            if (result.success) {
+                // Update local state to reflect the denied refund
+                setRefundRequests(prev => prev.filter(request => request.id !== orderId));
+
+                // Update customer orders list if the order exists there
+                setCustomerOrders(prev =>
+                    prev.map(order =>
+                        order.id === orderId
+                            ? {
+                                ...order,
+                                refundStatus: 'denied',
+                                refundDeniedDate: new Date(),
+                                refundDeniedReason: reason
+                            }
+                            : order
+                    )
+                );
+
+                setMessage({
+                    type: 'success',
+                    text: 'Refund request denied successfully.'
+                });
+
+                // Reset modal state
+                setRefundDenyReason('');
+                setSelectedRefundOrder(null);
+                setShowRefundModal(false);
+
+                // Refresh refund requests
+                fetchRefundRequests();
+            } else {
+                setMessage({
+                    type: 'error',
+                    text: result.error || 'Failed to deny refund request. Please try again.'
+                });
+            }
+        } catch (error) {
+            console.error('Error denying refund request:', error);
+            setMessage({
+                type: 'error',
+                text: 'Failed to deny refund request. Please try again.'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Function to open refund denial modal
+    const openRefundDenialModal = (order) => {
+        setSelectedRefundOrder(order);
+        setRefundDenyReason('');
+        setShowRefundModal(true);
+    };
+
     const getRoleClass = () => {
         if (!userRole) return 'customer-role';
 
@@ -894,6 +1057,57 @@ const ProfilePage = () => {
                         URL.revokeObjectURL(cropImageSrc);
                     }}
                 />
+            )}
+
+            {/* Refund Denial Modal */}
+            {showRefundModal && selectedRefundOrder && (
+                <div className="modal-overlay">
+                    <div className="refund-denial-modal">
+                        <h3>Deny Refund Request</h3>
+                        <p>Please provide a reason for denying the refund request for Order #{selectedRefundOrder.id.slice(-6)}</p>
+
+                        <div className="refund-info">
+                            <div className="refund-order-details">
+                                <p><strong>Customer:</strong> {selectedRefundOrder.shippingInfo?.fullName || 'Unknown'}</p>
+                                <p><strong>Order Date:</strong> {formatDate(selectedRefundOrder.createdAt)}</p>
+                                <p><strong>Customer Reason:</strong> {selectedRefundOrder.refundRequestReason || 'No reason provided'}</p>
+                            </div>
+                        </div>
+
+                        <div className="form-group">
+                            <label htmlFor="refundDenyReason">Denial Reason (required)</label>
+                            <textarea
+                                id="refundDenyReason"
+                                name="refundDenyReason"
+                                value={refundDenyReason}
+                                onChange={(e) => setRefundDenyReason(e.target.value)}
+                                placeholder="Please explain why you are denying this refund request..."
+                                rows={4}
+                                required
+                            />
+                        </div>
+
+                        <div className="modal-actions">
+                            <button
+                                className="btn-cancel"
+                                onClick={() => {
+                                    setShowRefundModal(false);
+                                    setSelectedRefundOrder(null);
+                                    setRefundDenyReason('');
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="btn-deny-confirm"
+                                onClick={() => handleDenyRefundRequest(selectedRefundOrder.id, refundDenyReason)}
+                                disabled={!refundDenyReason.trim() || loading}
+                            >
+                                {loading ? 'Processing...' : 'Deny Refund'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             <div className="profile-header" style={{
@@ -1577,14 +1791,72 @@ const ProfilePage = () => {
                                         <LoadingSpinner />
                                         <p>Loading customer orders...</p>
                                     </div>
-                                ) : customerOrders.length === 0 ? (
-                                    <div className="empty-state">
-                                        <p>No orders have been placed for your products yet.</p>
-                                        <p>When customers purchase your products, their orders will appear here.</p>
-                                    </div>
                                 ) : (
                                     <div className="orders-container">
-                                        {/* Group orders by completion status */}
+                                        {/* Refund Requests Section */}
+                                        {refundRequests.length > 0 && (
+                                            <div className="refund-requests-section">
+                                                <h4 className="section-title">Refund Requests</h4>
+                                                <p className="section-description">These orders have pending refund requests from customers that require your response.</p>
+
+                                                <div className="refund-requests-list">
+                                                    {refundRequests.map(request => (
+                                                        <div key={request.id} className="refund-request-card">
+                                                            <div className="request-header">
+                                                                <div className="request-id">
+                                                                    <h3>Order #{request.id.slice(-6)}</h3>
+                                                                    <span className="status-badge status-warning">Refund Requested</span>
+                                                                </div>
+                                                                <div className="request-date">
+                                                                    <div>Requested on {formatDate(request.refundRequestDate)}</div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="customer-info">
+                                                                <strong>Customer:</strong> {request.shippingInfo?.fullName || 'Unknown'}
+                                                            </div>
+
+                                                            <div className="refund-reason">
+                                                                <strong>Reason:</strong> {request.refundRequestReason || 'No reason provided'}
+                                                            </div>
+
+                                                            <div className="order-items-preview">
+                                                                {request.items.filter(item => {
+                                                                    // Only show items from this designer
+                                                                    const product = designerProducts.find(p => p.id === item.id);
+                                                                    return !!product;
+                                                                }).slice(0, 3).map((item, index) => (
+                                                                    <div key={index} className="preview-item-image">
+                                                                        <img
+                                                                            src={item.imageUrl || 'https://via.placeholder.com/40?text=Product'}
+                                                                            alt={item.name}
+                                                                        />
+                                                                        {item.quantity > 1 && <span className="preview-quantity">{item.quantity}</span>}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+
+                                                            <div className="refund-actions">
+                                                                <button
+                                                                    className="btn-approve-refund"
+                                                                    onClick={() => handleApproveRefundRequest(request.id, request.refundRequestReason)}
+                                                                >
+                                                                    Approve Refund
+                                                                </button>
+                                                                <button
+                                                                    className="btn-deny-refund"
+                                                                    onClick={() => openRefundDenialModal(request)}
+                                                                >
+                                                                    Deny Refund
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Regular Orders Section */}
                                         {orderFilter !== 'complete' && (
                                             <div className="orders-group">
                                                 <h4 className="orders-group-title">Pending Orders</h4>

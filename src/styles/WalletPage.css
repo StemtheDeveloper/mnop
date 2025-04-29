@@ -509,6 +509,59 @@
   color: #666;
 }
 
+/* Role badges */
+.roles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  justify-content: center;
+}
+
+.role-pill {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  background-color: #666;
+  text-transform: capitalize;
+}
+
+.role-pill.customer {
+  background-color: #2196f3;
+}
+
+.role-pill.admin {
+  background-color: #e91e63;
+}
+
+.role-pill.designer {
+  background-color: #9c27b0;
+}
+
+.role-pill.manufacturer {
+  background-color: #ff9800;
+}
+
+.role-pill.investor {
+  background-color: #4caf50;
+}
+
+.role-pill.moderator {
+  background-color: #607d8b;
+}
+
+/* Add more role styles as needed */
+
+.wallet-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 /* Responsive styles */
 @media (max-width: 768px) {
   .wallet-page {
