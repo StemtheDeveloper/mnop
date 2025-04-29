@@ -1,94 +1,438 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../contexts/ToastContext';
 import { storage, db } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, updateDoc, getDocs } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
 import '../styles/BulkProductUploader.css';
+import '../styles/UnifiedProductManager.css';
+
+// Default categories as fallback
+const DEFAULT_CATEGORIES = [
+    { id: 'cat_0', name: 'Electronics' },
+    { id: 'cat_1', name: 'Clothing' },
+    { id: 'cat_2', name: 'Home & Garden' },
+    { id: 'cat_3', name: 'Toys & Games' },
+    { id: 'cat_4', name: 'Beauty' },
+    { id: 'cat_5', name: 'Sports' }
+];
 
 const ProductsCsvImportPage = () => {
-    const { userProfile, userRole, hasRole } = useUser();
-    const { showSuccess, showError } = useToast();
+    const { userProfile, hasRole } = useUser();
+    const toast = useToast();
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
+    const imageInputRef = useRef(null);
+    const csvInputRef = useRef(null);
+    const tableRef = useRef(null);
 
-    const [activeTab, setActiveTab] = useState('csv');
+    // Safely access toast functions
+    const showSuccess = (message) => {
+        if (toast && typeof toast.success === 'function') {
+            toast.success(message);
+        } else {
+            console.log('Success:', message);
+        }
+    };
+
+    const showError = (message) => {
+        if (toast && typeof toast.error === 'function') {
+            toast.error(message);
+        } else {
+            console.error('Error:', message);
+        }
+    };
+
     const [loading, setLoading] = useState(false);
-    const [csvFile, setCsvFile] = useState(null);
-    const [csvData, setCsvData] = useState([]);
-    const [csvHeaders, setCsvHeaders] = useState([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadResults, setUploadResults] = useState([]);
     const [showResults, setShowResults] = useState(false);
 
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [categoryMapping, setCategoryMapping] = useState({});
+    const [selectedProducts, setSelectedProducts] = useState([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const [currentProductId, setCurrentProductId] = useState(null);
+    const [filterText, setFilterText] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+    const [advancedMode, setAdvancedMode] = useState(false);
+    const [newCategory, setNewCategory] = useState('');
+    const [loadingCategories, setLoadingCategories] = useState(false);
 
+    const defaultHeaders = [
+        'name', 'description', 'price', 'stockQuantity', 'categories',
+        'tags', 'productType', 'manufacturingCost', 'images',
+        'isCrowdfunded', 'isDirectSell', 'fundingGoal', 'averageRating',
+        'businessHeldFunds', 'categoryType', 'manufacturerEmail', 'manufacturingStatus'
+    ];
+    const [headers, setHeaders] = useState(defaultHeaders);
+
+    // Fetch categories on component mount
     useEffect(() => {
         const fetchCategories = async () => {
+            setLoadingCategories(true);
             try {
-                const categoryRef = doc(db, 'settings', 'categories');
-                const categorySnap = await getDoc(categoryRef);
+                const categoriesRef = collection(db, 'categories');
+                const snapshot = await getDocs(categoriesRef);
+                const categoriesData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
 
-                if (categorySnap.exists()) {
-                    setCategories(categorySnap.data().categories || []);
+                // Extract category names from the fetched data
+                const categoryNames = categoriesData.map(cat => cat.name);
+
+                // Use fetched categories if available, otherwise use defaults
+                if (categoryNames.length > 0) {
+                    setCategories(categoryNames);
+
+                    // Create category mapping for lookups
+                    const catMap = {};
+                    categoryNames.forEach((name, index) => {
+                        catMap[name.toLowerCase()] = categoriesData[index].id || `cat_${index}`;
+                    });
+                    setCategoryMapping(catMap);
                 } else {
-                    console.log('No categories found');
-                    setCategories([]);
+                    // Use default categories as fallback
+                    setCategories(DEFAULT_CATEGORIES.map(cat => cat.name));
+
+                    // Create default category mapping
+                    const defaultCatMap = {};
+                    DEFAULT_CATEGORIES.forEach(cat => {
+                        defaultCatMap[cat.name.toLowerCase()] = cat.id;
+                    });
+                    setCategoryMapping(defaultCatMap);
+                    console.log('Using default categories as fallback');
                 }
-            } catch (error) {
-                console.error('Error fetching categories:', error);
-                showError('Failed to load categories');
+            } catch (err) {
+                console.error('Error fetching categories:', err);
+                // Use default categories as fallback
+                setCategories(DEFAULT_CATEGORIES.map(cat => cat.name));
+
+                // Create default category mapping
+                const defaultCatMap = {};
+                DEFAULT_CATEGORIES.forEach(cat => {
+                    defaultCatMap[cat.name.toLowerCase()] = cat.id;
+                });
+                setCategoryMapping(defaultCatMap);
+                console.log('Using default categories due to fetch error');
+            } finally {
+                setLoadingCategories(false);
             }
         };
 
         fetchCategories();
-    }, [showError]);
+    }, []);
 
-    if (!hasRole('designer')) {
-        return (
-            <div className="bulk-product-uploader-page">
-                <div className="role-error-container">
-                    <h2>Access Denied</h2>
-                    <p>You need designer permissions to access this page.</p>
-                </div>
-            </div>
-        );
-    }
+    // Add this function to save new categories to Firestore
+    const addNewCategory = async (newCategoryName) => {
+        const categoryName = newCategoryName || newCategory;
+        if (!categoryName || categoryName.trim() === '') {
+            showError('Please enter a valid category name');
+            return;
+        }
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setCsvFile(file);
+        try {
+            // Check if category already exists (case insensitive)
+            if (categories.some(cat => cat.toLowerCase() === categoryName.toLowerCase())) {
+                showError('This category already exists');
+                return;
+            }
 
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: (results) => {
-                    if (results.data && results.data.length > 0) {
-                        setCsvHeaders(results.meta.fields || []);
-                        setCsvData(results.data);
-                    } else {
-                        showError('The CSV file appears to be empty or malformed');
-                        setCsvHeaders([]);
-                        setCsvData([]);
-                    }
-                },
-                error: (error) => {
-                    console.error('CSV parsing error:', error);
-                    showError('Failed to parse CSV file');
+            // Create a new category in the categories collection
+            const categoryData = {
+                name: categoryName,
+                createdAt: serverTimestamp(),
+                createdBy: userProfile?.uid || 'system'
+            };
+
+            // Add to Firestore categories collection
+            const categoryRef = collection(db, 'categories');
+            const newCategoryDoc = await addDoc(categoryRef, categoryData);
+
+            // Update local state with the new category
+            const updatedCategories = [...categories, categoryName];
+            setCategories(updatedCategories);
+
+            // Update category mapping
+            const catMap = { ...categoryMapping };
+            catMap[categoryName.toLowerCase()] = newCategoryDoc.id;
+            setCategoryMapping(catMap);
+
+            showSuccess(`Added new category: ${categoryName}`);
+            if (!newCategoryName) setNewCategory('');
+        } catch (error) {
+            console.error('Error adding category:', error);
+            showError('Failed to add category');
+        }
+    };
+
+    const updateProductField = (productId, field, value) => {
+        setProducts(products.map(p =>
+            p.id === productId ? { ...p, [field]: value } : p
+        ));
+    };
+
+    const handleDragOverCsv = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.add('drag-over');
+    };
+
+    const handleDragLeaveCsv = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.remove('drag-over');
+    };
+
+    const handleDropCsv = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.remove('drag-over');
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+                if (csvInputRef.current) {
+                    csvInputRef.current.files = files;
+                    handleCsvImport({ target: { files: [file] } });
                 }
+            } else {
+                showError('Please drop a valid CSV file');
+            }
+        }
+    };
+
+    const handleDragOver = (e, productId) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.add('drag-over');
+    };
+
+    const handleDragEnter = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.remove('drag-over');
+    };
+
+    const handleDrop = (e, productId) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.classList.remove('drag-over');
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleImageDrop(productId, Array.from(files));
+        }
+    };
+
+    const handleImageDrop = (productId, files) => {
+        // Filter only image files
+        const imageFiles = files.filter(file =>
+            file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024 // 5MB limit
+        );
+
+        if (imageFiles.length === 0) {
+            showError('Please drop valid image files (max 5MB each)');
+            return;
+        }
+
+        setProducts(products.map(product => {
+            if (product.id === productId) {
+                const existingFiles = product.imageFiles || [];
+                return {
+                    ...product,
+                    imageFiles: [...existingFiles, ...imageFiles]
+                };
+            }
+            return product;
+        }));
+    };
+
+    const handleImageSelect = (productId, e) => {
+        const files = Array.from(e.target.files);
+        handleImageDrop(productId, files);
+        // Reset the input
+        if (imageInputRef.current) {
+            imageInputRef.current.value = '';
+        }
+    };
+
+    const removeImageFile = (productId, fileIndex) => {
+        setProducts(products.map(product => {
+            if (product.id === productId && product.imageFiles) {
+                const newFiles = [...product.imageFiles];
+                newFiles.splice(fileIndex, 1);
+                return {
+                    ...product,
+                    imageFiles: newFiles
+                };
+            }
+            return product;
+        }));
+    };
+
+    const removeProduct = (productId) => {
+        if (!window.confirm('Are you sure you want to remove this product?')) {
+            return;
+        }
+
+        setProducts(products.filter(product => product.id !== productId));
+        setSelectedProducts(selectedProducts.filter(id => id !== productId));
+    };
+
+    // Define filteredProducts as a computed property
+    const filteredProducts = products.filter(product => {
+        if (!filterText) return true;
+        const searchLower = filterText.toLowerCase();
+        return (
+            (product.name && product.name.toLowerCase().includes(searchLower)) ||
+            (product.description && product.description.toLowerCase().includes(searchLower)) ||
+            (Array.isArray(product.categories) &&
+                product.categories.some(cat => cat.toLowerCase().includes(searchLower))) ||
+            (Array.isArray(product.tags) &&
+                product.tags.some(tag => tag.toLowerCase().includes(searchLower)))
+        );
+    });
+
+    const sortedProducts = () => {
+        const sortableProducts = [...filteredProducts];
+        if (sortConfig.key) {
+            sortableProducts.sort((a, b) => {
+                let aValue = a[sortConfig.key];
+                let bValue = b[sortConfig.key];
+
+                // Handle arrays (like categories, tags)
+                if (Array.isArray(aValue)) aValue = aValue.join(', ');
+                if (Array.isArray(bValue)) bValue = bValue.join(', ');
+
+                // Convert to lowercase for string comparison
+                if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+                if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+                // Handle numeric sorting
+                if (sortConfig.key === 'price' ||
+                    sortConfig.key === 'stockQuantity' ||
+                    sortConfig.key === 'manufacturingCost' ||
+                    sortConfig.key === 'fundingGoal') {
+                    aValue = parseFloat(aValue) || 0;
+                    bValue = parseFloat(bValue) || 0;
+                }
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
             });
+        }
+        return sortableProducts;
+    };
+
+    const handleCsvImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                if (results.data && results.data.length > 0) {
+                    const newProducts = results.data.map(row => {
+                        const categoriesArray = row.categories
+                            ? row.categories.split(/[,;]/).map(cat => cat.trim())
+                            : [];
+
+                        const tagsArray = row.tags
+                            ? row.tags.split(/[,;]/).map(tag => tag.trim())
+                            : [];
+
+                        return {
+                            id: uuidv4(),
+                            name: row.name || 'Unnamed Product',
+                            description: row.description || '',
+                            price: row.price || '0',
+                            stockQuantity: row.stockQuantity || '0',
+                            categories: categoriesArray,
+                            tags: tagsArray,
+                            productType: row.productType || 'physical',
+                            manufacturingCost: row.manufacturingCost || '0',
+                            isCrowdfunded: row.isCrowdfunded === 'true' || true,
+                            isDirectSell: row.isDirectSell === 'true' || false,
+                            fundingGoal: row.fundingGoal || '0',
+                            averageRating: row.averageRating || '0',
+                            businessHeldFunds: row.businessHeldFunds || '0',
+                            categoryType: row.categoryType || 'standard',
+                            manufacturerEmail: row.manufacturerEmail || '',
+                            manufacturingStatus: row.manufacturingStatus || 'pending',
+                            rating1Count: row.rating1Count || '0',
+                            rating2Count: row.rating2Count || '0',
+                            rating3Count: row.rating3Count || '0',
+                            rating4Count: row.rating4Count || '0',
+                            rating5Count: row.rating5Count || '0',
+                            reviewCount: row.reviewCount || '0',
+                            images: [],
+                            imageFiles: [],
+                            designer: row.designer || userProfile?.displayName || '',
+                            designerId: userProfile.uid,
+                            designerName: row.designerName || userProfile?.displayName || '',
+                            isFromCsv: true,
+                            originalCsvData: row
+                        };
+                    });
+
+                    setProducts(prevProducts => [...prevProducts, ...newProducts]);
+
+                    const newHeaders = results.meta.fields || [];
+                    if (newHeaders.includes('images')) {
+                        setHeaders(prevHeaders => {
+                            const combinedHeaders = [...new Set([...prevHeaders, ...newHeaders])];
+                            return combinedHeaders;
+                        });
+                    } else {
+                        setHeaders(defaultHeaders);
+                    }
+
+                    showSuccess(`Added ${newProducts.length} products from CSV`);
+
+                    setTimeout(() => {
+                        if (tableRef.current) {
+                            tableRef.current.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }, 100);
+                } else {
+                    showError('The CSV file appears to be empty or malformed');
+                }
+            },
+            error: (error) => {
+                console.error('CSV parsing error:', error);
+                showError('Failed to parse CSV file');
+            }
+        });
+
+        if (csvInputRef.current) {
+            csvInputRef.current.value = '';
         }
     };
 
     const downloadCsvTemplate = () => {
         const headers = [
             'name', 'description', 'price', 'stockQuantity', 'categories',
-            'tags', 'productType', 'manufacturingCost', 'designer'
+            'tags', 'productType', 'manufacturingCost', 'designer',
+            'isCrowdfunded', 'isDirectSell', 'fundingGoal', 'averageRating',
+            'businessHeldFunds', 'categoryType', 'manufacturerEmail', 'manufacturingStatus'
         ];
 
         const sampleData = [
@@ -101,7 +445,15 @@ const ProductsCsvImportPage = () => {
                 tags: 'tag1,tag2,tag3',
                 productType: 'physical',
                 manufacturingCost: '5.99',
-                designer: userProfile?.displayName || ''
+                designer: userProfile?.displayName || '',
+                isCrowdfunded: 'false',
+                isDirectSell: 'true',
+                fundingGoal: '0',
+                averageRating: '0',
+                businessHeldFunds: '0',
+                categoryType: 'standard',
+                manufacturerEmail: '',
+                manufacturingStatus: 'pending'
             }
         ];
 
@@ -120,154 +472,178 @@ const ProductsCsvImportPage = () => {
         document.body.removeChild(link);
     };
 
-    const uploadImage = async (file, productName) => {
-        if (!file) return null;
-
-        const uniqueId = uuidv4();
-        const fileExtension = file.name.split('.').pop();
-        const fileName = `products/${userProfile.uid}/${uniqueId}.${fileExtension}`;
-        const storageRef = ref(storage, fileName);
-
-        try {
-            await uploadBytes(storageRef, file);
-            const downloadUrl = await getDownloadURL(storageRef);
-            return downloadUrl;
-        } catch (error) {
-            console.error('Error uploading image:', error);
-            throw new Error(`Failed to upload image for ${productName}`);
-        }
-    };
-
-    const processCsvUpload = async () => {
-        if (!csvData || csvData.length === 0) {
-            showError('No CSV data found');
+    const exportCurrentData = () => {
+        if (products.length === 0) {
+            showError('No products to export');
             return;
         }
 
-        setLoading(true);
-        setUploadProgress(0);
-        setUploadResults([]);
-        setShowResults(true);
+        const csvData = products.map(product => {
+            return {
+                name: product.name,
+                description: product.description,
+                price: product.price,
+                stockQuantity: product.stockQuantity,
+                categories: product.categories.join(','),
+                tags: product.tags.join(','),
+                productType: product.productType,
+                manufacturingCost: product.manufacturingCost,
+                designer: product.designer,
+                isCrowdfunded: product.isCrowdfunded,
+                isDirectSell: product.isDirectSell,
+                fundingGoal: product.fundingGoal,
+                averageRating: product.averageRating,
+                businessHeldFunds: product.businessHeldFunds,
+                categoryType: product.categoryType,
+                manufacturerEmail: product.manufacturerEmail,
+                manufacturingStatus: product.manufacturingStatus,
+                rating1Count: product.rating1Count,
+                rating2Count: product.rating2Count,
+                rating3Count: product.rating3Count,
+                rating4Count: product.rating4Count,
+                rating5Count: product.rating5Count,
+                reviewCount: product.reviewCount
+            };
+        });
 
-        const results = [];
-        let successCount = 0;
+        const csv = Papa.unparse({
+            fields: headers.filter(h => h !== 'images'),
+            data: csvData
+        });
 
-        for (let i = 0; i < csvData.length; i++) {
-            const product = csvData[i];
-            const currentProgress = Math.round(((i) / csvData.length) * 100);
-            setUploadProgress(currentProgress);
-
-            try {
-                const categoriesArray = product.categories ?
-                    product.categories.split(',').map(cat => cat.trim()) : [];
-
-                const tagsArray = product.tags ?
-                    product.tags.split(',').map(tag => tag.trim()) : [];
-
-                const productData = {
-                    name: product.name || 'Unnamed Product',
-                    description: product.description || '',
-                    price: parseFloat(product.price) || 0,
-                    stockQuantity: parseInt(product.stockQuantity) || 0,
-                    categories: categoriesArray,
-                    tags: tagsArray,
-                    productType: product.productType || 'physical',
-                    manufacturingCost: parseFloat(product.manufacturingCost) || 0,
-                    images: [],
-                    designer: product.designer || userProfile?.displayName || 'Unknown Designer',
-                    designerId: userProfile.uid,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                    status: 'active',
-                    approved: false,
-                    manufacturerId: null,
-                    manufacturer: null
-                };
-
-                const docRef = await addDoc(collection(db, 'products'), productData);
-
-                results.push({
-                    name: product.name,
-                    status: 'success',
-                    id: docRef.id
-                });
-
-                successCount++;
-            } catch (error) {
-                console.error('Error uploading product:', error);
-
-                results.push({
-                    name: product.name || 'Unnamed Product',
-                    status: 'failed',
-                    error: error.message
-                });
-            }
-        }
-
-        setUploadProgress(100);
-        setUploadResults(results);
-        setLoading(false);
-
-        showSuccess(`Successfully uploaded ${successCount} out of ${csvData.length} products`);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'exported_products.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const addProduct = () => {
-        setProducts([
-            ...products,
-            {
-                id: uuidv4(),
-                name: '',
-                description: '',
-                price: '',
-                stockQuantity: '',
-                categories: [],
-                tags: [],
-                productType: 'physical',
-                manufacturingCost: '',
-                images: [],
-                imageFiles: [],
-                designer: userProfile?.displayName || '',
-                designerId: userProfile.uid
-            }
-        ]);
-    };
+        const newProduct = {
+            id: uuidv4(),
+            name: '',
+            description: '',
+            price: '',
+            stockQuantity: '',
+            categories: [],
+            tags: [],
+            productType: 'physical',
+            manufacturingCost: '',
+            isCrowdfunded: false,
+            isDirectSell: true,
+            fundingGoal: '0',
+            averageRating: '0',
+            businessHeldFunds: '0',
+            categoryType: 'standard',
+            manufacturerEmail: '',
+            manufacturingStatus: 'pending',
+            rating1Count: '0',
+            rating2Count: '0',
+            rating3Count: '0',
+            rating4Count: '0',
+            rating5Count: '0',
+            reviewCount: '0',
+            currentFunding: '0',
+            investorCount: '0',
+            fundsSentToManufacturer: false,
+            images: [],
+            imageFiles: [],
+            designer: userProfile?.displayName || '',
+            designerId: userProfile.uid,
+            designerName: userProfile?.displayName || ''
+        };
 
-    const removeProduct = (productId) => {
-        setProducts(products.filter(product => product.id !== productId));
-    };
+        setProducts([...products, newProduct]);
 
-    const updateProductField = (productId, field, value) => {
-        setProducts(products.map(product => {
-            if (product.id === productId) {
-                return { ...product, [field]: value };
-            }
-            return product;
-        }));
-    };
+        setTimeout(() => {
+            const productRows = document.querySelectorAll('.product-table tbody tr');
+            if (productRows.length > 0) {
+                const lastRow = productRows[productRows.length - 1];
+                lastRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    const handleFileSelect = (productId, e) => {
-        const files = Array.from(e.target.files);
-
-        if (files.length > 0) {
-            setProducts(products.map(product => {
-                if (product.id === productId) {
-                    return {
-                        ...product,
-                        imageFiles: [...product.imageFiles, ...files]
-                    };
+                const firstInput = lastRow.querySelector('input');
+                if (firstInput) {
+                    firstInput.focus();
                 }
-                return product;
-            }));
-        }
+            }
+        }, 100);
     };
 
-    const processManualUpload = async () => {
+    const duplicateSelectedProducts = () => {
+        if (selectedProducts.length === 0) {
+            showError('No products selected for duplication');
+            return;
+        }
+
+        const duplicatedProducts = [];
+
+        selectedProducts.forEach(productId => {
+            const originalProduct = products.find(p => p.id === productId);
+            if (originalProduct) {
+                const duplicatedProduct = {
+                    ...originalProduct,
+                    id: uuidv4(),
+                    name: `${originalProduct.name} (Copy)`,
+                    imageFiles: [...(originalProduct.imageFiles || [])],
+                };
+                duplicatedProducts.push(duplicatedProduct);
+            }
+        });
+
+        setProducts([...products, ...duplicatedProducts]);
+        showSuccess(`Duplicated ${duplicatedProducts.length} products`);
+    };
+
+    const removeSelectedProducts = () => {
+        if (selectedProducts.length === 0) {
+            showError('No products selected for removal');
+            return;
+        }
+
+        if (!window.confirm(`Are you sure you want to remove ${selectedProducts.length} selected products?`)) {
+            return;
+        }
+
+        setProducts(products.filter(product => !selectedProducts.includes(product.id)));
+        setSelectedProducts([]);
+        showSuccess(`Removed ${selectedProducts.length} products`);
+    };
+
+    const resetForm = () => {
         if (products.length === 0) {
-            showError('No products to upload');
+            return;
+        }
+
+        if (!window.confirm('Are you sure you want to clear all products? This action cannot be undone.')) {
+            return;
+        }
+
+        setProducts([]);
+        setSelectedProducts([]);
+        setUploadResults([]);
+        setShowResults(false);
+        showSuccess('All products have been cleared');
+    };
+
+    const uploadSelectedProducts = async () => {
+        const productsToUpload = selectedProducts.length > 0
+            ? products.filter(product => selectedProducts.includes(product.id))
+            : products;
+
+        if (productsToUpload.length === 0) {
+            showError('No products selected for upload');
+            return;
+        }
+
+        if (!window.confirm(`Are you sure you want to upload ${productsToUpload.length} products to the database?`)) {
             return;
         }
 
         setLoading(true);
+        setIsUploading(true);
         setUploadProgress(0);
         setUploadResults([]);
         setShowResults(true);
@@ -275,9 +651,9 @@ const ProductsCsvImportPage = () => {
         const results = [];
         let successCount = 0;
 
-        for (let i = 0; i < products.length; i++) {
-            const product = products[i];
-            const currentProgress = Math.round(((i) / products.length) * 100);
+        for (let i = 0; i < productsToUpload.length; i++) {
+            const product = productsToUpload[i];
+            const currentProgress = Math.round(((i) / productsToUpload.length) * 100);
             setUploadProgress(currentProgress);
 
             try {
@@ -286,25 +662,78 @@ const ProductsCsvImportPage = () => {
                 }
 
                 const imageUrls = [];
-                for (const imageFile of product.imageFiles) {
-                    const imageUrl = await uploadImage(imageFile, product.name);
-                    if (imageUrl) {
-                        imageUrls.push(imageUrl);
+                const storagePaths = [];
+                if (product.imageFiles && product.imageFiles.length > 0) {
+                    for (const [index, imageFile] of product.imageFiles.entries()) {
+                        const uniqueId = Date.now();
+                        const fileExtension = imageFile.name.split('.').pop();
+                        const fileName = `products/${userProfile.uid}/${uniqueId}-product-${index}.${fileExtension}`;
+                        const storageRef = ref(storage, fileName);
+
+                        await uploadBytes(storageRef, imageFile);
+                        const downloadUrl = await getDownloadURL(storageRef);
+
+                        imageUrls.push(downloadUrl);
+                        storagePaths.push(fileName);
                     }
                 }
+
+                let categoriesArray = product.categories;
+                if (!Array.isArray(categoriesArray)) {
+                    if (typeof categoriesArray === 'string') {
+                        categoriesArray = categoriesArray.split(/[,;]/).map(cat => cat.trim());
+                    } else {
+                        categoriesArray = [];
+                    }
+                }
+
+                let tagsArray = product.tags;
+                if (!Array.isArray(tagsArray)) {
+                    if (typeof tagsArray === 'string') {
+                        tagsArray = tagsArray.split(/[,;]/).map(tag => tag.trim());
+                    } else {
+                        tagsArray = [];
+                    }
+                }
+
+                const categoryId = categoriesArray.length > 0
+                    ? categoryMapping[categoriesArray[0].toLowerCase()] || ''
+                    : '';
 
                 const productData = {
                     name: product.name,
                     description: product.description || '',
                     price: parseFloat(product.price) || 0,
                     stockQuantity: parseInt(product.stockQuantity) || 0,
-                    categories: product.categories || [],
-                    tags: product.tags || [],
+                    categories: categoriesArray,
+                    category: categoryId,
+                    tags: tagsArray,
                     productType: product.productType || 'physical',
                     manufacturingCost: parseFloat(product.manufacturingCost) || 0,
-                    images: imageUrls,
-                    designer: userProfile?.displayName || 'Unknown Designer',
+                    // Ensure booleans are properly stored as boolean values
+                    isCrowdfunded: Boolean(product.isCrowdfunded === true || product.isCrowdfunded === 'true'),
+                    isDirectSell: Boolean(product.isDirectSell === true || product.isDirectSell === 'true'),
+                    fundingGoal: parseFloat(product.fundingGoal) || 0,
+                    averageRating: parseFloat(product.averageRating) || 0,
+                    businessHeldFunds: parseFloat(product.businessHeldFunds) || 0,
+                    categoryType: product.categoryType || 'standard',
+                    manufacturerEmail: product.manufacturerEmail || '',
+                    manufacturingStatus: product.manufacturingStatus || 'pending',
+                    rating1Count: parseInt(product.rating1Count) || 0,
+                    rating2Count: parseInt(product.rating2Count) || 0,
+                    rating3Count: parseInt(product.rating3Count) || 0,
+                    rating4Count: parseInt(product.rating4Count) || 0,
+                    rating5Count: parseInt(product.rating5Count) || 0,
+                    reviewCount: parseInt(product.reviewCount) || 0,
+                    currentFunding: parseFloat(product.currentFunding) || 0,
+                    investorCount: parseInt(product.investorCount) || 0,
+                    fundsSentToManufacturer: product.fundsSentToManufacturer === true || product.fundsSentToManufacturer === 'true',
+                    funders: [],
+                    imageUrls: imageUrls,
+                    storagePaths: storagePaths,
+                    designer: product.designer || userProfile?.displayName || 'Unknown Designer',
                     designerId: userProfile.uid,
+                    designerName: product.designerName || userProfile?.displayName || 'Unknown Designer',
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                     status: 'active',
@@ -336,423 +765,643 @@ const ProductsCsvImportPage = () => {
         setUploadProgress(100);
         setUploadResults(results);
         setLoading(false);
+        setIsUploading(false);
 
         if (successCount > 0) {
-            showSuccess(`Successfully uploaded ${successCount} out of ${products.length} products`);
+            const successfulIds = results
+                .filter(result => result.status === 'success')
+                .map(result => result.id);
+
+            setProducts(products.filter(product =>
+                !selectedProducts.includes(product.id) ||
+                results.some(r => r.name === product.name && r.status === 'failed')
+            ));
+
+            setSelectedProducts([]);
+            showSuccess(`Successfully uploaded ${successCount} out of ${productsToUpload.length} products`);
         } else {
             showError('Failed to upload any products');
         }
     };
 
-    const resetForm = () => {
-        if (activeTab === 'csv') {
-            setCsvFile(null);
-            setCsvData([]);
-            setCsvHeaders([]);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-        } else {
-            setProducts([]);
-        }
-
-        setUploadResults([]);
-        setShowResults(false);
-        setUploadProgress(0);
+    const toggleProductSelection = (productId) => {
+        setSelectedProducts(prevSelected =>
+            prevSelected.includes(productId)
+                ? prevSelected.filter(id => id !== productId)
+                : [...prevSelected, productId]
+        );
     };
 
-    const renderCsvPreview = () => {
-        if (!csvData || csvData.length === 0) return null;
+    const selectAllProducts = () => {
+        if (selectedProducts.length === filteredProducts.length) {
+            // If all products are selected, unselect all
+            setSelectedProducts([]);
+        } else {
+            // Otherwise, select all filtered products
+            setSelectedProducts(filteredProducts.map(product => product.id));
+        }
+    };
+
+    const requestSort = (key) => {
+        let direction = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const renderCategoryManager = () => {
+        return (
+            <div className="category-manager">
+                <h3>Category Management</h3>
+                <div className="category-input-container">
+                    <input
+                        type="text"
+                        placeholder="New category name..."
+                        value={newCategory}
+                        onChange={(e) => setNewCategory(e.target.value)}
+                        className="category-input"
+                    />
+                    <button
+                        type="button"
+                        className="tool-button tool-button-primary add-category-btn"
+                        onClick={() => addNewCategory()}
+                        disabled={!newCategory.trim()}
+                    >
+                        Add Category
+                    </button>
+                </div>
+                <div className="categories-list">
+                    {categories.length > 0 ? (
+                        <div className="category-tags">
+                            {categories.map((category, index) => (
+                                <span key={index} className="category-tag">
+                                    {category}
+                                </span>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="no-categories">No categories available. Add your first category above.</p>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderProductTable = () => {
+        if (products.length === 0) {
+            return (
+                <div className="no-products">
+                    <p>No products added. Import a CSV file or add products manually.</p>
+                    <button
+                        type="button"
+                        className="tool-button"
+                        onClick={addProduct}
+                    >
+                        Add Your First Product
+                    </button>
+                </div>
+            );
+        }
+
+        const displayHeaders = advancedMode
+            ? headers
+            : ['name', 'description', 'price', 'stockQuantity', 'categories', 'tags', 'productType', 'manufacturingCost', 'images'];
 
         return (
-            <div className="csv-preview">
-                <h3>CSV Preview ({csvData.length} products)</h3>
-                <div className="preview-table-container">
-                    <table className="preview-table">
+            <div className="product-table-container" ref={tableRef}>
+                <div className="table-toolbar">
+                    <div className="table-filter">
+                        <input
+                            type="text"
+                            placeholder="Search products..."
+                            value={filterText}
+                            onChange={(e) => setFilterText(e.target.value)}
+                            className="search-input"
+                        />
+                        <span className="filter-count">
+                            {filteredProducts.length} of {products.length} products
+                        </span>
+                    </div>
+                    <div className="view-mode-toggle">
+                        <label className="toggle-switch">
+                            <input
+                                type="checkbox"
+                                checked={advancedMode}
+                                onChange={() => setAdvancedMode(!advancedMode)}
+                            />
+                            <span className="toggle-slider"></span>
+                            <span className="toggle-label">{advancedMode ? 'Advanced Mode' : 'Basic Mode'}</span>
+                        </label>
+                    </div>
+                </div>
+                <div className="table-scroll-container">
+                    <table className="product-table">
                         <thead>
                             <tr>
-                                {csvHeaders.map((header, index) => (
-                                    <th key={index}>{header}</th>
+                                <th className="selection-column">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                                        onChange={selectAllProducts}
+                                    />
+                                </th>
+                                {displayHeaders.map((header, index) => (
+                                    <th
+                                        key={index}
+                                        onClick={() => requestSort(header)}
+                                        className={sortConfig.key === header ? `sort-${sortConfig.direction}` : ''}
+                                    >
+                                        {header.charAt(0).toUpperCase() + header.slice(1)}
+                                        {sortConfig.key === header && (
+                                            <span className="sort-indicator">
+                                                {sortConfig.direction === 'ascending' ? ' ▲' : ' ▼'}
+                                            </span>
+                                        )}
+                                    </th>
                                 ))}
+                                <th className="actions-column">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {csvData.slice(0, 5).map((row, rowIndex) => (
-                                <tr key={rowIndex}>
-                                    {csvHeaders.map((header, colIndex) => (
-                                        <td key={colIndex}>{row[header]}</td>
-                                    ))}
+                            {sortedProducts().map((product) => (
+                                <tr key={product.id} className={selectedProducts.includes(product.id) ? 'selected-row' : ''}>
+                                    <td>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedProducts.includes(product.id)}
+                                            onChange={() => toggleProductSelection(product.id)}
+                                        />
+                                    </td>
+                                    {displayHeaders.map((header, index) => {
+                                        if (header === 'images') {
+                                            return (
+                                                <td key={index} className="image-cell">
+                                                    <div
+                                                        className="image-drop-area"
+                                                        onDragOver={(e) => handleDragOver(e, product.id)}
+                                                        onDragEnter={handleDragEnter}
+                                                        onDragLeave={handleDragLeave}
+                                                        onDrop={(e) => handleDrop(e, product.id)}
+                                                    >
+                                                        {product.imageFiles && product.imageFiles.length > 0 ? (
+                                                            <div className="image-previews">
+                                                                {product.imageFiles.map((file, fileIndex) => (
+                                                                    <div key={fileIndex} className="image-preview-container">
+                                                                        <img
+                                                                            src={URL.createObjectURL(file)}
+                                                                            alt={`Preview ${fileIndex}`}
+                                                                            className="image-preview"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            className="remove-image"
+                                                                            onClick={() => removeImageFile(product.id, fileIndex)}
+                                                                        >
+                                                                            &times;
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                                <button
+                                                                    type="button"
+                                                                    className="add-more-images"
+                                                                    onClick={() => {
+                                                                        setCurrentProductId(product.id);
+                                                                        imageInputRef.current.click();
+                                                                    }}
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="drop-instructions">
+                                                                <p>Drop images here</p>
+                                                                <p>or</p>
+                                                                <button
+                                                                    type="button"
+                                                                    className="browse-button"
+                                                                    onClick={() => {
+                                                                        setCurrentProductId(product.id);
+                                                                        imageInputRef.current.click();
+                                                                    }}
+                                                                >
+                                                                    Browse
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            );
+                                        } else if (header === 'categories') {
+                                            return (
+                                                <td key={index}>
+                                                    <div className="categories-input-wrapper">
+                                                        <select
+                                                            multiple
+                                                            className="categories-select"
+                                                            value={Array.isArray(product.categories) ? product.categories : []}
+                                                            onChange={(e) => {
+                                                                const selectedCategories = Array.from(
+                                                                    e.target.selectedOptions,
+                                                                    option => option.value
+                                                                );
+                                                                updateProductField(product.id, 'categories', selectedCategories);
+                                                            }}
+                                                        >
+                                                            {categories.map((category, catIndex) => (
+                                                                <option key={catIndex} value={category}>
+                                                                    {category}
+                                                                </option>
+                                                            ))}
+                                                            {/* If the product has a custom category not in the main list, add it as an option */}
+                                                            {Array.isArray(product.categories) &&
+                                                                product.categories
+                                                                    .filter(cat => !categories.includes(cat))
+                                                                    .map((customCat, idx) => (
+                                                                        <option key={`custom-${idx}`} value={customCat}>
+                                                                            {customCat} (Custom)
+                                                                        </option>
+                                                                    ))
+                                                            }
+                                                        </select>
+                                                        <div className="category-input-actions">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Add custom category"
+                                                                className="custom-category-input"
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter' && e.target.value.trim()) {
+                                                                        e.preventDefault();
+                                                                        const newCat = e.target.value.trim();
+                                                                        const currentCategories = Array.isArray(product.categories) ? [...product.categories] : [];
+
+                                                                        if (!currentCategories.includes(newCat)) {
+                                                                            const updatedCategories = [...currentCategories, newCat];
+                                                                            updateProductField(product.id, 'categories', updatedCategories);
+
+                                                                            // Also update the global categories list if it's not already there
+                                                                            if (!categories.includes(newCat)) {
+                                                                                addNewCategory(newCat);
+                                                                            }
+
+                                                                            e.target.value = '';
+                                                                        }
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <div className="field-info">
+                                                            {Array.isArray(product.categories) && product.categories.length > 0
+                                                                ? product.categories.map((cat, idx) => (
+                                                                    <span key={idx} className="category-tag product-category-tag">
+                                                                        {cat}
+                                                                        <button
+                                                                            className="remove-tag-btn"
+                                                                            onClick={() => {
+                                                                                const updatedCategories = [...product.categories];
+                                                                                updatedCategories.splice(idx, 1);
+                                                                                updateProductField(product.id, 'categories', updatedCategories);
+                                                                            }}
+                                                                        >
+                                                                            ×
+                                                                        </button>
+                                                                    </span>
+                                                                ))
+                                                                : <span className="no-categories-msg">No categories selected</span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            );
+                                        } else if (header === 'tags') {
+                                            return (
+                                                <td key={index}>
+                                                    <input
+                                                        type="text"
+                                                        value={Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || ''}
+                                                        onChange={(e) => {
+                                                            const tagsArray = e.target.value
+                                                                .split(',')
+                                                                .map(tag => tag.trim())
+                                                                .filter(tag => tag);
+                                                            updateProductField(product.id, 'tags', tagsArray);
+                                                        }}
+                                                        placeholder="tag1, tag2, tag3"
+                                                    />
+                                                </td>
+                                            );
+                                        } else if (header === 'productType') {
+                                            return (
+                                                <td key={index}>
+                                                    <select
+                                                        value={product.productType || 'physical'}
+                                                        onChange={(e) => updateProductField(product.id, 'productType', e.target.value)}
+                                                    >
+                                                        <option value="physical">Physical</option>
+                                                        <option value="digital">Digital</option>
+                                                        <option value="service">Service</option>
+                                                    </select>
+                                                </td>
+                                            );
+                                        } else if (header === 'categoryType') {
+                                            return (
+                                                <td key={index}>
+                                                    <select
+                                                        value={product.categoryType || 'standard'}
+                                                        onChange={(e) => updateProductField(product.id, 'categoryType', e.target.value)}
+                                                    >
+                                                        <option value="standard">Standard</option>
+                                                        <option value="featured">Featured</option>
+                                                        <option value="seasonal">Seasonal</option>
+                                                    </select>
+                                                </td>
+                                            );
+                                        } else if (header === 'manufacturingStatus') {
+                                            return (
+                                                <td key={index}>
+                                                    <select
+                                                        value={product.manufacturingStatus || 'pending'}
+                                                        onChange={(e) => updateProductField(product.id, 'manufacturingStatus', e.target.value)}
+                                                    >
+                                                        <option value="pending">Pending</option>
+                                                        <option value="funded">Funded</option>
+                                                        <option value="in_production">In Production</option>
+                                                        <option value="ready">Ready</option>
+                                                        <option value="shipped">Shipped</option>
+                                                    </select>
+                                                </td>
+                                            );
+                                        } else if (['isCrowdfunded', 'isDirectSell', 'fundsSentToManufacturer'].includes(header)) {
+                                            return (
+                                                <td key={index}>
+                                                    <select
+                                                        value={product[header]?.toString() || 'false'}
+                                                        onChange={(e) => updateProductField(
+                                                            product.id,
+                                                            header,
+                                                            e.target.value === 'true'
+                                                        )}
+                                                    >
+                                                        <option value="true">Yes</option>
+                                                        <option value="false">No</option>
+                                                    </select>
+                                                </td>
+                                            );
+                                        } else if (['price', 'manufacturingCost', 'fundingGoal', 'averageRating', 'businessHeldFunds', 'currentFunding'].includes(header)) {
+                                            return (
+                                                <td key={index}>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        value={product[header] || ''}
+                                                        onChange={(e) => updateProductField(product.id, header, e.target.value)}
+                                                        placeholder="0.00"
+                                                    />
+                                                </td>
+                                            );
+                                        } else if (['stockQuantity', 'rating1Count', 'rating2Count', 'rating3Count', 'rating4Count', 'rating5Count', 'reviewCount', 'investorCount'].includes(header)) {
+                                            return (
+                                                <td key={index}>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={product[header] || ''}
+                                                        onChange={(e) => updateProductField(product.id, header, e.target.value)}
+                                                        placeholder="0"
+                                                    />
+                                                </td>
+                                            );
+                                        } else if (header === 'description') {
+                                            return (
+                                                <td key={index}>
+                                                    <textarea
+                                                        value={product[header] || ''}
+                                                        onChange={(e) => updateProductField(product.id, header, e.target.value)}
+                                                        placeholder="Product description"
+                                                    />
+                                                </td>
+                                            );
+                                        } else {
+                                            return (
+                                                <td key={index}>
+                                                    <input
+                                                        type="text"
+                                                        value={product[header] || ''}
+                                                        onChange={(e) => updateProductField(product.id, header, e.target.value)}
+                                                        placeholder={`Enter ${header}`}
+                                                    />
+                                                </td>
+                                            );
+                                        }
+                                    })}
+                                    <td className="actions-cell">
+                                        <button
+                                            type="button"
+                                            className="delete-product-btn"
+                                            onClick={() => removeProduct(product.id)}
+                                            title="Delete product"
+                                        >
+                                            Delete
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="duplicate-product-btn"
+                                            onClick={() => {
+                                                const duplicatedProduct = {
+                                                    ...product,
+                                                    id: uuidv4(),
+                                                    name: `${product.name} (Copy)`,
+                                                    imageFiles: [...(product.imageFiles || [])],
+                                                };
+                                                setProducts([...products, duplicatedProduct]);
+                                            }}
+                                            title="Duplicate product"
+                                        >
+                                            Copy
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-                {csvData.length > 5 && (
-                    <p className="preview-note">Showing first 5 of {csvData.length} products</p>
-                )}
             </div>
         );
     };
 
-    const renderProductForm = (product, index) => {
-        return (
-            <div className="product-entry" key={product.id}>
-                <div className="product-entry-header">
-                    <h3>Product #{index + 1}</h3>
-                    <button
-                        type="button"
-                        className="remove-product-btn"
-                        onClick={() => removeProduct(product.id)}
-                    >
-                        Remove
-                    </button>
-                </div>
-
-                <div className="product-form-layout">
-                    <div className="product-form-left">
-                        <div className="form-group">
-                            <label htmlFor={`name-${product.id}`}>Product Name *</label>
-                            <input
-                                type="text"
-                                id={`name-${product.id}`}
-                                value={product.name}
-                                onChange={(e) => updateProductField(product.id, 'name', e.target.value)}
-                                required
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor={`description-${product.id}`}>Description</label>
-                            <textarea
-                                id={`description-${product.id}`}
-                                value={product.description}
-                                onChange={(e) => updateProductField(product.id, 'description', e.target.value)}
-                                rows={4}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Product Type</label>
-                            <div className="product-type-toggle">
-                                <label>
-                                    <input
-                                        type="radio"
-                                        value="physical"
-                                        checked={product.productType === 'physical'}
-                                        onChange={() => updateProductField(product.id, 'productType', 'physical')}
-                                    />
-                                    Physical
-                                </label>
-                                <label>
-                                    <input
-                                        type="radio"
-                                        value="digital"
-                                        checked={product.productType === 'digital'}
-                                        onChange={() => updateProductField(product.id, 'productType', 'digital')}
-                                    />
-                                    Digital
-                                </label>
-                            </div>
-                        </div>
-
-                        <div className="form-row">
-                            <div className="form-group">
-                                <label htmlFor={`price-${product.id}`}>Price ($)</label>
-                                <input
-                                    type="text"
-                                    id={`price-${product.id}`}
-                                    value={product.price}
-                                    onChange={(e) => updateProductField(product.id, 'price', e.target.value)}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label htmlFor={`stockQuantity-${product.id}`}>Stock Quantity</label>
-                                <input
-                                    type="text"
-                                    id={`stockQuantity-${product.id}`}
-                                    value={product.stockQuantity}
-                                    onChange={(e) => updateProductField(product.id, 'stockQuantity', e.target.value)}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label htmlFor={`manufacturingCost-${product.id}`}>Manufacturing Cost ($)</label>
-                                <input
-                                    type="text"
-                                    id={`manufacturingCost-${product.id}`}
-                                    value={product.manufacturingCost}
-                                    onChange={(e) => updateProductField(product.id, 'manufacturingCost', e.target.value)}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="product-form-right">
-                        <div className="form-group">
-                            <label htmlFor={`categories-${product.id}`}>Categories</label>
-                            <select
-                                id={`categories-${product.id}`}
-                                multiple
-                                className="multi-select"
-                                value={product.categories}
-                                onChange={(e) => {
-                                    const selectedCategories = Array.from(
-                                        e.target.selectedOptions,
-                                        option => option.value
-                                    );
-                                    updateProductField(product.id, 'categories', selectedCategories);
-                                }}
-                            >
-                                {categories.map((category, index) => (
-                                    <option key={index} value={category}>
-                                        {category}
-                                    </option>
-                                ))}
-                            </select>
-                            <span className="selected-categories">
-                                {product.categories && product.categories.length > 0
-                                    ? `Selected: ${product.categories.join(', ')}`
-                                    : 'No categories selected'}
-                            </span>
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor={`tags-${product.id}`}>Tags (comma separated)</label>
-                            <input
-                                type="text"
-                                id={`tags-${product.id}`}
-                                value={product.tags}
-                                onChange={(e) => {
-                                    const tagsArray = e.target.value.split(',').map(tag => tag.trim());
-                                    updateProductField(product.id, 'tags', tagsArray);
-                                }}
-                                placeholder="e.g. summer, outdoor, kids"
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Product Images</label>
-                            <input
-                                type="file"
-                                id={`fileInput-${product.id}`}
-                                style={{ display: 'none' }}
-                                multiple
-                                accept="image/*"
-                                onChange={(e) => handleFileSelect(product.id, e)}
-                            />
-
-                            <div className="image-upload-area">
-                                {product.imageFiles && product.imageFiles.map((file, index) => (
-                                    <div className="image-preview-container" key={index}>
-                                        <img
-                                            src={URL.createObjectURL(file)}
-                                            alt={`Preview ${index}`}
-                                            className="image-preview"
-                                        />
-                                        <button
-                                            type="button"
-                                            className="remove-image-btn"
-                                            onClick={() => {
-                                                const updatedImageFiles = [...product.imageFiles];
-                                                updatedImageFiles.splice(index, 1);
-                                                updateProductField(product.id, 'imageFiles', updatedImageFiles);
-                                            }}
-                                        >
-                                            Remove
-                                        </button>
-                                    </div>
-                                ))}
-
-                                <label
-                                    htmlFor={`fileInput-${product.id}`}
-                                    className="upload-placeholder"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                        <polyline points="17 8 12 3 7 8"></polyline>
-                                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                                    </svg>
-                                    <p>Add Images</p>
-                                    <span>Click or drag files</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    const renderUploadProgress = () => {
-        if (!showResults) return null;
+    const renderUploadResults = () => {
+        if (!showResults || uploadResults.length === 0) return null;
 
         return (
-            <div className="upload-progress">
-                <h3>Upload Progress</h3>
-                <div className="progress-bar-container">
-                    <div
-                        className="progress-bar"
-                        style={{ width: `${uploadProgress}%` }}
-                    ></div>
+            <div className="upload-results-container">
+                <h2>Upload Results</h2>
+                <div className="results-summary">
+                    <span>{uploadResults.filter(r => r.status === 'success').length} successful, </span>
+                    <span>{uploadResults.filter(r => r.status === 'failed').length} failed</span>
                 </div>
-                <div className="progress-stats">
-                    <span>{uploadProgress}% Complete</span>
-                    <span>{uploadResults.filter(r => r.status === 'success').length} Successful / {uploadResults.length} Total</span>
-                </div>
-
-                {uploadResults.length > 0 && (
-                    <div className="upload-results">
-                        <h3>Upload Results</h3>
-                        <div className="results-list">
-                            {uploadResults.map((result, index) => (
-                                <div
-                                    key={index}
-                                    className={`result-item ${result.status}`}
-                                >
-                                    <span className="result-name">{result.name}</span>
-                                    <span className="result-status">
-                                        {result.status === 'success' ? 'Success' : 'Failed'}
-                                    </span>
-                                    {result.error && (
-                                        <div className="result-error">{result.error}</div>
-                                    )}
-                                </div>
-                            ))}
+                <div className="results-list">
+                    {uploadResults.map((result, index) => (
+                        <div
+                            key={index}
+                            className={`result-item ${result.status}`}
+                        >
+                            <div className="result-name">{result.name}</div>
+                            <div className="result-status">
+                                {result.status === 'success' ? 'Success' : 'Failed'}
+                            </div>
+                            {result.error && (
+                                <div className="result-error">{result.error}</div>
+                            )}
                         </div>
-                    </div>
-                )}
+                    ))}
+                </div>
             </div>
         );
     };
 
     return (
-        <div className="bulk-product-uploader-page">
-            <div className="bulk-product-uploader-container">
-                <h1>Bulk Product Uploader</h1>
+        <div className="unified-product-manager">
+            <h1>Unified Product Manager</h1>
+            <p className="description">
+                Import products from CSV, add products manually, edit them, and upload to the database.
+            </p>
 
-                <div className="upload-tabs">
-                    <button
-                        className={`tab-button ${activeTab === 'csv' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('csv')}
-                    >
-                        CSV Import
-                    </button>
-                    <button
-                        className={`tab-button ${activeTab === 'manual' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('manual')}
-                    >
-                        Manual Entry
-                    </button>
-                </div>
-
-                {activeTab === 'csv' ? (
-                    <div className="csv-import-section">
-                        <p className="upload-instructions">
-                            Upload a CSV file containing product information. The CSV should have headers matching the product fields.
-                            You can download a template below to get started.
-                        </p>
-
-                        <div className="csv-template-section">
-                            <h3>CSV Template</h3>
-                            <p>Download a template CSV file with required headers and example data.</p>
+            <div className="csv-import-container">
+                <div
+                    className="csv-dropzone"
+                    onDragOver={handleDragOverCsv}
+                    onDragEnter={handleDragOverCsv}
+                    onDragLeave={handleDragLeaveCsv}
+                    onDrop={handleDropCsv}
+                >
+                    <div className="dropzone-content">
+                        <h3>Import CSV</h3>
+                        <p>Drag & drop a CSV file here or</p>
+                        <div className="csv-buttons">
                             <button
-                                className="template-button"
+                                type="button"
+                                className="tool-button"
+                                onClick={() => csvInputRef.current.click()}
+                            >
+                                Browse Files
+                            </button>
+                            <button
+                                type="button"
+                                className="tool-button"
                                 onClick={downloadCsvTemplate}
                             >
                                 Download Template
                             </button>
                         </div>
-
-                        <div className="file-input-wrapper">
-                            <label className="file-input-label">Select CSV File</label>
-                            <input
-                                type="file"
-                                accept=".csv"
-                                className="file-input"
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                id="csvFileInput"
-                            />
-                            <label htmlFor="csvFileInput" className="file-input-button">
-                                Choose File
-                            </label>
-
-                            {csvFile && (
-                                <div className="file-info">
-                                    Selected file: {csvFile.name} ({Math.round(csvFile.size / 1024)} KB)
-                                </div>
-                            )}
-                        </div>
-
-                        {renderCsvPreview()}
-
-                        <div className="form-actions">
-                            <button
-                                className="reset-button"
-                                onClick={resetForm}
-                                disabled={loading || (!csvFile && uploadResults.length === 0)}
-                            >
-                                Reset
-                            </button>
-
-                            <button
-                                className="submit-button"
-                                onClick={processCsvUpload}
-                                disabled={loading || !csvFile || csvData.length === 0}
-                            >
-                                {loading ? 'Uploading...' : 'Upload Products'}
-                            </button>
-                        </div>
+                        <p className="small-text">
+                            CSV will be appended to existing data
+                        </p>
                     </div>
-                ) : (
-                    <div className="manual-entry-section">
-                        {products.length === 0 ? (
-                            <div className="empty-products">
-                                <p>No products added yet. Click the button below to add your first product.</p>
-                                <button
-                                    className="add-product-button"
-                                    onClick={addProduct}
-                                >
-                                    Add Product
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="product-entries">
-                                {products.map((product, index) => renderProductForm(product, index))}
+                </div>
+            </div>
 
-                                <div className="add-product-container">
-                                    <button
-                                        className="add-product-button"
-                                        onClick={addProduct}
-                                    >
-                                        Add Another Product
-                                    </button>
-                                </div>
+            {renderCategoryManager()}
 
-                                <div className="form-actions">
-                                    <button
-                                        className="reset-button"
-                                        onClick={resetForm}
-                                        disabled={loading}
-                                    >
-                                        Reset
-                                    </button>
+            <div className="toolbar">
+                <div className="toolbar-section">
+                    <button
+                        type="button"
+                        className="tool-button"
+                        onClick={addProduct}
+                    >
+                        Add Product
+                    </button>
 
-                                    <button
-                                        className="submit-button"
-                                        onClick={processManualUpload}
-                                        disabled={loading || products.length === 0}
-                                    >
-                                        {loading ? 'Uploading...' : 'Upload Products'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                    <button
+                        type="button"
+                        className="tool-button"
+                        onClick={duplicateSelectedProducts}
+                        disabled={selectedProducts.length === 0}
+                    >
+                        Duplicate Selected
+                    </button>
+
+                    <button
+                        type="button"
+                        className="tool-button tool-button-warning"
+                        onClick={removeSelectedProducts}
+                        disabled={selectedProducts.length === 0}
+                    >
+                        Remove Selected
+                    </button>
+
+                    <button
+                        type="button"
+                        className="tool-button tool-button-danger"
+                        onClick={resetForm}
+                        disabled={products.length === 0}
+                    >
+                        Clear All
+                    </button>
+                </div>
+
+                <div className="toolbar-section">
+                    <button
+                        type="button"
+                        className="tool-button tool-button-primary"
+                        onClick={uploadSelectedProducts}
+                        disabled={products.length === 0 || isUploading}
+                    >
+                        {isUploading ? 'Uploading...' : selectedProducts.length > 0
+                            ? `Upload ${selectedProducts.length} Selected`
+                            : `Upload All (${products.length})`}
+                    </button>
+
+                    <button
+                        type="button"
+                        className="tool-button"
+                        onClick={exportCurrentData}
+                        disabled={products.length === 0}
+                    >
+                        Export as CSV
+                    </button>
+                </div>
+            </div>
+
+            {loading && (
+                <div className="progress-container">
+                    <div className="progress-bar">
+                        <div
+                            className="progress-fill"
+                            style={{ width: `${uploadProgress}%` }}
+                        ></div>
                     </div>
-                )}
+                    <div className="progress-text">{uploadProgress}% Complete</div>
+                </div>
+            )}
 
-                {renderUploadProgress()}
+            <input
+                type="file"
+                accept=".csv"
+                ref={csvInputRef}
+                onChange={handleCsvImport}
+                style={{ display: 'none' }}
+            />
+
+            <input
+                type="file"
+                accept="image/*"
+                multiple
+                ref={imageInputRef}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                    if (currentProductId) {
+                        handleImageSelect(currentProductId, e);
+                    }
+                }}
+            />
+
+            {renderProductTable()}
+            {renderUploadResults()}
+
+            <div className="bottom-navigation">
+                <a href="/admin" className="back-button">Back to Admin Dashboard</a>
             </div>
         </div>
     );

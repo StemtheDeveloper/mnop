@@ -15,11 +15,8 @@ const BulkProductUploaderPage = () => {
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
 
-    const [activeTab, setActiveTab] = useState('csv');
     const [loading, setLoading] = useState(false);
     const [csvFile, setCsvFile] = useState(null);
-    const [csvData, setCsvData] = useState([]);
-    const [csvHeaders, setCsvHeaders] = useState([]);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadResults, setUploadResults] = useState([]);
     const [showResults, setShowResults] = useState(false);
@@ -69,13 +66,35 @@ const BulkProductUploaderPage = () => {
                 skipEmptyLines: true,
                 complete: (results) => {
                     if (results.data && results.data.length > 0) {
-                        setCsvHeaders(results.meta.fields || []);
-                        setCsvData(results.data);
+                        // Convert CSV data to product format and append to existing products
+                        const newProducts = results.data.map(product => ({
+                            id: uuidv4(),
+                            name: product.name || '',
+                            description: product.description || '',
+                            price: product.price || '',
+                            stockQuantity: product.stockQuantity || '0',
+                            categories: product.categories ? product.categories.split(',').map(cat => cat.trim()) : [],
+                            tags: product.tags ? product.tags.split(',').map(tag => tag.trim()) : [],
+                            productType: product.productType || 'physical',
+                            manufacturingCost: product.manufacturingCost || '',
+                            images: [],
+                            imageFiles: [],
+                            designer: product.designer || userProfile?.displayName || '',
+                            designerId: userProfile.uid
+                        }));
+
+                        // Append to existing products rather than replacing them
+                        setProducts(prevProducts => [...prevProducts, ...newProducts]);
+                        showSuccess(`Imported ${newProducts.length} products from CSV`);
                     } else {
                         showError('The CSV file appears to be empty or malformed');
-                        setCsvHeaders([]);
-                        setCsvData([]);
                     }
+
+                    // Clear the file input so the same file can be selected again if needed
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                    }
+                    setCsvFile(null);
                 },
                 error: (error) => {
                     console.error('CSV parsing error:', error);
@@ -138,79 +157,6 @@ const BulkProductUploaderPage = () => {
         }
     };
 
-    const processCsvUpload = async () => {
-        if (!csvData || csvData.length === 0) {
-            showError('No CSV data found');
-            return;
-        }
-
-        setLoading(true);
-        setUploadProgress(0);
-        setUploadResults([]);
-        setShowResults(true);
-
-        const results = [];
-        let successCount = 0;
-
-        for (let i = 0; i < csvData.length; i++) {
-            const product = csvData[i];
-            const currentProgress = Math.round(((i) / csvData.length) * 100);
-            setUploadProgress(currentProgress);
-
-            try {
-                const categoriesArray = product.categories ?
-                    product.categories.split(',').map(cat => cat.trim()) : [];
-
-                const tagsArray = product.tags ?
-                    product.tags.split(',').map(tag => tag.trim()) : [];
-
-                const productData = {
-                    name: product.name || 'Unnamed Product',
-                    description: product.description || '',
-                    price: parseFloat(product.price) || 0,
-                    stockQuantity: parseInt(product.stockQuantity) || 0,
-                    categories: categoriesArray,
-                    tags: tagsArray,
-                    productType: product.productType || 'physical',
-                    manufacturingCost: parseFloat(product.manufacturingCost) || 0,
-                    images: [],
-                    designer: product.designer || userProfile?.displayName || 'Unknown Designer',
-                    designerId: userProfile.uid,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                    status: 'active',
-                    approved: false,
-                    manufacturerId: null,
-                    manufacturer: null
-                };
-
-                const docRef = await addDoc(collection(db, 'products'), productData);
-
-                results.push({
-                    name: product.name,
-                    status: 'success',
-                    id: docRef.id
-                });
-
-                successCount++;
-            } catch (error) {
-                console.error('Error uploading product:', error);
-
-                results.push({
-                    name: product.name || 'Unnamed Product',
-                    status: 'failed',
-                    error: error.message
-                });
-            }
-        }
-
-        setUploadProgress(100);
-        setUploadResults(results);
-        setLoading(false);
-
-        showSuccess(`Successfully uploaded ${successCount} out of ${csvData.length} products`);
-    };
-
     const addProduct = () => {
         setProducts([
             ...products,
@@ -219,7 +165,8 @@ const BulkProductUploaderPage = () => {
                 name: '',
                 description: '',
                 price: '',
-                stockQuantity: '',
+                stockQuantity: '0',
+                lowStockThreshold: '5',
                 categories: [],
                 tags: [],
                 productType: 'physical',
@@ -227,7 +174,8 @@ const BulkProductUploaderPage = () => {
                 images: [],
                 imageFiles: [],
                 designer: userProfile?.displayName || '',
-                designerId: userProfile.uid
+                designerId: userProfile.uid,
+                trackInventory: false
             }
         ]);
     };
@@ -261,7 +209,7 @@ const BulkProductUploaderPage = () => {
         }
     };
 
-    const processManualUpload = async () => {
+    const processUpload = async () => {
         if (products.length === 0) {
             showError('No products to upload');
             return;
@@ -298,6 +246,8 @@ const BulkProductUploaderPage = () => {
                     description: product.description || '',
                     price: parseFloat(product.price) || 0,
                     stockQuantity: parseInt(product.stockQuantity) || 0,
+                    lowStockThreshold: parseInt(product.lowStockThreshold) || 5,
+                    trackInventory: product.trackInventory || false,
                     categories: product.categories || [],
                     tags: product.tags || [],
                     productType: product.productType || 'physical',
@@ -345,240 +295,219 @@ const BulkProductUploaderPage = () => {
     };
 
     const resetForm = () => {
-        if (activeTab === 'csv') {
-            setCsvFile(null);
-            setCsvData([]);
-            setCsvHeaders([]);
+        if (window.confirm('Are you sure you want to clear all products?')) {
+            setProducts([]);
+            setUploadResults([]);
+            setShowResults(false);
+            setUploadProgress(0);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
-        } else {
-            setProducts([]);
         }
-
-        setUploadResults([]);
-        setShowResults(false);
-        setUploadProgress(0);
     };
 
-    const renderCsvPreview = () => {
-        if (!csvData || csvData.length === 0) return null;
+    const exportToCsv = () => {
+        if (products.length === 0) {
+            showError('No products to export');
+            return;
+        }
+
+        const headers = [
+            'name', 'description', 'price', 'stockQuantity', 'categories',
+            'tags', 'productType', 'manufacturingCost', 'designer'
+        ];
+
+        const csvData = products.map(product => ({
+            name: product.name,
+            description: product.description,
+            price: product.price,
+            stockQuantity: product.stockQuantity,
+            categories: (product.categories || []).join(','),
+            tags: (product.tags || []).join(','),
+            productType: product.productType,
+            manufacturingCost: product.manufacturingCost,
+            designer: product.designer
+        }));
+
+        const csv = Papa.unparse({
+            fields: headers,
+            data: csvData
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `product_export_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const renderProductsTable = () => {
+        if (products.length === 0) {
+            return (
+                <div className="empty-products">
+                    <p>No products added yet. Add products by clicking the "Add Product" button or importing a CSV file.</p>
+                    <button className="add-product-button" onClick={addProduct}>
+                        Add Product
+                    </button>
+                </div>
+            );
+        }
 
         return (
-            <div className="csv-preview">
-                <h3>CSV Preview ({csvData.length} products)</h3>
-                <div className="preview-table-container">
-                    <table className="preview-table">
+            <div className="products-table-container">
+                <div className="table-actions">
+                    <button className="add-product-button" onClick={addProduct}>
+                        Add Product
+                    </button>
+                    <button className="export-csv-button" onClick={exportToCsv}>
+                        Export to CSV
+                    </button>
+                </div>
+
+                <div className="products-table">
+                    <table>
                         <thead>
                             <tr>
-                                {csvHeaders.map((header, index) => (
-                                    <th key={index}>{header}</th>
-                                ))}
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Manufacturing Cost</th>
+                                <th>Categories</th>
+                                <th>Images</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {csvData.slice(0, 5).map((row, rowIndex) => (
-                                <tr key={rowIndex}>
-                                    {csvHeaders.map((header, colIndex) => (
-                                        <td key={colIndex}>{row[header]}</td>
-                                    ))}
+                            {products.map((product) => (
+                                <tr key={product.id}>
+                                    <td>
+                                        <input
+                                            type="text"
+                                            value={product.name}
+                                            onChange={(e) => updateProductField(product.id, 'name', e.target.value)}
+                                            placeholder="Product Name"
+                                            className="table-input name-input"
+                                        />
+                                    </td>
+                                    <td>
+                                        <textarea
+                                            value={product.description}
+                                            onChange={(e) => updateProductField(product.id, 'description', e.target.value)}
+                                            placeholder="Description"
+                                            className="table-input description-input"
+                                        />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="text"
+                                            value={product.price}
+                                            onChange={(e) => updateProductField(product.id, 'price', e.target.value)}
+                                            placeholder="0.00"
+                                            className="table-input price-input"
+                                        />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="number"
+                                            value={product.stockQuantity}
+                                            onChange={(e) => updateProductField(product.id, 'stockQuantity', e.target.value)}
+                                            placeholder="0"
+                                            min="0"
+                                            className="table-input stock-input"
+                                        />
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="text"
+                                            value={product.manufacturingCost}
+                                            onChange={(e) => updateProductField(product.id, 'manufacturingCost', e.target.value)}
+                                            placeholder="0.00"
+                                            className="table-input cost-input"
+                                        />
+                                    </td>
+                                    <td>
+                                        <select
+                                            multiple
+                                            className="table-input categories-input"
+                                            value={product.categories || []}
+                                            onChange={(e) => {
+                                                const selectedCategories = Array.from(
+                                                    e.target.selectedOptions,
+                                                    option => option.value
+                                                );
+                                                updateProductField(product.id, 'categories', selectedCategories);
+                                            }}
+                                        >
+                                            {categories.map((category, index) => (
+                                                <option key={index} value={category}>
+                                                    {category}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="selected-categories-text">
+                                            {product.categories && product.categories.length > 0
+                                                ? product.categories.join(', ')
+                                                : 'None'}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div className="image-upload-cell">
+                                            <input
+                                                type="file"
+                                                id={`fileInput-${product.id}`}
+                                                style={{ display: 'none' }}
+                                                multiple
+                                                accept="image/*"
+                                                onChange={(e) => handleFileSelect(product.id, e)}
+                                            />
+
+                                            <div className="image-thumbnails">
+                                                {product.imageFiles && product.imageFiles.map((file, index) => (
+                                                    <div className="image-thumbnail" key={index}>
+                                                        <img
+                                                            src={URL.createObjectURL(file)}
+                                                            alt={`Thumbnail ${index}`}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="remove-image-btn"
+                                                            onClick={() => {
+                                                                const updatedImageFiles = [...product.imageFiles];
+                                                                updatedImageFiles.splice(index, 1);
+                                                                updateProductField(product.id, 'imageFiles', updatedImageFiles);
+                                                            }}
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </div>
+                                                ))}
+
+                                                <label
+                                                    htmlFor={`fileInput-${product.id}`}
+                                                    className="add-image-btn"
+                                                >
+                                                    +
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button
+                                            className="remove-row-btn"
+                                            onClick={() => removeProduct(product.id)}
+                                            title="Remove product"
+                                        >
+                                            Delete
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                </div>
-                {csvData.length > 5 && (
-                    <p className="preview-note">Showing first 5 of {csvData.length} products</p>
-                )}
-            </div>
-        );
-    };
-
-    const renderProductForm = (product, index) => {
-        return (
-            <div className="product-entry" key={product.id}>
-                <div className="product-entry-header">
-                    <h3>Product #{index + 1}</h3>
-                    <button
-                        type="button"
-                        className="remove-product-btn"
-                        onClick={() => removeProduct(product.id)}
-                    >
-                        Remove
-                    </button>
-                </div>
-
-                <div className="product-form-layout">
-                    <div className="product-form-left">
-                        <div className="form-group">
-                            <label htmlFor={`name-${product.id}`}>Product Name *</label>
-                            <input
-                                type="text"
-                                id={`name-${product.id}`}
-                                value={product.name}
-                                onChange={(e) => updateProductField(product.id, 'name', e.target.value)}
-                                required
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor={`description-${product.id}`}>Description</label>
-                            <textarea
-                                id={`description-${product.id}`}
-                                value={product.description}
-                                onChange={(e) => updateProductField(product.id, 'description', e.target.value)}
-                                rows={4}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Product Type</label>
-                            <div className="product-type-toggle">
-                                <label>
-                                    <input
-                                        type="radio"
-                                        value="physical"
-                                        checked={product.productType === 'physical'}
-                                        onChange={() => updateProductField(product.id, 'productType', 'physical')}
-                                    />
-                                    Physical
-                                </label>
-                                <label>
-                                    <input
-                                        type="radio"
-                                        value="digital"
-                                        checked={product.productType === 'digital'}
-                                        onChange={() => updateProductField(product.id, 'productType', 'digital')}
-                                    />
-                                    Digital
-                                </label>
-                            </div>
-                        </div>
-
-                        <div className="form-row">
-                            <div className="form-group">
-                                <label htmlFor={`price-${product.id}`}>Price ($)</label>
-                                <input
-                                    type="text"
-                                    id={`price-${product.id}`}
-                                    value={product.price}
-                                    onChange={(e) => updateProductField(product.id, 'price', e.target.value)}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label htmlFor={`stockQuantity-${product.id}`}>Stock Quantity</label>
-                                <input
-                                    type="text"
-                                    id={`stockQuantity-${product.id}`}
-                                    value={product.stockQuantity}
-                                    onChange={(e) => updateProductField(product.id, 'stockQuantity', e.target.value)}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label htmlFor={`manufacturingCost-${product.id}`}>Manufacturing Cost ($)</label>
-                                <input
-                                    type="text"
-                                    id={`manufacturingCost-${product.id}`}
-                                    value={product.manufacturingCost}
-                                    onChange={(e) => updateProductField(product.id, 'manufacturingCost', e.target.value)}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="product-form-right">
-                        <div className="form-group">
-                            <label htmlFor={`categories-${product.id}`}>Categories</label>
-                            <select
-                                id={`categories-${product.id}`}
-                                multiple
-                                className="multi-select"
-                                value={product.categories}
-                                onChange={(e) => {
-                                    const selectedCategories = Array.from(
-                                        e.target.selectedOptions,
-                                        option => option.value
-                                    );
-                                    updateProductField(product.id, 'categories', selectedCategories);
-                                }}
-                            >
-                                {categories.map((category, index) => (
-                                    <option key={index} value={category}>
-                                        {category}
-                                    </option>
-                                ))}
-                            </select>
-                            <span className="selected-categories">
-                                {product.categories && product.categories.length > 0
-                                    ? `Selected: ${product.categories.join(', ')}`
-                                    : 'No categories selected'}
-                            </span>
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor={`tags-${product.id}`}>Tags (comma separated)</label>
-                            <input
-                                type="text"
-                                id={`tags-${product.id}`}
-                                value={product.tags}
-                                onChange={(e) => {
-                                    const tagsArray = e.target.value.split(',').map(tag => tag.trim());
-                                    updateProductField(product.id, 'tags', tagsArray);
-                                }}
-                                placeholder="e.g. summer, outdoor, kids"
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Product Images</label>
-                            <input
-                                type="file"
-                                id={`fileInput-${product.id}`}
-                                style={{ display: 'none' }}
-                                multiple
-                                accept="image/*"
-                                onChange={(e) => handleFileSelect(product.id, e)}
-                            />
-
-                            <div className="image-upload-area">
-                                {product.imageFiles && product.imageFiles.map((file, index) => (
-                                    <div className="image-preview-container" key={index}>
-                                        <img
-                                            src={URL.createObjectURL(file)}
-                                            alt={`Preview ${index}`}
-                                            className="image-preview"
-                                        />
-                                        <button
-                                            type="button"
-                                            className="remove-image-btn"
-                                            onClick={() => {
-                                                const updatedImageFiles = [...product.imageFiles];
-                                                updatedImageFiles.splice(index, 1);
-                                                updateProductField(product.id, 'imageFiles', updatedImageFiles);
-                                            }}
-                                        >
-                                            Remove
-                                        </button>
-                                    </div>
-                                ))}
-
-                                <label
-                                    htmlFor={`fileInput-${product.id}`}
-                                    className="upload-placeholder"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                        <polyline points="17 8 12 3 7 8"></polyline>
-                                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                                    </svg>
-                                    <p>Add Images</p>
-                                    <span>Click or drag files</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         );
@@ -629,128 +558,53 @@ const BulkProductUploaderPage = () => {
     return (
         <div className="bulk-product-uploader-page">
             <div className="bulk-product-uploader-container">
-                <h1>Bulk Product Uploader</h1>
+                <h1>Product Uploader</h1>
 
-                <div className="upload-tabs">
-                    <button
-                        className={`tab-button ${activeTab === 'csv' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('csv')}
-                    >
-                        CSV Import
-                    </button>
-                    <button
-                        className={`tab-button ${activeTab === 'manual' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('manual')}
-                    >
-                        Manual Entry
-                    </button>
-                </div>
-
-                {activeTab === 'csv' ? (
-                    <div className="csv-import-section">
-                        <p className="upload-instructions">
-                            Upload a CSV file containing product information. The CSV should have headers matching the product fields.
-                            You can download a template below to get started.
-                        </p>
-
-                        <div className="csv-template-section">
-                            <h3>CSV Template</h3>
-                            <p>Download a template CSV file with required headers and example data.</p>
-                            <button
-                                className="template-button"
-                                onClick={downloadCsvTemplate}
-                            >
-                                Download Template
+                <div className="import-section">
+                    <div className="csv-action-buttons">
+                        <div>
+                            <button className="template-button" onClick={downloadCsvTemplate}>
+                                Download CSV Template
                             </button>
+
+                            <div className="file-input-wrapper">
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    className="file-input"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    id="csvFileInput"
+                                />
+                                <label htmlFor="csvFileInput" className="file-input-button">
+                                    Import CSV
+                                </label>
+                            </div>
                         </div>
-
-                        <div className="file-input-wrapper">
-                            <label className="file-input-label">Select CSV File</label>
-                            <input
-                                type="file"
-                                accept=".csv"
-                                className="file-input"
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                id="csvFileInput"
-                            />
-                            <label htmlFor="csvFileInput" className="file-input-button">
-                                Choose File
-                            </label>
-
-                            {csvFile && (
-                                <div className="file-info">
-                                    Selected file: {csvFile.name} ({Math.round(csvFile.size / 1024)} KB)
-                                </div>
-                            )}
-                        </div>
-
-                        {renderCsvPreview()}
 
                         <div className="form-actions">
                             <button
                                 className="reset-button"
                                 onClick={resetForm}
-                                disabled={loading || (!csvFile && uploadResults.length === 0)}
+                                disabled={loading || products.length === 0}
                             >
-                                Reset
+                                Clear All
                             </button>
 
                             <button
                                 className="submit-button"
-                                onClick={processCsvUpload}
-                                disabled={loading || !csvFile || csvData.length === 0}
+                                onClick={processUpload}
+                                disabled={loading || products.length === 0}
                             >
-                                {loading ? 'Uploading...' : 'Upload Products'}
+                                {loading ? 'Uploading...' : 'Upload All Products'}
                             </button>
                         </div>
                     </div>
-                ) : (
-                    <div className="manual-entry-section">
-                        {products.length === 0 ? (
-                            <div className="empty-products">
-                                <p>No products added yet. Click the button below to add your first product.</p>
-                                <button
-                                    className="add-product-button"
-                                    onClick={addProduct}
-                                >
-                                    Add Product
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="product-entries">
-                                {products.map((product, index) => renderProductForm(product, index))}
+                </div>
 
-                                <div className="add-product-container">
-                                    <button
-                                        className="add-product-button"
-                                        onClick={addProduct}
-                                    >
-                                        Add Another Product
-                                    </button>
-                                </div>
-
-                                <div className="form-actions">
-                                    <button
-                                        className="reset-button"
-                                        onClick={resetForm}
-                                        disabled={loading}
-                                    >
-                                        Reset
-                                    </button>
-
-                                    <button
-                                        className="submit-button"
-                                        onClick={processManualUpload}
-                                        disabled={loading || products.length === 0}
-                                    >
-                                        {loading ? 'Uploading...' : 'Upload Products'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                <div className="products-section">
+                    {renderProductsTable()}
+                </div>
 
                 {renderUploadProgress()}
             </div>
