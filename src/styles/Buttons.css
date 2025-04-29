@@ -170,6 +170,71 @@
   cursor: not-allowed;
 }
 
+/* Role Badges - Consistent styling for role badges across the application */
+.role-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+  text-transform: capitalize;
+  margin-right: 5px;
+}
+
+.role-badge.designer {
+  background-color: #ef3c23;
+}
+
+.role-badge.manufacturer {
+  background-color: #3498db;
+}
+
+.role-badge.investor {
+  background-color: #f39c12;
+}
+
+.role-badge.customer {
+  background-color: #2ecc71;
+}
+
+.role-badge.admin {
+  background-color: #9b59b6;
+}
+
+/* Role Pills - Alternative styling for profile displays */
+.role-pill {
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  text-align: center;
+  min-width: 90px;
+  display: inline-block;
+  margin: 2px;
+}
+
+.role-pill.designer {
+  background-color: #ef3c23;
+}
+
+.role-pill.manufacturer {
+  background-color: #3498db;
+}
+
+.role-pill.investor {
+  background-color: #f39c12;
+}
+
+.role-pill.customer {
+  background-color: #2ecc71;
+}
+
+.role-pill.admin {
+  background-color: #9b59b6;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .submit-button,

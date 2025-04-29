@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import walletService from '../services/walletService';
 
 const UserContext = createContext();
@@ -19,7 +19,7 @@ export const USER_ROLES = {
 export const UserProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
-    const [userRole, setUserRole] = useState(null);
+    const [userRoles, setUserRoles] = useState([]);
     const [userWallet, setUserWallet] = useState(null);
     const [loading, setLoading] = useState(true);
     const [authInitialized, setAuthInitialized] = useState(false);
@@ -35,15 +35,38 @@ export const UserProvider = ({ children }) => {
                 const userData = docSnap.data();
                 setUserProfile(userData);
 
-                // Handle user roles - support both "role" (string) and "roles" (array)
-                if (userData.roles) {
-                    setUserRole(userData.roles); // Array of roles
+                // Standardize roles to always be an array
+                let rolesArray = [];
+
+                if (userData.roles && Array.isArray(userData.roles)) {
+                    rolesArray = userData.roles;
                 } else if (userData.role) {
-                    setUserRole(userData.role); // Single role string
+                    // If only a string role exists, convert to array
+                    rolesArray = [userData.role];
+
+                    // Update the document to standardize the format
+                    try {
+                        await updateDoc(docRef, {
+                            roles: rolesArray
+                        });
+                    } catch (updateError) {
+                        console.error("Error updating roles format:", updateError);
+                    }
                 } else {
                     // Default role if none is set
-                    setUserRole('customer');
+                    rolesArray = ['customer'];
+
+                    // Update the document to standardize the format
+                    try {
+                        await updateDoc(docRef, {
+                            roles: rolesArray
+                        });
+                    } catch (updateError) {
+                        console.error("Error setting default roles:", updateError);
+                    }
                 }
+
+                setUserRoles(rolesArray);
             } else {
                 // Create a new user document if it doesn't exist
                 const newUserData = {
@@ -51,14 +74,13 @@ export const UserProvider = ({ children }) => {
                     email: auth.currentUser?.email || '',
                     displayName: auth.currentUser?.displayName || '',
                     photoURL: auth.currentUser?.photoURL || '',
-                    role: 'customer', // Default role
-                    roles: ['customer'], // Default roles array
+                    roles: ['customer'], // Always use array format
                     createdAt: serverTimestamp()
                 };
 
                 await setDoc(docRef, newUserData);
                 setUserProfile(newUserData);
-                setUserRole('customer');
+                setUserRoles(['customer']);
             }
 
             // Fetch user wallet information or initialize it
@@ -88,19 +110,20 @@ export const UserProvider = ({ children }) => {
         } catch (error) {
             console.error("Error fetching user data:", error);
             setUserProfile(null);
-            setUserRole(null);
+            setUserRoles([]);
         }
     };
 
     // Function to check if a user has a specific role
     const hasRole = (role) => {
-        if (!userRole) return false;
+        if (!userRoles || !userRoles.length) return false;
+        return userRoles.includes(role);
+    };
 
-        if (Array.isArray(userRole)) {
-            return userRole.includes(role);
-        }
-
-        return userRole === role;
+    // Utility function to check if user has any of the provided roles
+    const hasAnyRole = (roles) => {
+        if (!userRoles || !userRoles.length) return false;
+        return roles.some(role => userRoles.includes(role));
     };
 
     // Get wallet balance
@@ -154,6 +177,159 @@ export const UserProvider = ({ children }) => {
         }
     };
 
+    // Add user role function
+    const addUserRole = async (roleId, userId = null) => {
+        try {
+            const targetUserId = userId || currentUser?.uid;
+            if (!targetUserId) throw new Error("No user ID provided");
+
+            const userRef = doc(db, "users", targetUserId);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) throw new Error("User document not found");
+
+            const userData = userSnap.data();
+            let currentRoles = [];
+
+            // Get existing roles
+            if (Array.isArray(userData.roles)) {
+                currentRoles = [...userData.roles];
+            } else if (userData.role) {
+                currentRoles = [userData.role];
+            }
+
+            // Check if role already exists
+            if (currentRoles.includes(roleId)) return true;
+
+            // Add the new role
+            currentRoles.push(roleId);
+
+            // Update document with new roles
+            await updateDoc(userRef, {
+                roles: currentRoles,
+                role: roleId, // Keep role field updated for backward compatibility
+                updatedAt: new Date()
+            });
+
+            // If this is the current user, update local state
+            if (targetUserId === currentUser?.uid) {
+                setUserRoles(currentRoles);
+                await refreshUserData();
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Error adding role:", error);
+            return false;
+        }
+    };
+
+    // Remove user role function
+    const removeUserRole = async (roleId, userId = null) => {
+        try {
+            const targetUserId = userId || currentUser?.uid;
+            if (!targetUserId) throw new Error("No user ID provided");
+
+            const userRef = doc(db, "users", targetUserId);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) throw new Error("User document not found");
+
+            const userData = userSnap.data();
+            let currentRoles = [];
+
+            // Get existing roles
+            if (Array.isArray(userData.roles)) {
+                currentRoles = [...userData.roles];
+            } else if (userData.role) {
+                currentRoles = [userData.role];
+            } else {
+                return false; // No roles to remove
+            }
+
+            // Check if role exists
+            if (!currentRoles.includes(roleId)) return false;
+
+            // Remove the role
+            const newRoles = currentRoles.filter(role => role !== roleId);
+
+            // Ensure there's at least one role (default to customer)
+            if (newRoles.length === 0) {
+                newRoles.push('customer');
+            }
+
+            // Update document with new roles
+            await updateDoc(userRef, {
+                roles: newRoles,
+                role: newRoles[0], // Keep role field updated for backward compatibility
+                updatedAt: new Date()
+            });
+
+            // If this is the current user, update local state
+            if (targetUserId === currentUser?.uid) {
+                setUserRoles(newRoles);
+                await refreshUserData();
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Error removing role:", error);
+            return false;
+        }
+    };
+
+    // Set primary role function
+    const setPrimaryRole = async (roleId, userId = null) => {
+        try {
+            const targetUserId = userId || currentUser?.uid;
+            if (!targetUserId) throw new Error("No user ID provided");
+
+            const userRef = doc(db, "users", targetUserId);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) throw new Error("User document not found");
+
+            const userData = userSnap.data();
+            let currentRoles = [];
+
+            // Get existing roles
+            if (Array.isArray(userData.roles)) {
+                currentRoles = [...userData.roles];
+            } else if (userData.role) {
+                currentRoles = [userData.role];
+            } else {
+                return false; // No roles to update
+            }
+
+            // Check if role exists
+            if (!currentRoles.includes(roleId)) return false;
+
+            // Reorder roles array to put the primary role first
+            const newRoles = [
+                roleId,
+                ...currentRoles.filter(role => role !== roleId)
+            ];
+
+            // Update document with new roles order
+            await updateDoc(userRef, {
+                roles: newRoles,
+                role: roleId, // Update single role field
+                updatedAt: new Date()
+            });
+
+            // If this is the current user, update local state
+            if (targetUserId === currentUser?.uid) {
+                setUserRoles(newRoles);
+                await refreshUserData();
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Error setting primary role:", error);
+            return false;
+        }
+    };
+
     // Custom sign out function
     const userSignOut = async () => {
         try {
@@ -161,7 +337,7 @@ export const UserProvider = ({ children }) => {
             // Clear user data
             setCurrentUser(null);
             setUserProfile(null);
-            setUserRole(null);
+            setUserRoles([]);
             setUserWallet(null);
 
             // Return success for handling navigation in components
@@ -186,7 +362,7 @@ export const UserProvider = ({ children }) => {
             } else {
                 setCurrentUser(null);
                 setUserProfile(null);
-                setUserRole(null);
+                setUserRoles([]);
                 setUserWallet(null);
             }
 
@@ -211,18 +387,23 @@ export const UserProvider = ({ children }) => {
         user: currentUser, // Make sure we expose 'user' for compatibility
         currentUser,
         userProfile,
-        userRole,
+        userRole: userRoles[0] || null, // For backward compatibility with a single role string
+        userRoles, // New standardized array format
         userWallet,
         transactions,
         loading,
         authInitialized,
         isLoggedIn: !!currentUser, // Explicitly provide login status
         hasRole,
+        hasAnyRole,
         getWalletBalance,
         getTransactionHistory,
         fundProduct,
         signOut: userSignOut,
-        refreshUserData
+        refreshUserData,
+        addUserRole,
+        removeUserRole,
+        setPrimaryRole
     };
 
     return (

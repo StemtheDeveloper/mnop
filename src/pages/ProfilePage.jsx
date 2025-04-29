@@ -14,7 +14,7 @@ import NopCollection from '../components/NopCollection';
 
 const ProfilePage = () => {
     const navigate = useNavigate();
-    const { currentUser, userProfile, userRole, addUserRole, hasRole, logout } = useUser();
+    const { currentUser, userProfile, userRole, userRoles, addUserRole, hasRole, logout } = useUser();
     const [activeTab, setActiveTab] = useState('personal');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -625,8 +625,19 @@ const ProfilePage = () => {
 
     // Function to render role pills
     const renderRolePills = () => {
-        if (!userRole) return <div className="role-pill customer">Customer</div>;
+        // If user has no roles, show default customer role
+        if (!userRoles && !userRole) return <div className="role-pill customer">Customer</div>;
 
+        // Use userRoles array if available (from updated UserContext)
+        if (Array.isArray(userRoles) && userRoles.length > 0) {
+            return userRoles.map((role, index) => (
+                <div key={index} className={`role-pill ${role.toLowerCase()}`}>
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                </div>
+            ));
+        }
+
+        // Backward compatibility for array-based userRole
         if (Array.isArray(userRole) && userRole.length > 0) {
             return userRole.map((role, index) => (
                 <div key={index} className={`role-pill ${role.toLowerCase()}`}>
@@ -985,9 +996,12 @@ const ProfilePage = () => {
 
                                 <div className="form-group">
                                     <label>Account Type</label>
-                                    <p>Your account is registered as: <strong>
-                                        {Array.isArray(userRole) ? userRole.join(', ') : userRole || 'Customer'}
-                                    </strong></p>
+                                    <div className="account-roles">
+                                        <p>Your account has the following roles:</p>
+                                        <div className="roles-list account-roles-list">
+                                            {renderRolePills()}
+                                        </div>
+                                    </div>
 
                                     {isOwnProfile && (
                                         <div className="role-upgrade-section">
