@@ -11,6 +11,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NopCollection from '../components/NopCollection';
+import refundService from '../services/refundService'; // Import refundService
 
 const ProfilePage = () => {
     const navigate = useNavigate();
@@ -586,7 +587,7 @@ const ProfilePage = () => {
 
         // Confirm before cancelling an order
         if (newStatus === 'cancelled') {
-            const confirmCancel = window.confirm('Are you sure you want to reject this order? This action cannot be undone.');
+            const confirmCancel = window.confirm('Are you sure you want to reject this order? This will automatically refund the customer. This action cannot be undone.');
             if (!confirmCancel) return;
         }
 
@@ -609,6 +610,31 @@ const ProfilePage = () => {
             // Update order in Firestore
             await updateDoc(orderRef, updateData);
 
+            // If order is being cancelled, automatically process a refund
+            if (newStatus === 'cancelled') {
+                const refundResult = await refundService.processRefund(
+                    orderId,
+                    currentUser.uid, // Designer ID as the admin/processor
+                    'Order rejected by designer',
+                    true, // Refund all items
+                    [] // No specific items since we're refunding all
+                );
+
+                if (refundResult.success) {
+                    // Update refund status in the order
+                    await updateDoc(orderRef, {
+                        refundStatus: 'refunded',
+                        refundDate: new Date(),
+                        refundReason: 'Order rejected by designer',
+                        refundedBy: currentUser.uid,
+                        refundAmount: refundResult.refundAmount
+                    });
+                } else {
+                    console.error('Error processing automatic refund:', refundResult.error);
+                    // Continue with rejection even if refund fails - admin can handle refund manually
+                }
+            }
+
             // Create notification for the customer
             const orderDoc = await getDoc(orderRef);
             if (orderDoc.exists()) {
@@ -617,10 +643,16 @@ const ProfilePage = () => {
                 // Add notification for customer
                 await addDoc(collection(db, 'notifications'), {
                     userId: orderData.userId,
-                    title: newStatus === 'delivered' ? 'Order Delivered' : 'Order Status Update',
+                    title: newStatus === 'delivered'
+                        ? 'Order Delivered'
+                        : newStatus === 'cancelled'
+                            ? 'Order Rejected and Refunded'
+                            : 'Order Status Update',
                     message: newStatus === 'delivered'
                         ? 'Your order has been marked as delivered.'
-                        : `Your order status has been updated to ${newStatus}.`,
+                        : newStatus === 'cancelled'
+                            ? 'Your order has been rejected by the designer. A refund has been processed to your wallet.'
+                            : `Your order status has been updated to ${newStatus}.`,
                     type: 'order_status',
                     orderId: orderId,
                     read: false,
@@ -635,7 +667,12 @@ const ProfilePage = () => {
                         ? {
                             ...order,
                             status: newStatus,
-                            ...(newStatus === 'delivered' ? { deliveredAt: new Date() } : {})
+                            ...(newStatus === 'delivered' ? { deliveredAt: new Date() } : {}),
+                            ...(newStatus === 'cancelled' ? {
+                                refundStatus: 'refunded',
+                                refundDate: new Date(),
+                                refundReason: 'Order rejected by designer'
+                            } : {})
                         }
                         : order
                 )
@@ -646,7 +683,7 @@ const ProfilePage = () => {
                 text: newStatus === 'delivered'
                     ? 'Order has been marked as delivered'
                     : newStatus === 'cancelled'
-                        ? 'Order has been rejected'
+                        ? 'Order has been rejected and refund has been processed'
                         : `Order status updated to ${newStatus}`
             });
 
@@ -655,6 +692,62 @@ const ProfilePage = () => {
             setMessage({
                 type: 'error',
                 text: 'Failed to update order status. Please try again.'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Function to handle refunding an order
+    const handleRefundOrder = async (orderId, reason) => {
+        if (!orderId) return;
+
+        // Confirm before issuing refund
+        const confirmRefund = window.confirm('Are you sure you want to refund this order? This action cannot be undone.');
+        if (!confirmRefund) return;
+
+        setLoading(true);
+
+        try {
+            // Process refund through refundService
+            const result = await refundService.processRefund(
+                orderId,
+                currentUser.uid, // Designer ID as the admin/processor
+                reason || 'Refund issued by designer',
+                true, // Refund all items
+                [] // No specific items since we're refunding all
+            );
+
+            if (result.success) {
+                // Update local state to reflect the refund
+                setCustomerOrders(prev =>
+                    prev.map(order =>
+                        order.id === orderId
+                            ? {
+                                ...order,
+                                refundStatus: 'refunded',
+                                refundDate: new Date(),
+                                refundReason: reason || 'Refund issued by designer'
+                            }
+                            : order
+                    )
+                );
+
+                setMessage({
+                    type: 'success',
+                    text: `Order has been refunded. ${result.refundAmount ? formatPrice(result.refundAmount) : ''} has been returned to the customer.`
+                });
+            } else {
+                setMessage({
+                    type: 'error',
+                    text: result.error || 'Failed to process refund. Please try again.'
+                });
+            }
+        } catch (error) {
+            console.error('Error refunding order:', error);
+            setMessage({
+                type: 'error',
+                text: 'Failed to process refund. Please try again.'
             });
         } finally {
             setLoading(false);
@@ -1637,6 +1730,12 @@ const ProfilePage = () => {
                                                                         onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')}
                                                                     >
                                                                         Reject Order
+                                                                    </button>
+                                                                    <button
+                                                                        className="btn-refund-order"
+                                                                        onClick={() => handleRefundOrder(order.id, 'Customer requested refund')}
+                                                                    >
+                                                                        Refund Order
                                                                     </button>
                                                                 </div>
                                                             </div>

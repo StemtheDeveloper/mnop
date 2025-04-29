@@ -1088,6 +1088,50 @@
   background-color: #e0e0e0;
 }
 
+/* Add refund button styles */
+.btn-refund-order {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-left: 10px;
+  transition: background-color 0.2s;
+}
+
+.btn-refund-order:hover {
+  background-color: #d32f2f;
+}
+
+/* Improve order action buttons layout */
+.order-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+/* Add refund status indicator */
+.status-badge.refunded {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Add rejection status indicator */
+.status-badge.cancelled {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Add status-rejected for consistency */
+.status-badge.rejected {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
 /* Loading container styles */
 .loading-container {
   display: flex;
