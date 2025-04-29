@@ -154,8 +154,6 @@
 .categories-select {
   height: auto;
   min-height: 60px;
-  min-width: 200px;
-  overflow-y: scroll !important;
 }
 
 .field-info {
