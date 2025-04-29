@@ -19,6 +19,24 @@ const UserProfilePage = () => {
     const [activeTab, setActiveTab] = useState('about');
     const [error, setError] = useState(null);
 
+    // Format user roles consistently
+    const formatUserRoles = (userProfile) => {
+        if (!userProfile) return [];
+        
+        // If roles array exists and is an array, use it
+        if (userProfile.roles && Array.isArray(userProfile.roles)) {
+            return userProfile.roles;
+        }
+        
+        // If there's a single role string, convert to array
+        if (userProfile.role) {
+            return [userProfile.role];
+        }
+        
+        // Default fallback
+        return ['customer'];
+    };
+
     // Fetch user data
     useEffect(() => {
         const fetchUserProfile = async () => {
@@ -60,9 +78,7 @@ const UserProfilePage = () => {
             if (!userProfile) return;
 
             // Check if user has designer role
-            const userRoles = Array.isArray(userProfile.roles)
-                ? userProfile.roles
-                : userProfile.role ? [userProfile.role] : [];
+            const userRoles = formatUserRoles(userProfile);
 
             const isDesigner = userRoles.includes('designer');
 
@@ -122,9 +138,7 @@ const UserProfilePage = () => {
     const renderRolePills = () => {
         if (!userProfile) return null;
 
-        const roles = Array.isArray(userProfile.roles)
-            ? userProfile.roles
-            : userProfile.role ? [userProfile.role] : ['customer'];
+        const roles = formatUserRoles(userProfile);
 
         return roles.map((role, index) => (
             <div key={index} className={`role-pill ${role.toLowerCase()}`}>

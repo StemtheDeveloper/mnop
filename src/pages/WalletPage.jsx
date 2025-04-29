@@ -11,7 +11,7 @@ import { db } from '../config/firebase';  // Import Firestore db
 import '../styles/WalletPage.css';
 
 const WalletPage = () => {
-    const { currentUser, userWallet, userRole, hasRole } = useUser();
+    const { currentUser, userWallet, userRoles, hasRole } = useUser();
     const { success: showSuccess, error: showError } = useToast(); // Map to correct function names
 
     // Wallet state
@@ -41,20 +41,6 @@ const WalletPage = () => {
     const [depositError, setDepositError] = useState('');
     const [depositSuccess, setDepositSuccess] = useState('');
 
-    // Role state
-    const [userRoles, setUserRoles] = useState([]);
-
-    // Initialize user roles
-    useEffect(() => {
-        if (userRole) {
-            // Convert to array if it's a single string
-            const roles = Array.isArray(userRole) ? userRole : [userRole];
-            setUserRoles(roles);
-        } else {
-            setUserRoles(['customer']); // Default role
-        }
-    }, [userRole]);
-
     // Keep balance in sync with userWallet from context
     useEffect(() => {
         if (userWallet && userWallet.balance !== undefined) {
@@ -62,25 +48,19 @@ const WalletPage = () => {
         }
     }, [userWallet]);
 
-    // Function to determine if user has a specific role
-    const userHasRole = (role) => {
-        return userRoles.includes(role);
-    };
-
     // Function to determine if user has access to specific tabs
     const canAccessTab = (tabName) => {
-        // All users can access these tabs
-        if (['summary', 'add'].includes(tabName)) return true;
-
-        // Transfer funds require any role beyond customer
+        // Anyone can access summary
+        if (tabName === 'summary') return true;
+        
+        // Transfer requires any role
         if (tabName === 'transfer') return userRoles.length > 0;
-
-        // Interest tab requires investor role
-        if (tabName === 'interest') {
-            return userHasRole('investor');
-        }
-
-        return true;
+        
+        // Specific roles for other tabs
+        if (tabName === 'deposit') return hasRole('investor') || hasRole('admin');
+        if (tabName === 'interest') return hasRole('investor') || hasRole('admin');
+        
+        return false;
     };
 
     // Memoize loadWalletData to prevent recreation on each render
@@ -162,7 +142,7 @@ const WalletPage = () => {
                 setTransactions(txData || []);
 
                 // Load interest transactions if user is an investor
-                if (userHasRole('investor')) {
+                if (hasRole('investor')) {
                     const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 20);
                     setInterestTransactions(interestTxData || []);
                 }
@@ -428,7 +408,7 @@ const WalletPage = () => {
                     >
                         Add Credits
                     </button>
-                    {userHasRole('investor') && (
+                    {hasRole('investor') && (
                         <button
                             className={`tab-button ${activeTab === 'interest' ? 'active' : ''}`}
                             onClick={() => setActiveTab('interest')}
@@ -690,7 +670,7 @@ const WalletPage = () => {
                         </div>
                     )}
 
-                    {activeTab === 'interest' && userHasRole('investor') && (
+                    {activeTab === 'interest' && hasRole('investor') && (
                         <div className="interest-tab">
                             <h3>Interest Earnings</h3>
                             <InterestRatesPanel />

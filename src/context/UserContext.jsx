@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import walletService from '../services/walletService';
 
 const UserContext = createContext();
@@ -19,7 +19,7 @@ export const USER_ROLES = {
 export const UserProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
-    const [userRole, setUserRole] = useState(null);
+    const [userRoles, setUserRoles] = useState([]);
     const [userWallet, setUserWallet] = useState(null);
     const [loading, setLoading] = useState(true);
     const [authInitialized, setAuthInitialized] = useState(false);
@@ -35,15 +35,38 @@ export const UserProvider = ({ children }) => {
                 const userData = docSnap.data();
                 setUserProfile(userData);
 
-                // Handle user roles - support both "role" (string) and "roles" (array)
-                if (userData.roles) {
-                    setUserRole(userData.roles); // Array of roles
+                // Standardize roles to always be an array
+                let rolesArray = [];
+                
+                if (userData.roles && Array.isArray(userData.roles)) {
+                    rolesArray = userData.roles;
                 } else if (userData.role) {
-                    setUserRole(userData.role); // Single role string
+                    // If only a string role exists, convert to array
+                    rolesArray = [userData.role];
+                    
+                    // Update the document to standardize the format
+                    try {
+                        await updateDoc(docRef, {
+                            roles: rolesArray
+                        });
+                    } catch (updateError) {
+                        console.error("Error updating roles format:", updateError);
+                    }
                 } else {
                     // Default role if none is set
-                    setUserRole('customer');
+                    rolesArray = ['customer'];
+                    
+                    // Update the document to standardize the format
+                    try {
+                        await updateDoc(docRef, {
+                            roles: rolesArray
+                        });
+                    } catch (updateError) {
+                        console.error("Error setting default roles:", updateError);
+                    }
                 }
+                
+                setUserRoles(rolesArray);
             } else {
                 // Create a new user document if it doesn't exist
                 const newUserData = {
@@ -51,14 +74,13 @@ export const UserProvider = ({ children }) => {
                     email: auth.currentUser?.email || '',
                     displayName: auth.currentUser?.displayName || '',
                     photoURL: auth.currentUser?.photoURL || '',
-                    role: 'customer', // Default role
-                    roles: ['customer'], // Default roles array
+                    roles: ['customer'], // Always use array format
                     createdAt: serverTimestamp()
                 };
 
                 await setDoc(docRef, newUserData);
                 setUserProfile(newUserData);
-                setUserRole('customer');
+                setUserRoles(['customer']);
             }
 
             // Fetch user wallet information or initialize it
@@ -88,19 +110,20 @@ export const UserProvider = ({ children }) => {
         } catch (error) {
             console.error("Error fetching user data:", error);
             setUserProfile(null);
-            setUserRole(null);
+            setUserRoles([]);
         }
     };
 
     // Function to check if a user has a specific role
     const hasRole = (role) => {
-        if (!userRole) return false;
+        if (!userRoles || !userRoles.length) return false;
+        return userRoles.includes(role);
+    };
 
-        if (Array.isArray(userRole)) {
-            return userRole.includes(role);
-        }
-
-        return userRole === role;
+    // Utility function to check if user has any of the provided roles
+    const hasAnyRole = (roles) => {
+        if (!userRoles || !userRoles.length) return false;
+        return roles.some(role => userRoles.includes(role));
     };
 
     // Get wallet balance
@@ -161,7 +184,7 @@ export const UserProvider = ({ children }) => {
             // Clear user data
             setCurrentUser(null);
             setUserProfile(null);
-            setUserRole(null);
+            setUserRoles([]);
             setUserWallet(null);
 
             // Return success for handling navigation in components
@@ -186,7 +209,7 @@ export const UserProvider = ({ children }) => {
             } else {
                 setCurrentUser(null);
                 setUserProfile(null);
-                setUserRole(null);
+                setUserRoles([]);
                 setUserWallet(null);
             }
 
@@ -211,13 +234,15 @@ export const UserProvider = ({ children }) => {
         user: currentUser, // Make sure we expose 'user' for compatibility
         currentUser,
         userProfile,
-        userRole,
+        userRole: userRoles[0] || null, // For backward compatibility with a single role string
+        userRoles, // New standardized array format
         userWallet,
         transactions,
         loading,
         authInitialized,
         isLoggedIn: !!currentUser, // Explicitly provide login status
         hasRole,
+        hasAnyRole,
         getWalletBalance,
         getTransactionHistory,
         fundProduct,

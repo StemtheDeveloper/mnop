@@ -19,12 +19,8 @@ import ThemeToggle from './ThemeToggle';
 import { useToast } from '../contexts/ToastContext';
 import { useNotifications } from './notifications/NotificationSystem';
 
-const AdminEmails = [
-  "stiaan44@gmail.com",
-];
-
 const Navbar = () => {
-  const { user, userProfile, userRole, loading, signOut: userSignOut, getWalletBalance } = useUser();
+  const { user, userProfile, userRoles, hasRole, loading, signOut: userSignOut, getWalletBalance } = useUser();
   const [isOpen, setIsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(null);
@@ -36,6 +32,9 @@ const Navbar = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const { unreadCount } = useNotifications();
+
+  // Check if user is admin - using role check instead of email list
+  const isAdmin = hasRole('admin');
 
   // Handle window resize
   useEffect(() => {
@@ -169,7 +168,7 @@ const Navbar = () => {
         <Link to="/profile" className={isActive('/profile') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Profile</Link>
       </li>
 
-      {user && AdminEmails.includes(user.email) && (
+      {user && isAdmin && (
         <li className="nav-item admin-link">
           <Link to="/admin" className={isActive('/admin') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Admin</Link>
         </li>
@@ -208,7 +207,7 @@ const Navbar = () => {
             <ul ref={menuRef} className={`nav-links-mobile ${isOpen ? "active" : ""}`}>
               <NavLinks isMobileMenu={true} />
 
-              {user && AdminEmails.includes(user.email) ? (
+              {user && isAdmin ? (
                 <li className="nav-item">
                   <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
                 </li>
@@ -315,7 +314,7 @@ const Navbar = () => {
               </ul>
               <div className="c-h-r"></div>
               <div className="auth-actions">
-                {user && AdminEmails.includes(user.email) ? (
+                {user && isAdmin ? (
                   <li className="nav-item">
                     <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
                   </li>

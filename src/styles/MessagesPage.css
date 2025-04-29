@@ -1,4 +1,4 @@
-@import './variables.css';
+@import "./variables.css";
 
 .messages-page {
   padding-top: var(--spacing-xxxl);
@@ -755,4 +755,5 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #888
+  color: #888;
+}
