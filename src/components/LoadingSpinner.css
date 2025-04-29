@@ -5,13 +5,74 @@
   height: 100%;
 }
 
+/* For inline spinners that don't need to take up the full container height */
+.loading-spinner.inline {
+  height: auto;
+  min-height: 80px;
+}
+
+/* Full page overlay spinner */
+.loading-spinner.full-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 9999;
+}
+
+/* Overlay spinner for a specific container */
+.loading-spinner.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 100;
+}
+
+.spinner-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 .spinner {
-  width: 50px;
-  height: 50px;
-  border: 5px solid rgba(0, 0, 0, 0.1);
   border-radius: 50%;
+  border-style: solid;
+  border-color: rgba(0, 0, 0, 0.1);
   border-top-color: #ef3c23; /* M'NOP brand color */
   animation: spin 1s ease-in-out infinite;
+}
+
+/* Spinner sizes */
+.spinner-small {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.spinner-medium {
+  width: 50px;
+  height: 50px;
+  border-width: 5px;
+}
+
+.spinner-large {
+  width: 80px;
+  height: 80px;
+  border-width: 6px;
+}
+
+.loading-text {
+  margin-top: 12px;
+  color: #555;
+  font-size: 14px;
+  text-align: center;
+  animation: none !important; /* Ensure text doesn't animate */
 }
 
 @keyframes spin {

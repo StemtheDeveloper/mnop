@@ -385,8 +385,7 @@ const WalletPage = () => {
         return (
             <div className="wallet-page">
                 <div className="wallet-container loading">
-                    <LoadingSpinner />
-                    <p>Loading your wallet...</p>
+                    <LoadingSpinner size="medium" showText={true} text="Loading your wallet..." />
                 </div>
             </div>
         );
@@ -491,8 +490,7 @@ const WalletPage = () => {
 
                             {transactionLoading ? (
                                 <div className="loading-transactions">
-                                    <LoadingSpinner size="small" />
-                                    <p>Loading transactions...</p>
+                                    <LoadingSpinner size="small" showText={true} text="Loading transactions..." inline={true} />
                                 </div>
                             ) : filteredAndSearchedTransactions().length === 0 ? (
                                 <div className="no-transactions">
@@ -611,8 +609,8 @@ const WalletPage = () => {
                                 >
                                     {transferLoading ? (
                                         <>
-                                            <LoadingSpinner size="small" />
-                                            <span>Processing...</span>
+                                            <LoadingSpinner size="small" inline={true} />
+                                            <span className="button-text">Processing...</span>
                                         </>
                                     ) : 'Transfer Credits'}
                                 </button>
@@ -676,8 +674,8 @@ const WalletPage = () => {
                                 >
                                     {isDepositing ? (
                                         <>
-                                            <LoadingSpinner size="small" />
-                                            <span>Processing...</span>
+                                            <LoadingSpinner size="small" inline={true} />
+                                            <span className="button-text">Processing...</span>
                                         </>
                                     ) : 'Add Credits'}
                                 </button>

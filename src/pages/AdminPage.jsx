@@ -699,8 +699,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
                                     {loadingUsers && users.length === 0 ? (
                                         <div className="loading-container">
-                                            <LoadingSpinner />
-                                            <p>Loading users...</p>
+                                            <LoadingSpinner size="medium" showText={true} text="Loading users..." />
                                         </div>
                                     ) : (
                                         <div className="users-table-container">

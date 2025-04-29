@@ -444,11 +444,34 @@
   cursor: pointer;
   transition: background-color 0.2s ease;
   margin-top: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  min-height: 45px;
 }
 
 .transfer-button:hover,
 .deposit-button:hover {
   background-color: #d43418;
+}
+
+.button-text {
+  margin-left: 5px;
+}
+
+/* Styles to make the spinner look good in buttons */
+.loading-spinner.inline {
+  height: auto;
+  min-height: auto;
+  margin: 0;
+}
+
+.spinner-small {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
 }
 
 /* Message styles */

@@ -150,8 +150,13 @@ const ProfilePage = () => {
     // Fetch customer orders for products created by this designer
     useEffect(() => {
         const fetchCustomerOrders = async () => {
-            if (!userId || !isDesigner) return;
+            if (!userId) return;
 
+            // Check if user has designer role using the hasRole function
+            const userIsDesigner = hasRole('designer');
+            if (!userIsDesigner) return;
+
+            console.log('Fetching customer orders for designer:', userId);
             setLoadingOrders(true);
 
             try {
@@ -161,6 +166,7 @@ const ProfilePage = () => {
                 const productSnapshot = await getDocs(designerProductsQuery);
 
                 if (productSnapshot.empty) {
+                    console.log('No products found for this designer');
                     setCustomerOrders([]);
                     setLoadingOrders(false);
                     return;
@@ -168,10 +174,12 @@ const ProfilePage = () => {
 
                 // Get all product IDs
                 const productIds = productSnapshot.docs.map(doc => doc.id);
+                console.log('Designer product IDs:', productIds);
 
                 // Find all orders that contain these products
                 const ordersRef = collection(db, 'orders');
                 const orderSnapshot = await getDocs(ordersRef);
+                console.log('Total orders found:', orderSnapshot.size);
 
                 // Filter orders that contain this designer's products
                 const relevantOrders = [];
@@ -186,6 +194,47 @@ const ProfilePage = () => {
                     const designerItems = orderData.items.filter(item => productIds.includes(item.id));
 
                     if (designerItems.length > 0) {
+                        // Handle createdAt timestamp properly
+                        let createdAtDate;
+                        if (orderData.createdAt) {
+                            if (orderData.createdAt.toDate) {
+                                // Firebase Timestamp
+                                createdAtDate = orderData.createdAt.toDate();
+                            } else if (orderData.createdAt.seconds) {
+                                // Timestamp stored as object with seconds
+                                createdAtDate = new Date(orderData.createdAt.seconds * 1000);
+                            } else {
+                                // Regular Date or timestamp
+                                createdAtDate = new Date(orderData.createdAt);
+                            }
+                        } else {
+                            createdAtDate = new Date(); // Fallback
+                        }
+
+                        // Handle deliveredAt timestamp properly
+                        let deliveredAtDate = null;
+                        if (orderData.deliveredAt) {
+                            if (orderData.deliveredAt.toDate) {
+                                deliveredAtDate = orderData.deliveredAt.toDate();
+                            } else if (orderData.deliveredAt.seconds) {
+                                deliveredAtDate = new Date(orderData.deliveredAt.seconds * 1000);
+                            } else {
+                                deliveredAtDate = new Date(orderData.deliveredAt);
+                            }
+                        }
+
+                        // Handle estimatedDelivery timestamp properly
+                        let estimatedDeliveryDate = null;
+                        if (orderData.estimatedDelivery) {
+                            if (orderData.estimatedDelivery.toDate) {
+                                estimatedDeliveryDate = orderData.estimatedDelivery.toDate();
+                            } else if (orderData.estimatedDelivery.seconds) {
+                                estimatedDeliveryDate = new Date(orderData.estimatedDelivery.seconds * 1000);
+                            } else {
+                                estimatedDeliveryDate = new Date(orderData.estimatedDelivery);
+                            }
+                        }
+
                         // Only include relevant items from this designer
                         relevantOrders.push({
                             id: orderDoc.id,
@@ -194,11 +243,15 @@ const ProfilePage = () => {
                             designerItems: designerItems,
                             // Calculate subtotal for just this designer's items
                             designerSubtotal: designerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-                            // Format date if it's a timestamp
-                            createdAt: orderData.createdAt?.toDate ? orderData.createdAt.toDate() : new Date(orderData.createdAt)
+                            // Use the properly formatted dates
+                            createdAt: createdAtDate,
+                            deliveredAt: deliveredAtDate,
+                            estimatedDelivery: estimatedDeliveryDate
                         });
                     }
                 });
+
+                console.log('Relevant orders for this designer:', relevantOrders.length);
 
                 // Sort orders by date (newest first)
                 relevantOrders.sort((a, b) => b.createdAt - a.createdAt);
@@ -213,7 +266,7 @@ const ProfilePage = () => {
         };
 
         fetchCustomerOrders();
-    }, [userId, isDesigner]);
+    }, [userId, hasRole]);
 
     // Format price as currency
     const formatPrice = (price) => {
