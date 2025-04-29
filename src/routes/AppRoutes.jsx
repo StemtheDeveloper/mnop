@@ -25,6 +25,7 @@ const OrderDetailPage = lazy(() => import('../pages/OrderDetailPage'));
 const CartPage = lazy(() => import('../pages/CartPage'));
 const CheckoutPage = lazy(() => import('../pages/CheckoutPage'));
 const ProductUploadPage = lazy(() => import('../pages/ProductUploadPage'));
+const BulkProductUploaderPage = lazy(() => import('../pages/BulkProductUploaderPage')); // Import bulk product uploader
 const ProductEditPage = lazy(() => import('../pages/ProductEditPage'));
 const AboutPage = lazy(() => import('../pages/AboutPage'));
 const ContactPage = lazy(() => import('../pages/ContactPage'));
@@ -111,6 +112,11 @@ const AppRoutes = () => {
                 <Route path="/product-upload" element={
                     <AuthGuard allowedRoles={["designer"]}>
                         <ProductUploadPage />
+                    </AuthGuard>
+                } />
+                <Route path="/bulk-product-upload" element={
+                    <AuthGuard allowedRoles={["designer"]}>
+                        <BulkProductUploaderPage />
                     </AuthGuard>
                 } />
                 <Route path="/product-edit/:productId" element={

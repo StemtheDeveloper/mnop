@@ -1,8 +1,507 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import ProductsExcelView from './ProductsExcelView';
 import '../../styles/AdminTools.css';
+
+// Split into smaller components
+const SchemaManager = ({
+    dataType,
+    schemas,
+    setSchemas,
+    selectedItem,
+    activeSchema,
+    setActiveSchema,
+    setShowSchemaManager,
+    loading,
+    setLoading,
+    setError,
+    setSuccess
+}) => {
+    const [editingSchema, setEditingSchema] = useState(null);
+    const [schemaName, setSchemaName] = useState('');
+    const [schemaJSON, setSchemaJSON] = useState('');
+
+    // Create a schema from an existing document
+    const createSchemaFromDocument = useCallback((item) => {
+        if (!item) return;
+
+        const newSchema = {};
+        Object.entries(item).forEach(([key, value]) => {
+            if (key === 'id') return; // Skip ID
+
+            if (Array.isArray(value)) {
+                newSchema[key] = 'array';
+            } else if (value === null) {
+                newSchema[key] = 'null';
+            } else {
+                newSchema[key] = typeof value;
+            }
+        });
+
+        setEditingSchema({
+            name: `${dataType} Schema`,
+            schema: newSchema
+        });
+        setSchemaName(`${dataType} Schema`);
+        setSchemaJSON(JSON.stringify(newSchema, null, 2));
+    }, [dataType]);
+
+    // Save schema
+    const saveSchema = async () => {
+        try {
+            setLoading(true);
+            const schemaObj = JSON.parse(schemaJSON);
+
+            // Update local state first for immediate feedback
+            const updatedSchemas = {
+                ...schemas,
+                [dataType]: {
+                    name: schemaName,
+                    schema: schemaObj
+                }
+            };
+
+            setSchemas(updatedSchemas);
+            setActiveSchema(dataType);
+
+            // Save to Firestore for persistence
+            const schemasRef = doc(db, 'settings', 'dataSchemas');
+            await setDoc(schemasRef, updatedSchemas, { merge: true });
+
+            setEditingSchema(null);
+            setSchemaName('');
+            setSchemaJSON('');
+            setSuccess(`Schema for ${dataType} saved successfully`);
+        } catch (err) {
+            setError(`Failed to save schema: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="schema-manager-modal">
+            <div className="schema-manager-content">
+                <h3>Schema Manager</h3>
+
+                {editingSchema ? (
+                    <div className="schema-editor">
+                        <div className="form-group">
+                            <label>Schema Name:</label>
+                            <input
+                                type="text"
+                                value={schemaName}
+                                onChange={(e) => setSchemaName(e.target.value)}
+                                placeholder="e.g. Product Schema"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Schema Definition (JSON):</label>
+                            <textarea
+                                rows="10"
+                                value={schemaJSON}
+                                onChange={(e) => setSchemaJSON(e.target.value)}
+                                placeholder={'{\n  "field": "type"\n}'}
+                            />
+                            <div className="helper-text">
+                                Define field types as: "string", "number", "boolean", "array", or "object"
+                            </div>
+                        </div>
+                        <div className="schema-actions">
+                            <button
+                                className="cancel-btn"
+                                onClick={() => {
+                                    setEditingSchema(null);
+                                    setSchemaName('');
+                                    setSchemaJSON('');
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="save-btn"
+                                onClick={saveSchema}
+                            >
+                                Save Schema
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="schema-actions-top">
+                            <button
+                                className="create-schema-btn"
+                                onClick={() => {
+                                    setEditingSchema({ name: '', schema: {} });
+                                    setSchemaName(`${dataType} Schema`);
+                                    setSchemaJSON('{\n  \n}');
+                                }}
+                            >
+                                Create New Schema
+                            </button>
+                            {selectedItem && (
+                                <button
+                                    className="sample-schema-btn"
+                                    onClick={() => createSchemaFromDocument(selectedItem)}
+                                >
+                                    Create From Selected Document
+                                </button>
+                            )}
+                        </div>
+
+                        <h4>Available Schemas</h4>
+                        {Object.keys(schemas).length === 0 ? (
+                            <div className="no-schemas">No schemas defined yet</div>
+                        ) : (
+                            <div className="schema-list">
+                                {Object.entries(schemas).map(([key, { name, schema }]) => (
+                                    <div
+                                        key={key}
+                                        className={`schema-item ${activeSchema === key ? 'active' : ''}`}
+                                        onClick={() => setActiveSchema(key)}
+                                    >
+                                        <div className="schema-item-header">
+                                            <span className="schema-item-name">{name}</span>
+                                            <div className="schema-item-actions">
+                                                <button
+                                                    className="edit-schema-btn"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingSchema({ name, schema });
+                                                        setSchemaName(name);
+                                                        setSchemaJSON(JSON.stringify(schema, null, 2));
+                                                    }}
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    className="delete-schema-btn"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (window.confirm(`Delete schema "${name}"?`)) {
+                                                            setSchemas(prev => {
+                                                                const newSchemas = { ...prev };
+                                                                delete newSchemas[key];
+                                                                return newSchemas;
+                                                            });
+                                                            if (activeSchema === key) {
+                                                                setActiveSchema(null);
+                                                            }
+                                                        }
+                                                    }}
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {activeSchema === key && (
+                                            <pre className="schema-details">
+                                                {JSON.stringify(schema, null, 2)}
+                                            </pre>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                <button
+                    className="close-schema-btn"
+                    onClick={() => setShowSchemaManager(false)}
+                >
+                    Close Schema Manager
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// Item Editor Component
+const ItemEditor = ({ editedItem, setEditedItem, setSelectedItem, updateDocument, loading, dataType }) => {
+    // Handler for field changes
+    const handleFieldChange = useCallback((field, value) => {
+        if (!editedItem) return;
+
+        // Handle nested fields with dot notation (e.g. "user.name")
+        if (field.includes('.')) {
+            const parts = field.split('.');
+            setEditedItem(prev => {
+                const newItem = { ...prev };
+                let current = newItem;
+
+                for (let i = 0; i < parts.length - 1; i++) {
+                    if (!current[parts[i]]) current[parts[i]] = {};
+                    current = current[parts[i]];
+                }
+
+                current[parts[parts.length - 1]] = value;
+                return newItem;
+            });
+        } else {
+            setEditedItem(prev => ({ ...prev, [field]: value }));
+        }
+    }, [editedItem, setEditedItem]);
+
+    // Handle array field editing
+    const handleArrayFieldChange = useCallback((field, index, value) => {
+        if (!editedItem || !Array.isArray(editedItem[field])) return;
+
+        setEditedItem(prev => {
+            const newItem = { ...prev };
+            const newArray = [...newItem[field]];
+            newArray[index] = value;
+            newItem[field] = newArray;
+            return newItem;
+        });
+    }, [editedItem, setEditedItem]);
+
+    // Add item to array field
+    const handleAddArrayItem = useCallback((field, value = '') => {
+        if (!editedItem) return;
+
+        setEditedItem(prev => {
+            const newItem = { ...prev };
+            const currentArray = Array.isArray(newItem[field]) ? newItem[field] : [];
+            newItem[field] = [...currentArray, value];
+            return newItem;
+        });
+    }, [editedItem, setEditedItem]);
+
+    // Remove item from array field
+    const handleRemoveArrayItem = useCallback((field, index) => {
+        if (!editedItem || !Array.isArray(editedItem[field])) return;
+
+        setEditedItem(prev => {
+            const newItem = { ...prev };
+            const newArray = [...newItem[field]];
+            newArray.splice(index, 1);
+            newItem[field] = newArray;
+            return newItem;
+        });
+    }, [editedItem, setEditedItem]);
+
+    // Helper function to render different types of fields
+    const renderField = (key, value, path = '') => {
+        const currentPath = path ? `${path}.${key}` : key;
+
+        if (value === null) {
+            return (
+                <div className="editor-field" key={currentPath}>
+                    <label>{key}</label>
+                    <div className="field-value">
+                        <input
+                            type="text"
+                            value="null"
+                            disabled
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        // Handle arrays specially - especially for categories
+        if (Array.isArray(value)) {
+            return (
+                <div className="editor-field array-field" key={currentPath}>
+                    <label>{key}</label>
+                    <div className="array-items">
+                        {value.map((item, index) => (
+                            <div className="array-item" key={`${currentPath}-${index}`}>
+                                <input
+                                    type="text"
+                                    value={item}
+                                    onChange={(e) => handleArrayFieldChange(key, index, e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    className="remove-item-btn"
+                                    onClick={() => handleRemoveArrayItem(key, index)}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        ))}
+                        <button
+                            type="button"
+                            className="add-item-btn"
+                            onClick={() => handleAddArrayItem(key)}
+                        >
+                            + Add Item
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Handle objects (nested fields)
+        if (typeof value === 'object') {
+            return (
+                <div className="editor-nested-object" key={currentPath}>
+                    <div className="nested-object-label">{key}</div>
+                    <div className="nested-object-fields">
+                        {Object.entries(value).map(([nestedKey, nestedValue]) =>
+                            renderField(nestedKey, nestedValue, currentPath)
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Handle boolean values
+        if (typeof value === 'boolean') {
+            return (
+                <div className="editor-field" key={currentPath}>
+                    <label>{key}</label>
+                    <div className="field-value">
+                        <select
+                            value={value.toString()}
+                            onChange={(e) => handleFieldChange(currentPath, e.target.value === 'true')}
+                        >
+                            <option value="true">True</option>
+                            <option value="false">False</option>
+                        </select>
+                    </div>
+                </div>
+            );
+        }
+
+        // Handle number values
+        if (typeof value === 'number') {
+            return (
+                <div className="editor-field" key={currentPath}>
+                    <label>{key}</label>
+                    <div className="field-value">
+                        <input
+                            type="number"
+                            value={value}
+                            onChange={(e) => handleFieldChange(currentPath, Number(e.target.value))}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        // Handle string values and anything else as text
+        return (
+            <div className="editor-field" key={currentPath}>
+                <label>{key}</label>
+                <div className="field-value">
+                    <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => handleFieldChange(currentPath, e.target.value)}
+                    />
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="item-editor">
+            <h3>Editing {dataType} Document</h3>
+            <div className="item-id">ID: {editedItem.id}</div>
+
+            <div className="editor-fields">
+                {Object.entries(editedItem)
+                    .filter(([key]) => key !== 'id') // Don't show ID field in the editable fields
+                    .map(([key, value]) => renderField(key, value))}
+            </div>
+
+            <div className="editor-actions">
+                <button
+                    type="button"
+                    className="cancel-btn"
+                    onClick={() => {
+                        setEditedItem(null);
+                        setSelectedItem(null);
+                    }}
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    className="save-btn"
+                    onClick={updateDocument}
+                    disabled={loading}
+                >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// Validation Results Component
+const ValidationResults = ({
+    schemaValidation,
+    setValidationComplete,
+    setSchemaValidation,
+    applySchemaFixes,
+    loading
+}) => {
+    const itemsWithIssues = useMemo(() => {
+        return schemaValidation.filter(item => item.issues.length > 0);
+    }, [schemaValidation]);
+
+    if (schemaValidation.length === 0) return null;
+
+    return (
+        <div className="validation-results">
+            <h3>Schema Validation Results</h3>
+
+            {itemsWithIssues.length === 0 ? (
+                <div className="validation-success">
+                    All selected items comply with the schema
+                </div>
+            ) : (
+                <>
+                    <div className="validation-summary">
+                        Found issues in {itemsWithIssues.length} of {schemaValidation.length} items
+                    </div>
+
+                    <div className="validation-items">
+                        {itemsWithIssues.map(item => (
+                            <div key={item.id} className="validation-item">
+                                <div className="validation-item-header">
+                                    <span className="validation-item-name">{item.name}</span>
+                                    <span className="validation-item-id">ID: {item.id}</span>
+                                </div>
+                                <div className="validation-issues">
+                                    {item.issues.map((issue, index) => (
+                                        <div key={index} className="validation-issue">
+                                            <strong>{issue.field}:</strong> {issue.issue || `Type mismatch - Expected ${issue.expectedType}, got ${issue.currentType}`}
+                                            <div className="issue-fix">Fix: {issue.fix}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <button
+                        className="apply-fixes-btn"
+                        onClick={applySchemaFixes}
+                        disabled={loading}
+                    >
+                        {loading ? 'Applying Fixes...' : `Apply Fixes to ${itemsWithIssues.length} Items`}
+                    </button>
+                </>
+            )}
+
+            <button
+                className="close-validation-btn"
+                onClick={() => {
+                    setValidationComplete(false);
+                    setSchemaValidation([]);
+                }}
+            >
+                Close Validation Results
+            </button>
+        </div>
+    );
+};
 
 const DataFixerTool = () => {
     const [dataType, setDataType] = useState('products');
@@ -21,9 +520,7 @@ const DataFixerTool = () => {
     // Schema management
     const [showSchemaManager, setShowSchemaManager] = useState(false);
     const [activeSchema, setActiveSchema] = useState(null);
-    const [editingSchema, setEditingSchema] = useState(null);
-    const [schemaName, setSchemaName] = useState('');
-    const [schemaJSON, setSchemaJSON] = useState('');
+
     const [schemas, setSchemas] = useState({
         products: {
             name: 'Product Schema',
@@ -56,22 +553,25 @@ const DataFixerTool = () => {
     const [validationComplete, setValidationComplete] = useState(false);
 
     // Define collection mapping
-    const collectionMapping = {
+    const collectionMapping = useMemo(() => ({
         products: 'products',
         users: 'users',
         orders: 'orders',
         categories: 'categories',
-    };
+    }), []);
 
     // Clear messages after a delay
     useEffect(() => {
+        let timer;
         if (success || error) {
-            const timer = setTimeout(() => {
+            timer = setTimeout(() => {
                 setSuccess(null);
                 setError(null);
             }, 5000);
-            return () => clearTimeout(timer);
         }
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
     }, [success, error]);
 
     // Reset batch state when data type changes
@@ -106,7 +606,7 @@ const DataFixerTool = () => {
     }, []);
 
     // Fetch data from Firestore
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         setError(null);
         setSuccess(null);
@@ -154,10 +654,10 @@ const DataFixerTool = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [collectionMapping, dataType, queryField, queryValue, queryLimit]);
 
     // Update document in Firestore
-    const updateDocument = async () => {
+    const updateDocument = useCallback(async () => {
         if (!editedItem || !selectedItem) return;
 
         setLoading(true);
@@ -191,10 +691,9 @@ const DataFixerTool = () => {
             await updateDoc(docRef, updateData);
 
             // Update the local data array with the edited item
-            const updatedData = data.map(item =>
+            setData(prevData => prevData.map(item =>
                 item.id === editedItem.id ? editedItem : item
-            );
-            setData(updatedData);
+            ));
             setSelectedItem(editedItem);
 
             setSuccess(`Successfully updated ${dataType} document: ${editedItem.id}`);
@@ -204,68 +703,16 @@ const DataFixerTool = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [editedItem, selectedItem, collectionMapping, dataType]);
 
     // Handle selecting an item to edit
-    const handleSelectItem = (item) => {
+    const handleSelectItem = useCallback((item) => {
         setSelectedItem(item);
         setEditedItem(JSON.parse(JSON.stringify(item))); // Deep copy
-    };
-
-    // Handle field value changes in the editor
-    const handleFieldChange = (field, value) => {
-        if (!editedItem) return;
-
-        // Handle nested fields with dot notation (e.g. "user.name")
-        if (field.includes('.')) {
-            const parts = field.split('.');
-            const newEditedItem = { ...editedItem };
-            let current = newEditedItem;
-
-            for (let i = 0; i < parts.length - 1; i++) {
-                if (!current[parts[i]]) current[parts[i]] = {};
-                current = current[parts[i]];
-            }
-
-            current[parts[parts.length - 1]] = value;
-            setEditedItem(newEditedItem);
-        } else {
-            setEditedItem({ ...editedItem, [field]: value });
-        }
-    };
-
-    // Handle array field editing
-    const handleArrayFieldChange = (field, index, value) => {
-        if (!editedItem || !Array.isArray(editedItem[field])) return;
-
-        const newArray = [...editedItem[field]];
-        newArray[index] = value;
-
-        setEditedItem({ ...editedItem, [field]: newArray });
-    };
-
-    // Add item to array field
-    const handleAddArrayItem = (field, value = '') => {
-        if (!editedItem) return;
-
-        const currentArray = Array.isArray(editedItem[field]) ? editedItem[field] : [];
-        const newArray = [...currentArray, value];
-
-        setEditedItem({ ...editedItem, [field]: newArray });
-    };
-
-    // Remove item from array field
-    const handleRemoveArrayItem = (field, index) => {
-        if (!editedItem || !Array.isArray(editedItem[field])) return;
-
-        const newArray = [...editedItem[field]];
-        newArray.splice(index, 1);
-
-        setEditedItem({ ...editedItem, [field]: newArray });
-    };
+    }, []);
 
     // Toggle item selection for batch operations
-    const toggleItemSelection = (itemId) => {
+    const toggleItemSelection = useCallback((itemId) => {
         setSelectedItems(prev => {
             if (prev.includes(itemId)) {
                 return prev.filter(id => id !== itemId);
@@ -273,19 +720,21 @@ const DataFixerTool = () => {
                 return [...prev, itemId];
             }
         });
-    };
+    }, []);
 
     // Toggle selection for all items
-    const toggleSelectAll = () => {
-        if (selectedItems.length === data.length) {
-            setSelectedItems([]);
-        } else {
-            setSelectedItems(data.map(item => item.id));
-        }
-    };
+    const toggleSelectAll = useCallback(() => {
+        setSelectedItems(prev => {
+            if (prev.length === data.length) {
+                return [];
+            } else {
+                return data.map(item => item.id);
+            }
+        });
+    }, [data]);
 
     // Validate selected items against schema
-    const validateAgainstSchema = () => {
+    const validateAgainstSchema = useCallback(() => {
         if (!schemas[dataType]) {
             setError(`No schema defined for ${dataType}`);
             return;
@@ -361,10 +810,10 @@ const DataFixerTool = () => {
 
         setSchemaValidation(validation);
         setValidationComplete(true);
-    };
+    }, [schemas, dataType, data, selectedItems]);
 
     // Apply schema fixes to selected items
-    const applySchemaFixes = async () => {
+    const applySchemaFixes = useCallback(async () => {
         if (!validationComplete || schemaValidation.length === 0) {
             setError('Please validate items against schema first');
             return;
@@ -464,430 +913,15 @@ const DataFixerTool = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    // Create a schema from an existing document
-    const createSchemaFromDocument = (item) => {
-        if (!item) return;
-
-        const newSchema = {};
-        Object.entries(item).forEach(([key, value]) => {
-            if (key === 'id') return; // Skip ID
-
-            if (Array.isArray(value)) {
-                newSchema[key] = 'array';
-            } else if (value === null) {
-                newSchema[key] = 'null';
-            } else {
-                newSchema[key] = typeof value;
-            }
-        });
-
-        setEditingSchema({
-            name: `${dataType} Schema`,
-            schema: newSchema
-        });
-        setSchemaName(`${dataType} Schema`);
-        setSchemaJSON(JSON.stringify(newSchema, null, 2));
-        setShowSchemaManager(true);
-    };
-
-    // Save schema
-    const saveSchema = async () => {
-        try {
-            setLoading(true);
-            const schemaObj = JSON.parse(schemaJSON);
-
-            // Update local state first for immediate feedback
-            const updatedSchemas = {
-                ...schemas,
-                [dataType]: {
-                    name: schemaName,
-                    schema: schemaObj
-                }
-            };
-
-            setSchemas(updatedSchemas);
-            setActiveSchema(dataType);
-
-            // Save to Firestore for persistence
-            const schemasRef = doc(db, 'settings', 'dataSchemas');
-            await setDoc(schemasRef, updatedSchemas, { merge: true });
-
-            setEditingSchema(null);
-            setSchemaName('');
-            setSchemaJSON('');
-            setSuccess(`Schema for ${dataType} saved successfully`);
-        } catch (err) {
-            setError(`Failed to save schema: ${err.message}`);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Render editor for the selected item
-    const renderEditor = () => {
-        if (!editedItem) return null;
-
-        // Helper function to render different types of fields
-        const renderField = (key, value, path = '') => {
-            const currentPath = path ? `${path}.${key}` : key;
-
-            if (value === null) {
-                return (
-                    <div className="editor-field" key={currentPath}>
-                        <label>{key}</label>
-                        <div className="field-value">
-                            <input
-                                type="text"
-                                value="null"
-                                disabled
-                            />
-                        </div>
-                    </div>
-                );
-            }
-
-            // Handle arrays specially - especially for categories
-            if (Array.isArray(value)) {
-                return (
-                    <div className="editor-field array-field" key={currentPath}>
-                        <label>{key}</label>
-                        <div className="array-items">
-                            {value.map((item, index) => (
-                                <div className="array-item" key={`${currentPath}-${index}`}>
-                                    <input
-                                        type="text"
-                                        value={item}
-                                        onChange={(e) => handleArrayFieldChange(key, index, e.target.value)}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="remove-item-btn"
-                                        onClick={() => handleRemoveArrayItem(key, index)}
-                                    >
-                                        &times;
-                                    </button>
-                                </div>
-                            ))}
-                            <button
-                                type="button"
-                                className="add-item-btn"
-                                onClick={() => handleAddArrayItem(key)}
-                            >
-                                + Add Item
-                            </button>
-                        </div>
-                    </div>
-                );
-            }
-
-            // Handle objects (nested fields)
-            if (typeof value === 'object') {
-                return (
-                    <div className="editor-nested-object" key={currentPath}>
-                        <div className="nested-object-label">{key}</div>
-                        <div className="nested-object-fields">
-                            {Object.entries(value).map(([nestedKey, nestedValue]) =>
-                                renderField(nestedKey, nestedValue, currentPath)
-                            )}
-                        </div>
-                    </div>
-                );
-            }
-
-            // Handle boolean values
-            if (typeof value === 'boolean') {
-                return (
-                    <div className="editor-field" key={currentPath}>
-                        <label>{key}</label>
-                        <div className="field-value">
-                            <select
-                                value={value.toString()}
-                                onChange={(e) => handleFieldChange(currentPath, e.target.value === 'true')}
-                            >
-                                <option value="true">True</option>
-                                <option value="false">False</option>
-                            </select>
-                        </div>
-                    </div>
-                );
-            }
-
-            // Handle number values
-            if (typeof value === 'number') {
-                return (
-                    <div className="editor-field" key={currentPath}>
-                        <label>{key}</label>
-                        <div className="field-value">
-                            <input
-                                type="number"
-                                value={value}
-                                onChange={(e) => handleFieldChange(currentPath, Number(e.target.value))}
-                            />
-                        </div>
-                    </div>
-                );
-            }
-
-            // Handle string values and anything else as text
-            return (
-                <div className="editor-field" key={currentPath}>
-                    <label>{key}</label>
-                    <div className="field-value">
-                        <input
-                            type="text"
-                            value={value}
-                            onChange={(e) => handleFieldChange(currentPath, e.target.value)}
-                        />
-                    </div>
-                </div>
-            );
-        };
-
-        return (
-            <div className="item-editor">
-                <h3>Editing {dataType} Document</h3>
-                <div className="item-id">ID: {editedItem.id}</div>
-
-                <div className="editor-fields">
-                    {Object.entries(editedItem)
-                        .filter(([key]) => key !== 'id') // Don't show ID field in the editable fields
-                        .map(([key, value]) => renderField(key, value))}
-                </div>
-
-                <div className="editor-actions">
-                    <button
-                        type="button"
-                        className="cancel-btn"
-                        onClick={() => {
-                            setEditedItem(null);
-                            setSelectedItem(null);
-                        }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        className="save-btn"
-                        onClick={updateDocument}
-                        disabled={loading}
-                    >
-                        {loading ? 'Saving...' : 'Save Changes'}
-                    </button>
-                </div>
-            </div>
-        );
-    };
-
-    // Render schema manager
-    const renderSchemaManager = () => {
-        return (
-            <div className="schema-manager-modal">
-                <div className="schema-manager-content">
-                    <h3>Schema Manager</h3>
-
-                    {editingSchema ? (
-                        <div className="schema-editor">
-                            <div className="form-group">
-                                <label>Schema Name:</label>
-                                <input
-                                    type="text"
-                                    value={schemaName}
-                                    onChange={(e) => setSchemaName(e.target.value)}
-                                    placeholder="e.g. Product Schema"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Schema Definition (JSON):</label>
-                                <textarea
-                                    rows="10"
-                                    value={schemaJSON}
-                                    onChange={(e) => setSchemaJSON(e.target.value)}
-                                    placeholder={'{\n  "field": "type"\n}'}
-                                />
-                                <div className="helper-text">
-                                    Define field types as: "string", "number", "boolean", "array", or "object"
-                                </div>
-                            </div>
-                            <div className="schema-actions">
-                                <button
-                                    className="cancel-btn"
-                                    onClick={() => {
-                                        setEditingSchema(null);
-                                        setSchemaName('');
-                                        setSchemaJSON('');
-                                    }}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    className="save-btn"
-                                    onClick={saveSchema}
-                                >
-                                    Save Schema
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="schema-actions-top">
-                                <button
-                                    className="create-schema-btn"
-                                    onClick={() => {
-                                        setEditingSchema({ name: '', schema: {} });
-                                        setSchemaName(`${dataType} Schema`);
-                                        setSchemaJSON('{\n  \n}');
-                                    }}
-                                >
-                                    Create New Schema
-                                </button>
-                                {selectedItem && (
-                                    <button
-                                        className="sample-schema-btn"
-                                        onClick={() => createSchemaFromDocument(selectedItem)}
-                                    >
-                                        Create From Selected Document
-                                    </button>
-                                )}
-                            </div>
-
-                            <h4>Available Schemas</h4>
-                            {Object.keys(schemas).length === 0 ? (
-                                <div className="no-schemas">No schemas defined yet</div>
-                            ) : (
-                                <div className="schema-list">
-                                    {Object.entries(schemas).map(([key, { name, schema }]) => (
-                                        <div
-                                            key={key}
-                                            className={`schema-item ${activeSchema === key ? 'active' : ''}`}
-                                            onClick={() => setActiveSchema(key)}
-                                        >
-                                            <div className="schema-item-header">
-                                                <span className="schema-item-name">{name}</span>
-                                                <div className="schema-item-actions">
-                                                    <button
-                                                        className="edit-schema-btn"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setEditingSchema({ name, schema });
-                                                            setSchemaName(name);
-                                                            setSchemaJSON(JSON.stringify(schema, null, 2));
-                                                        }}
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        className="delete-schema-btn"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (window.confirm(`Delete schema "${name}"?`)) {
-                                                                setSchemas(prev => {
-                                                                    const newSchemas = { ...prev };
-                                                                    delete newSchemas[key];
-                                                                    return newSchemas;
-                                                                });
-                                                                if (activeSchema === key) {
-                                                                    setActiveSchema(null);
-                                                                }
-                                                            }
-                                                        }}
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            {activeSchema === key && (
-                                                <pre className="schema-details">
-                                                    {JSON.stringify(schema, null, 2)}
-                                                </pre>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    <button
-                        className="close-schema-btn"
-                        onClick={() => setShowSchemaManager(false)}
-                    >
-                        Close Schema Manager
-                    </button>
-                </div>
-            </div>
-        );
-    };
-
-    // Render batch validation results
-    const renderValidationResults = () => {
-        if (!validationComplete || schemaValidation.length === 0) return null;
-
-        const itemsWithIssues = schemaValidation.filter(item => item.issues.length > 0);
-
-        return (
-            <div className="validation-results">
-                <h3>Schema Validation Results</h3>
-
-                {itemsWithIssues.length === 0 ? (
-                    <div className="validation-success">
-                        All selected items comply with the schema
-                    </div>
-                ) : (
-                    <>
-                        <div className="validation-summary">
-                            Found issues in {itemsWithIssues.length} of {schemaValidation.length} items
-                        </div>
-
-                        <div className="validation-items">
-                            {itemsWithIssues.map(item => (
-                                <div key={item.id} className="validation-item">
-                                    <div className="validation-item-header">
-                                        <span className="validation-item-name">{item.name}</span>
-                                        <span className="validation-item-id">ID: {item.id}</span>
-                                    </div>
-                                    <div className="validation-issues">
-                                        {item.issues.map((issue, index) => (
-                                            <div key={index} className="validation-issue">
-                                                <strong>{issue.field}:</strong> {issue.issue || `Type mismatch - Expected ${issue.expectedType}, got ${issue.currentType}`}
-                                                <div className="issue-fix">Fix: {issue.fix}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <button
-                            className="apply-fixes-btn"
-                            onClick={applySchemaFixes}
-                            disabled={loading}
-                        >
-                            {loading ? 'Applying Fixes...' : `Apply Fixes to ${itemsWithIssues.length} Items`}
-                        </button>
-                    </>
-                )}
-
-                <button
-                    className="close-validation-btn"
-                    onClick={() => {
-                        setValidationComplete(false);
-                        setSchemaValidation([]);
-                    }}
-                >
-                    Close Validation Results
-                </button>
-            </div>
-        );
-    };
+    }, [validationComplete, schemaValidation, collectionMapping, dataType, data, schemas, fetchData]);
 
     // Filter data items based on search term
-    const filteredData = filter
-        ? data.filter(item =>
+    const filteredData = useMemo(() => {
+        if (!filter) return data;
+        return data.filter(item =>
             JSON.stringify(item).toLowerCase().includes(filter.toLowerCase())
-        )
-        : data;
+        );
+    }, [data, filter]);
 
     return (
         <div className="admin-data-fixer">
@@ -997,7 +1031,7 @@ const DataFixerTool = () => {
                         <button
                             className={`batch-mode-btn ${batchMode ? 'active' : ''}`}
                             onClick={() => {
-                                setBatchMode(!batchMode);
+                                setBatchMode(prev => !prev);
                                 setSelectedItems([]);
                                 setValidationComplete(false);
                                 setSchemaValidation([]);
@@ -1107,7 +1141,15 @@ const DataFixerTool = () => {
                         </div>
 
                         <div className="data-preview">
-                            {validationComplete && renderValidationResults()}
+                            {validationComplete && (
+                                <ValidationResults
+                                    schemaValidation={schemaValidation}
+                                    setValidationComplete={setValidationComplete}
+                                    setSchemaValidation={setSchemaValidation}
+                                    applySchemaFixes={applySchemaFixes}
+                                    loading={loading}
+                                />
+                            )}
 
                             {!validationComplete && (
                                 selectedItem && !editedItem ? (
@@ -1122,17 +1164,17 @@ const DataFixerTool = () => {
                                             >
                                                 Edit This Item
                                             </button>
-
-                                            <button
-                                                className="sample-schema-btn"
-                                                onClick={() => createSchemaFromDocument(selectedItem)}
-                                            >
-                                                Create Schema From This
-                                            </button>
                                         </div>
                                     </div>
                                 ) : editedItem ? (
-                                    renderEditor()
+                                    <ItemEditor
+                                        editedItem={editedItem}
+                                        setEditedItem={setEditedItem}
+                                        setSelectedItem={setSelectedItem}
+                                        updateDocument={updateDocument}
+                                        loading={loading}
+                                        dataType={dataType}
+                                    />
                                 ) : (
                                     <div className="no-selection">
                                         {batchMode ?
@@ -1146,7 +1188,21 @@ const DataFixerTool = () => {
                 </>
             )}
 
-            {showSchemaManager && renderSchemaManager()}
+            {showSchemaManager && (
+                <SchemaManager
+                    dataType={dataType}
+                    schemas={schemas}
+                    setSchemas={setSchemas}
+                    selectedItem={selectedItem}
+                    activeSchema={activeSchema}
+                    setActiveSchema={setActiveSchema}
+                    setShowSchemaManager={setShowSchemaManager}
+                    loading={loading}
+                    setLoading={setLoading}
+                    setError={setError}
+                    setSuccess={setSuccess}
+                />
+            )}
         </div>
     );
 };
