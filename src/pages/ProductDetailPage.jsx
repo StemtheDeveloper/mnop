@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion, collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
@@ -9,6 +9,7 @@ import InvestmentModal from '../components/InvestmentModal';
 import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal'; // Add import for new component
 import TrendingExtensionButton from '../components/TrendingExtensionButton';
 import productTrendingService from '../services/productTrendingService';
+import reviewService from '../services/reviewService'; // Import the review service
 import '../styles/ProductDetailPage.css';
 import { serverTimestamp } from 'firebase/firestore';
 import DOMPurify from 'dompurify'; // Add this import for safely rendering HTML
@@ -29,6 +30,27 @@ const ProductDetailPage = () => {
     const [buttonAnimation, setButtonAnimation] = useState('');
     const [designer, setDesigner] = useState(null);
     const [categoryNames, setCategoryNames] = useState([]); // Add this state for category names
+
+    // Enhanced reviews state
+    const [reviews, setReviews] = useState([]);
+    const [reviewsToShow, setReviewsToShow] = useState(5);
+    const [reviewsLoading, setReviewsLoading] = useState(false);
+    const [lastVisibleReview, setLastVisibleReview] = useState(null);
+    const [hasMoreReviews, setHasMoreReviews] = useState(false);
+    const [reviewSortBy, setReviewSortBy] = useState('newest');
+    const [reviewRatingFilter, setReviewRatingFilter] = useState(0);
+    const [userReview, setUserReview] = useState({ rating: 0, text: '' });
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+    const [ratingDistribution, setRatingDistribution] = useState(null);
+    const [replyingToReview, setReplyingToReview] = useState(null);
+    const [replyText, setReplyText] = useState('');
+    const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+    const [moderationAction, setModerationAction] = useState(null);
+    const [rejectionReason, setRejectionReason] = useState('');
+    const [moderationStatus, setModerationStatus] = useState({ loading: false, error: null, success: null });
+    const [moderationActionReviewId, setModerationActionReviewId] = useState(null);
+
+    const initialReviewsCount = 5;
 
     // Calculate if product is fully funded
     const isFullyFunded = product && product.currentFunding >= product.fundingGoal;
@@ -154,6 +176,312 @@ const ProductDetailPage = () => {
             return () => unsubscribe();
         }
     }, [productId, currentUser, product?.designerId]);
+
+    // Enhanced fetch reviews with sorting, filtering and pagination
+    useEffect(() => {
+        const fetchReviews = async () => {
+            if (!productId) return;
+
+            setReviewsLoading(true);
+
+            try {
+                // Fetch reviews with sorting and filtering
+                const result = await reviewService.getProductReviews(productId, {
+                    sortBy: reviewSortBy,
+                    ratingFilter: reviewRatingFilter,
+                    pageSize: reviewsToShow,
+                    lastDoc: null, // Initially no last document for pagination
+                    withReplies: true
+                });
+
+                if (result.success) {
+                    setReviews(result.data);
+                    setLastVisibleReview(result.lastVisible);
+                    setHasMoreReviews(result.hasMore);
+
+                    // Fetch rating distribution
+                    const distributionResult = await reviewService.getProductRatingDistribution(productId);
+                    if (distributionResult.success) {
+                        setRatingDistribution(distributionResult.data);
+                    }
+
+                    // Check if current user has already submitted a review
+                    if (currentUser) {
+                        const userReviewItem = result.data.find(review => review.userId === currentUser.uid);
+                        if (userReviewItem) {
+                            setUserReview({
+                                rating: userReviewItem.rating,
+                                text: userReviewItem.text
+                            });
+                        } else {
+                            setUserReview({ rating: 0, text: '' });
+                        }
+                    }
+                } else {
+                    console.error('Error fetching reviews:', result.error);
+                    showError("Failed to load reviews");
+                }
+            } catch (error) {
+                console.error('Error fetching reviews:', error);
+                showError("Failed to load reviews");
+            } finally {
+                setReviewsLoading(false);
+            }
+        };
+
+        fetchReviews();
+    }, [productId, currentUser, reviewSortBy, reviewRatingFilter, reviewsToShow]);
+
+    // Function to handle sorting reviews
+    const handleSortReviews = (sortBy) => {
+        if (sortBy !== reviewSortBy) {
+            setReviewSortBy(sortBy);
+        }
+    };
+
+    // Function to handle filtering reviews by rating
+    const handleFilterByRating = (rating) => {
+        setReviewRatingFilter(rating === reviewRatingFilter ? 0 : rating);
+    };
+
+    // Function to load more reviews
+    const handleLoadMoreReviews = async () => {
+        if (!productId || !lastVisibleReview || !hasMoreReviews || reviewsLoading) return;
+
+        setReviewsLoading(true);
+
+        try {
+            const result = await reviewService.getProductReviews(productId, {
+                sortBy: reviewSortBy,
+                ratingFilter: reviewRatingFilter,
+                pageSize: 5, // Load 5 more reviews
+                lastDoc: lastVisibleReview,
+                withReplies: true
+            });
+
+            if (result.success) {
+                setReviews(prevReviews => [...prevReviews, ...result.data]);
+                setLastVisibleReview(result.lastVisible);
+                setHasMoreReviews(result.hasMore);
+            } else {
+                console.error('Error loading more reviews:', result.error);
+                showError("Failed to load more reviews");
+            }
+        } catch (error) {
+            console.error('Error loading more reviews:', error);
+            showError("Failed to load more reviews");
+        } finally {
+            setReviewsLoading(false);
+        }
+    };
+
+    // Function to mark a review as helpful
+    const handleMarkReviewHelpful = async (reviewId) => {
+        if (!currentUser) {
+            showError("Please sign in to mark reviews as helpful");
+            return;
+        }
+
+        try {
+            const result = await reviewService.markReviewHelpful(reviewId, currentUser.uid, true);
+
+            if (result.success) {
+                // Update the reviews state to reflect the new helpful count
+                setReviews(prevReviews => prevReviews.map(review =>
+                    review.id === reviewId
+                        ? {
+                            ...review,
+                            helpfulCount: result.data.helpfulCount,
+                            helpfulVoters: review.helpfulVoters
+                                ? (result.data.hasVoted
+                                    ? [...review.helpfulVoters, currentUser.uid]
+                                    : review.helpfulVoters.filter(id => id !== currentUser.uid))
+                                : (result.data.hasVoted ? [currentUser.uid] : [])
+                        }
+                        : review
+                ));
+
+                showSuccess(result.message);
+            } else {
+                showError(result.error || "Failed to mark review as helpful");
+            }
+        } catch (error) {
+            console.error('Error marking review as helpful:', error);
+            showError("Failed to mark review as helpful");
+        }
+    };
+
+    // Function to add a reply to a review
+    const handleReplyToReview = async (reviewId) => {
+        if (!currentUser) {
+            showError("Please sign in to reply to reviews");
+            return;
+        }
+
+        if (!replyText.trim()) {
+            showError("Reply cannot be empty");
+            return;
+        }
+
+        setIsSubmittingReply(true);
+
+        try {
+            // Determine if the current user is the designer or an admin
+            const isDesigner = product.designerId === currentUser.uid;
+            const isAdmin = hasRole('admin');
+
+            const replyData = {
+                reviewId,
+                userId: currentUser.uid,
+                userName: currentUser.displayName || 'Anonymous',
+                userPhotoURL: currentUser.photoURL || null,
+                text: replyText.trim(),
+                isDesigner,
+                isAdmin
+            };
+
+            const result = await reviewService.addReviewReply(replyData);
+
+            if (result.success) {
+                // Update the reviews state to include the new reply
+                setReviews(prevReviews => prevReviews.map(review =>
+                    review.id === reviewId
+                        ? {
+                            ...review,
+                            replies: [...(review.replies || []), result.data],
+                            replyCount: (review.replyCount || 0) + 1
+                        }
+                        : review
+                ));
+
+                // Clear the reply form and close it
+                setReplyText('');
+                setReplyingToReview(null);
+                showSuccess("Reply added successfully");
+            } else {
+                showError(result.error || "Failed to add reply");
+            }
+        } catch (error) {
+            console.error('Error adding reply:', error);
+            showError("Failed to add reply");
+        } finally {
+            setIsSubmittingReply(false);
+        }
+    };
+
+    // Function to delete a reply
+    const handleDeleteReply = async (replyId, reviewId) => {
+        if (!currentUser) return;
+
+        try {
+            const result = await reviewService.deleteReviewReply(replyId, reviewId);
+
+            if (result.success) {
+                // Update the reviews state to remove the deleted reply
+                setReviews(prevReviews => prevReviews.map(review =>
+                    review.id === reviewId
+                        ? {
+                            ...review,
+                            replies: (review.replies || []).filter(reply => reply.id !== replyId),
+                            replyCount: Math.max(0, (review.replyCount || 0) - 1)
+                        }
+                        : review
+                ));
+
+                showSuccess("Reply deleted successfully");
+            } else {
+                showError(result.error || "Failed to delete reply");
+            }
+        } catch (error) {
+            console.error('Error deleting reply:', error);
+            showError("Failed to delete reply");
+        }
+    };
+
+    // Function to moderate a review (admin only)
+    const handleModerateReview = async (reviewId, action) => {
+        if (!currentUser || !hasRole('admin')) {
+            showError("You don't have permission to moderate reviews");
+            return;
+        }
+
+        setModerationStatus({
+            loading: true,
+            error: null,
+            success: null
+        });
+
+        try {
+            // For rejection, make sure we have a reason
+            if (action === 'reject' && !rejectionReason.trim()) {
+                setModerationStatus({
+                    loading: false,
+                    error: "Please provide a reason for rejection",
+                    success: null
+                });
+                return;
+            }
+
+            const result = await reviewService.moderateReview(
+                reviewId,
+                action,
+                currentUser.uid,
+                rejectionReason.trim()
+            );
+
+            if (result.success) {
+                // Update the reviews state to reflect the moderation action
+                setReviews(prevReviews => prevReviews.map(review =>
+                    review.id === reviewId
+                        ? {
+                            ...review,
+                            status: action === 'approve' ? 'active' : action === 'reject' ? 'rejected' : 'deleted',
+                            isApproved: action === 'approve',
+                            isDeleted: action === 'delete',
+                            rejectionReason: action === 'reject' ? rejectionReason.trim() : review.rejectionReason,
+                            moderatedBy: currentUser.uid,
+                            moderatedAt: new Date()
+                        }
+                        : review
+                ));
+
+                setModerationStatus({
+                    loading: false,
+                    error: null,
+                    success: result.message
+                });
+
+                // Clear moderation state
+                setModerationAction(null);
+                setRejectionReason('');
+
+                showSuccess(result.message);
+            } else {
+                setModerationStatus({
+                    loading: false,
+                    error: result.error || "Failed to moderate review",
+                    success: null
+                });
+
+                showError(result.error || "Failed to moderate review");
+            }
+        } catch (error) {
+            console.error('Error moderating review:', error);
+
+            setModerationStatus({
+                loading: false,
+                error: "Failed to moderate review",
+                success: null
+            });
+
+            showError("Failed to moderate review");
+        }
+    };
+
+    // Function to check if a user has marked a review as helpful
+    const hasMarkedHelpful = (review) => {
+        return currentUser && review.helpfulVoters && review.helpfulVoters.includes(currentUser.uid);
+    };
 
     // Handle funding amount change
     const handleFundAmountChange = (e) => {
@@ -330,6 +658,92 @@ const ProductDetailPage = () => {
         }
     };
 
+    const handleSubmitReview = async () => {
+        if (!currentUser) {
+            showError("Please sign in to submit a review");
+            return;
+        }
+
+        if (!userReview.rating || !userReview.text) {
+            showError("Please provide a rating and review text");
+            return;
+        }
+
+        setIsSubmittingReview(true);
+
+        try {
+            const reviewData = {
+                productId: product.id,
+                userId: currentUser.uid,
+                userName: currentUser.displayName || 'Anonymous',
+                userPhotoURL: currentUser.photoURL || null,
+                rating: userReview.rating,
+                text: userReview.text
+            };
+
+            const result = await reviewService.addReview(reviewData);
+
+            if (result.success) {
+                showSuccess(result.message || "Review submitted successfully");
+
+                // If it was a new review (not an update), add it to the reviews list
+                if (!reviews.some(rev => rev.userId === currentUser.uid)) {
+                    setReviews(prev => [
+                        {
+                            id: result.data.id,
+                            ...reviewData,
+                            createdAt: new Date()
+                        },
+                        ...prev
+                    ]);
+                } else {
+                    // Update the existing review in the list
+                    setReviews(prev => prev.map(rev =>
+                        rev.userId === currentUser.uid
+                            ? { ...rev, rating: userReview.rating, text: userReview.text, updatedAt: new Date() }
+                            : rev
+                    ));
+                }
+
+                // Update the product's average rating in the UI
+                if (product.reviewCount) {
+                    const totalRating = reviews.reduce((sum, rev) => {
+                        // If this is the user's review, use the new rating
+                        if (rev.userId === currentUser.uid) {
+                            return sum + userReview.rating;
+                        }
+                        return sum + rev.rating;
+                    }, 0);
+
+                    const newAvgRating = (totalRating / product.reviewCount).toFixed(1);
+                    setProduct(prev => ({
+                        ...prev,
+                        averageRating: parseFloat(newAvgRating)
+                    }));
+                }
+
+                // Clear the review form if it was successful
+                setUserReview({ rating: 0, text: '' });
+            } else {
+                showError(result.error || "Failed to submit review");
+            }
+        } catch (error) {
+            console.error("Error submitting review:", error);
+            showError("Failed to submit review");
+        } finally {
+            setIsSubmittingReview(false);
+        }
+    };
+
+    const formatDate = (timestamp) => {
+        const date = new Date(timestamp.seconds * 1000);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    };
+
     // Format price as currency
     const formatPrice = (price) => {
         return new Intl.NumberFormat('en-US', {
@@ -462,6 +876,416 @@ const ProductDetailPage = () => {
                                 USE_PROFILES: { html: true }
                             })
                         }}></p>
+                    </div>
+
+                    {/* Ratings and Reviews Section */}
+                    <div className="product-reviews">
+                        <h3>Ratings & Reviews</h3>
+                        <div className="reviews-summary">
+                            <div className="average-rating">
+                                <span className="rating-value">{product.averageRating ? product.averageRating.toFixed(1) : '0.0'}</span>
+                                <div className="rating-stars">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <span
+                                            key={star}
+                                            className={`star ${star <= Math.round(product.averageRating || 0) ? 'filled' : ''}`}
+                                        >
+                                            ★
+                                        </span>
+                                    ))}
+                                </div>
+                                <span className="review-count">({product.reviewCount || 0} reviews)</span>
+                            </div>
+
+                            {/* Rating Distribution Bars */}
+                            {ratingDistribution && (
+                                <div className="rating-distribution">
+                                    <div className="distribution-title">Rating Distribution</div>
+                                    {[5, 4, 3, 2, 1].map(star => {
+                                        const count = ratingDistribution.distribution[star] || 0;
+                                        const percentage = ratingDistribution.reviewCount
+                                            ? Math.round((count / ratingDistribution.reviewCount) * 100)
+                                            : 0;
+
+                                        return (
+                                            <div key={star} className="distribution-row">
+                                                <div className="distribution-label">
+                                                    <span className="star">★</span> {star}
+                                                </div>
+                                                <div className="distribution-bar-container">
+                                                    <div
+                                                        className="distribution-bar"
+                                                        style={{ width: `${percentage}%` }}
+                                                    ></div>
+                                                </div>
+                                                <div className="distribution-count">{count}</div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Review Filtering and Sorting */}
+                        <div className="review-filters">
+                            <div className="review-filter-group">
+                                <span className="review-filter-label">Sort by:</span>
+                                <select
+                                    className="review-filter-select"
+                                    value={reviewSortBy}
+                                    onChange={(e) => handleSortReviews(e.target.value)}
+                                >
+                                    <option value="newest">Newest First</option>
+                                    <option value="highest">Highest Rating</option>
+                                    <option value="lowest">Lowest Rating</option>
+                                    <option value="helpful">Most Helpful</option>
+                                </select>
+                            </div>
+
+                            <div className="review-filter-group">
+                                <span className="review-filter-label">Filter by:</span>
+                                <div className="star-filter-buttons">
+                                    {[5, 4, 3, 2, 1].map(rating => (
+                                        <button
+                                            key={rating}
+                                            className={`star-button ${reviewRatingFilter === rating ? 'active' : ''}`}
+                                            onClick={() => handleFilterByRating(rating)}
+                                        >
+                                            <span className="star">★</span> {rating}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {reviewRatingFilter > 0 && (
+                                <button
+                                    className="review-filter-button"
+                                    onClick={() => setReviewRatingFilter(0)}
+                                >
+                                    Clear Filter
+                                </button>
+                            )}
+                        </div>
+
+                        {currentUser ? (
+                            <div className="write-review">
+                                <h4>Write a Review</h4>
+                                <div className="review-form">
+                                    <div className="rating-select">
+                                        <label>Your Rating:</label>
+                                        <div className="star-rating-select">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <span
+                                                    key={star}
+                                                    className={`star ${star <= (userReview.rating || 0) ? 'filled' : ''}`}
+                                                    onClick={() => setUserReview({ ...userReview, rating: star })}
+                                                >
+                                                    ★
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="review-content">
+                                        <label htmlFor="reviewText">Your Review:</label>
+                                        <textarea
+                                            id="reviewText"
+                                            value={userReview.text}
+                                            onChange={(e) => setUserReview({ ...userReview, text: e.target.value })}
+                                            placeholder="Share your thoughts about this product..."
+                                            rows="4"
+                                        ></textarea>
+                                    </div>
+                                    <button
+                                        className="submit-review-btn"
+                                        onClick={handleSubmitReview}
+                                        disabled={isSubmittingReview || !userReview.rating || !userReview.text}
+                                    >
+                                        {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="login-to-review">
+                                <Link to="/signin">Sign in</Link> to leave a review
+                            </div>
+                        )}
+
+                        {reviewsLoading && reviews.length === 0 ? (
+                            <div className="loading-container">
+                                <LoadingSpinner />
+                                <p>Loading reviews...</p>
+                            </div>
+                        ) : reviews.length > 0 ? (
+                            <div className="reviews-list">
+                                {reviews.map((review) => (
+                                    <div key={review.id} className="review-item">
+                                        {/* Admin can see review status if it's not active */}
+                                        {hasRole('admin') && review.status !== 'active' && (
+                                            <div className={`review-status-badge ${review.status}`}>
+                                                {review.status === 'pending' ? 'Pending Approval' :
+                                                    review.status === 'rejected' ? 'Rejected' : 'Deleted'}
+                                            </div>
+                                        )}
+
+                                        <div className="review-header">
+                                            <div className="reviewer-info">
+                                                {review.userPhotoURL ? (
+                                                    <img src={review.userPhotoURL} alt={review.userName} className="reviewer-avatar" />
+                                                ) : (
+                                                    <div className="reviewer-avatar default-avatar">
+                                                        {review.userName?.charAt(0).toUpperCase() || 'A'}
+                                                    </div>
+                                                )}
+                                                <span className="reviewer-name">{review.userName || 'Anonymous'}</span>
+
+                                                {/* If this user is the product designer */}
+                                                {review.userId === product.designerId && (
+                                                    <span className="reviewer-badge designer">Designer</span>
+                                                )}
+
+                                                {/* If user has admin role */}
+                                                {review.isAdmin && (
+                                                    <span className="reviewer-badge admin">Admin</span>
+                                                )}
+                                            </div>
+                                            <div className="review-rating">
+                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                    <span
+                                                        key={star}
+                                                        className={`star ${star <= review.rating ? 'filled' : ''}`}
+                                                    >
+                                                        ★
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <span className="review-date">
+                                                {review.createdAt ? new Date(review.createdAt.seconds * 1000).toLocaleDateString() : 'Recently'}
+                                            </span>
+                                        </div>
+
+                                        <div className="review-text">
+                                            {review.text}
+                                        </div>
+
+                                        {/* Rejection reason (admin only) */}
+                                        {hasRole('admin') && review.status === 'rejected' && review.rejectionReason && (
+                                            <div className="rejection-info">
+                                                <strong>Rejection reason:</strong> {review.rejectionReason}
+                                            </div>
+                                        )}
+
+                                        {/* Admin Moderation Controls */}
+                                        {hasRole('admin') && review.status === 'pending' && (
+                                            <div className="moderation-controls">
+                                                <div className="moderation-title">Moderation Controls</div>
+                                                <button
+                                                    className="moderation-btn approve-btn"
+                                                    onClick={() => handleModerateReview(review.id, 'approve')}
+                                                    disabled={moderationStatus.loading}
+                                                >
+                                                    Approve
+                                                </button>
+
+                                                {moderationAction === 'reject' && review.id === moderationActionReviewId ? (
+                                                    <>
+                                                        <input
+                                                            type="text"
+                                                            className="rejection-reason"
+                                                            value={rejectionReason}
+                                                            onChange={(e) => setRejectionReason(e.target.value)}
+                                                            placeholder="Reason for rejection (required)"
+                                                        />
+                                                        <button
+                                                            className="moderation-btn reject-btn"
+                                                            onClick={() => handleModerateReview(review.id, 'reject')}
+                                                            disabled={moderationStatus.loading || !rejectionReason.trim()}
+                                                        >
+                                                            Confirm Rejection
+                                                        </button>
+                                                        <button
+                                                            className="moderation-btn"
+                                                            onClick={() => {
+                                                                setModerationAction(null);
+                                                                setRejectionReason('');
+                                                            }}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        className="moderation-btn reject-btn"
+                                                        onClick={() => {
+                                                            setModerationAction('reject');
+                                                            setModerationActionReviewId(review.id);
+                                                        }}
+                                                        disabled={moderationStatus.loading}
+                                                    >
+                                                        Reject
+                                                    </button>
+                                                )}
+
+                                                <button
+                                                    className="moderation-btn delete-btn"
+                                                    onClick={() => handleModerateReview(review.id, 'delete')}
+                                                    disabled={moderationStatus.loading}
+                                                >
+                                                    Delete
+                                                </button>
+
+                                                {moderationStatus.error && (
+                                                    <div className="moderation-action-msg error">{moderationStatus.error}</div>
+                                                )}
+
+                                                {moderationStatus.success && (
+                                                    <div className="moderation-action-msg success">{moderationStatus.success}</div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Review Action Buttons (helpful, reply) */}
+                                        <div className="review-actions">
+                                            <div className="review-action-buttons">
+                                                <button
+                                                    className={`helpful-btn ${hasMarkedHelpful(review) ? 'active' : ''}`}
+                                                    onClick={() => handleMarkReviewHelpful(review.id)}
+                                                    disabled={!currentUser}
+                                                >
+                                                    <span className="helpful-icon">👍</span>
+                                                    {hasMarkedHelpful(review) ? 'Helpful' : 'Mark as Helpful'}
+                                                    <span className="helpful-count">({review.helpfulCount || 0})</span>
+                                                </button>
+
+                                                {currentUser && (
+                                                    <button
+                                                        className="reply-btn"
+                                                        onClick={() => setReplyingToReview(
+                                                            replyingToReview === review.id ? null : review.id
+                                                        )}
+                                                    >
+                                                        <span className="reply-icon">↩️</span>
+                                                        Reply
+                                                    </button>
+                                                )}
+
+                                                {hasRole('admin') && (
+                                                    <button className="report-btn">
+                                                        <span className="report-icon">🚫</span>
+                                                        Report
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Review Replies */}
+                                        {review.replies && review.replies.length > 0 && (
+                                            <div className="review-replies">
+                                                <div className="reply-count">
+                                                    {review.replies.length} {review.replies.length === 1 ? 'reply' : 'replies'}
+                                                </div>
+                                                <div className="reply-list">
+                                                    {review.replies
+                                                        .filter(reply => !reply.isDeleted)
+                                                        .map(reply => (
+                                                            <div
+                                                                key={reply.id}
+                                                                className={`reply-item ${reply.isDesigner ? 'designer' : ''} ${reply.isAdmin ? 'admin' : ''}`}
+                                                            >
+                                                                <div className="reply-header">
+                                                                    <div className="replier-info">
+                                                                        {reply.userPhotoURL ? (
+                                                                            <img
+                                                                                src={reply.userPhotoURL}
+                                                                                alt={reply.userName}
+                                                                                className="replier-avatar"
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="replier-avatar default-avatar">
+                                                                                {reply.userName?.charAt(0).toUpperCase() || 'A'}
+                                                                            </div>
+                                                                        )}
+                                                                        <span className="replier-name">{reply.userName || 'Anonymous'}</span>
+
+                                                                        {reply.isDesigner && (
+                                                                            <span className="replier-badge designer">Designer</span>
+                                                                        )}
+
+                                                                        {reply.isAdmin && (
+                                                                            <span className="replier-badge admin">Admin</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <span className="reply-date">
+                                                                        {reply.createdAt ? new Date(reply.createdAt.seconds * 1000).toLocaleDateString() : 'Recently'}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="reply-text">
+                                                                    {reply.text}
+                                                                </div>
+
+                                                                {/* Delete button for own replies or admin */}
+                                                                {((currentUser && currentUser.uid === reply.userId) || hasRole('admin')) && (
+                                                                    <button
+                                                                        className="reply-delete-btn"
+                                                                        onClick={() => handleDeleteReply(reply.id, review.id)}
+                                                                    >
+                                                                        ×
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Reply Form */}
+                                        {replyingToReview === review.id && currentUser && (
+                                            <div className="reply-form">
+                                                <textarea
+                                                    value={replyText}
+                                                    onChange={(e) => setReplyText(e.target.value)}
+                                                    placeholder="Write your reply..."
+                                                    rows="3"
+                                                ></textarea>
+                                                <div className="reply-form-actions">
+                                                    <button
+                                                        className="reply-form-cancel-btn"
+                                                        onClick={() => {
+                                                            setReplyingToReview(null);
+                                                            setReplyText('');
+                                                        }}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        className="reply-form-submit-btn"
+                                                        onClick={() => handleReplyToReview(review.id)}
+                                                        disabled={isSubmittingReply || !replyText.trim()}
+                                                    >
+                                                        {isSubmittingReply ? 'Submitting...' : 'Submit Reply'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="reviews-empty-state">
+                                <p>No reviews yet for this product. Be the first to share your thoughts!</p>
+                            </div>
+                        )}
+
+                        {/* Load More Reviews Button */}
+                        {hasMoreReviews && (
+                            <button
+                                className="load-more-reviews"
+                                onClick={handleLoadMoreReviews}
+                                disabled={reviewsLoading}
+                            >
+                                {reviewsLoading ? 'Loading...' : 'Load More Reviews'}
+                            </button>
+                        )}
                     </div>
 
                     {product.features && product.features.length > 0 && (

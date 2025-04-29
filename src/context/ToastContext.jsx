@@ -14,6 +14,11 @@ const ToastContext = createContext();
 // Hook for easy context consumption
 export const useToast = () => useContext(ToastContext);
 
+// Helper to generate a unique ID
+const generateUniqueId = () => {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 // Provider component
 export const ToastProvider = ({ children }) => {
     const [toasts, setToasts] = useState([]);
@@ -21,7 +26,7 @@ export const ToastProvider = ({ children }) => {
     // Function to show a success toast
     const showSuccess = (message, duration = 3000) => {
         const toast = {
-            id: Date.now(),
+            id: generateUniqueId(),
             message,
             severity: TOAST_SEVERITY.SUCCESS,
             duration
@@ -32,7 +37,7 @@ export const ToastProvider = ({ children }) => {
     // Function to show an error toast
     const showError = (message, duration = 3000) => {
         const toast = {
-            id: Date.now(),
+            id: generateUniqueId(),
             message,
             severity: TOAST_SEVERITY.ERROR,
             duration
@@ -43,7 +48,7 @@ export const ToastProvider = ({ children }) => {
     // Function to show a warning toast
     const showWarning = (message, duration = 3000) => {
         const toast = {
-            id: Date.now(),
+            id: generateUniqueId(),
             message,
             severity: TOAST_SEVERITY.WARNING,
             duration
@@ -54,7 +59,7 @@ export const ToastProvider = ({ children }) => {
     // Function to show an info toast
     const showInfo = (message, duration = 3000) => {
         const toast = {
-            id: Date.now(),
+            id: generateUniqueId(),
             message,
             severity: TOAST_SEVERITY.INFO,
             duration

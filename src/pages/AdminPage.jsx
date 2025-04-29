@@ -646,6 +646,12 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                             Products
                         </button>
                         <button
+                            className={`tab-button ${activeTab === 'reviews' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('reviews')}
+                        >
+                            Reviews
+                        </button>
+                        <button
                             className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`}
                             onClick={() => setActiveTab('achievements')}
                         >
@@ -910,6 +916,47 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                 <ProductApprovalPanel />
                                 <TrendingProductsPanel />
                                 <ProductArchivePanel />
+                            </div>
+                        )}
+
+                        {activeTab === 'reviews' && (
+                            <div className="reviews-tab">
+                                <h2>Reviews Management</h2>
+
+                                <div className="admin-section">
+                                    <div className="admin-card">
+                                        <h3>Review Moderation</h3>
+                                        <p>
+                                            Moderate product reviews submitted by users. Approve, reject, or delete pending reviews to maintain high-quality content on the platform.
+                                        </p>
+                                        <a href="/admin/review-moderation" className="admin-button">
+                                            Open Review Moderation Panel
+                                        </a>
+                                    </div>
+
+                                    <div className="admin-card">
+                                        <h3>Review Guidelines</h3>
+                                        <p>
+                                            Our review guidelines help maintain a respectful and productive community. Reviews should:
+                                        </p>
+                                        <ul className="guidelines-list">
+                                            <li>Be honest and authentic about experiences with products</li>
+                                            <li>Focus on product features, quality, and usability</li>
+                                            <li>Avoid offensive language, hate speech, or personal attacks</li>
+                                            <li>Provide constructive feedback that helps others make informed decisions</li>
+                                        </ul>
+                                    </div>
+
+                                    <div className="admin-card">
+                                        <h3>Common Reasons for Review Rejection</h3>
+                                        <ul className="guidelines-list">
+                                            <li><strong>Spam or promotional content:</strong> Reviews that promote other products or contain spam</li>
+                                            <li><strong>Offensive content:</strong> Reviews with inappropriate language or personal attacks</li>
+                                            <li><strong>Off-topic:</strong> Reviews that don't address the product's qualities or performance</li>
+                                            <li><strong>Conflicts of interest:</strong> Reviews by competitors or individuals with vested interests</li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         )}
 

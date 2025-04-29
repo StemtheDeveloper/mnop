@@ -16,6 +16,7 @@ const WalletPage = lazy(() => import('../pages/WalletPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const AdminDataFixerPage = lazy(() => import('../pages/AdminDataFixerPage'));
 const AdminVerificationPage = lazy(() => import('../pages/AdminVerificationPage')); // Import verification page
+const ReviewModerationPanel = lazy(() => import('../components/admin/ReviewModerationPanel')); // Import review moderation panel
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage'));
 const ProductsPage = lazy(() => import('../pages/ProductsPage'));
@@ -213,6 +214,11 @@ const AppRoutes = () => {
                 <Route path="/admin/products-csv-import" element={
                     <AuthGuard allowedRoles="admin">
                         <ProductsCsvImportPage />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/review-moderation" element={
+                    <AuthGuard allowedRoles="admin">
+                        <ReviewModerationPanel />
                     </AuthGuard>
                 } />
 
