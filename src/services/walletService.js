@@ -754,24 +754,24 @@ class WalletService {
       // Fetch the product to get the designer ID
       const productRef = doc(db, "products", productId);
       const productDoc = await getDoc(productRef);
-      
+
       if (!productDoc.exists()) {
         return {
           success: false,
           error: "Product not found",
         };
       }
-      
+
       const productData = productDoc.data();
       const designerId = productData.designerId;
-      
+
       if (!designerId) {
         return {
           success: false,
           error: "Product has no designer ID",
         };
       }
-      
+
       // First, process business commission
       const commissionResult = await this.processBusinessCommission(
         saleAmount,
@@ -780,7 +780,7 @@ class WalletService {
         productId,
         productName
       );
-      
+
       // Get commission amount (default to 0 if there was an error)
       const commissionAmount = commissionResult.success
         ? commissionResult.commissionAmount || 0
@@ -794,15 +794,16 @@ class WalletService {
         quantity,
         orderId
       );
-      
+
       // Get total distributed to investors (default to 0 if there was an error)
       const investorDistribution = distributionResult.success
         ? distributionResult.data?.distributedAmount || 0
         : 0;
-      
+
       // Calculate designer's share: sale amount minus commission minus investor distribution
-      const designerShare = saleAmount - commissionAmount - investorDistribution;
-      
+      const designerShare =
+        saleAmount - commissionAmount - investorDistribution;
+
       // Only process designer payment if there's anything to pay
       let designerPaymentResult = null;
       if (designerShare > 0) {
@@ -842,13 +843,7 @@ class WalletService {
    * @param {string} orderId - The order ID
    * @returns {Promise<Object>} Result with success status
    */
-  async payDesigner(
-    designerId,
-    amount,
-    productId,
-    productName,
-    orderId
-  ) {
+  async payDesigner(designerId, amount, productId, productName, orderId) {
     try {
       // Validate the amount
       if (amount <= 0) {
@@ -908,14 +903,18 @@ class WalletService {
         designerId,
         "payment",
         "Product Sale Payment",
-        `You received $${roundedAmount.toFixed(2)} from the sale of ${productName || "your product"}.`,
+        `You received $${roundedAmount.toFixed(2)} from the sale of ${
+          productName || "your product"
+        }.`,
         `/orders`
       );
 
       return {
         success: true,
         amount: roundedAmount,
-        message: `Successfully paid designer $${roundedAmount.toFixed(2)} for product sale`,
+        message: `Successfully paid designer $${roundedAmount.toFixed(
+          2
+        )} for product sale`,
       };
     } catch (error) {
       console.error("Error paying designer:", error);

@@ -297,11 +297,10 @@ const CheckoutPage = () => {
                 estimatedDelivery: calculateEstimatedDelivery(formData.shippingMethod)
             };
 
-            // Add order to Firestore
             const orderRef = await addDoc(collection(db, 'orders'), orderData);
             setOrderId(orderRef.id);
 
-            // Process business commission
+            // Process sales - including designer payments, business commissions, and investor revenue
             for (const item of cartItems) {
                 try {
                     // Fetch the product to get the manufacturing cost
@@ -310,33 +309,25 @@ const CheckoutPage = () => {
 
                     if (productDoc.exists()) {
                         const productData = productDoc.data();
-                        // Calculate and take commission
+                        // Calculate sale amount
                         const manufacturingCost = productData.manufacturingCost || 0;
                         const saleAmount = item.price * item.quantity;
 
-                        const commissionResult = await walletService.processBusinessCommission(
-                            saleAmount,
-                            manufacturingCost,
-                            item.quantity,
+                        // Use the comprehensive method that handles business commission, 
+                        // investor revenue, AND designer payments in one call
+                        const saleResult = await walletService.processProductSale(
                             item.id,
-                            item.name
-                        );
-
-                        console.log('Business commission processed:', commissionResult);
-
-                        // Distribute revenue to investors
-                        const distributionResult = await walletService.distributeInvestorRevenue(
-                            item.id,
+                            item.name || productData.name,
                             saleAmount,
                             manufacturingCost,
                             item.quantity,
                             orderRef.id
                         );
 
-                        if (distributionResult.success) {
-                            console.log('Investor revenue distributed:', distributionResult.data);
+                        if (saleResult.success) {
+                            console.log('Product sale processed successfully:', saleResult);
                         } else {
-                            console.error('Error distributing investor revenue:', distributionResult.error);
+                            console.error('Error processing product sale:', saleResult.error);
                         }
                     }
                 } catch (err) {
