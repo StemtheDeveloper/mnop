@@ -354,7 +354,7 @@ class WalletService {
    * @param {number} limit - Maximum number of transactions to return
    * @returns {Promise<Array>} - Transaction history
    */
-  async getTransactionHistory(userId, limitCount = 50) {
+  async getTransactionHistory(userId, limitCount = 1000) {
     try {
       const transactionsRef = collection(db, "transactions");
 
@@ -751,6 +751,27 @@ class WalletService {
     orderId
   ) {
     try {
+      // Fetch the product to get the designer ID
+      const productRef = doc(db, "products", productId);
+      const productDoc = await getDoc(productRef);
+      
+      if (!productDoc.exists()) {
+        return {
+          success: false,
+          error: "Product not found",
+        };
+      }
+      
+      const productData = productDoc.data();
+      const designerId = productData.designerId;
+      
+      if (!designerId) {
+        return {
+          success: false,
+          error: "Product has no designer ID",
+        };
+      }
+      
       // First, process business commission
       const commissionResult = await this.processBusinessCommission(
         saleAmount,
@@ -759,6 +780,11 @@ class WalletService {
         productId,
         productName
       );
+      
+      // Get commission amount (default to 0 if there was an error)
+      const commissionAmount = commissionResult.success
+        ? commissionResult.commissionAmount || 0
+        : 0;
 
       // Next, distribute revenue to investors
       const distributionResult = await this.distributeInvestorRevenue(
@@ -768,6 +794,26 @@ class WalletService {
         quantity,
         orderId
       );
+      
+      // Get total distributed to investors (default to 0 if there was an error)
+      const investorDistribution = distributionResult.success
+        ? distributionResult.data?.distributedAmount || 0
+        : 0;
+      
+      // Calculate designer's share: sale amount minus commission minus investor distribution
+      const designerShare = saleAmount - commissionAmount - investorDistribution;
+      
+      // Only process designer payment if there's anything to pay
+      let designerPaymentResult = null;
+      if (designerShare > 0) {
+        designerPaymentResult = await this.payDesigner(
+          designerId,
+          designerShare,
+          productId,
+          productName,
+          orderId
+        );
+      }
 
       return {
         success: true,
@@ -775,6 +821,7 @@ class WalletService {
         distributionResult: distributionResult.success
           ? distributionResult.data
           : null,
+        designerPaymentResult: designerPaymentResult,
         message: "Sale processed successfully",
       };
     } catch (error) {
@@ -782,6 +829,99 @@ class WalletService {
       return {
         success: false,
         error: error.message || "Failed to process product sale",
+      };
+    }
+  }
+
+  /**
+   * Pay a designer for a product sale
+   * @param {string} designerId - The ID of the designer
+   * @param {number} amount - The amount to pay
+   * @param {string} productId - The product ID
+   * @param {string} productName - The product name
+   * @param {string} orderId - The order ID
+   * @returns {Promise<Object>} Result with success status
+   */
+  async payDesigner(
+    designerId,
+    amount,
+    productId,
+    productName,
+    orderId
+  ) {
+    try {
+      // Validate the amount
+      if (amount <= 0) {
+        return {
+          success: false,
+          error: "Payment amount must be greater than 0",
+        };
+      }
+
+      // Round to 2 decimal places for currency
+      const roundedAmount = Math.round(amount * 100) / 100;
+
+      // Get designer's wallet
+      const walletRef = doc(db, "wallets", designerId);
+      const walletDoc = await getDoc(walletRef);
+
+      // Create batch for transaction
+      const batch = writeBatch(db);
+
+      if (walletDoc.exists()) {
+        // Update existing wallet
+        batch.update(walletRef, {
+          balance: increment(roundedAmount),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create wallet if it doesn't exist
+        batch.set(walletRef, {
+          balance: roundedAmount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // Record payment transaction
+      const transactionRef = doc(collection(db, "transactions"));
+      batch.set(transactionRef, {
+        userId: designerId,
+        amount: roundedAmount,
+        type: "sales_payment",
+        description: `Payment for sale of ${productName || "product"}`,
+        productId,
+        orderId,
+        createdAt: serverTimestamp(),
+        status: "completed",
+      });
+
+      // Commit the batch
+      await batch.commit();
+
+      // Send notification to designer about the payment
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      );
+
+      await notificationService.createNotification(
+        designerId,
+        "payment",
+        "Product Sale Payment",
+        `You received $${roundedAmount.toFixed(2)} from the sale of ${productName || "your product"}.`,
+        `/orders`
+      );
+
+      return {
+        success: true,
+        amount: roundedAmount,
+        message: `Successfully paid designer $${roundedAmount.toFixed(2)} for product sale`,
+      };
+    } catch (error) {
+      console.error("Error paying designer:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to process designer payment",
       };
     }
   }

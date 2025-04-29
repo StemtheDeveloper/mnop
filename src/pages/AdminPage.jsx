@@ -16,6 +16,7 @@ import FirestoreIndexHelper from '../components/admin/FirestoreIndexHelper';
 import NopsManagementPanel from '../components/admin/NopsManagementPanel';
 import AchievementsManagementPanel from '../components/admin/AchievementsManagementPanel';
 import AdminInvestmentSettings from '../components/admin/AdminInvestmentSettings';
+import RefundManagementPanel from '../components/admin/RefundManagementPanel';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -979,6 +980,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
                                 <BusinessAccountPanel />
                                 <PaymentSettingsPanel />
+                                <RefundManagementPanel />
                                 <MarketRatesPanel />
                                 <InterestRateAdminPanel />
                             </div>

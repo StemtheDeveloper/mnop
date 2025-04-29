@@ -80,11 +80,7 @@ const ProfilePage = () => {
     const isOwnProfile = currentUser && userId === currentUser.uid;
 
     // Check if user has designer role
-    const isDesigner = userRole && (
-        typeof userRole === 'string' ?
-            userRole === 'designer' :
-            Array.isArray(userRole) && userRole.includes('designer')
-    );
+    const isDesigner = hasRole('designer');
 
     // Load user data into form
     useEffect(() => {
@@ -706,7 +702,7 @@ const ProfilePage = () => {
         </div>;
     };
 
-    // Determine which tabs to show based on roles
+    // Get tabs based on roles
     const getTabs = () => {
         const tabs = [
             { id: 'personal', label: 'Personal Info', roles: ['all'] },
@@ -717,7 +713,7 @@ const ProfilePage = () => {
         ];
 
         // Designer-specific tabs
-        if (isDesigner) {
+        if (hasRole('designer')) {
             tabs.push({ id: 'products', label: 'My Products', roles: ['designer'] });
             tabs.push({ id: 'sales', label: 'My Sales', roles: ['designer'] });
             tabs.push({ id: 'customer-orders', label: 'Customer Orders', roles: ['designer'] });
@@ -1444,7 +1440,7 @@ const ProfilePage = () => {
                             </div>
                         )}
 
-                        {activeTab === 'customer-orders' && isDesigner && (
+                        {activeTab === 'customer-orders' && (
                             <div className="settings-section">
                                 <h3>Customer Orders</h3>
                                 <p>View and manage orders for your products</p>

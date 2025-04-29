@@ -157,13 +157,14 @@ const WalletPage = () => {
 
             setTransactionLoading(true);
             try {
-                // Load regular transactions
-                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
+                // Load regular transactions - remove limit to show all
+                const txData = await walletService.getTransactionHistory(currentUser.uid);
                 setTransactions(txData || []);
 
                 // Load interest transactions if user is an investor
                 if (userHasRole('investor')) {
-                    const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 20);
+                    // No limit for interest transactions either
+                    const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid);
                     setInterestTransactions(interestTxData || []);
                 }
             } catch (error) {
@@ -241,8 +242,8 @@ const WalletPage = () => {
                 // Show success toast
                 showSuccess(`Successfully transferred ${formatCurrency(amount)} to ${transferTo}`);
 
-                // Refresh transactions
-                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
+                // Refresh transactions - removed limit to get all transactions
+                const txData = await walletService.getTransactionHistory(currentUser.uid);
                 setTransactions(txData || []);
             } else {
                 setTransferError(result.error || 'Transfer failed. Please try again.');
@@ -289,8 +290,8 @@ const WalletPage = () => {
                 // Show success toast
                 showSuccess(`Added ${formatCurrency(amount)} to your wallet`);
 
-                // Refresh transactions immediately
-                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
+                // Refresh transactions immediately - removed limit to show all transactions
+                const txData = await walletService.getTransactionHistory(currentUser.uid);
                 setTransactions(txData || []);
             } else {
                 setDepositError(result.error || 'Deposit failed. Please try again.');
