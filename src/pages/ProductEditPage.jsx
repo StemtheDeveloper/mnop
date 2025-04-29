@@ -35,19 +35,6 @@ const ProductEditPage = () => {
     const [errorState, setErrorState] = useState('');
     const [product, setProduct] = useState(null);
 
-    // Product form state
-    const [formData, setFormData] = useState({
-        name: '',
-        description: '',
-        price: '',
-        category: '',
-        categories: [], // New array for multiple categories
-        fundingGoal: '',
-        customCategory: '',
-        isCrowdfunded: true, // New field to track if product requires crowdfunding
-        manufacturingCost: '', // New field for manufacturing cost per unit
-    });
-
     // Multiple image handling state
     const [productImages, setProductImages] = useState([]);
     const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
@@ -57,6 +44,22 @@ const ProductEditPage = () => {
     const [cropImageSrc, setCropImageSrc] = useState('');
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const imageInputRef = useRef(null);
+
+    // Form state
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        price: '',
+        fundingGoal: '',
+        category: '',
+        categories: [],
+        customCategory: '',
+        isCrowdfunded: true,
+        manufacturingCost: '',
+        stockQuantity: '0',  // Initialize with string '0' instead of undefined
+        lowStockThreshold: '5',  // Initialize with string '5' instead of undefined
+        trackInventory: false,
+    });
 
     // Categories state
     const [categories, setCategories] = useState([]);
@@ -473,6 +476,16 @@ const ProductEditPage = () => {
                 currentFunding: formData.isCrowdfunded ? product.currentFunding || 0 : parseFloat(formData.price)
             };
 
+            // Add stock management fields if tracking inventory
+            if (formData.trackInventory) {
+                productData.stockQuantity = parseInt(formData.stockQuantity) || 0;
+                productData.lowStockThreshold = parseInt(formData.lowStockThreshold) || 5;
+                productData.trackInventory = true;
+            } else {
+                productData.trackInventory = false;
+                // Keep stockQuantity if it exists, but mark as not tracked
+            }
+
             // Update the product document
             await updateDoc(doc(db, 'products', productId), productData);
 
@@ -690,6 +703,63 @@ const ProductEditPage = () => {
                                 </div>
                             </div>
 
+                            <div className="form-group stock-management">
+                                <h3>Stock Management</h3>
+
+                                <div className="stock-tracking-toggle">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            name="trackInventory"
+                                            checked={formData.trackInventory}
+                                            onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
+                                            disabled={saving}
+                                        />
+                                        Track inventory for this product
+                                    </label>
+                                    <p className="form-hint">
+                                        Enable to track stock levels and receive notifications when inventory is low.
+                                    </p>
+                                </div>
+
+                                {formData.trackInventory && (
+                                    <div className="stock-fields">
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label htmlFor="stockQuantity">Stock Quantity*</label>
+                                                <input
+                                                    type="number"
+                                                    id="stockQuantity"
+                                                    name="stockQuantity"
+                                                    value={formData.stockQuantity}
+                                                    onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
+                                                    placeholder="0"
+                                                    min="0"
+                                                    disabled={saving}
+                                                />
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label htmlFor="lowStockThreshold">Low Stock Threshold</label>
+                                                <input
+                                                    type="number"
+                                                    id="lowStockThreshold"
+                                                    name="lowStockThreshold"
+                                                    value={formData.lowStockThreshold}
+                                                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })}
+                                                    placeholder="5"
+                                                    min="0"
+                                                    disabled={saving}
+                                                />
+                                                <p className="form-hint">
+                                                    You'll be notified when stock reaches this level.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="form-group">
                                 <div className="category-selection">
                                     <div className="category-toggle">
@@ -834,6 +904,65 @@ const ProductEditPage = () => {
                                     disabled={saving}
                                 />
                             </div>
+
+                            {product && (
+                                <div className="form-group stock-management">
+                                    <h3>Stock Management</h3>
+
+                                    <div className="stock-tracking-toggle">
+                                        <label>
+                                            <input
+                                                type="checkbox"
+                                                name="trackInventory"
+                                                checked={formData.trackInventory}
+                                                onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
+                                                disabled={saving}
+                                            />
+                                            Track inventory for this product
+                                        </label>
+                                        <p className="form-hint">
+                                            Enable to track stock levels and receive notifications when inventory is low.
+                                        </p>
+                                    </div>
+
+                                    {formData.trackInventory && (
+                                        <div className="stock-fields">
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label htmlFor="stockQuantity">Stock Quantity*</label>
+                                                    <input
+                                                        type="number"
+                                                        id="stockQuantity"
+                                                        name="stockQuantity"
+                                                        value={formData.stockQuantity}
+                                                        onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
+                                                        placeholder="0"
+                                                        min="0"
+                                                        disabled={saving}
+                                                    />
+                                                </div>
+
+                                                <div className="form-group">
+                                                    <label htmlFor="lowStockThreshold">Low Stock Threshold</label>
+                                                    <input
+                                                        type="number"
+                                                        id="lowStockThreshold"
+                                                        name="lowStockThreshold"
+                                                        value={formData.lowStockThreshold}
+                                                        onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })}
+                                                        placeholder="5"
+                                                        min="0"
+                                                        disabled={saving}
+                                                    />
+                                                    <p className="form-hint">
+                                                        You'll be notified when stock reaches this level.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {product && (
                                 <div className="product-status-info">

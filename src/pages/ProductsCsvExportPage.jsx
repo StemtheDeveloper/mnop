@@ -340,14 +340,14 @@ const ProductsCsvExportPage = () => {
                                 <li>Save the file in CSV format when done</li>
                                 <li>Use the "Import Products from CSV" page to update the products with your changes</li>
                             </ol>
-                            <p className="important-note">
-                                <strong>Important:</strong> When editing the CSV:
+                            <div className="important-note">
+                                <p><strong>Important:</strong> When editing the CSV:</p>
                                 <ul>
                                     <li>Do not change the ID column as it's used to identify the products</li>
                                     <li>If the categories field contains multiple values, they should be separated by semicolons (;)</li>
                                     <li>Do not add quotes around numeric values like price or manufacturingCost</li>
                                 </ul>
-                            </p>
+                            </div>
                         </div>
                     </div>
                 </div>

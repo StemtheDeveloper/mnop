@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, collection, addDoc, serverTimestamp, getDocs, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
 import { useToast } from '../contexts/ToastContext';
-import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
+import { sanitizeString } from '../utils/sanitizer';
 import '../styles/ProductUpload.css';
 
 // Default categories in case Firestore fetch fails
@@ -34,23 +34,20 @@ const ProductUploadPage = () => {
     const [requireApproval, setRequireApproval] = useState(true);
     const [successMessage, setSuccessMessage] = useState('');
 
-    // Bulk upload state
-    const [bulkUploadMode, setBulkUploadMode] = useState(false);
-    const [bulkUploadStatus, setBulkUploadStatus] = useState({ total: 0, processed: 0, success: 0, failed: 0 });
-    const [bulkUploadResults, setBulkUploadResults] = useState([]);
-    const bulkFileInputRef = useRef(null);
-
     // Product form state
     const [formData, setFormData] = useState({
         name: '',
         description: '',
         price: '',
-        category: '', // Keep for backward compatibility
-        categories: [], // New array for multiple categories
         fundingGoal: '',
+        category: '',
+        categories: [],
         customCategory: '',
-        isCrowdfunded: true, // New field to track if product requires crowdfunding
-        manufacturingCost: '', // New field to track cost per unit for revenue sharing
+        isCrowdfunded: true, // Default to crowdfunded
+        manufacturingCost: '',
+        stockQuantity: '0',  // Initialize with string '0' instead of undefined
+        lowStockThreshold: '5',  // Initialize with string '5' instead of undefined
+        trackInventory: true,
     });
 
     // Multiple image handling state
@@ -208,200 +205,6 @@ const ProductUploadPage = () => {
         }
     };
 
-    // Handle bulk JSON file upload
-    const handleBulkFileUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        if (file.type !== 'application/json') {
-            setError('Please upload a JSON file for bulk product upload');
-            return;
-        }
-
-        try {
-            const fileContent = await file.text();
-            let jsonData;
-
-            try {
-                jsonData = JSON.parse(fileContent);
-            } catch (parseError) {
-                setError('Invalid JSON format. Please check your file.');
-                return;
-            }
-
-            if (!jsonData.products || !Array.isArray(jsonData.products) || jsonData.products.length === 0) {
-                setError('JSON file must contain a "products" array with at least one product');
-                return;
-            }
-
-            // Set up initial status
-            setBulkUploadResults([]);
-            setBulkUploadStatus({
-                total: jsonData.products.length,
-                processed: 0,
-                success: 0,
-                failed: 0
-            });
-
-            setLoading(true);
-
-            // Process each product
-            const batch = writeBatch(db);
-            const results = [];
-            let successCount = 0;
-            let failedCount = 0;
-
-            for (let i = 0; i < jsonData.products.length; i++) {
-                const product = jsonData.products[i];
-                try {
-                    // Validate required fields
-                    if (!product.name || !product.description || !product.price) {
-                        results.push({
-                            name: product.name || 'Unnamed Product',
-                            status: 'failed',
-                            error: 'Missing required fields (name, description, or price)'
-                        });
-                        failedCount++;
-                        continue;
-                    }
-
-                    // Prepare product data
-                    const productData = {
-                        name: sanitizeString(product.name),
-                        description: sanitizeString(product.description),
-                        price: parseFloat(product.price),
-                        manufacturingCost: parseFloat(product.manufacturingCost || 0),
-                        fundingGoal: product.isCrowdfunded ? parseFloat(product.fundingGoal || 0) : 0,
-                        isCrowdfunded: !!product.isCrowdfunded,
-                        isDirectSell: !product.isCrowdfunded,
-                        currentFunding: product.isCrowdfunded ? 0 : parseFloat(product.price),
-                        designerId: currentUser.uid,
-                        designerName: userProfile?.displayName || 'Designer',
-                        status: product.status || (requireApproval ? 'pending' : 'active'),
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp(),
-                        imageUrls: [],
-                        storagePaths: []
-                    };
-
-                    // Handle categories
-                    if (product.categories && Array.isArray(product.categories) && product.categories.length > 0) {
-                        productData.categories = product.categories;
-                        productData.category = product.categories[0]; // Primary category
-                        productData.categoryType = 'standard';
-                    } else {
-                        // Assign a default category if none provided
-                        const defaultCategory = categories.length > 0 ? categories[0].id : 'unspecified';
-                        productData.categories = [defaultCategory];
-                        productData.category = defaultCategory;
-                        productData.categoryType = 'standard';
-                    }
-
-                    // Handle base64 images if provided
-                    if (product.imagesBase64 && Array.isArray(product.imagesBase64) && product.imagesBase64.length > 0) {
-                        const imageUrls = [];
-                        const storagePaths = [];
-
-                        for (let j = 0; j < Math.min(product.imagesBase64.length, MAX_IMAGES); j++) {
-                            try {
-                                const base64Data = product.imagesBase64[j];
-                                const timestamp = Date.now();
-                                const fileName = `${timestamp}-bulk-${i}-img-${j}.jpg`;
-                                const storagePath = `products/${currentUser.uid}/${fileName}`;
-
-                                // Convert base64 to blob
-                                const byteString = atob(base64Data.split(',')[1]);
-                                const mimeString = base64Data.split(',')[0].split(':')[1].split(';')[0];
-                                const ab = new ArrayBuffer(byteString.length);
-                                const ia = new Uint8Array(ab);
-
-                                for (let k = 0; k < byteString.length; k++) {
-                                    ia[k] = byteString.charCodeAt(k);
-                                }
-
-                                const blob = new Blob([ab], { type: mimeString });
-                                const file = new File([blob], fileName, { type: mimeString });
-
-                                // Upload the image
-                                const storageRef = ref(storage, storagePath);
-                                await uploadBytes(storageRef, file);
-
-                                // Get the download URL
-                                const imageUrl = await getDownloadURL(storageRef);
-
-                                imageUrls.push(imageUrl);
-                                storagePaths.push(storagePath);
-                            } catch (imageError) {
-                                console.error(`Error processing image ${j} for product ${i}:`, imageError);
-                            }
-                        }
-
-                        productData.imageUrls = imageUrls;
-                        productData.storagePaths = storagePaths;
-                    }
-
-                    // Create a new doc reference and add to batch
-                    const productRef = doc(collection(db, 'products'));
-                    batch.set(productRef, productData);
-
-                    results.push({
-                        name: product.name,
-                        status: 'success',
-                        id: productRef.id
-                    });
-
-                    successCount++;
-                } catch (productError) {
-                    console.error(`Error processing product ${i}:`, productError);
-                    results.push({
-                        name: product.name || 'Unnamed Product',
-                        status: 'failed',
-                        error: productError.message || 'Unknown error'
-                    });
-                    failedCount++;
-                }
-
-                // Update status after each product
-                setBulkUploadStatus(prev => ({
-                    ...prev,
-                    processed: i + 1,
-                    success: successCount,
-                    failed: failedCount
-                }));
-
-                // Update results
-                setBulkUploadResults(results);
-            }
-
-            try {
-                // Commit the batch
-                await batch.commit();
-                setSuccess(true);
-                setSuccessMessage(`Successfully uploaded ${successCount} of ${jsonData.products.length} products.`);
-            } catch (batchError) {
-                console.error('Error committing batch:', batchError);
-                setError(`Error saving products: ${batchError.message}`);
-            }
-        } catch (error) {
-            console.error('Error processing bulk upload:', error);
-            setError(`Error processing file: ${error.message}`);
-        } finally {
-            setLoading(false);
-            if (bulkFileInputRef.current) {
-                bulkFileInputRef.current.value = '';
-            }
-        }
-    };
-
-    // Toggle between single and bulk upload modes
-    const toggleUploadMode = () => {
-        setBulkUploadMode(!bulkUploadMode);
-        setError('');
-        setSuccess(false);
-        setBulkUploadResults([]);
-        setBulkUploadStatus({ total: 0, processed: 0, success: 0, failed: 0 });
-    };
-
     // Handle form input changes
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -542,6 +345,11 @@ const ProductUploadPage = () => {
         }
     };
 
+    // Handle navigation to bulk uploader
+    const handleBulkUpload = () => {
+        navigate('/products/products-csv-import');
+    };
+
     // Validate form before submission
     const validateForm = () => {
         if (!formData.name.trim()) {
@@ -664,7 +472,11 @@ const ProductUploadPage = () => {
                 isDirectSell: !formData.isCrowdfunded, // Add a direct sell flag for filtering
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
-                storagePaths: storagePaths // Store the correct paths for future reference
+                storagePaths: storagePaths, // Store the correct paths for future reference
+                // Add stock management data
+                trackInventory: formData.trackInventory,
+                stockQuantity: formData.trackInventory ? parseInt(formData.stockQuantity) || 0 : null,
+                lowStockThreshold: formData.trackInventory ? parseInt(formData.lowStockThreshold) || 5 : null,
             };
 
             console.log('Creating Firestore document with data:', {
@@ -728,6 +540,9 @@ const ProductUploadPage = () => {
                 fundingGoal: '',
                 isCrowdfunded: true, // Reset to default
                 manufacturingCost: '', // Reset to default
+                stockQuantity: '', // Reset to default
+                lowStockThreshold: '', // Reset to default
+                trackInventory: true, // Reset to default
             });
             setProductImages([]);
             setImagePreviewUrls([]);
@@ -799,15 +614,14 @@ const ProductUploadPage = () => {
 
                 <div className="upload-mode-toggle">
                     <button
-                        className={`mode-toggle-btn ${!bulkUploadMode ? 'active' : ''}`}
-                        onClick={() => toggleUploadMode()}
+                        className="mode-toggle-btn active"
                         disabled={loading}
                     >
                         Single Product
                     </button>
                     <button
-                        className={`mode-toggle-btn ${bulkUploadMode ? 'active' : ''}`}
-                        onClick={() => toggleUploadMode()}
+                        className="mode-toggle-btn"
+                        onClick={handleBulkUpload}
                         disabled={loading}
                     >
                         Bulk Upload
@@ -826,368 +640,324 @@ const ProductUploadPage = () => {
                     />
                 )}
 
-                {!bulkUploadMode ? (
-                    <form onSubmit={handleSubmit} className="product-form">
-                        <div className="form-layout">
-                            <div className="form-left">
-                                <div className="form-group product-type-selection">
-                                    <label>Product Type*</label>
-                                    <div className="product-type-toggle">
-                                        <label htmlFor="productTypeCrowdfunded">
-                                            <input
-                                                type="radio"
-                                                id="productTypeCrowdfunded"
-                                                name="productType"
-                                                value="crowdfunded"
-                                                checked={formData.isCrowdfunded}
-                                                onChange={handleProductTypeToggle}
-                                                disabled={loading}
-                                            />
-                                            Crowdfunded Product
-                                        </label>
-                                        <label htmlFor="productTypeDirect">
-                                            <input
-                                                type="radio"
-                                                id="productTypeDirect"
-                                                name="productType"
-                                                value="direct"
-                                                checked={!formData.isCrowdfunded}
-                                                onChange={handleProductTypeToggle}
-                                                disabled={loading}
-                                            />
-                                            Direct Selling (Existing Product)
-                                        </label>
-                                    </div>
-                                    <p className="form-hint">
-                                        {formData.isCrowdfunded
-                                            ? "Crowdfunded products need to reach a funding goal before they can be purchased."
-                                            : "Direct selling products are immediately available for purchase without funding."}
-                                    </p>
+                <form onSubmit={handleSubmit} className="product-form">
+                    <div className="form-layout">
+                        <div className="form-left">
+                            <div className="form-group product-type-selection">
+                                <label>Product Type*</label>
+                                <div className="product-type-toggle">
+                                    <label htmlFor="productTypeCrowdfunded">
+                                        <input
+                                            type="radio"
+                                            id="productTypeCrowdfunded"
+                                            name="productType"
+                                            value="crowdfunded"
+                                            checked={formData.isCrowdfunded}
+                                            onChange={handleProductTypeToggle}
+                                            disabled={loading}
+                                        />
+                                        Crowdfunded Product
+                                    </label>
+                                    <label htmlFor="productTypeDirect">
+                                        <input
+                                            type="radio"
+                                            id="productTypeDirect"
+                                            name="productType"
+                                            value="direct"
+                                            checked={!formData.isCrowdfunded}
+                                            onChange={handleProductTypeToggle}
+                                            disabled={loading}
+                                        />
+                                        Direct Selling (Existing Product)
+                                    </label>
                                 </div>
+                                <p className="form-hint">
+                                    {formData.isCrowdfunded
+                                        ? "Crowdfunded products need to reach a funding goal before they can be purchased."
+                                        : "Direct selling products are immediately available for purchase without funding."}
+                                </p>
+                            </div>
 
+                            <div className="form-group">
+                                <label htmlFor="name">Product Name*</label>
+                                <input
+                                    type="text"
+                                    id="name"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    placeholder="Enter product name"
+                                    disabled={loading}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="description">Description*</label>
+                                <textarea
+                                    id="description"
+                                    name="description"
+                                    value={formData.description}
+                                    onChange={handleChange}
+                                    placeholder="Describe your product"
+                                    disabled={loading}
+                                    rows="6"
+                                ></textarea>
+                            </div>
+
+                            <div className="form-row">
                                 <div className="form-group">
-                                    <label htmlFor="name">Product Name*</label>
+                                    <label htmlFor="price">Price ($)*</label>
                                     <input
                                         type="text"
-                                        id="name"
-                                        name="name"
-                                        value={formData.name}
+                                        id="price"
+                                        name="price"
+                                        value={formData.price}
                                         onChange={handleChange}
-                                        placeholder="Enter product name"
+                                        placeholder="0.00"
                                         disabled={loading}
                                     />
                                 </div>
 
-                                <div className="form-group">
-                                    <label htmlFor="description">Description*</label>
-                                    <textarea
-                                        id="description"
-                                        name="description"
-                                        value={formData.description}
-                                        onChange={handleChange}
-                                        placeholder="Describe your product"
-                                        disabled={loading}
-                                        rows="6"
-                                    ></textarea>
-                                </div>
-
-                                <div className="form-row">
+                                {formData.isCrowdfunded && (
                                     <div className="form-group">
-                                        <label htmlFor="price">Price ($)*</label>
+                                        <label htmlFor="fundingGoal">Funding Goal ($)*</label>
                                         <input
                                             type="text"
-                                            id="price"
-                                            name="price"
-                                            value={formData.price}
+                                            id="fundingGoal"
+                                            name="fundingGoal"
+                                            value={formData.fundingGoal}
                                             onChange={handleChange}
                                             placeholder="0.00"
                                             disabled={loading}
                                         />
                                     </div>
+                                )}
+                            </div>
 
-                                    {formData.isCrowdfunded && (
-                                        <div className="form-group">
-                                            <label htmlFor="fundingGoal">Funding Goal ($)*</label>
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label htmlFor="manufacturingCost">Manufacturing Cost per Unit ($)*</label>
+                                    <input
+                                        type="text"
+                                        id="manufacturingCost"
+                                        name="manufacturingCost"
+                                        value={formData.manufacturingCost}
+                                        onChange={handleChange}
+                                        placeholder="0.00"
+                                        disabled={loading}
+                                    />
+                                    <p className="form-hint">
+                                        This is the cost to produce each unit. It's used to calculate profits and investor revenue sharing.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <div className="category-selection">
+                                    <div className="category-toggle">
+                                        <label htmlFor="useExistingCategory">
                                             <input
-                                                type="text"
-                                                id="fundingGoal"
-                                                name="fundingGoal"
-                                                value={formData.fundingGoal}
-                                                onChange={handleChange}
-                                                placeholder="0.00"
+                                                type="radio"
+                                                id="useExistingCategory"
+                                                name="categoryToggle"
+                                                checked={!useCustomCategory}
+                                                onChange={() => toggleCustomCategory()}
                                                 disabled={loading}
                                             />
+                                            Use existing category
+                                        </label>
+                                        <label htmlFor="useCustomCategory">
+                                            <input
+                                                type="radio"
+                                                id="useCustomCategory"
+                                                name="categoryToggle"
+                                                checked={useCustomCategory}
+                                                onChange={() => toggleCustomCategory()}
+                                                disabled={loading}
+                                            />
+                                            Create custom category
+                                        </label>
+                                    </div>
+
+                                    {!useCustomCategory ? (
+                                        <>
+                                            <label htmlFor="categories">Categories* (Hold Ctrl/Cmd to select multiple)</label>
+                                            <select
+                                                id="categories"
+                                                name="categories"
+                                                multiple
+                                                size={Math.min(5, categories.length)}
+                                                value={formData.categories}
+                                                onChange={handleCategoryChange}
+                                                disabled={loading || loadingCategories || useCustomCategory}
+                                                className="multi-select"
+                                            >
+                                                {categories.map(category => (
+                                                    <option key={category.id} value={category.id}>
+                                                        {category.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {formData.categories.length > 0 && (
+                                                <div className="selected-categories">
+                                                    <p>Selected: {formData.categories.map(catId => {
+                                                        const category = categories.find(c => c.id === catId);
+                                                        return category ? category.name : catId;
+                                                    }).join(', ')}</p>
+                                                </div>
+                                            )}
+                                            {loadingCategories && <span className="loading-text">Loading categories...</span>}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <label htmlFor="customCategory">Custom Category*</label>
+                                            <input
+                                                type="text"
+                                                id="customCategory"
+                                                name="customCategory"
+                                                value={formData.customCategory}
+                                                onChange={handleChange}
+                                                placeholder="Enter a new category name"
+                                                disabled={loading || !useCustomCategory}
+                                            />
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="form-right">
+                            <div className="form-group image-upload">
+                                <label>Product Images* ({imagePreviewUrls.length}/{MAX_IMAGES})</label>
+                                <div
+                                    className={`image-upload-area ${isDragging ? 'dragging' : ''}`}
+                                    ref={dragAreaRef}
+                                >
+                                    {imagePreviewUrls.map((url, index) => (
+                                        <div key={index} className="image-preview-container">
+                                            <img src={url} alt={`Product Preview ${index + 1}`} className="image-preview" />
+                                            <button
+                                                type="button"
+                                                className="remove-image-btn"
+                                                onClick={() => {
+                                                    setProductImages(prevImages => prevImages.filter((_, i) => i !== index));
+                                                    setImagePreviewUrls(prevUrls => prevUrls.filter((_, i) => i !== index));
+                                                }}
+                                                disabled={loading}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {productImages.length < MAX_IMAGES && (
+                                        <div
+                                            className="upload-placeholder"
+                                            onClick={() => !loading && imageInputRef.current.click()}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                                <polyline points="21 15 16 10 5 21"></polyline>
+                                            </svg>
+                                            <p>Click or drag images here</p>
+                                            <span>(Max size: 5MB per image)</span>
                                         </div>
                                     )}
                                 </div>
+                                <input
+                                    type="file"
+                                    ref={imageInputRef}
+                                    onChange={handleImageChange}
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    disabled={loading}
+                                />
+                                <p className="drag-drop-hint">Pro tip: Drag and drop images directly onto the upload area</p>
+                            </div>
 
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label htmlFor="manufacturingCost">Manufacturing Cost per Unit ($)*</label>
+                            {/* Add Stock Management Section */}
+                            <div className="form-group stock-management">
+                                <h3>Stock Management</h3>
+
+                                <div className="stock-tracking-toggle">
+                                    <label>
                                         <input
-                                            type="text"
-                                            id="manufacturingCost"
-                                            name="manufacturingCost"
-                                            value={formData.manufacturingCost}
-                                            onChange={handleChange}
-                                            placeholder="0.00"
+                                            type="checkbox"
+                                            name="trackInventory"
+                                            checked={formData.trackInventory}
+                                            onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
                                             disabled={loading}
                                         />
-                                        <p className="form-hint">
-                                            This is the cost to produce each unit. It's used to calculate profits and investor revenue sharing.
-                                        </p>
-                                    </div>
+                                        Track inventory for this product
+                                    </label>
+                                    <p className="form-hint">
+                                        Enable to track stock levels and receive notifications when inventory is low.
+                                    </p>
                                 </div>
 
-                                <div className="form-group">
-                                    <div className="category-selection">
-                                        <div className="category-toggle">
-                                            <label htmlFor="useExistingCategory">
+                                {formData.trackInventory && (
+                                    <div className="stock-fields">
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label htmlFor="stockQuantity">Initial Stock Quantity*</label>
                                                 <input
-                                                    type="radio"
-                                                    id="useExistingCategory"
-                                                    name="categoryToggle"
-                                                    checked={!useCustomCategory}
-                                                    onChange={() => toggleCustomCategory()}
+                                                    type="number"
+                                                    id="stockQuantity"
+                                                    name="stockQuantity"
+                                                    value={formData.stockQuantity}
+                                                    onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
+                                                    placeholder="0"
+                                                    min="0"
                                                     disabled={loading}
                                                 />
-                                                Use existing category
-                                            </label>
-                                            <label htmlFor="useCustomCategory">
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label htmlFor="lowStockThreshold">Low Stock Threshold</label>
                                                 <input
-                                                    type="radio"
-                                                    id="useCustomCategory"
-                                                    name="categoryToggle"
-                                                    checked={useCustomCategory}
-                                                    onChange={() => toggleCustomCategory()}
+                                                    type="number"
+                                                    id="lowStockThreshold"
+                                                    name="lowStockThreshold"
+                                                    value={formData.lowStockThreshold}
+                                                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })}
+                                                    placeholder="5"
+                                                    min="0"
                                                     disabled={loading}
                                                 />
-                                                Create custom category
-                                            </label>
+                                                <p className="form-hint">
+                                                    You'll be notified when stock reaches this level.
+                                                </p>
+                                            </div>
                                         </div>
-
-                                        {!useCustomCategory ? (
-                                            <>
-                                                <label htmlFor="categories">Categories* (Hold Ctrl/Cmd to select multiple)</label>
-                                                <select
-                                                    id="categories"
-                                                    name="categories"
-                                                    multiple
-                                                    size={Math.min(5, categories.length)}
-                                                    value={formData.categories}
-                                                    onChange={handleCategoryChange}
-                                                    disabled={loading || loadingCategories || useCustomCategory}
-                                                    className="multi-select"
-                                                >
-                                                    {categories.map(category => (
-                                                        <option key={category.id} value={category.id}>
-                                                            {category.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                {formData.categories.length > 0 && (
-                                                    <div className="selected-categories">
-                                                        <p>Selected: {formData.categories.map(catId => {
-                                                            const category = categories.find(c => c.id === catId);
-                                                            return category ? category.name : catId;
-                                                        }).join(', ')}</p>
-                                                    </div>
-                                                )}
-                                                {loadingCategories && <span className="loading-text">Loading categories...</span>}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <label htmlFor="customCategory">Custom Category*</label>
-                                                <input
-                                                    type="text"
-                                                    id="customCategory"
-                                                    name="customCategory"
-                                                    value={formData.customCategory}
-                                                    onChange={handleChange}
-                                                    placeholder="Enter a new category name"
-                                                    disabled={loading || !useCustomCategory}
-                                                />
-                                            </>
-                                        )}
                                     </div>
-                                </div>
+                                )}
                             </div>
 
-                            <div className="form-right">
-                                <div className="form-group image-upload">
-                                    <label>Product Images* ({imagePreviewUrls.length}/{MAX_IMAGES})</label>
-                                    <div
-                                        className={`image-upload-area ${isDragging ? 'dragging' : ''}`}
-                                        ref={dragAreaRef}
-                                    >
-                                        {imagePreviewUrls.map((url, index) => (
-                                            <div key={index} className="image-preview-container">
-                                                <img src={url} alt={`Product Preview ${index + 1}`} className="image-preview" />
-                                                <button
-                                                    type="button"
-                                                    className="remove-image-btn"
-                                                    onClick={() => {
-                                                        setProductImages(prevImages => prevImages.filter((_, i) => i !== index));
-                                                        setImagePreviewUrls(prevUrls => prevUrls.filter((_, i) => i !== index));
-                                                    }}
-                                                    disabled={loading}
-                                                >
-                                                    Remove
-                                                </button>
-                                            </div>
-                                        ))}
-                                        {productImages.length < MAX_IMAGES && (
-                                            <div
-                                                className="upload-placeholder"
-                                                onClick={() => !loading && imageInputRef.current.click()}
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                                                    <polyline points="21 15 16 10 5 21"></polyline>
-                                                </svg>
-                                                <p>Click or drag images here</p>
-                                                <span>(Max size: 5MB per image)</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <input
-                                        type="file"
-                                        ref={imageInputRef}
-                                        onChange={handleImageChange}
-                                        accept="image/*"
-                                        style={{ display: 'none' }}
-                                        disabled={loading}
-                                    />
-                                    <p className="drag-drop-hint">Pro tip: Drag and drop images directly onto the upload area</p>
+                            <div className="form-group">
+                                <div className="category-selection">
                                 </div>
                             </div>
-                        </div>
-
-                        <div className="form-actions">
-                            <button
-                                type="button"
-                                className="cancel-button"
-                                onClick={() => navigate(-1)}
-                                disabled={loading}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="submit-button"
-                                disabled={loading}
-                            >
-                                {loading ? <LoadingSpinner /> : 'Upload Product'}
-                            </button>
-                        </div>
-                    </form>
-                ) : (
-                    <div className="bulk-upload-container">
-                        <div className="bulk-upload-instructions">
-                            <h3>Bulk Product Upload</h3>
-                            <p>Upload multiple products at once using a JSON file. Your file should follow this format:</p>
-
-                            <pre className="json-template">
-                                {`{
-  "products": [
-    {
-      "name": "Product Name",
-      "description": "Product description...",
-      "price": 99.99,
-      "manufacturingCost": 25,
-      "isCrowdfunded": true,
-      "fundingGoal": 1000,
-      "categories": ["category1", "category2"],
-      "imagesBase64": ["data:image/jpeg;base64,/9j/4AA...", "..."],
-      "status": "active"
-    },
-    {
-      // next product...
-    }
-  ]
-}`}</pre>
-                            <div className="template-notes">
-                                <p><strong>Notes:</strong></p>
-                                <ul>
-                                    <li>Required fields: name, description, price</li>
-                                    <li>The imagesBase64 field should contain base64-encoded image strings</li>
-                                    <li>Set isCrowdfunded to false for direct selling products</li>
-                                    <li>The status field is optional and defaults to "pending" if approval is required</li>
-                                </ul>
-                                <a href="/bulk-product-template.json" download className="download-template-btn">Download Template</a>
-                            </div>
-                        </div>
-
-                        <div className="bulk-upload-section">
-                            <input
-                                type="file"
-                                ref={bulkFileInputRef}
-                                onChange={handleBulkFileUpload}
-                                accept=".json"
-                                id="bulk-file-input"
-                                style={{ display: 'none' }}
-                                disabled={loading}
-                            />
-                            <button
-                                type="button"
-                                className="bulk-upload-btn"
-                                onClick={() => !loading && bulkFileInputRef.current.click()}
-                                disabled={loading}
-                            >
-                                {loading ? <LoadingSpinner /> : 'Select JSON File'}
-                            </button>
-
-                            {bulkUploadStatus.total > 0 && (
-                                <div className="bulk-upload-progress">
-                                    <h4>Upload Progress</h4>
-                                    <div className="progress-bar-container">
-                                        <div
-                                            className="progress-bar"
-                                            style={{
-                                                width: `${(bulkUploadStatus.processed / bulkUploadStatus.total) * 100}%`
-                                            }}
-                                        ></div>
-                                    </div>
-                                    <div className="progress-stats">
-                                        <span>Processed: {bulkUploadStatus.processed}/{bulkUploadStatus.total}</span>
-                                        <span>Success: {bulkUploadStatus.success}</span>
-                                        <span>Failed: {bulkUploadStatus.failed}</span>
-                                    </div>
-                                </div>
-                            )}
-
-                            {bulkUploadResults.length > 0 && (
-                                <div className="bulk-results">
-                                    <h4>Upload Results</h4>
-                                    <div className="results-list">
-                                        {bulkUploadResults.map((result, index) => (
-                                            <div
-                                                key={index}
-                                                className={`result-item ${result.status}`}
-                                            >
-                                                <span className="result-name">{result.name}</span>
-                                                <span className="result-status">{result.status}</span>
-                                                {result.error && <span className="result-error">{result.error}</span>}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="form-actions">
-                            <button
-                                type="button"
-                                className="cancel-button"
-                                onClick={() => navigate(-1)}
-                                disabled={loading}
-                            >
-                                Cancel
-                            </button>
                         </div>
                     </div>
-                )}
+
+                    <div className="form-actions">
+                        <button
+                            type="button"
+                            className="cancel-button"
+                            onClick={() => navigate(-1)}
+                            disabled={loading}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="submit-button"
+                            disabled={loading}
+                        >
+                            {loading ? <LoadingSpinner /> : 'Upload Product'}
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     );
