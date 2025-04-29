@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { Link } from 'react-router-dom';
@@ -17,6 +17,7 @@ const OrdersPage = () => {
     const [showRefundModal, setShowRefundModal] = useState(false);
     const [refundProcessing, setRefundProcessing] = useState(false);
     const [refundMessage, setRefundMessage] = useState({ type: '', text: '' });
+    const [cancellingOrderId, setCancellingOrderId] = useState(null);
 
     useEffect(() => {
         const fetchOrders = async () => {
@@ -52,6 +53,87 @@ const OrdersPage = () => {
 
         fetchOrders();
     }, [currentUser]);
+
+    // Check if order is within the cancellation window (1 hour)
+    const isWithinCancellationWindow = (orderDate) => {
+        if (!orderDate) return false;
+
+        const orderTime = orderDate instanceof Date ? orderDate : new Date(orderDate);
+        const currentTime = new Date();
+
+        // Calculate the difference in milliseconds
+        const timeDiff = currentTime - orderTime;
+
+        // Convert to hours (1 hour = 3600000 milliseconds)
+        const hoursDiff = timeDiff / 3600000;
+
+        // Check if less than 1 hour has passed
+        return hoursDiff < 1;
+    };
+
+    // Handle order cancellation
+    const handleCancelOrder = async (orderId) => {
+        if (!orderId) return;
+
+        // Confirm before cancelling
+        const confirmCancel = window.confirm('Are you sure you want to cancel this order? This action cannot be undone.');
+        if (!confirmCancel) return;
+
+        setCancellingOrderId(orderId);
+
+        try {
+            const orderRef = doc(db, 'orders', orderId);
+
+            // Update order status
+            await updateDoc(orderRef, {
+                status: 'cancelled',
+                cancelledAt: serverTimestamp(),
+                cancelledBy: 'customer',
+                updatedAt: serverTimestamp()
+            });
+
+            // Process refund automatically
+            const refundResult = await refundService.processRefund(
+                orderId,
+                currentUser.uid,
+                'Order cancelled by customer within the cancellation window',
+                true, // Refund all items
+                [] // No specific items since we're refunding all
+            );
+
+            if (refundResult.success) {
+                // Update the order with refund information
+                await updateDoc(orderRef, {
+                    refundStatus: 'refunded',
+                    refundDate: serverTimestamp(),
+                    refundReason: 'Order cancelled by customer within the cancellation window',
+                    refundAmount: refundResult.refundAmount
+                });
+
+                // Update local state
+                setOrders(prevOrders =>
+                    prevOrders.map(order =>
+                        order.id === orderId
+                            ? {
+                                ...order,
+                                status: 'cancelled',
+                                cancelledAt: new Date(),
+                                cancelledBy: 'customer',
+                                refundStatus: 'refunded',
+                                refundDate: new Date(),
+                                refundReason: 'Order cancelled by customer within the cancellation window'
+                            }
+                            : order
+                    )
+                );
+            }
+        } catch (error) {
+            console.error('Error cancelling order:', error);
+            alert('Failed to cancel order. Please try again.');
+        } finally {
+            setCancellingOrderId(null);
+        }
+    };
 
     // Format date
     const formatDate = (date) => {
@@ -235,9 +317,17 @@ const OrdersPage = () => {
                                 <div className="order-header">
                                     <div className="order-id">
                                         <h3>Order #{order.id.slice(-6)}</h3>
-                                        <span className={`status-badge ${getStatusBadgeClass(order.status)}`}>
-                                            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                                        </span>
+                                        <div className="status-container">
+                                            <span className={`status-badge ${getStatusBadgeClass(order.status)}`}>
+                                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                            </span>
+
+                                            {isWithinCancellationWindow(order.createdAt) && order.status === 'processing' && (
+                                                <span className="cancellation-window-badge">
+                                                    Cancellable
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="order-date">
                                         <div>{formatDate(order.createdAt)}</div>
@@ -272,6 +362,18 @@ const OrdersPage = () => {
                                         <Link to={`/orders/${order.id}`} className="view-order-button">
                                             View Details
                                         </Link>
+
+                                        {/* Cancel order button - only show if within window and status is processing */}
+                                        {isWithinCancellationWindow(order.createdAt) &&
+                                            order.status === 'processing' && (
+                                                <button
+                                                    className="cancel-order-button"
+                                                    onClick={() => handleCancelOrder(order.id)}
+                                                    disabled={cancellingOrderId === order.id}
+                                                >
+                                                    {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel Order'}
+                                                </button>
+                                            )}
 
                                         {/* Show refund button only for delivered orders that haven't been refunded */}
                                         {(order.status === 'delivered' || order.status === 'completed') &&

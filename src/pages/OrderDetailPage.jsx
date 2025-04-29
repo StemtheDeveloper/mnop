@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../contexts/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import refundService from '../services/refundService';
 import '../styles/OrderDetailPage.css';
 
 const OrderDetailPage = () => {
     const { orderId } = useParams();
     const { currentUser } = useUser();
+    const { success: showSuccess, error: showError } = useToast();
+    const navigate = useNavigate();
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isCancelling, setIsCancelling] = useState(false);
 
     useEffect(() => {
         const fetchOrder = async () => {
@@ -32,7 +37,6 @@ const OrderDetailPage = () => {
 
                 const orderData = orderDoc.data();
 
-                // Security check: verify this order belongs to the current user
                 if (orderData.userId !== currentUser.uid) {
                     setError('You do not have permission to view this order');
                     setLoading(false);
@@ -55,7 +59,70 @@ const OrderDetailPage = () => {
         fetchOrder();
     }, [orderId, currentUser]);
 
-    // Format date
+    const isWithinCancellationWindow = (orderDate) => {
+        if (!orderDate) return false;
+
+        const orderTime = orderDate instanceof Date ? orderDate : new Date(orderDate);
+        const currentTime = new Date();
+
+        const timeDiff = currentTime - orderTime;
+        const hoursDiff = timeDiff / 3600000;
+
+        return hoursDiff < 1;
+    };
+
+    const handleCancelOrder = async () => {
+        const confirmCancel = window.confirm('Are you sure you want to cancel this order? This action cannot be undone.');
+        if (!confirmCancel) return;
+
+        setIsCancelling(true);
+
+        try {
+            const orderRef = doc(db, 'orders', orderId);
+
+            await updateDoc(orderRef, {
+                status: 'cancelled',
+                cancelledAt: serverTimestamp(),
+                cancelledBy: 'customer',
+                updatedAt: serverTimestamp()
+            });
+
+            const refundResult = await refundService.processRefund(
+                orderId,
+                currentUser.uid,
+                'Order cancelled by customer within the cancellation window',
+                true,
+                []
+            );
+
+            if (refundResult.success) {
+                await updateDoc(orderRef, {
+                    refundStatus: 'refunded',
+                    refundDate: serverTimestamp(),
+                    refundReason: 'Order cancelled by customer within the cancellation window',
+                    refundAmount: refundResult.refundAmount
+                });
+
+                setOrder(prevOrder => ({
+                    ...prevOrder,
+                    status: 'cancelled',
+                    cancelledAt: new Date(),
+                    cancelledBy: 'customer',
+                    refundStatus: 'refunded',
+                    refundDate: new Date(),
+                    refundReason: 'Order cancelled by customer within the cancellation window'
+                }));
+
+                showSuccess('Order successfully cancelled and refunded');
+            }
+        } catch (error) {
+            console.error('Error cancelling order:', error);
+            showError('Failed to cancel order. Please try again.');
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
     const formatDate = (date) => {
         return new Date(date).toLocaleDateString('en-US', {
             year: 'numeric',
@@ -64,7 +131,6 @@ const OrderDetailPage = () => {
         });
     };
 
-    // Format time
     const formatTime = (date) => {
         return new Date(date).toLocaleTimeString('en-US', {
             hour: '2-digit',
@@ -72,7 +138,6 @@ const OrderDetailPage = () => {
         });
     };
 
-    // Format price as currency
     const formatPrice = (price) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -80,7 +145,6 @@ const OrderDetailPage = () => {
         }).format(price);
     };
 
-    // Get status badge class
     const getStatusBadgeClass = (status) => {
         switch (status) {
             case 'processing':
@@ -96,11 +160,9 @@ const OrderDetailPage = () => {
         }
     };
 
-    // Format estimated delivery date
     const formatEstimatedDelivery = (date) => {
         if (!date) return 'Not available';
 
-        // Handle both Firebase timestamp and JS Date
         const deliveryDate = date.toDate ? date.toDate() : new Date(date);
 
         return formatDate(deliveryDate);
@@ -149,6 +211,8 @@ const OrderDetailPage = () => {
         );
     }
 
+    const canCancel = order.status === 'processing' && isWithinCancellationWindow(order.createdAt);
+
     return (
         <div className="order-detail-page">
             <div className="order-detail-container">
@@ -175,13 +239,60 @@ const OrderDetailPage = () => {
                         </div>
                     </div>
                     <div className="order-status-section">
-                        <span className={`status-badge large ${getStatusBadgeClass(order.status)}`}>
-                            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </span>
+                        <div className="status-container">
+                            <span className={`status-badge large ${getStatusBadgeClass(order.status)}`}>
+                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                            </span>
+
+                            {canCancel && (
+                                <span className="cancellation-window-badge">
+                                    Cancellable
+                                </span>
+                            )}
+                        </div>
+
+                        {canCancel && (
+                            <button
+                                className="cancel-order-button large"
+                                onClick={handleCancelOrder}
+                                disabled={isCancelling}
+                            >
+                                {isCancelling ? 'Cancelling...' : 'Cancel Order'}
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 <div className="order-detail-content">
+                    {canCancel && (
+                        <div className="cancellation-notice">
+                            <div className="cancellation-notice-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                            </div>
+                            <div className="cancellation-notice-text">
+                                <p>This order can be cancelled within 1 hour of placing it. You have until {formatTime(new Date(order.createdAt.getTime() + 3600000))} to cancel if needed.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {order.status === 'cancelled' && (
+                        <div className="cancellation-confirmation">
+                            <div className="cancellation-confirmation-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            </div>
+                            <div className="cancellation-confirmation-text">
+                                <p>This order was cancelled on {order.cancelledAt ? formatDate(order.cancelledAt.toDate ? order.cancelledAt.toDate() : order.cancelledAt) : 'N/A'} and has been fully refunded.</p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="order-items-section">
                         <h3>Items in Your Order</h3>
                         <div className="order-items-list">

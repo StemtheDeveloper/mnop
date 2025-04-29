@@ -145,6 +145,23 @@
   color: #c62828;
 }
 
+.status-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+.cancellation-window-badge {
+  background-color: #4caf50;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .order-date {
   text-align: right;
   color: #666;
@@ -221,6 +238,32 @@
 .order-info div {
   font-size: 14px;
   color: #555;
+}
+
+.order-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cancel-order-button {
+  background-color: #ff5722;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cancel-order-button:hover {
+  background-color: #e64a19;
+}
+
+.cancel-order-button:disabled {
+  background-color: #ffccbc;
+  cursor: not-allowed;
 }
 
 .view-order-button {

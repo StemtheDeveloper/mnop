@@ -139,6 +139,89 @@
   color: #c62828;
 }
 
+.status-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cancellation-window-badge {
+  background-color: #4caf50;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cancel-order-button.large {
+  background-color: #ff5722;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  font-size: 16px;
+  margin-top: 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cancel-order-button.large:hover {
+  background-color: #e64a19;
+}
+
+.cancel-order-button.large:disabled {
+  background-color: #ffccbc;
+  cursor: not-allowed;
+}
+
+.cancellation-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background-color: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.cancellation-notice-icon {
+  color: #ff8f00;
+  margin-top: 2px;
+}
+
+.cancellation-notice-text p {
+  margin: 0;
+  color: #5d4037;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.cancellation-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.cancellation-confirmation-icon {
+  color: #2e7d32;
+  margin-top: 2px;
+}
+
+.cancellation-confirmation-text p {
+  margin: 0;
+  color: #1b5e20;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 /* Order detail content */
 .order-detail-content {
   display: flex;
