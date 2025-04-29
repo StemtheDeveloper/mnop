@@ -22,17 +22,17 @@ const UserProfilePage = () => {
     // Format user roles consistently
     const formatUserRoles = (userProfile) => {
         if (!userProfile) return [];
-        
+
         // If roles array exists and is an array, use it
         if (userProfile.roles && Array.isArray(userProfile.roles)) {
             return userProfile.roles;
         }
-        
+
         // If there's a single role string, convert to array
         if (userProfile.role) {
             return [userProfile.role];
         }
-        
+
         // Default fallback
         return ['customer'];
     };

@@ -52,14 +52,14 @@ const WalletPage = () => {
     const canAccessTab = (tabName) => {
         // Anyone can access summary
         if (tabName === 'summary') return true;
-        
+
         // Transfer requires any role
         if (tabName === 'transfer') return userRoles.length > 0;
-        
+
         // Specific roles for other tabs
         if (tabName === 'deposit') return hasRole('investor') || hasRole('admin');
         if (tabName === 'interest') return hasRole('investor') || hasRole('admin');
-        
+
         return false;
     };
 

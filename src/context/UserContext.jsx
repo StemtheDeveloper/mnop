@@ -37,13 +37,13 @@ export const UserProvider = ({ children }) => {
 
                 // Standardize roles to always be an array
                 let rolesArray = [];
-                
+
                 if (userData.roles && Array.isArray(userData.roles)) {
                     rolesArray = userData.roles;
                 } else if (userData.role) {
                     // If only a string role exists, convert to array
                     rolesArray = [userData.role];
-                    
+
                     // Update the document to standardize the format
                     try {
                         await updateDoc(docRef, {
@@ -55,7 +55,7 @@ export const UserProvider = ({ children }) => {
                 } else {
                     // Default role if none is set
                     rolesArray = ['customer'];
-                    
+
                     // Update the document to standardize the format
                     try {
                         await updateDoc(docRef, {
@@ -65,7 +65,7 @@ export const UserProvider = ({ children }) => {
                         console.error("Error setting default roles:", updateError);
                     }
                 }
-                
+
                 setUserRoles(rolesArray);
             } else {
                 // Create a new user document if it doesn't exist

@@ -32,19 +32,19 @@ const UnauthorizedPage = () => {
             showError("You must be logged in to request a role");
             return;
         }
-        
+
         try {
             // Update user document to add the requested role
             const userRef = doc(db, 'users', currentUser.uid);
             await updateDoc(userRef, {
                 roles: arrayUnion(role)
             });
-            
+
             // Refresh user data to get updated roles
             await refreshUserData();
-            
+
             showSuccess(`Role "${role}" has been added to your profile`);
-            
+
             // Navigate back to where they came from
             setTimeout(() => {
                 const from = location.state?.from || '/';
