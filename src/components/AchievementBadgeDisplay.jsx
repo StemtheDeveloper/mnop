@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import './AchievementBadgeDisplay.css';
+import '../styles/admin/AchievementBadgeDisplay.css';
 
 const AchievementBadgeDisplay = ({ userId, showTitle = true, limit = null, showAll = false }) => {
   const [achievements, setAchievements] = useState([]);

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
-import './NotificationInbox.css'; // Use our new CSS file
+import '../styles/components/NotificationInbox.css'; // Updated path to CSS file
 
 const NotificationInbox = ({ isOpen, onClose }) => {
     const { currentUser } = useAuth();

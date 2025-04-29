@@ -1,6 +1,8 @@
+@import './variables.css';
+
 .messages-page {
-  padding-top: 100px;
-  padding-bottom: 60px;
+  padding-top: var(--spacing-xxxl);
+  padding-bottom: var(--spacing-xl);
   max-width: 1000px;
   margin: 0 auto;
   min-height: 80vh;
@@ -8,8 +10,8 @@
 
 .messages-container {
   background-color: #fff;
-  border-radius: 10px;
-  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -31,14 +33,14 @@
   display: flex;
   align-items: center;
   padding: 10px 16px;
-  background-color: #ef3c23;
+  background-color: var(--primary-color);
   color: white;
   border: none;
-  border-radius: 30px;
-  font-size: 14px;
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color var(--transition-fast);
 }
 
 .new-message-button svg {
@@ -46,7 +48,7 @@
 }
 
 .new-message-button:hover {
-  background-color: #d63920;
+  background-color: var(--primary-hover);
 }
 
 /* Loading state */
@@ -97,12 +99,12 @@
 }
 
 .conversation-item:hover {
-  background-color: #f9f9f9;
+  background-color: var(--neutral-100);
 }
 
 .conversation-item.unread {
-  background-color: #f0f7ff;
-  border-left: 3px solid #2196f3;
+  background-color: var(--info-light);
+  border-left: 3px solid var(--info-color);
 }
 
 .conversation-avatar {
@@ -130,7 +132,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #ef3c23;
+  background-color: var(--primary-color);
   color: white;
   font-weight: bold;
   font-size: 20px;
@@ -185,7 +187,7 @@
 .encrypted-badge {
   display: flex;
   align-items: center;
-  color: #4caf50;
+  color: var(--success-color);
   margin-right: 8px;
 }
 
@@ -195,28 +197,28 @@
   justify-content: center;
   min-width: 20px;
   height: 20px;
-  border-radius: 10px;
-  background-color: #ef3c23;
+  border-radius: var(--border-radius-full);
+  background-color: var(--primary-color);
   color: white;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: bold;
   padding: 0 6px;
 }
 
 /* Enhanced profile link button styling */
 .conversation-item .view-profile-btn {
-  background-color: #f0f7ff;
-  color: #4a90e2;
+  background-color: var(--info-light);
+  color: var(--info-color);
   border: 1px solid #d1e4fc;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   cursor: pointer;
   margin-left: 8px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  transition: background-color 0.2s;
+  transition: background-color var(--transition-fast);
 }
 
 .conversation-item .view-profile-btn:hover {
@@ -753,520 +755,4 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #888;
-  text-align: center;
-  padding: 20px;
-}
-
-.message-input-container {
-  padding: 15px;
-  border-top: 1px solid #eee;
-  background-color: #fff;
-}
-
-.input-wrapper {
-  display: flex;
-  align-items: center;
-}
-
-.message-input-container textarea {
-  flex: 1;
-  border: 1px solid #ddd;
-  border-radius: 24px;
-  padding: 12px 15px;
-  resize: none;
-  font-family: inherit;
-  font-size: 15px;
-  outline: none;
-  background-color: #f5f5f5;
-  transition: border-color 0.2s;
-}
-
-.message-input-container textarea:focus {
-  border-color: #ef3c23;
-  background-color: #fff;
-}
-
-.message-input-container .send-button {
-  background-color: #ef3c23;
-  color: white;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  margin-left: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.message-input-container .send-button:hover {
-  background-color: #d63920;
-}
-
-.message-input-container .send-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-.message-input-container .send-button svg {
-  width: 20px;
-  height: 20px;
-}
-
-.encryption-notice {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-  color: #4caf50;
-  margin-top: 8px;
-  padding-left: 8px;
-}
-
-.encryption-notice svg {
-  margin-right: 4px;
-}
-
-.error-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.error-message {
-  margin-bottom: 20px;
-  color: #e53935;
-}
-
-/* File attachment styles */
-.attach-button {
-  background: none;
-  border: none;
-  color: #666;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border-radius: 50%;
-  transition: background-color 0.2s;
-  margin-right: 10px;
-}
-
-.attach-button:hover {
-  background-color: #f0f0f0;
-  color: #333;
-}
-
-.attach-button:disabled {
-  color: #ccc;
-  cursor: not-allowed;
-}
-
-.attachment-preview {
-  padding: 10px 15px;
-  background-color: #f5f5f5;
-  border-top: 1px solid #eee;
-}
-
-.attachment-preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.attachment-name {
-  font-size: 14px;
-  font-weight: 500;
-  word-break: break-word;
-}
-
-.remove-attachment-btn {
-  background: none;
-  border: none;
-  color: #666;
-  padding: 5px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.image-preview {
-  text-align: center;
-  max-height: 150px;
-  overflow: hidden;
-  border-radius: 8px;
-}
-
-.image-preview img {
-  max-width: 100%;
-  max-height: 150px;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-.file-preview {
-  display: flex;
-  align-items: center;
-  color: #666;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background-color: white;
-}
-
-/* Message attachment displays */
-.attachment-container {
-  margin-top: 10px;
-  margin-bottom: 5px;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.image-attachment img {
-  max-width: 100%;
-  max-height: 200px;
-  display: block;
-  border-radius: 8px;
-}
-
-.video-attachment video {
-  max-width: 100%;
-  max-height: 200px;
-  border-radius: 8px;
-}
-
-.file-attachment {
-  padding: 10px;
-  background-color: rgba(0, 0, 0, 0.03);
-  border-radius: 8px;
-}
-
-.message.sent .file-attachment {
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-.file-download-link {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  color: inherit;
-}
-
-.file-icon {
-  width: 30px;
-  height: 30px;
-  background-color: #f0f0f0;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 10px;
-}
-
-.message.sent .file-icon {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.file-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.file-name {
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 2px;
-  word-break: break-word;
-}
-
-.file-size {
-  font-size: 11px;
-  color: #888;
-}
-
-.message.sent .file-size {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-/* Add this to your existing CSS */
-.attachment-container.cors-error {
-  border-left: 3px solid #ff9800;
-  background-color: #fff9e6;
-}
-
-.file-error-message {
-  display: block;
-  font-size: 12px;
-  color: #e65100;
-  margin-top: 4px;
-  font-style: italic;
-}
-
-/* Responsive styles */
-@media (max-width: 768px) {
-  .conversation-page {
-    padding: 80px 10px 40px;
-  }
-
-  .conversation-container {
-    height: calc(90vh - 120px);
-  }
-
-  .message-content {
-    max-width: 85%;
-  }
-}
-
-@media (max-width: 480px) {
-  .recipient-name {
-    font-size: 14px;
-  }
-
-  .encryption-badge span {
-    display: none;
-  }
-
-  .message-content {
-    max-width: 90%;
-  }
-}
-
-/* Message options styles */
-.message-options {
-  position: relative;
-  margin-left: 8px;
-  z-index: 9999;
-}
-
-.message-options-btn {
-  background: none;
-  border: none;
-  color: rgb(0, 0, 0);
-  padding: 4px;
-  height: 30px;
-
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.3; /* Change from 0 to 0.3 to make it slightly visible by default */
-  transition: all 0.2s;
-}
-
-.message:hover .message-options-btn {
-  opacity: 1;
-}
-
-.message.sent .message-options-btn {
-  color: rgb(255, 0, 0);
-}
-
-.message-options-menu {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  z-index: 10;
-  overflow: hidden;
-  min-width: 120px;
-}
-
-.option-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: none;
-  background: none;
-  padding: 10px 15px;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.option-btn:hover {
-  background-color: #f5f5f5;
-}
-
-.edit-btn {
-  color: #2196f3;
-}
-
-.delete-btn {
-  color: #f44336;
-}
-
-/* Editing message styles */
-.edit-message-form {
-  width: 100%;
-}
-
-.edit-message-input {
-  width: 100%;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-family: inherit;
-  font-size: 15px;
-  resize: vertical;
-  background-color: rgba(255, 255, 255, 0.95);
-  margin-bottom: 8px;
-}
-
-.edit-message-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.cancel-edit-btn,
-.save-edit-btn {
-  padding: 6px 12px;
-  border-radius: 4px;
-  border: none;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.cancel-edit-btn {
-  background-color: #f0f0f0;
-  color: #666;
-}
-
-.save-edit-btn {
-  background-color: #4caf50;
-  color: white;
-}
-
-.save-edit-btn:disabled {
-  background-color: #a5d6a7;
-  cursor: not-allowed;
-}
-
-.edited-indicator {
-  font-size: 10px;
-  opacity: 0.8;
-  font-style: italic;
-}
-
-/* Delete conversation styles */
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.delete-conversation-btn {
-  background: none;
-  border: none;
-  color: #666;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.delete-conversation-btn:hover {
-  background-color: rgba(244, 67, 54, 0.1);
-  color: #f44336;
-}
-
-/* Delete confirmation modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.delete-confirm-modal {
-  background-color: white;
-  border-radius: 8px;
-  padding: 24px;
-  width: 90%;
-  max-width: 400px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.delete-confirm-modal h3 {
-  margin-top: 0;
-  color: #f44336;
-}
-
-.delete-confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-}
-
-.cancel-delete-btn {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  background-color: white;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.confirm-delete-btn {
-  padding: 8px 16px;
-  background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.confirm-delete-btn:disabled,
-.cancel-delete-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Responsive styles for message options */
-@media (max-width: 480px) {
-  .message-options-btn {
-    padding: 3px;
-    opacity: 0.8; /* Increase opacity on mobile for better visibility */
-  }
-
-  .option-btn {
-    padding: 12px 15px;
-  }
-}
-
-.view-profile-link {
-  font-size: 12px;
-  color: #4a90e2;
-  text-decoration: none;
-  margin-left: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.view-profile-link:hover {
-  text-decoration: underline;
-}
+  color: #888

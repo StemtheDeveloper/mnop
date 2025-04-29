@@ -1,5 +1,5 @@
 import React from 'react';
-import './Footer.css';
+import '../styles/components/Footer.css';
 import DailyNop from './DailyNop';
 
 const Footer = () => {

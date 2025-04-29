@@ -5,7 +5,7 @@ import notificationService from '../services/notificationService';
 import { formatDistanceToNow } from 'date-fns';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import './NotificationCenter.css';
+import '../styles/components/NotificationCenter.css';
 
 const NotificationCenter = () => {
     const { currentUser } = useAuth();

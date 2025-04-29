@@ -1,0 +1,23 @@
+@import "../variables.css";
+
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid var(--neutral-200);
+  border-radius: var(--border-radius-full);
+  border-top-color: var(--primary-color);
+  animation: spin var(--transition-normal) ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,38 +1,39 @@
+@import "../variables.css";
 /* Footer redesign with red background and structured layout */
 
 .footer {
-  background-color: #e63b2e;
+  background-color: var(--primary-color);
   color: #fff;
   margin-top: auto;
   width: 100%;
 }
 
 .footer-main {
-  padding: 40px 60px;
+  padding: var(--spacing-xxl) var(--spacing-xl);
   display: flex;
   justify-content: space-between;
-  gap: 60px; /* Increased gap between column section and nop section */
+  gap: var(--spacing-xl);
 }
 
 .footer-columns {
   display: flex;
   flex-grow: 3;
-  gap: 60px; /* Increased gap between columns */
+  gap: var(--spacing-xl);
 }
 
 .footer-column {
   flex: 1;
-  text-align: left; /* Ensure consistent left alignment for all columns */
-  min-width: 120px; /* Ensure columns don't get too compressed */
+  text-align: left;
+  min-width: 120px;
 }
 
 /* Headings for all sections */
 .footer h4 {
   color: #fff;
   font-weight: 700;
-  font-size: 1.2rem;
+  font-size: var(--font-size-lg);
   margin-top: 0;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--spacing-md);
   position: relative;
 }
 
@@ -50,32 +51,32 @@
 .social-links {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: var(--spacing-md);
 }
 
 .social-icon {
   width: 40px;
   height: 40px;
   background-color: rgba(255, 255, 255, 0.15);
-  border-radius: 50%;
+  border-radius: var(--border-radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   text-decoration: none;
-  transition: all 0.3s ease;
-  margin-bottom: 15px;
+  transition: all var(--transition-fast);
+  margin-bottom: var(--spacing-md);
 }
 
 .social-icon:hover {
   transform: scale(1.05);
   background-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
 }
 
 .social-icon-text {
   font-weight: bold;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
 }
 
 /* Footer links styling */
@@ -86,8 +87,8 @@
 }
 
 .footer-links li {
-  margin-bottom: 15px; /* Increased spacing between links */
-  display: block; /* Ensure links are displayed as blocks */
+  margin-bottom: var(--spacing-md);
+  display: block;
 }
 
 .footer-links a {
@@ -95,9 +96,9 @@
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 10px;
-  transition: all 0.3s ease;
-  font-size: 0.95rem;
+  gap: var(--spacing-sm);
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
@@ -111,11 +112,11 @@
 .nop-section {
   flex-grow: 0;
   flex-shrink: 0;
-  flex-basis: 280px; /* Fixed width for Nop section */
+  flex-basis: 280px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  align-self: flex-start; /* Align with the top of other columns */
+  align-self: flex-start;
 }
 
 .nop-card {
@@ -329,30 +330,30 @@
 /* Footer bottom styling */
 .footer-bottom {
   border-top: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 20px 60px;
+  padding: var(--spacing-lg) var(--spacing-xl);
 }
 
 .footer-bottom-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap; /* Allow wrapping on smaller screens */
-  gap: 15px; /* Gap between wrapped elements */
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
 }
 
 .footer-policy-links {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--spacing-sm);
 }
 
 .footer-policy-links a {
   color: #fff;
   text-decoration: none;
-  transition: all 0.3s ease;
-  font-size: 0.9rem;
-  padding: 0 5px;
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
+  padding: 0 var(--spacing-xs);
 }
 
 .footer-policy-links a:hover {
@@ -383,21 +384,21 @@
 /* Responsive design for different screen sizes */
 @media (max-width: 1200px) {
   .footer-main {
-    padding: 40px 40px;
+    padding: var(--spacing-xxl) var(--spacing-lg);
   }
 
   .footer-columns {
-    gap: 40px; /* Slightly reduced gap on medium screens */
+    gap: var(--spacing-lg);
   }
 }
 
 @media (max-width: 1024px) {
   .footer-main {
-    padding: 40px 30px;
+    padding: var(--spacing-xxl) var(--spacing-md);
   }
 
   .footer-columns {
-    gap: 30px;
+    gap: var(--spacing-md);
   }
 
   .nop-section {
@@ -419,31 +420,31 @@
 @media (max-width: 768px) {
   .footer-main {
     flex-direction: column;
-    padding: 40px 20px;
+    padding: var(--spacing-xxl) var(--spacing-sm);
   }
 
   .footer-columns {
     flex-direction: column;
     width: 100%;
-    gap: 30px;
+    gap: var(--spacing-md);
   }
 
   .footer-column {
-    margin-bottom: 0; /* Remove extra margin, we're using gap instead */
+    margin-bottom: 0;
     width: 100%;
     flex-basis: 100%;
   }
 
   .nop-section {
     width: 100%;
-    margin-top: 30px;
-    padding-top: 30px;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
     border-top: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .footer-bottom-content {
     flex-direction: column;
-    gap: 20px;
+    gap: var(--spacing-md);
     text-align: center;
   }
 
@@ -452,7 +453,7 @@
   }
 
   .footer-policy-links a {
-    padding: 0 15px;
+    padding: 0 var(--spacing-md);
   }
 
   .copyright,
@@ -461,7 +462,7 @@
   }
 
   .footer-bottom {
-    padding: 20px;
+    padding: var(--spacing-md);
   }
 }
 
@@ -470,7 +471,7 @@
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: flex-start;
-    gap: 15px;
+    gap: var(--spacing-md);
   }
 
   .social-icon {
@@ -478,7 +479,7 @@
   }
 
   .nop-card {
-    padding: 15px;
+    padding: var(--spacing-sm);
   }
 
   .coin-purson {
@@ -488,7 +489,7 @@
 
   .footer-policy-links {
     flex-direction: column;
-    gap: 15px;
+    gap: var(--spacing-md);
   }
 
   .separator {

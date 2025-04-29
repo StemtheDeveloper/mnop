@@ -1,5 +1,5 @@
 .product-detail-page {
-  padding: 120px 20px 60px;
+  padding: var(--spacing-xxl) var(--spacing-md) var(--spacing-xl);
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -49,11 +49,11 @@
 }
 
 .thumbnail:hover {
-  border-color: #ef3c23;
+  border-color: var(--primary-color);
 }
 
 .thumbnail.active {
-  border-color: #ef3c23;
+  border-color: var(--primary-color);
 }
 
 /* Product Info Section */
@@ -71,7 +71,7 @@
 .product-price {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #ef3c23;
+  color: var(--primary-color);
   margin: 10px 0;
 }
 
@@ -113,18 +113,18 @@
 }
 
 .status-badge.in-stock {
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: var(--success-light);
+  color: var(--success-color);
 }
 
 .status-badge.low-stock {
-  background-color: #fff8e1;
-  color: #f57f17;
+  background-color: var(--warning-light);
+  color: var(--warning-color);
 }
 
 .status-badge.out-of-stock {
-  background-color: #ffebee;
-  color: #c62828;
+  background-color: var(--error-light);
+  color: var(--error-color);
 }
 
 .quantity-selector {
@@ -178,35 +178,35 @@
 
 .btn-primary {
   flex: 1;
-  background-color: #ef3c23;
+  background-color: var(--primary-color);
   color: white;
   border: none;
   padding: 12px 20px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: background-color var(--transition-fast);
 }
 
 .btn-primary:hover {
-  background-color: #d43418;
+  background-color: var(--primary-hover);
 }
 
 .btn-secondary {
-  background-color: #f5f5f5;
-  color: #333;
-  border: 1px solid #ddd;
+  background-color: var(--neutral-100);
+  color: var(--neutral-800);
+  border: 1px solid var(--neutral-300);
   padding: 12px 20px;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: background-color var(--transition-fast);
 }
 
 .btn-secondary:hover {
-  background-color: #e0e0e0;
+  background-color: var(--neutral-200);
 }
 
 .product-meta {
@@ -252,8 +252,8 @@
 }
 
 .tab.active {
-  color: #ef3c23;
-  border-bottom-color: #ef3c23;
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
 }
 
 .tab-content {
@@ -375,22 +375,22 @@
 }
 
 .fund-button {
-  background-color: #4a6cf7;
+  background-color: var(--secondary-color);
   color: white;
   padding: 10px 15px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .fund-button:hover {
-  background-color: #3a5ce5;
+  background-color: var(--secondary-hover);
 }
 
 .fund-button:disabled {
-  background-color: #a0a0a0;
+  background-color: var(--neutral-400);
   cursor: not-allowed;
 }
 
@@ -402,13 +402,13 @@
 }
 
 .funding-complete-message {
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: var(--success-light);
+  color: var(--success-color);
   padding: 15px;
-  border-radius: 6px;
-  margin-top: 15px;
+  border-radius: var(--border-radius-md);
   text-align: center;
-  font-weight: 600;
+  font-weight: 500;
+  margin-top: 15px;
 }
 
 .manufacturing-options {
@@ -459,24 +459,14 @@
   display: inline-block;
 }
 
-.funding-complete-message {
-  background-color: #e8f5e9;
-  color: #1b5e20;
-  padding: 12px;
-  border-radius: 4px;
-  text-align: center;
-  font-weight: 500;
-  margin-top: 15px;
-}
-
 .add-to-cart-button.disabled {
-  background-color: #e0e0e0;
-  color: #666;
+  background-color: var(--neutral-300);
+  color: var(--neutral-600);
   cursor: not-allowed;
 }
 
 .add-to-cart-button.disabled:hover {
-  background-color: #e0e0e0;
+  background-color: var(--neutral-300);
 }
 
 /* Add to Cart Button Animation */
@@ -487,23 +477,23 @@
 @keyframes detail-add-to-cart-pulse {
   0% {
     transform: scale(1);
-    background-color: #ef3c23;
+    background-color: var(--primary-color);
   }
   25% {
-    transform: scale(1.05);
-    background-color: #3498db;
+    transform: scale(0.95);
+    background-color: var(--primary-hover);
   }
   50% {
-    transform: scale(0.98);
-    background-color: #3498db;
+    transform: scale(1.05);
+    background-color: var(--primary-hover);
   }
   75% {
-    transform: scale(1.02);
-    background-color: #3498db;
+    transform: scale(0.95);
+    background-color: var(--primary-hover);
   }
   100% {
     transform: scale(1);
-    background-color: #ef3c23;
+    background-color: var(--primary-color);
   }
 }
 
