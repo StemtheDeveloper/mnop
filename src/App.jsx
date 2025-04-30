@@ -11,6 +11,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import NotificationToastContainer from './components/NotificationToastContainer';
 import NotificationRefresher from './components/NotificationRefresher';
 import AdminProductNotifier from './components/admin/AdminProductNotifier';
+import PolicyNotificationBanner from './components/PolicyNotificationBanner';
 import './styles/App.css';
 import './styles/Buttons.css'; // Importing common button styles
 
@@ -27,6 +28,7 @@ function App() {
                   <NotificationToastContainer />
                   <NotificationRefresher />
                   <AdminProductNotifier />
+                  <PolicyNotificationBanner />
                   <main className="main-content">
                     <AppRoutes />
                   </main>
