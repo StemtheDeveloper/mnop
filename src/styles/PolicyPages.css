@@ -60,7 +60,8 @@
   color: #555;
 }
 
-.policy-content ul, .policy-content ol {
+.policy-content ul,
+.policy-content ol {
   margin-bottom: 20px;
   margin-left: 20px;
 }
@@ -189,11 +190,11 @@
   .policy-content {
     padding: 25px;
   }
-  
+
   .policy-update-notification {
     flex-direction: column;
   }
-  
+
   .policy-update-actions {
     margin-left: 0;
     margin-top: 15px;

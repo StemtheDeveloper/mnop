@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import './Footer.css';
 import DailyNop from './DailyNop';
 
@@ -72,15 +73,15 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Column 4: Something Else */}
+          {/* Column 4: Legal */}
           <div className="footer-column">
-            <h4>Something Else</h4>
+            <h4>Legal</h4>
             <ul className="footer-links">
-              <li><a href="/jobs">Jobs</a></li>
-              <li><a href="/affiliates">Affiliates</a></li>
-              <li><a href="/memes">Memes</a></li>
-              <li><a href="/docs">Docs</a></li>
-              <li><a href="/more">More From Us...</a></li>
+              <li><Link to="/terms-and-conditions">Terms and Conditions</Link></li>
+              <li><Link to="/privacy-policy">Privacy Policy</Link></li>
+              <li><Link to="/content-policy">Content Policy</Link></li>
+              <li><a href="/cookies">Cookies Policy</a></li>
+              <li><a href="/compliance">Compliance</a></li>
             </ul>
           </div>
         </div>
@@ -96,11 +97,11 @@ const Footer = () => {
       <div className="footer-bottom">
         <div className="footer-bottom-content">
           <div className="footer-policy-links">
-            <a href="/privacy">Privacy Policy</a>
+            <Link to="/privacy-policy">Privacy Policy</Link>
             <span className="separator">|</span>
-            <a href="/terms">Terms and Conditions</a>
+            <Link to="/terms-and-conditions">Terms and Conditions</Link>
             <span className="separator">|</span>
-            <a href="/cookies">Manage Cookies</a>
+            <Link to="/content-policy">Content Policy</Link>
           </div>
           <p className="copyright">©{currentYear} MNOP Ecommerce</p>
           <p className="branding">Another <span className="red-box">RED BOX</span> SOFTWARE Thing</p>

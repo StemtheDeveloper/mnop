@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import PolicyService from '../services/policyService';
 import '../styles/PolicyPages.css';
 
 const PrivacyPolicyPage = () => {
@@ -10,39 +9,40 @@ const PrivacyPolicyPage = () => {
     const [hasAccepted, setHasAccepted] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // The current version of the privacy policy - update this when policy changes
-    const CURRENT_VERSION = "1.0";
+    // Get the current version from the PolicyService
+    const CURRENT_VERSION = PolicyService.CURRENT_VERSIONS.privacy;
     const LAST_UPDATED = "April 30, 2025";
 
     useEffect(() => {
         // Check if the user has accepted the current version of the privacy policy
         const checkAcceptanceStatus = async () => {
-            if (currentUser && userProfile) {
-                setHasAccepted(
-                    userProfile.privacyPolicyAccepted && 
-                    userProfile.privacyPolicyVersion === CURRENT_VERSION
-                );
+            if (!currentUser || !currentUser.uid) {
+                setLoading(false);
+                return;
             }
-            setLoading(false);
+
+            try {
+                const policyStatus = await PolicyService.checkPolicyAcceptance(currentUser.uid);
+                setHasAccepted(policyStatus.privacy);
+            } catch (error) {
+                console.error("Error checking privacy policy acceptance:", error);
+            } finally {
+                setLoading(false);
+            }
         };
 
         checkAcceptanceStatus();
     }, [currentUser, userProfile]);
 
     const handleAcceptPrivacyPolicy = async () => {
-        if (!currentUser) return;
-        
+        if (!currentUser || !currentUser.uid) return;
+
         try {
             setLoading(true);
-            const userRef = doc(db, 'users', currentUser.uid);
-            await updateDoc(userRef, {
-                privacyPolicyAccepted: true,
-                privacyPolicyVersion: CURRENT_VERSION,
-                privacyPolicyAcceptedDate: new Date()
-            });
+            await PolicyService.acceptPolicy(currentUser.uid, 'privacy');
             setHasAccepted(true);
         } catch (error) {
-            console.error("Error updating privacy policy acceptance:", error);
+            console.error("Error accepting privacy policy:", error);
         } finally {
             setLoading(false);
         }
@@ -140,7 +140,6 @@ const PrivacyPolicyPage = () => {
                         </div>
                         <div className="policy-update-actions">
                             <button className="btn-accept-policy" onClick={handleAcceptPrivacyPolicy}>Accept Policy</button>
-                            <Link to="/privacy-policy" className="btn-review-policy">Review Policy</Link>
                         </div>
                     </div>
                 )}

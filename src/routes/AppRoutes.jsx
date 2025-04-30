@@ -47,6 +47,9 @@ const ToastDemoPage = lazy(() => import('../pages/ToastDemoPage'));
 const UserSettingsPage = lazy(() => import('../pages/UserSettingsPage'));
 const ProductsCsvExportPage = lazy(() => import('../pages/ProductsCsvExportPage'));
 const ProductsCsvImportPage = lazy(() => import('../pages/ProductsCsvImportPage'));
+const TermsAndConditionsPage = lazy(() => import('../pages/TermsAndConditionsPage'));
+const PrivacyPolicyPage = lazy(() => import('../pages/PrivacyPolicyPage'));
+const ContentPolicyPage = lazy(() => import('../pages/ContentPolicyPage'));
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -74,6 +77,11 @@ const AppRoutes = () => {
                 <Route path="/help" element={<HelpDocumentationPage />} />
                 <Route path="/ideas" element={<IdeasPage />} />
                 <Route path="/idea/:ideaId" element={<IdeaDetailPage />} />
+
+                {/* Policy Pages */}
+                <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/content-policy" element={<ContentPolicyPage />} />
 
                 {/* Protected Routes */}
                 <Route path="/home" element={

@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import PolicyService from '../services/policyService';
 import '../styles/PolicyPages.css';
 
 const TermsAndConditionsPage = () => {
@@ -10,39 +9,40 @@ const TermsAndConditionsPage = () => {
     const [hasAccepted, setHasAccepted] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // The current version of the terms - update this when terms change
-    const CURRENT_VERSION = "1.0";
+    // Get the current version from the PolicyService
+    const CURRENT_VERSION = PolicyService.CURRENT_VERSIONS.terms;
     const LAST_UPDATED = "April 30, 2025";
 
     useEffect(() => {
         // Check if the user has accepted the current version of the terms
         const checkAcceptanceStatus = async () => {
-            if (currentUser && userProfile) {
-                setHasAccepted(
-                    userProfile.termsAccepted && 
-                    userProfile.termsVersion === CURRENT_VERSION
-                );
+            if (!currentUser || !currentUser.uid) {
+                setLoading(false);
+                return;
             }
-            setLoading(false);
+
+            try {
+                const policyStatus = await PolicyService.checkPolicyAcceptance(currentUser.uid);
+                setHasAccepted(policyStatus.terms);
+            } catch (error) {
+                console.error("Error checking terms acceptance:", error);
+            } finally {
+                setLoading(false);
+            }
         };
 
         checkAcceptanceStatus();
     }, [currentUser, userProfile]);
 
     const handleAcceptTerms = async () => {
-        if (!currentUser) return;
-        
+        if (!currentUser || !currentUser.uid) return;
+
         try {
             setLoading(true);
-            const userRef = doc(db, 'users', currentUser.uid);
-            await updateDoc(userRef, {
-                termsAccepted: true,
-                termsVersion: CURRENT_VERSION,
-                termsAcceptedDate: new Date()
-            });
+            await PolicyService.acceptPolicy(currentUser.uid, 'terms');
             setHasAccepted(true);
         } catch (error) {
-            console.error("Error updating terms acceptance:", error);
+            console.error("Error accepting terms:", error);
         } finally {
             setLoading(false);
         }

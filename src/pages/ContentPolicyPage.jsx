@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import PolicyService from '../services/policyService';
 import '../styles/PolicyPages.css';
 
 const ContentPolicyPage = () => {
@@ -10,39 +9,40 @@ const ContentPolicyPage = () => {
     const [hasAccepted, setHasAccepted] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // The current version of the content policy - update this when policy changes
-    const CURRENT_VERSION = "1.0";
+    // Get the current version from the PolicyService
+    const CURRENT_VERSION = PolicyService.CURRENT_VERSIONS.content;
     const LAST_UPDATED = "April 30, 2025";
 
     useEffect(() => {
         // Check if the user has accepted the current version of the content policy
         const checkAcceptanceStatus = async () => {
-            if (currentUser && userProfile) {
-                setHasAccepted(
-                    userProfile.contentPolicyAccepted && 
-                    userProfile.contentPolicyVersion === CURRENT_VERSION
-                );
+            if (!currentUser || !currentUser.uid) {
+                setLoading(false);
+                return;
             }
-            setLoading(false);
+
+            try {
+                const policyStatus = await PolicyService.checkPolicyAcceptance(currentUser.uid);
+                setHasAccepted(policyStatus.content);
+            } catch (error) {
+                console.error("Error checking content policy acceptance:", error);
+            } finally {
+                setLoading(false);
+            }
         };
 
         checkAcceptanceStatus();
     }, [currentUser, userProfile]);
 
     const handleAcceptContentPolicy = async () => {
-        if (!currentUser) return;
-        
+        if (!currentUser || !currentUser.uid) return;
+
         try {
             setLoading(true);
-            const userRef = doc(db, 'users', currentUser.uid);
-            await updateDoc(userRef, {
-                contentPolicyAccepted: true,
-                contentPolicyVersion: CURRENT_VERSION,
-                contentPolicyAcceptedDate: new Date()
-            });
+            await PolicyService.acceptPolicy(currentUser.uid, 'content');
             setHasAccepted(true);
         } catch (error) {
-            console.error("Error updating content policy acceptance:", error);
+            console.error("Error accepting content policy:", error);
         } finally {
             setLoading(false);
         }
@@ -155,7 +155,6 @@ const ContentPolicyPage = () => {
                         </div>
                         <div className="policy-update-actions">
                             <button className="btn-accept-policy" onClick={handleAcceptContentPolicy}>Accept Policy</button>
-                            <Link to="/content-policy" className="btn-review-policy">Review Policy</Link>
                         </div>
                     </div>
                 )}
