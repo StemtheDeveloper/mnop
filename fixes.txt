@@ -1,6 +1,3 @@
-Refresh notifications once when the site loads for the first time. This is to ensure that the user sees that they have notifications.
-Add option to omit "state" for some countries
-All user roles need to show on the wallet page. The roles still aren't showing, it's only showing one role.
 Designers should be able to see refund requests on the customer orders tab and either grant refund or deny refund
 Always show an "add to cart" button on the product detail page for every user.
 Admin needs to see all refundable orders of all time and search through them.

@@ -15,6 +15,29 @@ const NotificationRefresher = () => {
     const { currentUser } = useAuth();
     const initialRefreshCompleted = useRef(false);
     const lastRefreshTime = useRef(0);
+    const initialLoadRef = useRef(true);
+
+    // Refresh notifications when the app loads - even on first load
+    useEffect(() => {
+        // This effect only runs once when the component mounts
+        // regardless of user state to ensure immediate notification refresh
+        if (initialLoadRef.current) {
+            initialLoadRef.current = false;
+
+            const refreshOnFirstLoad = async () => {
+                if (currentUser?.uid) {
+                    try {
+                        await refresh();
+                        console.log('Notifications refreshed on initial app load');
+                    } catch (error) {
+                        console.error('Error refreshing notifications on first load:', error);
+                    }
+                }
+            };
+
+            refreshOnFirstLoad();
+        }
+    }, []);
 
     // Refresh notifications when the app loads if a user is logged in
     useEffect(() => {

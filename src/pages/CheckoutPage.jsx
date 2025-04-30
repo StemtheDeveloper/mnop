@@ -104,6 +104,23 @@ const CheckoutPage = () => {
         }
     }, [userWallet, total, paymentSettings.allowCreditCardPayment]);
 
+    // Add a list of countries that require state/province
+    useEffect(() => {
+        // Update form validation based on selected country
+        const countriesWithStates = ['United States', 'Canada', 'Australia', 'Mexico', 'Brazil', 'India'];
+        const stateRequired = countriesWithStates.includes(formData.country);
+
+        // Set a placeholder text based on country selected
+        let statePlaceholder = "State";
+        if (formData.country === 'Canada') statePlaceholder = "Province";
+        else if (formData.country === 'United Kingdom') statePlaceholder = "County";
+        else if (formData.country === 'Australia') statePlaceholder = "State/Territory";
+
+        // Update the placeholder
+        const stateInput = document.getElementById('state');
+        if (stateInput) stateInput.placeholder = statePlaceholder;
+    }, [formData.country]);
+
     // Calculate subtotal and total
     const calculateTotals = (items) => {
         const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -344,9 +361,13 @@ const CheckoutPage = () => {
     // Handle form submission for shipping info
     const handleShippingSubmit = (e) => {
         e.preventDefault();
-        // Validate shipping information
+        // Validate shipping information - state is only required for certain countries
+        const countriesWithStates = ['United States', 'Canada', 'Australia', 'Mexico', 'Brazil', 'India'];
+        const stateRequired = countriesWithStates.includes(formData.country);
+
         if (!formData.fullName || !formData.email || !formData.phone ||
-            !formData.address || !formData.city || !formData.state || !formData.zipCode) {
+            !formData.address || !formData.city || !formData.zipCode ||
+            (stateRequired && !formData.state)) {
             setError("Please fill in all required shipping fields");
             return;
         }
@@ -781,14 +802,18 @@ const CheckoutPage = () => {
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label htmlFor="state">State*</label>
+                                        <label htmlFor="state">
+                                            {['United States', 'Canada', 'Australia', 'Mexico', 'Brazil', 'India'].includes(formData.country)
+                                                ? `${formData.country === 'Canada' ? 'Province' : formData.country === 'United Kingdom' ? 'County' : formData.country === 'Australia' ? 'State/Territory' : 'State'}*`
+                                                : `${formData.country === 'United Kingdom' ? 'County' : 'State/Province'} (Optional)`}
+                                        </label>
                                         <input
                                             type="text"
                                             id="state"
                                             name="state"
                                             value={formData.state}
                                             onChange={handleChange}
-                                            required
+                                            required={['United States', 'Canada', 'Australia', 'Mexico', 'Brazil', 'India'].includes(formData.country)}
                                         />
                                     </div>
                                 </div>
@@ -819,6 +844,21 @@ const CheckoutPage = () => {
                                             <option value="United Kingdom">United Kingdom</option>
                                             <option value="Australia">Australia</option>
                                             <option value="New Zealand">New Zealand</option>
+                                            <option value="Germany">Germany</option>
+                                            <option value="France">France</option>
+                                            <option value="Japan">Japan</option>
+                                            <option value="China">China</option>
+                                            <option value="India">India</option>
+                                            <option value="Brazil">Brazil</option>
+                                            <option value="Mexico">Mexico</option>
+                                            <option value="Spain">Spain</option>
+                                            <option value="Italy">Italy</option>
+                                            <option value="Netherlands">Netherlands</option>
+                                            <option value="Sweden">Sweden</option>
+                                            <option value="Norway">Norway</option>
+                                            <option value="Denmark">Denmark</option>
+                                            <option value="Finland">Finland</option>
+                                            <option value="Singapore">Singapore</option>
                                         </select>
                                     </div>
                                 </div>

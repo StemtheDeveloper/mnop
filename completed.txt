@@ -1,3 +1,4 @@
 # Completed Improvements
 
 - Fix loading spinner: remove text, fix aspect ratio to 1:1, make sure that each component can only load one instance of the loading spinner at a time. Because at the momment there are multiple loading spinners overlapping on a single component or page.
+- Add option to omit "state" for some countries
