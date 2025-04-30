@@ -2,3 +2,6 @@
 
 - Fix loading spinner: remove text, fix aspect ratio to 1:1, make sure that each component can only load one instance of the loading spinner at a time. Because at the momment there are multiple loading spinners overlapping on a single component or page.
 - Add option to omit "state" for some countries
+- Designers should be able to see refund requests on the customer orders tab and either grant refund or deny refund
+- Always show an "add to cart" button on the product detail page for every user
+- Admin needs to see all refundable orders of all time and search through them

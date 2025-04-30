@@ -561,12 +561,6 @@ const ProductDetailPage = () => {
             return;
         }
 
-        // Check if product is fully funded
-        if (product.fundingGoal && !isFullyFunded) {
-            showError("This product needs to be fully funded before purchase");
-            return;
-        }
-
         // Start animation and loading state
         setButtonAnimation('animate-add-to-cart');
         setIsAddingToCart(true);
@@ -1392,15 +1386,13 @@ const ProductDetailPage = () => {
                     )}
 
                     <div className="product-actions">
-                        {/* Add to Cart Button - enabled if product is direct sell or fully funded */}
+                        {/* Add to Cart Button - always shown for all users */}
                         <button
-                            className={`btn-primary add-to-cart-button ${(!isFullyFunded && product.isCrowdfunded !== false) ? 'disabled' : ''} ${buttonAnimation}`}
-                            disabled={(product.isCrowdfunded !== false && !isFullyFunded) || isAddingToCart}
+                            className={`btn-primary add-to-cart-button ${buttonAnimation}`}
+                            disabled={isAddingToCart}
                             onClick={handleAddToCart}
                         >
-                            {isAddingToCart ? 'Adding...' :
-                                (product.isCrowdfunded === false || isFullyFunded) ?
-                                    'Add to Cart' : 'Funding Required'}
+                            {isAddingToCart ? 'Adding...' : 'Add to Cart'}
                         </button>
 
                         {/* Investment Button - only show for crowdfunded products */}
