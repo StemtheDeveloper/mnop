@@ -372,6 +372,10 @@ const OrderDetailPage = () => {
                                         <span>Shipping:</span>
                                         <span>{formatPrice(order.shipping)}</span>
                                     </div>
+                                    <div className="summary-row">
+                                        <span>Tax:</span>
+                                        <span>{formatPrice(order.tax || 0)}</span>
+                                    </div>
                                     <div className="summary-row total">
                                         <span>Total:</span>
                                         <span>{formatPrice(order.total)}</span>
