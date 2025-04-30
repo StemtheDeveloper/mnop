@@ -805,7 +805,10 @@ class WalletService {
 
       // Calculate designer's share: product sale amount minus commission minus investor distribution, plus shipping
       const designerShare =
-        productSaleAmount - commissionAmount - investorDistribution + shippingCost;
+        productSaleAmount -
+        commissionAmount -
+        investorDistribution +
+        shippingCost;
 
       // Only process designer payment if there's anything to pay
       let designerPaymentResult = null;

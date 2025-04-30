@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { updateProfile, signOut, deleteUser } from 'firebase/auth'; // Import signOut and deleteUser
-import { doc, updateDoc, collection, query, where, getDocs, deleteDoc, getDoc, addDoc } from 'firebase/firestore'; // Import deleteDoc, getDoc, addDoc
+import { doc, updateDoc, collection, query, where, getDocs, deleteDoc, getDoc, addDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // Import deleteDoc, getDoc, addDoc, setDoc, serverTimestamp
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
 import '../styles/ProfilePage.css';
@@ -89,6 +89,30 @@ const ProfilePage = () => {
 
     // Check if user has designer role
     const isDesigner = hasRole('designer');
+
+    // State for shipping settings
+    const [shippingSettings, setShippingSettings] = useState({
+        standardShippingCost: 10,
+        expressShippingCost: 25,
+        shippingProvider: 'standard',
+        customProviderName: '',
+        offerFreeShipping: false,
+        freeShippingThreshold: 0,
+        useCustomShipping: true
+    });
+
+    // Define shipping provider options
+    const shippingProviders = [
+        { id: 'standard', name: 'Standard Shipping' },
+        { id: 'usps', name: 'USPS' },
+        { id: 'ups', name: 'UPS' },
+        { id: 'fedex', name: 'FedEx' },
+        { id: 'amazon', name: 'Amazon Logistics' },
+        { id: 'dhl', name: 'DHL' },
+        { id: 'custom', name: 'Custom Provider' }
+    ];
+
+    const [loadingShippingSettings, setLoadingShippingSettings] = useState(false);
 
     // Load user data into form
     useEffect(() => {
@@ -292,6 +316,39 @@ const ProfilePage = () => {
             setLoadingRefundRequests(false);
         }
     };
+
+    // Fetch shipping settings for the designer
+    useEffect(() => {
+        if (!userId || !hasRole('designer')) return;
+
+        const fetchShippingSettings = async () => {
+            setLoadingShippingSettings(true);
+            try {
+                const shippingSettingsRef = doc(db, 'designerSettings', userId);
+                const shippingSettingsDoc = await getDoc(shippingSettingsRef);
+
+                if (shippingSettingsDoc.exists()) {
+                    const data = shippingSettingsDoc.data();
+                    setShippingSettings({
+                        standardShippingCost: data.standardShippingCost !== undefined ? data.standardShippingCost : 10,
+                        expressShippingCost: data.expressShippingCost !== undefined ? data.expressShippingCost : 25,
+                        shippingProvider: data.shippingProvider || 'standard',
+                        customProviderName: data.customProviderName || '',
+                        offerFreeShipping: data.offerFreeShipping || false,
+                        freeShippingThreshold: data.freeShippingThreshold || 50,
+                        useCustomShipping: data.useCustomShipping || false
+                    });
+                }
+            } catch (error) {
+                console.error('Error fetching shipping settings:', error);
+                setMessage({ type: 'error', text: 'Failed to load shipping settings.' });
+            } finally {
+                setLoadingShippingSettings(false);
+            }
+        };
+
+        fetchShippingSettings();
+    }, [userId, hasRole]);
 
     // Format price as currency
     const formatPrice = (price) => {
@@ -999,6 +1056,7 @@ const ProfilePage = () => {
         if (hasRole('designer')) {
             tabs.push({ id: 'products', label: 'My Products', roles: ['designer'] });
             tabs.push({ id: 'sales', label: 'My Sales', roles: ['designer'] });
+            tabs.push({ id: 'shipping', label: 'Shipping Settings', roles: ['designer'] }); // Add new Shipping tab
             tabs.push({ id: 'customer-orders', label: 'Customer Orders', roles: ['designer'] });
         }
 
@@ -1055,6 +1113,52 @@ const ProfilePage = () => {
                 return 'status-cancelled';
             default:
                 return 'status-default';
+        }
+    };
+
+    const handleSaveShippingSettings = async () => {
+        setLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            const shippingSettingsRef = doc(db, 'designerSettings', userId);
+
+            // Ensure all values are proper types
+            const settingsToSave = {
+                standardShippingCost: parseFloat(shippingSettings.standardShippingCost) || 0,
+                expressShippingCost: parseFloat(shippingSettings.expressShippingCost) || 0,
+                shippingProvider: shippingSettings.shippingProvider,
+                customProviderName: shippingSettings.customProviderName || '',
+                offerFreeShipping: Boolean(shippingSettings.offerFreeShipping),
+                freeShippingThreshold: parseFloat(shippingSettings.freeShippingThreshold) || 0,
+                useCustomShipping: Boolean(shippingSettings.useCustomShipping),
+                updatedAt: serverTimestamp()
+            };
+
+            // Check if document exists
+            const docSnap = await getDoc(shippingSettingsRef);
+            if (docSnap.exists()) {
+                await updateDoc(shippingSettingsRef, settingsToSave);
+            } else {
+                // Add createdAt for new documents
+                await setDoc(shippingSettingsRef, {
+                    ...settingsToSave,
+                    createdAt: serverTimestamp()
+                });
+            }
+
+            setMessage({
+                type: 'success',
+                text: 'Shipping settings saved successfully!'
+            });
+        } catch (error) {
+            console.error('Error saving shipping settings:', error);
+            setMessage({
+                type: 'error',
+                text: 'Failed to save shipping settings. Please try again.'
+            });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -2151,6 +2255,145 @@ const ProfilePage = () => {
                                                 </div>
                                             )}
                                         </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab === 'shipping' && hasRole('designer') && (
+                                <div className="settings-section shipping-settings-section">
+                                    <h3>Shipping Settings</h3>
+                                    <p>Configure default shipping costs and options for all your products</p>
+
+                                    {loadingShippingSettings ? (
+                                        <div className="loading-container">
+                                            <LoadingSpinner />
+                                            <p>Loading shipping settings...</p>
+                                        </div>
+                                    ) : (
+                                        <form onSubmit={(e) => {
+                                            e.preventDefault();
+                                            handleSaveShippingSettings();
+                                        }}>
+                                            <div className="form-row">
+                                                <div className="form-group form-field-half">
+                                                    <label htmlFor="standardShippingCost">Standard Shipping Cost ($)</label>
+                                                    <input
+                                                        type="number"
+                                                        id="standardShippingCost"
+                                                        value={shippingSettings.standardShippingCost}
+                                                        onChange={(e) => setShippingSettings({
+                                                            ...shippingSettings,
+                                                            standardShippingCost: parseFloat(e.target.value) || 0
+                                                        })}
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                    <p className="field-description">This is your default shipping cost applied to all products</p>
+                                                </div>
+
+                                                <div className="form-group form-field-half">
+                                                    <label htmlFor="expressShippingCost">Express Shipping Cost ($)</label>
+                                                    <input
+                                                        type="number"
+                                                        id="expressShippingCost"
+                                                        value={shippingSettings.expressShippingCost}
+                                                        onChange={(e) => setShippingSettings({
+                                                            ...shippingSettings,
+                                                            expressShippingCost: parseFloat(e.target.value) || 0
+                                                        })}
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                    <p className="field-description">Cost for express shipping option</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="form-group checkbox">
+                                                <input
+                                                    type="checkbox"
+                                                    id="offerFreeShipping"
+                                                    checked={shippingSettings.offerFreeShipping}
+                                                    onChange={(e) => setShippingSettings({
+                                                        ...shippingSettings,
+                                                        offerFreeShipping: e.target.checked
+                                                    })}
+                                                />
+                                                <label htmlFor="offerFreeShipping">Offer free shipping on orders above a threshold</label>
+                                            </div>
+
+                                            {shippingSettings.offerFreeShipping && (
+                                                <div className="form-group">
+                                                    <label htmlFor="freeShippingThreshold">Free Shipping Threshold ($)</label>
+                                                    <input
+                                                        type="number"
+                                                        id="freeShippingThreshold"
+                                                        value={shippingSettings.freeShippingThreshold}
+                                                        onChange={(e) => setShippingSettings({
+                                                            ...shippingSettings,
+                                                            freeShippingThreshold: parseFloat(e.target.value) || 0
+                                                        })}
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                    <p className="field-description">Orders above this amount will receive free shipping</p>
+                                                </div>
+                                            )}
+
+                                            <div className="form-group">
+                                                <label htmlFor="shippingProvider">Preferred Shipping Provider</label>
+                                                <select
+                                                    id="shippingProvider"
+                                                    value={shippingSettings.shippingProvider}
+                                                    onChange={(e) => {
+                                                        const useCustom = e.target.value === 'custom';
+                                                        setShippingSettings({
+                                                            ...shippingSettings,
+                                                            shippingProvider: e.target.value,
+                                                            useCustomShipping: useCustom
+                                                        });
+                                                    }}
+                                                >
+                                                    {shippingProviders.map(provider => (
+                                                        <option key={provider.id} value={provider.id}>{provider.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {shippingSettings.shippingProvider === 'custom' && (
+                                                <div className="form-group">
+                                                    <label htmlFor="customProviderName">Custom Provider Name</label>
+                                                    <input
+                                                        type="text"
+                                                        id="customProviderName"
+                                                        value={shippingSettings.customProviderName}
+                                                        onChange={(e) => setShippingSettings({
+                                                            ...shippingSettings,
+                                                            customProviderName: e.target.value
+                                                        })}
+                                                        placeholder="Enter your custom shipping provider's name"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className="shipping-settings-info">
+                                                <h4>How shipping costs apply to your products:</h4>
+                                                <ul>
+                                                    <li>These standard and express shipping costs will be used as default for all your products</li>
+                                                    <li>You can override these settings for specific products when creating or editing them</li>
+                                                    <li>Free shipping threshold applies across all your products unless overridden</li>
+                                                </ul>
+                                            </div>
+
+                                            <div className="form-actions">
+                                                <button
+                                                    type="submit"
+                                                    className="submit-button"
+                                                    disabled={loading}
+                                                >
+                                                    {loading ? 'Saving...' : 'Save Shipping Settings'}
+                                                </button>
+                                            </div>
+                                        </form>
                                     )}
                                 </div>
                             )}

@@ -71,6 +71,30 @@ const ProductsCsvImportPage = () => {
     ];
     const [headers, setHeaders] = useState(defaultHeaders);
 
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        price: '',
+        stockQuantity: '',
+        category: '',
+        categories: [],
+        tags: [],
+        productType: 'physical',
+        manufacturingCost: '',
+        designer: userProfile?.displayName || '',
+        isCrowdfunded: false,
+        isDirectSell: true,
+        fundingGoal: '0',
+        // Add new shipping fields
+        customShipping: false,
+        standardShippingCost: '',
+        expressShippingCost: '',
+        freeShipping: false,
+        freeShippingThreshold: '',
+        shippingProvider: 'standard',
+        customProviderName: ''
+    });
+
     // Fetch categories on component mount
     useEffect(() => {
         const fetchCategories = async () => {

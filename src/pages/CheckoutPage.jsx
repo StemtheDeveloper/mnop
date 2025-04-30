@@ -111,6 +111,108 @@ const CheckoutPage = () => {
         setTotal(itemsTotal + shipping);
     };
 
+    // Fetch shipping costs from designer settings
+    const fetchShippingCosts = async (cartItems) => {
+        try {
+            // Group cart items by designer ID for faster processing
+            const designerItems = {};
+
+            // Track whether any item has free shipping
+            let hasFreeShippingItem = false;
+
+            // Track the lowest free shipping threshold
+            let lowestFreeShippingThreshold = Infinity;
+
+            // Default shipping costs
+            let standardCost = 10;
+            let expressCost = 25;
+
+            // Process each item in the cart
+            for (const item of cartItems) {
+                try {
+                    // Get the product details
+                    const productRef = doc(db, 'products', item.id);
+                    const productDoc = await getDoc(productRef);
+
+                    if (productDoc.exists()) {
+                        const productData = productDoc.data();
+                        const designerId = productData.designerId;
+
+                        // Check if product has custom shipping settings
+                        if (productData.customShipping) {
+                            // Check if product has free shipping
+                            if (productData.freeShipping) {
+                                hasFreeShippingItem = true;
+                            }
+
+                            // Update lowest free shipping threshold if product has one
+                            if (!productData.freeShipping && productData.freeShippingThreshold &&
+                                productData.freeShippingThreshold < lowestFreeShippingThreshold) {
+                                lowestFreeShippingThreshold = productData.freeShippingThreshold;
+                            }
+
+                            // Track product's shipping costs
+                            if (productData.standardShippingCost !== undefined) {
+                                // Use the highest shipping cost among all products
+                                standardCost = Math.max(standardCost, productData.standardShippingCost);
+                            }
+
+                            if (productData.expressShippingCost !== undefined) {
+                                // Use the highest shipping cost among all products
+                                expressCost = Math.max(expressCost, productData.expressShippingCost);
+                            }
+                        } else if (designerId) {
+                            // Check if we already processed this designer
+                            if (!designerItems[designerId]) {
+                                // Get designer's shipping settings
+                                const designerSettingsRef = doc(db, 'designerSettings', designerId);
+                                const designerDoc = await getDoc(designerSettingsRef);
+
+                                if (designerDoc.exists()) {
+                                    const designerSettings = designerDoc.data();
+                                    designerItems[designerId] = {
+                                        standardShippingCost: designerSettings.standardShippingCost !== undefined ? designerSettings.standardShippingCost : 10,
+                                        expressShippingCost: designerSettings.expressShippingCost !== undefined ? designerSettings.expressShippingCost : 25,
+                                        offerFreeShipping: designerSettings.offerFreeShipping || false,
+                                        freeShippingThreshold: designerSettings.freeShippingThreshold || 50
+                                    };
+
+                                    // Update shipping costs with designer settings
+                                    standardCost = Math.max(standardCost, designerItems[designerId].standardShippingCost);
+                                    expressCost = Math.max(expressCost, designerItems[designerId].expressShippingCost);
+
+                                    // Update free shipping threshold
+                                    if (designerSettings.offerFreeShipping &&
+                                        designerSettings.freeShippingThreshold < lowestFreeShippingThreshold) {
+                                        lowestFreeShippingThreshold = designerSettings.freeShippingThreshold;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error processing item ${item.id}:`, error);
+                }
+            }
+
+            return {
+                standardShippingCost: standardCost,
+                expressShippingCost: expressCost,
+                hasFreeShippingItem,
+                freeShippingThreshold: lowestFreeShippingThreshold === Infinity ? 50 : lowestFreeShippingThreshold
+            };
+        } catch (error) {
+            console.error('Error fetching shipping costs:', error);
+            // Default values in case of error
+            return {
+                standardShippingCost: 10,
+                expressShippingCost: 25,
+                hasFreeShippingItem: false,
+                freeShippingThreshold: 50
+            };
+        }
+    };
+
     // Fetch cart items
     useEffect(() => {
         let unsubscribe = () => { };
@@ -123,6 +225,26 @@ const CheckoutPage = () => {
                     const localCart = JSON.parse(localStorage.getItem('cart') || '[]');
                     setCartItems(localCart);
                     calculateTotals(localCart);
+
+                    // Fetch shipping costs for the cart
+                    const shippingInfo = await fetchShippingCosts(localCart);
+
+                    // Update shipping costs and method
+                    const currentMethod = formData.shippingMethod;
+                    const shippingCost = currentMethod === 'express' ?
+                        shippingInfo.expressShippingCost :
+                        shippingInfo.standardShippingCost;
+
+                    // Check if order total qualifies for free shipping
+                    if (shippingInfo.hasFreeShippingItem ||
+                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
+                        setShipping(0);
+                        setTotal(subtotal);
+                    } else {
+                        setShipping(shippingCost);
+                        setTotal(subtotal + shippingCost);
+                    }
+
                     setLoading(false);
                     return;
                 }
@@ -131,7 +253,7 @@ const CheckoutPage = () => {
                 const cartsRef = collection(db, 'carts');
                 const q = query(cartsRef, where('userId', '==', currentUser.uid));
 
-                unsubscribe = onSnapshot(q, (snapshot) => {
+                unsubscribe = onSnapshot(q, async (snapshot) => {
                     if (snapshot.empty) {
                         setCartItems([]);
                         calculateTotals([]);
@@ -147,6 +269,26 @@ const CheckoutPage = () => {
                     const items = cart.items || [];
                     setCartItems(items);
                     calculateTotals(items);
+
+                    // Fetch shipping costs for the cart
+                    const shippingInfo = await fetchShippingCosts(items);
+
+                    // Update shipping costs and method
+                    const currentMethod = formData.shippingMethod;
+                    const shippingCost = currentMethod === 'express' ?
+                        shippingInfo.expressShippingCost :
+                        shippingInfo.standardShippingCost;
+
+                    // Check if order total qualifies for free shipping
+                    if (shippingInfo.hasFreeShippingItem ||
+                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
+                        setShipping(0);
+                        setTotal(subtotal);
+                    } else {
+                        setShipping(shippingCost);
+                        setTotal(subtotal + shippingCost);
+                    }
+
                     setLoading(false);
                 }, (err) => {
                     console.error("Error fetching cart:", err);
@@ -165,18 +307,37 @@ const CheckoutPage = () => {
 
         // Clean up subscription
         return () => unsubscribe();
-    }, [currentUser]);
+    }, [currentUser, formData.shippingMethod]);
 
     // Update form data
-    const handleChange = (e) => {
+    const handleChange = async (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: sanitizeString(value) }));
 
         // Update shipping cost based on method
         if (name === 'shippingMethod') {
-            const shippingCost = value === 'express' ? 25 : 10;
-            setShipping(shippingCost);
-            setTotal(subtotal + shippingCost);
+            try {
+                const shippingInfo = await fetchShippingCosts(cartItems);
+                const shippingCost = value === 'express' ?
+                    shippingInfo.expressShippingCost :
+                    shippingInfo.standardShippingCost;
+
+                // Check if order qualifies for free shipping
+                if (shippingInfo.hasFreeShippingItem ||
+                    (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
+                    setShipping(0);
+                    setTotal(subtotal);
+                } else {
+                    setShipping(shippingCost);
+                    setTotal(subtotal + shippingCost);
+                }
+            } catch (error) {
+                console.error('Error updating shipping cost:', error);
+                // Fallback to default shipping costs
+                const shippingCost = value === 'express' ? 25 : 10;
+                setShipping(shippingCost);
+                setTotal(subtotal + shippingCost);
+            }
         }
     };
 
@@ -677,7 +838,17 @@ const CheckoutPage = () => {
                                                 />
                                                 <label htmlFor="standard">
                                                     <div className="option-name">Standard Shipping</div>
-                                                    <div className="option-price">$10.00</div>
+                                                    <div className="option-price">
+                                                        {shipping === 0 && (
+                                                            <span className="free-shipping">FREE</span>
+                                                        )}
+                                                        {shipping !== 0 && formData.shippingMethod === 'standard' && (
+                                                            <span>${shipping.toFixed(2)}</span>
+                                                        )}
+                                                        {shipping !== 0 && formData.shippingMethod !== 'standard' && (
+                                                            <span>$10.00</span>
+                                                        )}
+                                                    </div>
                                                     <div className="option-duration">5-7 business days</div>
                                                 </label>
                                             </div>
@@ -692,7 +863,17 @@ const CheckoutPage = () => {
                                                 />
                                                 <label htmlFor="express">
                                                     <div className="option-name">Express Shipping</div>
-                                                    <div className="option-price">$25.00</div>
+                                                    <div className="option-price">
+                                                        {shipping === 0 && (
+                                                            <span className="free-shipping">FREE</span>
+                                                        )}
+                                                        {shipping !== 0 && formData.shippingMethod === 'express' && (
+                                                            <span>${shipping.toFixed(2)}</span>
+                                                        )}
+                                                        {shipping !== 0 && formData.shippingMethod !== 'express' && (
+                                                            <span>$25.00</span>
+                                                        )}
+                                                    </div>
                                                     <div className="option-duration">2-3 business days</div>
                                                 </label>
                                             </div>

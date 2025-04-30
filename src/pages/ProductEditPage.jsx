@@ -56,9 +56,17 @@ const ProductEditPage = () => {
         customCategory: '',
         isCrowdfunded: true,
         manufacturingCost: '',
-        stockQuantity: '0',  // Initialize with string '0' instead of undefined
-        lowStockThreshold: '5',  // Initialize with string '5' instead of undefined
+        stockQuantity: '0',
+        lowStockThreshold: '5',
         trackInventory: false,
+        // Add shipping related fields
+        customShipping: false,
+        standardShippingCost: '',
+        expressShippingCost: '',
+        freeShipping: false,
+        freeShippingThreshold: '',
+        shippingProvider: 'standard',
+        customProviderName: ''
     });
 
     // Categories state
@@ -124,6 +132,17 @@ const ProductEditPage = () => {
                     customCategory: productData.categoryType === 'custom' ? productData.category : '',
                     isCrowdfunded: productData.isCrowdfunded !== false, // Default to true for backward compatibility
                     manufacturingCost: productData.manufacturingCost ? productData.manufacturingCost.toString() : '', // Load manufacturing cost
+                    trackInventory: productData.trackInventory || false,
+                    stockQuantity: productData.stockQuantity ? productData.stockQuantity.toString() : '0',
+                    lowStockThreshold: productData.lowStockThreshold ? productData.lowStockThreshold.toString() : '5',
+                    // Load shipping-related settings
+                    customShipping: productData.customShipping || false,
+                    standardShippingCost: productData.standardShippingCost ? productData.standardShippingCost.toString() : '',
+                    expressShippingCost: productData.expressShippingCost ? productData.expressShippingCost.toString() : '',
+                    freeShipping: productData.freeShipping || false,
+                    freeShippingThreshold: productData.freeShippingThreshold ? productData.freeShippingThreshold.toString() : '',
+                    shippingProvider: productData.shippingProvider || 'standard',
+                    customProviderName: productData.customProviderName || ''
                 });
 
                 // Set useCustomCategory based on categoryType
@@ -486,6 +505,23 @@ const ProductEditPage = () => {
                 // Keep stockQuantity if it exists, but mark as not tracked
             }
 
+            // Add shipping settings to product data if custom shipping is enabled
+            if (formData.customShipping) {
+                productData.customShipping = true;
+                productData.standardShippingCost = parseFloat(formData.standardShippingCost) || 10;
+                productData.expressShippingCost = parseFloat(formData.expressShippingCost) || 25;
+                productData.freeShipping = formData.freeShipping;
+                productData.freeShippingThreshold = parseFloat(formData.freeShippingThreshold) || 0;
+                productData.shippingProvider = formData.shippingProvider;
+
+                if (formData.shippingProvider === 'custom') {
+                    productData.customProviderName = formData.customProviderName;
+                }
+            } else {
+                // If custom shipping is disabled, remove any previously set custom shipping values
+                productData.customShipping = false;
+            }
+
             // Update the product document
             await updateDoc(doc(db, 'products', productId), productData);
 
@@ -756,6 +792,151 @@ const ProductEditPage = () => {
                                                 </p>
                                             </div>
                                         </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="form-group shipping-settings">
+                                <h3>Shipping Settings</h3>
+
+                                <div className="shipping-toggle">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            name="customShipping"
+                                            checked={formData.customShipping}
+                                            onChange={(e) => setFormData({ ...formData, customShipping: e.target.checked })}
+                                            disabled={saving}
+                                        />
+                                        Use custom shipping for this product (override default settings)
+                                    </label>
+                                    <p className="form-hint">
+                                        Enable to set shipping costs specifically for this product, overriding your default shipping settings.
+                                    </p>
+                                </div>
+
+                                {formData.customShipping && (
+                                    <div className="shipping-fields">
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label htmlFor="standardShippingCost">Standard Shipping Cost ($)</label>
+                                                <input
+                                                    type="number"
+                                                    id="standardShippingCost"
+                                                    name="standardShippingCost"
+                                                    value={formData.standardShippingCost}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        standardShippingCost: e.target.value
+                                                    })}
+                                                    placeholder="10.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    disabled={saving}
+                                                />
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label htmlFor="expressShippingCost">Express Shipping Cost ($)</label>
+                                                <input
+                                                    type="number"
+                                                    id="expressShippingCost"
+                                                    name="expressShippingCost"
+                                                    value={formData.expressShippingCost}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        expressShippingCost: e.target.value
+                                                    })}
+                                                    placeholder="25.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    disabled={saving}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group checkbox">
+                                            <label>
+                                                <input
+                                                    type="checkbox"
+                                                    name="freeShipping"
+                                                    checked={formData.freeShipping}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        freeShipping: e.target.checked
+                                                    })}
+                                                    disabled={saving}
+                                                />
+                                                Offer free shipping for this product
+                                            </label>
+                                        </div>
+
+                                        {!formData.freeShipping && (
+                                            <div className="form-group">
+                                                <label htmlFor="freeShippingThreshold">Free Shipping Threshold ($)</label>
+                                                <input
+                                                    type="number"
+                                                    id="freeShippingThreshold"
+                                                    name="freeShippingThreshold"
+                                                    value={formData.freeShippingThreshold}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        freeShippingThreshold: e.target.value
+                                                    })}
+                                                    placeholder="50.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    disabled={saving}
+                                                />
+                                                <p className="form-hint">
+                                                    Orders that include this product will receive free shipping if the total order amount exceeds this threshold.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <div className="form-group">
+                                            <label htmlFor="shippingProvider">Shipping Provider</label>
+                                            <select
+                                                id="shippingProvider"
+                                                name="shippingProvider"
+                                                value={formData.shippingProvider}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    setFormData({
+                                                        ...formData,
+                                                        shippingProvider: value,
+                                                        customProviderName: value === 'custom' ? formData.customProviderName : ''
+                                                    });
+                                                }}
+                                                disabled={saving}
+                                            >
+                                                <option value="standard">Standard Shipping</option>
+                                                <option value="usps">USPS</option>
+                                                <option value="ups">UPS</option>
+                                                <option value="fedex">FedEx</option>
+                                                <option value="amazon">Amazon Logistics</option>
+                                                <option value="dhl">DHL</option>
+                                                <option value="custom">Custom Provider</option>
+                                            </select>
+                                        </div>
+
+                                        {formData.shippingProvider === 'custom' && (
+                                            <div className="form-group">
+                                                <label htmlFor="customProviderName">Custom Provider Name</label>
+                                                <input
+                                                    type="text"
+                                                    id="customProviderName"
+                                                    name="customProviderName"
+                                                    value={formData.customProviderName}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        customProviderName: e.target.value
+                                                    })}
+                                                    placeholder="Enter shipping provider name"
+                                                    disabled={saving || formData.shippingProvider !== 'custom'}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
