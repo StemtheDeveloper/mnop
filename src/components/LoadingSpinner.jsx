@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import './LoadingSpinner.css';
+
+// Create a global tracking mechanism to prevent multiple spinners
+const spinnerInstances = new Map();
 
 const LoadingSpinner = ({
   size = 'medium',
@@ -7,8 +10,42 @@ const LoadingSpinner = ({
   showText = false,
   overlay = false,
   fullPage = false,
-  inline = false
+  inline = false,
+  componentId = 'global' // Default to global tracking
 }) => {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Use component-specific tracking if componentId is provided
+    const trackingKey = componentId;
+
+    // Initialize counter for this component if needed
+    if (!spinnerInstances.has(trackingKey)) {
+      spinnerInstances.set(trackingKey, 0);
+    }
+
+    // Increment counter
+    spinnerInstances.set(
+      trackingKey,
+      spinnerInstances.get(trackingKey) + 1
+    );
+
+    // Only show spinner if this is the first instance for this component
+    setVisible(spinnerInstances.get(trackingKey) === 1);
+
+    // Cleanup when component unmounts
+    return () => {
+      // Decrement counter
+      spinnerInstances.set(
+        trackingKey,
+        Math.max(0, spinnerInstances.get(trackingKey) - 1)
+      );
+    };
+  }, [componentId]);
+
+  // Don't render if another spinner is already showing for this component
+  if (!visible) return null;
+
   // Determine spinner CSS classes based on props
   const spinnerClasses = `spinner spinner-${size}`;
   const containerClasses = `loading-spinner ${overlay ? 'loading-overlay' : ''} ${fullPage ? 'full-page' : ''} ${inline ? 'inline' : ''}`;
