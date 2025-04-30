@@ -66,7 +66,10 @@ const ProductUploadPage = () => {
         freeShipping: false,
         freeShippingThreshold: '',
         shippingProvider: 'standard',
-        customProviderName: ''
+        customProviderName: '',
+        // Add trackInventory field with default value
+        trackInventory: false,
+        lowStockThreshold: '5'
     });
 
     // Multiple image handling state
@@ -561,7 +564,15 @@ const ProductUploadPage = () => {
                 manufacturingCost: '', // Reset to default
                 stockQuantity: '', // Reset to default
                 lowStockThreshold: '', // Reset to default
-                trackInventory: true, // Reset to default
+                trackInventory: false, // Reset to default value
+                // Reset shipping-related fields
+                customShipping: false,
+                standardShippingCost: '',
+                expressShippingCost: '',
+                freeShipping: false,
+                freeShippingThreshold: '',
+                shippingProvider: 'standard',
+                customProviderName: ''
             });
             setProductImages([]);
             setImagePreviewUrls([]);
