@@ -7,3 +7,5 @@
 - Admin needs to see all refundable orders of all time and search through them
 - Add terms and conditions, privacy policy and content policy pages. All users need to be notified about changes to terms and conditions, privacy policy and content policy.
 - Add change detection to inputs using local storage to prevent unnecessary writes to the database
+- Customers can't see order details: "Page Not Found The page you are looking for doesn't exist or has been moved." orders/GpjrMadUmKE8JsIGB0Rr
+- Add tax calculations based on the country and territory of the user

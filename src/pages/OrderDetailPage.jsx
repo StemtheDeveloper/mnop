@@ -10,7 +10,7 @@ import '../styles/OrderDetailPage.css';
 
 const OrderDetailPage = () => {
     const { orderId } = useParams();
-    const { currentUser } = useUser();
+    const { currentUser, hasRole } = useUser();
     const { success: showSuccess, error: showError } = useToast();
     const navigate = useNavigate();
     const [order, setOrder] = useState(null);
@@ -21,6 +21,7 @@ const OrderDetailPage = () => {
     useEffect(() => {
         const fetchOrder = async () => {
             if (!currentUser || !orderId) {
+                setError('Please sign in to view order details');
                 setLoading(false);
                 return;
             }
@@ -37,7 +38,26 @@ const OrderDetailPage = () => {
 
                 const orderData = orderDoc.data();
 
-                if (orderData.userId !== currentUser.uid) {
+                // Check if the user is the owner of the order or has admin/designer role
+                const isAdmin = hasRole('admin');
+                const isDesigner = hasRole('designer');
+                const isOrderOwner = orderData.userId === currentUser.uid;
+
+                // Designer can only see orders with their products
+                let designerCanView = false;
+                if (isDesigner && !isOrderOwner) {
+                    // Check if any product in the order belongs to this designer
+                    for (const item of orderData.items || []) {
+                        const productRef = doc(db, 'products', item.id);
+                        const productDoc = await getDoc(productRef);
+                        if (productDoc.exists() && productDoc.data().designerId === currentUser.uid) {
+                            designerCanView = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!isOrderOwner && !isAdmin && !designerCanView) {
                     setError('You do not have permission to view this order');
                     setLoading(false);
                     return;
