@@ -179,7 +179,7 @@ const RefundManagementPanel = () => {
     const getExportUrl = () => {
         const baseUrl = '/api/export-refundable-orders';
         const params = new URLSearchParams();
-        
+
         if (searchTerm) params.append('searchTerm', searchTerm);
         if (dateFilter.startDate) params.append('startDate', dateFilter.startDate);
         if (dateFilter.endDate) params.append('endDate', dateFilter.endDate);
@@ -187,7 +187,7 @@ const RefundManagementPanel = () => {
         if (minAmount) params.append('minAmount', minAmount);
         if (maxAmount) params.append('maxAmount', maxAmount);
         if (activeTab === 'history') params.append('isRefunded', 'true');
-        
+
         return `${baseUrl}?${params.toString()}`;
     };
 
@@ -364,8 +364,8 @@ const RefundManagementPanel = () => {
                     <div className="search-row">
                         <div className="search-field">
                             <label>Status:</label>
-                            <select 
-                                value={statusFilter} 
+                            <select
+                                value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
                             >
                                 <option value="all">All Statuses</option>
@@ -377,8 +377,8 @@ const RefundManagementPanel = () => {
                         </div>
                         <div className="search-field">
                             <label>Order By:</label>
-                            <select 
-                                value={orderBy} 
+                            <select
+                                value={orderBy}
                                 onChange={handleSortChange}
                             >
                                 <option value="date_desc">Newest First</option>

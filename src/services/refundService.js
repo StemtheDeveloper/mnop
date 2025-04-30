@@ -53,6 +53,169 @@ class RefundService {
   }
 
   /**
+   * Advanced search for orders with various filters
+   * @param {Object} filters - Search filters
+   * @param {string} filters.searchTerm - Search term for order ID, customer email, or name
+   * @param {string} filters.startDate - Start date filter (ISO format)
+   * @param {string} filters.endDate - End date filter (ISO format)
+   * @param {string} filters.status - Order status to filter by
+   * @param {number} filters.minAmount - Minimum order total
+   * @param {number} filters.maxAmount - Maximum order total
+   * @param {string} filters.orderBy - Sort field and direction (date_desc, date_asc, amount_desc, amount_asc)
+   * @param {boolean} filters.isRefundableOnly - If true, only fetch refundable orders
+   * @param {boolean} filters.isRefundedOnly - If true, only fetch refunded orders
+   * @returns {Promise<Object>} Search results or error
+   */
+  async searchOrders(filters) {
+    try {
+      const ordersRef = collection(db, "orders");
+
+      // Start building the query with constraints
+      let constraints = [];
+
+      // Handle refundable vs refunded filter
+      if (filters.isRefundableOnly) {
+        constraints.push(where("paymentStatus", "==", "paid"));
+        constraints.push(where("refundStatus", "!=", "refunded"));
+      } else if (filters.isRefundedOnly) {
+        constraints.push(where("refundStatus", "==", "refunded"));
+      }
+
+      // Add status filter if provided
+      if (filters.status && filters.status !== "all") {
+        constraints.push(where("status", "==", filters.status));
+      }
+
+      // Add date constraints based on the appropriate date field
+      const dateField = filters.isRefundedOnly ? "refundDate" : "createdAt";
+
+      // Add order by clause based on user selection
+      let orderByField, orderDirection;
+
+      if (filters.orderBy) {
+        if (filters.orderBy === "date_desc") {
+          orderByField = dateField;
+          orderDirection = "desc";
+        } else if (filters.orderBy === "date_asc") {
+          orderByField = dateField;
+          orderDirection = "asc";
+        } else if (filters.orderBy === "amount_desc") {
+          orderByField = "total";
+          orderDirection = "desc";
+        } else if (filters.orderBy === "amount_asc") {
+          orderByField = "total";
+          orderDirection = "asc";
+        }
+      } else {
+        // Default order
+        orderByField = dateField;
+        orderDirection = "desc";
+      }
+
+      constraints.push(orderBy(orderByField, orderDirection));
+
+      // Execute the query
+      const q = query(ordersRef, ...constraints);
+      const snapshot = await getDocs(q);
+
+      // Process the results
+      let results = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        refundDate: doc.data().refundDate?.toDate() || null,
+      }));
+
+      // Apply filters that can't be done via Firebase queries
+
+      // Date range filter
+      if (filters.startDate) {
+        const startDate = new Date(filters.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        results = results.filter((order) => {
+          const orderDate =
+            filters.isRefundedOnly && order.refundDate
+              ? order.refundDate
+              : order.createdAt;
+          return orderDate >= startDate;
+        });
+      }
+
+      if (filters.endDate) {
+        const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        results = results.filter((order) => {
+          const orderDate =
+            filters.isRefundedOnly && order.refundDate
+              ? order.refundDate
+              : order.createdAt;
+          return orderDate <= endDate;
+        });
+      }
+
+      // Amount range filter
+      if (filters.minAmount !== null && filters.minAmount !== undefined) {
+        results = results.filter((order) => order.total >= filters.minAmount);
+      }
+
+      if (filters.maxAmount !== null && filters.maxAmount !== undefined) {
+        results = results.filter((order) => order.total <= filters.maxAmount);
+      }
+
+      // Search term filter
+      if (filters.searchTerm) {
+        const searchTerm = filters.searchTerm.toLowerCase();
+        results = results.filter((order) => {
+          // Search in order ID
+          if (order.id.toLowerCase().includes(searchTerm)) {
+            return true;
+          }
+
+          // Search in customer email
+          if (
+            order.shippingInfo?.email &&
+            order.shippingInfo.email.toLowerCase().includes(searchTerm)
+          ) {
+            return true;
+          }
+
+          // Search in customer name
+          if (
+            order.shippingInfo?.fullName &&
+            order.shippingInfo.fullName.toLowerCase().includes(searchTerm)
+          ) {
+            return true;
+          }
+
+          // Search in items
+          if (
+            order.items &&
+            order.items.some((item) =>
+              item.name.toLowerCase().includes(searchTerm)
+            )
+          ) {
+            return true;
+          }
+
+          return false;
+        });
+      }
+
+      return {
+        success: true,
+        data: results,
+        count: results.length,
+      };
+    } catch (error) {
+      console.error("Error searching orders:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to search orders",
+      };
+    }
+  }
+
+  /**
    * Get refundable orders with pagination
    * @param {number} limitCount - Number of orders to fetch
    * @param {Object} lastDoc - Last document for pagination
