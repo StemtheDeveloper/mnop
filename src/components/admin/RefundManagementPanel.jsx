@@ -36,6 +36,21 @@ const RefundManagementPanel = () => {
     const [selectedItems, setSelectedItems] = useState([]);
     const [processingRefund, setProcessingRefund] = useState(false);
 
+    // New search and filter states
+    const [searchTerm, setSearchTerm] = useState('');
+    const [dateFilter, setDateFilter] = useState({
+        startDate: '',
+        endDate: ''
+    });
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [minAmount, setMinAmount] = useState('');
+    const [maxAmount, setMaxAmount] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchPerformed, setSearchPerformed] = useState(false);
+    const [searchResultsCount, setSearchResultsCount] = useState(0);
+    const [orderBy, setOrderBy] = useState('date_desc');
+
     // Fetch orders on component mount and tab change
     useEffect(() => {
         if (!currentUser || !hasRole('admin')) return;
@@ -90,6 +105,56 @@ const RefundManagementPanel = () => {
         }
     };
 
+    // Search for orders
+    const searchOrders = async () => {
+        if (!currentUser) return;
+
+        setIsSearching(true);
+        setError(null);
+
+        try {
+            const filters = {
+                searchTerm,
+                startDate: dateFilter.startDate || null,
+                endDate: dateFilter.endDate || null,
+                status: statusFilter !== 'all' ? statusFilter : null,
+                minAmount: minAmount ? parseFloat(minAmount) : null,
+                maxAmount: maxAmount ? parseFloat(maxAmount) : null,
+                orderBy,
+                isRefundableOnly: activeTab === 'refundable',
+                isRefundedOnly: activeTab === 'history'
+            };
+
+            const result = await refundService.searchOrders(filters);
+
+            if (result.success) {
+                setSearchResults(result.data);
+                setSearchResultsCount(result.count || result.data.length);
+                setSearchPerformed(true);
+            } else {
+                setError(result.error || 'Failed to search orders');
+            }
+        } catch (err) {
+            console.error('Error searching orders:', err);
+            setError('Failed to search orders');
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    // Reset search
+    const resetSearch = () => {
+        setSearchTerm('');
+        setDateFilter({ startDate: '', endDate: '' });
+        setStatusFilter('all');
+        setMinAmount('');
+        setMaxAmount('');
+        setOrderBy('date_desc');
+        setSearchResults([]);
+        setSearchPerformed(false);
+        fetchOrders();
+    };
+
     // Handle load more
     const handleLoadMore = () => {
         fetchOrders(true);
@@ -108,6 +173,22 @@ const RefundManagementPanel = () => {
         if (!date) return 'N/A';
         const d = date instanceof Date ? date : new Date(date);
         return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+    };
+
+    // Generate a download URL for all refundable orders
+    const getExportUrl = () => {
+        const baseUrl = '/api/export-refundable-orders';
+        const params = new URLSearchParams();
+        
+        if (searchTerm) params.append('searchTerm', searchTerm);
+        if (dateFilter.startDate) params.append('startDate', dateFilter.startDate);
+        if (dateFilter.endDate) params.append('endDate', dateFilter.endDate);
+        if (statusFilter !== 'all') params.append('status', statusFilter);
+        if (minAmount) params.append('minAmount', minAmount);
+        if (maxAmount) params.append('maxAmount', maxAmount);
+        if (activeTab === 'history') params.append('isRefunded', 'true');
+        
+        return `${baseUrl}?${params.toString()}`;
     };
 
     // Open order detail modal
@@ -182,7 +263,11 @@ const RefundManagementPanel = () => {
                 closeOrderDetail();
 
                 // Refresh the lists
-                fetchOrders();
+                if (searchPerformed) {
+                    searchOrders();
+                } else {
+                    fetchOrders();
+                }
             } else {
                 showError(result.error || 'Failed to process refund');
             }
@@ -192,6 +277,11 @@ const RefundManagementPanel = () => {
         } finally {
             setProcessingRefund(false);
         }
+    };
+
+    // Handle sort change
+    const handleSortChange = (e) => {
+        setOrderBy(e.target.value);
     };
 
     // If not admin, show access denied
@@ -213,6 +303,9 @@ const RefundManagementPanel = () => {
         <div className="admin-panel refund-management-panel">
             <div className="panel-header">
                 <h3>Refund Management</h3>
+                <p className="panel-description">
+                    Manage refund requests and process refunds for customer orders.
+                </p>
             </div>
 
             {error && <div className="error-message">{error}</div>}
@@ -220,34 +313,142 @@ const RefundManagementPanel = () => {
             <div className="tab-navigation">
                 <button
                     className={`tab-button ${activeTab === 'refundable' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('refundable')}
+                    onClick={() => {
+                        setActiveTab('refundable');
+                        resetSearch();
+                    }}
                 >
                     Refundable Orders
                 </button>
                 <button
                     className={`tab-button ${activeTab === 'history' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('history')}
+                    onClick={() => {
+                        setActiveTab('history');
+                        resetSearch();
+                    }}
                 >
                     Refund History
                 </button>
             </div>
 
+            {/* Advanced Search Form */}
+            <div className="search-filters">
+                <div className="search-form">
+                    <div className="search-row">
+                        <div className="search-field">
+                            <label>Search:</label>
+                            <input
+                                type="text"
+                                placeholder="Order ID, Customer email, or name"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <div className="search-field date-range">
+                            <label>Date Range:</label>
+                            <div className="date-inputs">
+                                <input
+                                    type="date"
+                                    value={dateFilter.startDate}
+                                    onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                                />
+                                <span>to</span>
+                                <input
+                                    type="date"
+                                    value={dateFilter.endDate}
+                                    onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="search-row">
+                        <div className="search-field">
+                            <label>Status:</label>
+                            <select 
+                                value={statusFilter} 
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                            >
+                                <option value="all">All Statuses</option>
+                                <option value="completed">Completed</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="processing">Processing</option>
+                                <option value="shipped">Shipped</option>
+                            </select>
+                        </div>
+                        <div className="search-field">
+                            <label>Order By:</label>
+                            <select 
+                                value={orderBy} 
+                                onChange={handleSortChange}
+                            >
+                                <option value="date_desc">Newest First</option>
+                                <option value="date_asc">Oldest First</option>
+                                <option value="amount_desc">Highest Amount</option>
+                                <option value="amount_asc">Lowest Amount</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="search-row">
+                        <div className="search-field amount-range">
+                            <label>Amount Range:</label>
+                            <div className="amount-inputs">
+                                <input
+                                    type="number"
+                                    placeholder="Min"
+                                    value={minAmount}
+                                    onChange={(e) => setMinAmount(e.target.value)}
+                                    min="0"
+                                    step="0.01"
+                                />
+                                <span>to</span>
+                                <input
+                                    type="number"
+                                    placeholder="Max"
+                                    value={maxAmount}
+                                    onChange={(e) => setMaxAmount(e.target.value)}
+                                    min="0"
+                                    step="0.01"
+                                />
+                            </div>
+                        </div>
+                        <div className="search-field search-actions">
+                            <button className="search-button" onClick={searchOrders} disabled={isSearching}>
+                                {isSearching ? 'Searching...' : 'Search Orders'}
+                            </button>
+                            <button className="reset-button" onClick={resetSearch} disabled={isSearching}>
+                                Reset
+                            </button>
+                            <a href={getExportUrl()} className="export-button" download>
+                                Export to CSV
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="tab-content">
-                {loading && !isRefundModalOpen ? (
+                {(loading && !isRefundModalOpen && !isSearching) ? (
                     <div className="loading-container">
                         <LoadingSpinner />
                     </div>
                 ) : (
                     <>
+                        {/* Search Results */}
+                        {searchPerformed && (
+                            <div className="search-results-summary">
+                                Found {searchResultsCount} {activeTab === 'refundable' ? 'refundable orders' : 'refunded orders'} matching your criteria
+                            </div>
+                        )}
+
                         {/* Refundable Orders Tab */}
                         {activeTab === 'refundable' && (
                             <div className="refundable-orders">
-                                {refundableOrders.length === 0 ? (
-                                    <div className="no-orders">
-                                        <p>No refundable orders found</p>
-                                    </div>
-                                ) : (
-                                    <>
+                                {searchPerformed ? (
+                                    searchResults.length === 0 ? (
+                                        <div className="no-orders">
+                                            <p>No orders found matching your search criteria</p>
+                                        </div>
+                                    ) : (
                                         <div className="orders-table">
                                             <div className="table-header">
                                                 <div className="col">Order ID</div>
@@ -258,7 +459,7 @@ const RefundManagementPanel = () => {
                                                 <div className="col">Actions</div>
                                             </div>
 
-                                            {refundableOrders.map(order => (
+                                            {searchResults.map(order => (
                                                 <div key={order.id} className="table-row">
                                                     <div className="col order-id">#{order.id.slice(-6)}</div>
                                                     <div className="col">{formatDate(order.createdAt)}</div>
@@ -280,15 +481,56 @@ const RefundManagementPanel = () => {
                                                 </div>
                                             ))}
                                         </div>
+                                    )
+                                ) : (
+                                    refundableOrders.length === 0 ? (
+                                        <div className="no-orders">
+                                            <p>No refundable orders found</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="orders-table">
+                                                <div className="table-header">
+                                                    <div className="col">Order ID</div>
+                                                    <div className="col">Date</div>
+                                                    <div className="col">Customer</div>
+                                                    <div className="col">Total</div>
+                                                    <div className="col">Status</div>
+                                                    <div className="col">Actions</div>
+                                                </div>
 
-                                        {hasMoreRefundable && (
-                                            <div className="load-more">
-                                                <button onClick={handleLoadMore}>
-                                                    Load More
-                                                </button>
+                                                {refundableOrders.map(order => (
+                                                    <div key={order.id} className="table-row">
+                                                        <div className="col order-id">#{order.id.slice(-6)}</div>
+                                                        <div className="col">{formatDate(order.createdAt)}</div>
+                                                        <div className="col">{order.shippingInfo?.email || 'N/A'}</div>
+                                                        <div className="col">{formatCurrency(order.total)}</div>
+                                                        <div className="col">
+                                                            <span className={`status-badge ${order.status}`}>
+                                                                {order.status}
+                                                            </span>
+                                                        </div>
+                                                        <div className="col actions">
+                                                            <button
+                                                                className="view-button"
+                                                                onClick={() => openOrderDetail(order.id)}
+                                                            >
+                                                                View & Refund
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        )}
-                                    </>
+
+                                            {hasMoreRefundable && !searchPerformed && (
+                                                <div className="load-more">
+                                                    <button onClick={handleLoadMore}>
+                                                        Load More
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    )
                                 )}
                             </div>
                         )}
@@ -296,12 +538,12 @@ const RefundManagementPanel = () => {
                         {/* Refund History Tab */}
                         {activeTab === 'history' && (
                             <div className="refund-history">
-                                {refundHistory.length === 0 ? (
-                                    <div className="no-orders">
-                                        <p>No refund history found</p>
-                                    </div>
-                                ) : (
-                                    <>
+                                {searchPerformed ? (
+                                    searchResults.length === 0 ? (
+                                        <div className="no-orders">
+                                            <p>No refund history found matching your search criteria</p>
+                                        </div>
+                                    ) : (
                                         <div className="orders-table">
                                             <div className="table-header">
                                                 <div className="col">Order ID</div>
@@ -312,7 +554,7 @@ const RefundManagementPanel = () => {
                                                 <div className="col">Actions</div>
                                             </div>
 
-                                            {refundHistory.map(order => (
+                                            {searchResults.map(order => (
                                                 <div key={order.id} className="table-row">
                                                     <div className="col order-id">#{order.id.slice(-6)}</div>
                                                     <div className="col">{formatDate(order.refundDate)}</div>
@@ -330,15 +572,52 @@ const RefundManagementPanel = () => {
                                                 </div>
                                             ))}
                                         </div>
+                                    )
+                                ) : (
+                                    refundHistory.length === 0 ? (
+                                        <div className="no-orders">
+                                            <p>No refund history found</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="orders-table">
+                                                <div className="table-header">
+                                                    <div className="col">Order ID</div>
+                                                    <div className="col">Refund Date</div>
+                                                    <div className="col">Customer</div>
+                                                    <div className="col">Amount</div>
+                                                    <div className="col">Reason</div>
+                                                    <div className="col">Actions</div>
+                                                </div>
 
-                                        {hasMoreHistory && (
-                                            <div className="load-more">
-                                                <button onClick={handleLoadMore}>
-                                                    Load More
-                                                </button>
+                                                {refundHistory.map(order => (
+                                                    <div key={order.id} className="table-row">
+                                                        <div className="col order-id">#{order.id.slice(-6)}</div>
+                                                        <div className="col">{formatDate(order.refundDate)}</div>
+                                                        <div className="col">{order.shippingInfo?.email || 'N/A'}</div>
+                                                        <div className="col">{formatCurrency(order.refundAmount)}</div>
+                                                        <div className="col reason-col">{order.refundReason || 'N/A'}</div>
+                                                        <div className="col actions">
+                                                            <button
+                                                                className="view-button"
+                                                                onClick={() => openOrderDetail(order.id)}
+                                                            >
+                                                                View Details
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        )}
-                                    </>
+
+                                            {hasMoreHistory && !searchPerformed && (
+                                                <div className="load-more">
+                                                    <button onClick={handleLoadMore}>
+                                                        Load More
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    )
                                 )}
                             </div>
                         )}
