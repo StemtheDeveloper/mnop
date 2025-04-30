@@ -1,40 +1,33 @@
-# MNOP App Improvement Suggestions
-
 ## Performance Optimizations
 1. Implement code splitting and lazy loading for routes to reduce initial bundle size
 2. Add caching mechanisms for Firestore queries to reduce database reads
 3. Optimize image loading with responsive images and WebP format support
 4. Implement virtualization for long lists (products, reviews, transactions)
 5. Add service worker for offline capabilities and faster repeat visits
-
 ## Security Enhancements
 6. Implement Content Security Policy (CSP) headers to prevent XSS attacks
 7. Add rate limiting for authentication attempts and sensitive operations
 8. Improve Firestore security rules with more granular permissions
 9. Implement data validation on both client and server side (Cloud Functions)
 10. Set up regular security audits for Firebase configuration
-
 ## User Experience Improvements
 11. Create a comprehensive onboarding flow for each user role
 12. Improve loading states with skeleton screens instead of spinners
 13. Implement better form validation with inline error messages
 14. Add keyboard navigation and focus management for accessibility
 15. Create a unified notification center with read/unread status
-
 ## Code Quality & Maintenance
 16. Implement TypeScript for better type safety and developer experience
 17. Set up unit and integration tests with Jest and React Testing Library
 18. Refactor common Firebase operations into custom hooks
 19. Standardize component architecture with a design system approach
 20. Create comprehensive documentation for codebase and Firebase structure
-
 ## Feature Enhancements
 21. Add multi-language support with i18n integration
 22. Implement analytics tracking for user behavior and conversion rates
 23. Create a detailed product comparison feature for customers
 24. Add real-time collaboration tools for designers and manufacturers
 25. Implement advanced search with filters, sorting, and saved searches
-
 Fix loading spinner: remove text, fix aspect ratio to 1:1, make sure that each component can only load one instance of the loading spinner at a time. Because at the momment there are multiple loading spinners overlapping on a single component or page. 
 Refresh notifications once when the site loads for the first time.
 Designers should be able to set a custom shipping cost and set up their own delivery service. This should include an option to provide free shipping for specific products or orders over a set price.
