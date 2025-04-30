@@ -612,7 +612,8 @@ class WalletService {
 
       // Get settings
       const settings = settingsDoc.data();
-      const commissionRate = settings.commissionRate || 2.0; // Default to 2% if not specified
+      // Ensure commission rate is a number
+      const commissionRate = parseFloat(settings.commissionRate) || 2.0; // Default to 2% if not specified or NaN
 
       // Calculate profit
       const totalManufacturingCost = manufacturingCost * quantity;
