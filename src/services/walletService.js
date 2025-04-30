@@ -615,19 +615,16 @@ class WalletService {
       // Ensure commission rate is a number
       const commissionRate = parseFloat(settings.commissionRate) || 2.0; // Default to 2% if not specified or NaN
 
-      // Calculate profit
-      const totalManufacturingCost = manufacturingCost * quantity;
-      const profit = Math.max(0, saleAmount - totalManufacturingCost);
-
-      // Calculate commission (percentage of profit)
-      const commission = profit * (commissionRate / 100);
+      // Calculate commission (percentage of sale amount, not profit)
+      // This ensures the commission is properly calculated as per business requirements
+      const commission = saleAmount * (commissionRate / 100);
       const roundedCommission = Math.round(commission * 100) / 100; // Round to 2 decimal places
 
       if (roundedCommission <= 0) {
         return {
           success: true,
           commissionAmount: 0,
-          message: "No commission taken (zero or negative profit)",
+          message: "No commission taken (zero or negative calculation)",
         };
       }
 
@@ -737,10 +734,11 @@ class WalletService {
    * Process a product sale - handles both business commission and investor revenue distribution
    * @param {string} productId - The product ID
    * @param {string} productName - The product name
-   * @param {number} saleAmount - The total sale amount
+   * @param {number} saleAmount - The total sale amount (including shipping)
    * @param {number} manufacturingCost - The manufacturing cost per unit
    * @param {number} quantity - The quantity of items sold
    * @param {string} orderId - The order ID
+   * @param {number} shippingCost - The shipping cost (default 0)
    * @returns {Promise<Object>} Result with status and processing details
    */
   async processProductSale(
@@ -749,7 +747,8 @@ class WalletService {
     saleAmount,
     manufacturingCost,
     quantity = 1,
-    orderId
+    orderId,
+    shippingCost = 0
   ) {
     try {
       // Fetch the product to get the designer ID
@@ -773,9 +772,12 @@ class WalletService {
         };
       }
 
-      // First, process business commission
+      // Calculate the product sale amount excluding shipping for commission/investor calculations
+      const productSaleAmount = saleAmount - shippingCost;
+
+      // First, process business commission on the product amount only (not shipping)
       const commissionResult = await this.processBusinessCommission(
-        saleAmount,
+        productSaleAmount,
         manufacturingCost,
         quantity,
         productId,
@@ -787,10 +789,10 @@ class WalletService {
         ? commissionResult.commissionAmount || 0
         : 0;
 
-      // Next, distribute revenue to investors
+      // Next, distribute revenue to investors (exclude shipping from this calculation)
       const distributionResult = await this.distributeInvestorRevenue(
         productId,
-        saleAmount,
+        productSaleAmount,
         manufacturingCost,
         quantity,
         orderId
@@ -801,9 +803,9 @@ class WalletService {
         ? distributionResult.data?.distributedAmount || 0
         : 0;
 
-      // Calculate designer's share: sale amount minus commission minus investor distribution
+      // Calculate designer's share: product sale amount minus commission minus investor distribution, plus shipping
       const designerShare =
-        saleAmount - commissionAmount - investorDistribution;
+        productSaleAmount - commissionAmount - investorDistribution + shippingCost;
 
       // Only process designer payment if there's anything to pay
       let designerPaymentResult = null;

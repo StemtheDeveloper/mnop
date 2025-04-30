@@ -321,7 +321,8 @@ const CheckoutPage = () => {
                             saleAmount,
                             manufacturingCost,
                             item.quantity,
-                            orderRef.id
+                            orderRef.id,
+                            formData.shippingMethod === 'express' ? 25 : 10 // Pass shipping cost based on selected method
                         );
 
                         if (saleResult.success) {
