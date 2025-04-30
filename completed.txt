@@ -6,3 +6,4 @@
 - Always show an "add to cart" button on the product detail page for every user
 - Admin needs to see all refundable orders of all time and search through them
 - Add terms and conditions, privacy policy and content policy pages. All users need to be notified about changes to terms and conditions, privacy policy and content policy.
+- Add change detection to inputs using local storage to prevent unnecessary writes to the database

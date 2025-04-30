@@ -1,4 +1,3 @@
-Add change detection to inputs using local storage to prevent unnecessary writes to the database
 Customers can't see order details: "Page Not Found The page you are looking for doesn't exist or has been moved." orders/GpjrMadUmKE8JsIGB0Rr
 Add tax calculations based on the country and territory of the user
 Add a system to create composite products which are made up of 2 or more other products. The system will need to account for inventory levels.

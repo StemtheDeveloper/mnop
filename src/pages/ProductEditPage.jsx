@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
 import { useToast } from '../contexts/ToastContext';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
+import useLocalStorageForm from '../hooks/useLocalStorageForm'; // Import the new hook
 import '../styles/ProductUpload.css';
 
 // Default categories in case Firestore fetch fails
@@ -34,6 +35,7 @@ const ProductEditPage = () => {
     const [saving, setSaving] = useState(false);
     const [errorState, setErrorState] = useState('');
     const [product, setProduct] = useState(null);
+    const [originalProductData, setOriginalProductData] = useState(null); // Store original product data for comparison
 
     // Multiple image handling state
     const [productImages, setProductImages] = useState([]);
@@ -45,8 +47,8 @@ const ProductEditPage = () => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const imageInputRef = useRef(null);
 
-    // Form state
-    const [formData, setFormData] = useState({
+    // Default form state - will be populated from the product data
+    const defaultFormData = {
         name: '',
         description: '',
         price: '',
@@ -67,12 +69,24 @@ const ProductEditPage = () => {
         freeShippingThreshold: '',
         shippingProvider: 'standard',
         customProviderName: ''
-    });
+    };
 
     // Categories state
     const [categories, setCategories] = useState([]);
     const [loadingCategories, setLoadingCategories] = useState(true);
     const [useCustomCategory, setUseCustomCategory] = useState(false);
+
+    // Use our custom localStorage form hook
+    const formStorageKey = `product_edit_${productId}_${currentUser?.uid}`;
+    const {
+        formData,
+        setFormData,
+        hasChanges,
+        handleChange: handleFormChange,
+        updateFormData,
+        clearStoredData,
+        resetForm
+    } = useLocalStorageForm(formStorageKey, defaultFormData, originalProductData, sanitizeString);
 
     // Check if user has designer role
     const isDesigner = userRole && (
@@ -121,21 +135,20 @@ const ProductEditPage = () => {
                     ...productData
                 });
 
-                // Set form data from product
-                setFormData({
+                // Store original product data for change detection
+                const originalData = {
                     name: productData.name || '',
                     description: productData.description || '',
                     price: productData.price ? productData.price.toString() : '',
                     category: productData.category || '',
-                    categories: productData.categories || [productData.category || ''], // Get multiple categories or fallback to single category
+                    categories: productData.categories || [productData.category || ''],
                     fundingGoal: productData.fundingGoal ? productData.fundingGoal.toString() : '',
                     customCategory: productData.categoryType === 'custom' ? productData.category : '',
-                    isCrowdfunded: productData.isCrowdfunded !== false, // Default to true for backward compatibility
-                    manufacturingCost: productData.manufacturingCost ? productData.manufacturingCost.toString() : '', // Load manufacturing cost
+                    isCrowdfunded: productData.isCrowdfunded !== false,
+                    manufacturingCost: productData.manufacturingCost ? productData.manufacturingCost.toString() : '',
                     trackInventory: productData.trackInventory || false,
                     stockQuantity: productData.stockQuantity ? productData.stockQuantity.toString() : '0',
                     lowStockThreshold: productData.lowStockThreshold ? productData.lowStockThreshold.toString() : '5',
-                    // Load shipping-related settings
                     customShipping: productData.customShipping || false,
                     standardShippingCost: productData.standardShippingCost ? productData.standardShippingCost.toString() : '',
                     expressShippingCost: productData.expressShippingCost ? productData.expressShippingCost.toString() : '',
@@ -143,7 +156,11 @@ const ProductEditPage = () => {
                     freeShippingThreshold: productData.freeShippingThreshold ? productData.freeShippingThreshold.toString() : '',
                     shippingProvider: productData.shippingProvider || 'standard',
                     customProviderName: productData.customProviderName || ''
-                });
+                };
+                setOriginalProductData(originalData);
+
+                // Set form data (our hook will use localStorage value if available)
+                updateFormData(originalData);
 
                 // Set useCustomCategory based on categoryType
                 setUseCustomCategory(productData.categoryType === 'custom');
@@ -167,7 +184,7 @@ const ProductEditPage = () => {
         };
 
         fetchProduct();
-    }, [productId, currentUser]);
+    }, [productId, currentUser, updateFormData]);
 
     // Fetch categories on component mount
     useEffect(() => {
@@ -198,9 +215,9 @@ const ProductEditPage = () => {
         fetchCategories();
     }, []);
 
-    // Handle form input changes
+    // Handle form input changes - now using our custom hook
     const handleChange = (e) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
 
         // Special handling for price and fundingGoal to ensure they're numeric
         if (name === 'price' || name === 'fundingGoal') {
@@ -212,31 +229,32 @@ const ProductEditPage = () => {
                 ? `${parts[0]}.${parts.slice(1).join('')}`
                 : numericValue;
 
-            setFormData({ ...formData, [name]: formattedValue });
+            updateFormData({ [name]: formattedValue });
         }
         // Handle category selection with special case for 'custom'
         else if (name === 'category') {
             if (value === 'custom') {
                 setUseCustomCategory(true);
-                setFormData({ ...formData, [name]: value });
+                updateFormData({ [name]: value });
             } else {
                 setUseCustomCategory(false);
-                setFormData({ ...formData, [name]: value });
+                updateFormData({ [name]: value });
             }
         }
+        // Handle checkbox inputs
+        else if (type === 'checkbox') {
+            updateFormData({ [name]: checked });
+        }
         else {
-            // Store unsanitized value for display in the form
-            setFormData({ ...formData, [name]: value });
+            // Use the handleFormChange from our hook for other fields
+            handleFormChange(e);
         }
     };
 
     // Toggle product type (crowdfunded vs. direct sell)
     const handleProductTypeToggle = (e) => {
         const isCrowdfunded = e.target.value === 'crowdfunded';
-        setFormData(prev => ({
-            ...prev,
-            isCrowdfunded
-        }));
+        updateFormData({ isCrowdfunded });
     };
 
     // Handle category selection (for multi-select)
@@ -246,11 +264,10 @@ const ProductEditPage = () => {
         // Update both the categories array and the category field for backward compatibility
         const primaryCategory = selectedOptions.length > 0 ? selectedOptions[0] : '';
 
-        setFormData(prev => ({
-            ...prev,
+        updateFormData({
             categories: selectedOptions,
             category: primaryCategory // Keep first selected category in the single category field
-        }));
+        });
     };
 
     // Toggle custom category
@@ -258,9 +275,12 @@ const ProductEditPage = () => {
         const newValue = !useCustomCategory;
         setUseCustomCategory(newValue);
         if (newValue) {
-            setFormData(prev => ({ ...prev, category: 'custom' }));
+            updateFormData({ category: 'custom' });
         } else {
-            setFormData(prev => ({ ...prev, category: '', customCategory: '' }));
+            updateFormData({
+                category: '',
+                customCategory: ''
+            });
         }
     };
 
@@ -392,6 +412,13 @@ const ProductEditPage = () => {
             return;
         }
 
+        // Check if there are actual changes to save
+        if (!hasChanges && productImages.length === 0 && imagesToDelete.length === 0) {
+            success("No changes detected. Nothing to save.");
+            navigate(`/product/${productId}`);
+            return;
+        }
+
         setSaving(true);
 
         try {
@@ -399,32 +426,31 @@ const ProductEditPage = () => {
             const newImageUrls = await Promise.all(productImages.map(async (image) => {
                 const timestamp = Date.now();
                 const fileName = `${timestamp}-product-${Math.random().toString(36).substring(7)}.jpg`;
-                const storageRef = ref(storage, `products/${currentUser.uid}/${fileName}`);
+                const imagePath = `products/${productId}/${fileName}`;
+                const imageRef = ref(storage, imagePath);
 
-                // Upload the file
-                await uploadBytes(storageRef, image);
+                await uploadBytes(imageRef, image);
+                const downloadUrl = await getDownloadURL(imageRef);
 
-                // Get the download URL
-                const imageUrl = await getDownloadURL(storageRef);
-                return imageUrl;
+                return downloadUrl;
             }));
 
-            // 2. Delete any images that were marked for deletion
-            // Only attempt to delete if we have storage paths
-            if (product.storagePaths && Array.isArray(product.storagePaths)) {
-                for (const imageUrl of imagesToDelete) {
-                    // Find the storage path that corresponds to this URL
-                    const pathIndex = product.imageUrls.indexOf(imageUrl);
-                    if (pathIndex >= 0 && pathIndex < product.storagePaths.length) {
-                        const storagePath = product.storagePaths[pathIndex];
-                        try {
-                            const imageRef = ref(storage, storagePath);
-                            await deleteObject(imageRef);
-                        } catch (deleteError) {
-                            console.error('Error deleting image:', deleteError);
-                            // Continue with the update even if image deletion fails
-                        }
+            // 2. Delete any images marked for deletion
+            for (const imageUrl of imagesToDelete) {
+                try {
+                    // Extract the path from the URL
+                    const decodedUrl = decodeURIComponent(imageUrl);
+                    const urlParts = decodedUrl.split('/o/')[1]?.split('?')[0];
+
+                    if (urlParts) {
+                        const storagePath = urlParts.replace(/%2F/g, '/');
+                        const imageRef = ref(storage, storagePath);
+                        await deleteObject(imageRef);
+                        console.log(`Deleted image: ${storagePath}`);
                     }
+                } catch (deleteErr) {
+                    console.warn(`Failed to delete image ${imageUrl}`, deleteErr);
+                    // Continue with the update even if image deletion fails
                 }
             }
 
@@ -548,6 +574,9 @@ const ProductEditPage = () => {
                 }
             }
 
+            // Clear local storage data after successful save
+            clearStoredData();
+
             // Show success message
             success(statusMessage);
 
@@ -559,6 +588,19 @@ const ProductEditPage = () => {
             error("Failed to update product");
         } finally {
             setSaving(false);
+        }
+    };
+
+    // React form cancel button handler
+    const handleCancel = () => {
+        // Ask for confirmation if there are unsaved changes
+        if (hasChanges || productImages.length > 0 || imagesToDelete.length > 0) {
+            if (window.confirm('You have unsaved changes. Are you sure you want to discard them?')) {
+                clearStoredData();
+                navigate(-1);
+            }
+        } else {
+            navigate(-1);
         }
     };
 
@@ -614,6 +656,13 @@ const ProductEditPage = () => {
                 <h1>Edit Product</h1>
 
                 {errorState && <div className="error-message">{errorState}</div>}
+
+                {/* Display changes indicator if there are unsaved changes */}
+                {hasChanges && (
+                    <div className="changes-indicator">
+                        You have unsaved changes
+                    </div>
+                )}
 
                 {showImageCropper && (
                     <ImageCropper
@@ -1087,65 +1136,6 @@ const ProductEditPage = () => {
                             </div>
 
                             {product && (
-                                <div className="form-group stock-management">
-                                    <h3>Stock Management</h3>
-
-                                    <div className="stock-tracking-toggle">
-                                        <label>
-                                            <input
-                                                type="checkbox"
-                                                name="trackInventory"
-                                                checked={formData.trackInventory}
-                                                onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
-                                                disabled={saving}
-                                            />
-                                            Track inventory for this product
-                                        </label>
-                                        <p className="form-hint">
-                                            Enable to track stock levels and receive notifications when inventory is low.
-                                        </p>
-                                    </div>
-
-                                    {formData.trackInventory && (
-                                        <div className="stock-fields">
-                                            <div className="form-row">
-                                                <div className="form-group">
-                                                    <label htmlFor="stockQuantity">Stock Quantity*</label>
-                                                    <input
-                                                        type="number"
-                                                        id="stockQuantity"
-                                                        name="stockQuantity"
-                                                        value={formData.stockQuantity}
-                                                        onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
-                                                        placeholder="0"
-                                                        min="0"
-                                                        disabled={saving}
-                                                    />
-                                                </div>
-
-                                                <div className="form-group">
-                                                    <label htmlFor="lowStockThreshold">Low Stock Threshold</label>
-                                                    <input
-                                                        type="number"
-                                                        id="lowStockThreshold"
-                                                        name="lowStockThreshold"
-                                                        value={formData.lowStockThreshold}
-                                                        onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })}
-                                                        placeholder="5"
-                                                        min="0"
-                                                        disabled={saving}
-                                                    />
-                                                    <p className="form-hint">
-                                                        You'll be notified when stock reaches this level.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {product && (
                                 <div className="product-status-info">
                                     <h3>Product Status</h3>
                                     <div className={`status-badge status-${product.status || 'pending'}`}>
@@ -1180,7 +1170,7 @@ const ProductEditPage = () => {
                         <button
                             type="button"
                             className="cancel-button"
-                            onClick={() => navigate(-1)}
+                            onClick={handleCancel}
                             disabled={saving}
                         >
                             Cancel
@@ -1188,7 +1178,7 @@ const ProductEditPage = () => {
                         <button
                             type="submit"
                             className="submit-button"
-                            disabled={saving}
+                            disabled={saving || (!hasChanges && productImages.length === 0 && imagesToDelete.length === 0)}
                         >
                             {saving ? <LoadingSpinner /> : 'Save Changes'}
                         </button>
