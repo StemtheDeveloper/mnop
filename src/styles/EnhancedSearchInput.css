@@ -91,6 +91,8 @@
 }
 
 .suggestion-section ul {
+  display: flex;
+  flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -101,6 +103,7 @@
   cursor: pointer;
   transition: background-color 0.2s;
   border-radius: 4px;
+  width: 100%;
 }
 
 .suggestion-section li:hover,

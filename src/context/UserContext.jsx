@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import walletService from '../services/walletService';
 import twoFactorAuthService from '../services/twoFactorAuthService';
 
@@ -45,10 +45,13 @@ export const UserProvider = ({ children }) => {
                 let rolesArray = [];
 
                 if (userData.roles && Array.isArray(userData.roles)) {
-                    rolesArray = userData.roles;
+                    // Use the existing roles array if it exists
+                    rolesArray = [...userData.roles];
+                    console.log("Using existing roles array:", rolesArray);
                 } else if (userData.role) {
                     // If only a string role exists, convert to array
                     rolesArray = [userData.role];
+                    console.log("Converting role string to array:", rolesArray);
 
                     // Update the document to standardize the format
                     try {
@@ -61,6 +64,7 @@ export const UserProvider = ({ children }) => {
                 } else {
                     // Default role if none is set
                     rolesArray = ['customer'];
+                    console.log("No roles found, setting default role:", rolesArray);
 
                     // Update the document to standardize the format
                     try {
@@ -72,7 +76,9 @@ export const UserProvider = ({ children }) => {
                     }
                 }
 
+                // Set user roles in state
                 setUserRoles(rolesArray);
+                console.log("Final user roles set:", rolesArray);
 
                 // Check two-factor authentication status
                 checkTwoFactorStatus(uid, rolesArray);
@@ -212,6 +218,23 @@ export const UserProvider = ({ children }) => {
             const targetUserId = userId || currentUser?.uid;
             if (!targetUserId) throw new Error("No user ID provided");
 
+            // Check if the current user is an admin when changing roles of other users
+            // or if a user is trying to add roles to themselves
+            const isChangingSelf = targetUserId === currentUser?.uid;
+            const isAdmin = userRoles?.includes('admin');
+
+            // If changing someone else's role, require admin privileges
+            if (!isChangingSelf && !isAdmin) {
+                throw new Error("Admin privileges required to change other users' roles");
+            }
+
+            // If changing own role and not an admin, create a role request instead
+            if (isChangingSelf && !isAdmin) {
+                // Create a role request instead of directly changing the role
+                return await createRoleRequest(roleId);
+            }
+
+            // Proceed with admin-authorized role change
             const userRef = doc(db, "users", targetUserId);
             const userSnap = await getDoc(userRef);
 
@@ -249,7 +272,38 @@ export const UserProvider = ({ children }) => {
             return true;
         } catch (error) {
             console.error("Error adding role:", error);
-            return false;
+            throw error; // Propagate the error for better handling in UI components
+        }
+    };
+
+    // Create a role request for non-admin users
+    const createRoleRequest = async (roleId) => {
+        if (!currentUser) throw new Error("User not authenticated");
+
+        try {
+            // Create a role request document in the "roleRequests" collection
+            const requestData = {
+                userId: currentUser.uid,
+                email: currentUser.email,
+                displayName: userProfile?.displayName || currentUser.displayName || currentUser.email,
+                requestedRole: roleId,
+                status: 'pending',
+                createdAt: new Date()
+            };
+
+            // Add the request to the roleRequests collection
+            const roleRequestsRef = collection(db, "roleRequests");
+            await addDoc(roleRequestsRef, requestData);
+
+            // Return a formatted response indicating that a request was created
+            return {
+                success: true,
+                isRequest: true,
+                message: `Role request for "${roleId}" has been submitted for review.`
+            };
+        } catch (error) {
+            console.error("Error creating role request:", error);
+            throw error;
         }
     };
 
@@ -259,6 +313,21 @@ export const UserProvider = ({ children }) => {
             const targetUserId = userId || currentUser?.uid;
             if (!targetUserId) throw new Error("No user ID provided");
 
+            // Check permissions - only admins can directly remove roles
+            const isChangingSelf = targetUserId === currentUser?.uid;
+            const isAdmin = userRoles?.includes('admin');
+
+            // If changing someone else's role, require admin privileges
+            if (!isChangingSelf && !isAdmin) {
+                throw new Error("Admin privileges required to change other users' roles");
+            }
+
+            // If trying to remove admin role from self, prevent it
+            if (isChangingSelf && roleId === 'admin') {
+                throw new Error("You cannot remove your own admin role.");
+            }
+
+            // Proceed with admin-authorized role removal
             const userRef = doc(db, "users", targetUserId);
             const userSnap = await getDoc(userRef);
 
@@ -303,7 +372,7 @@ export const UserProvider = ({ children }) => {
             return true;
         } catch (error) {
             console.error("Error removing role:", error);
-            return false;
+            throw error; // Propagate error for better UI handling
         }
     };
 

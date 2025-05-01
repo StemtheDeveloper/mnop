@@ -514,4 +514,13 @@ class NotificationService {
 }
 
 const notificationService = new NotificationService();
+
+// Utility function for sending notifications - exported for other services to use
+export const sendNotification = (userId, notificationData) => {
+  return notificationService.createNotification({
+    userId,
+    ...notificationData,
+  });
+};
+
 export default notificationService;

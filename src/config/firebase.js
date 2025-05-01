@@ -1,7 +1,13 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, serverTimestamp } from "firebase/firestore";
+import {
+  getFirestore,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import {
@@ -85,6 +91,9 @@ export { db, storage, auth, analytics, functions };
 
 // Export Firebase authentication functions
 export { onAuthStateChanged, signOut, updateProfile, googleProvider };
+
+// Export Firestore utilities
+export { serverTimestamp, increment, arrayUnion, arrayRemove };
 
 // Export the app as default
 export default app;

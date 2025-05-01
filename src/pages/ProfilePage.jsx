@@ -617,14 +617,14 @@ const ProfilePage = () => {
 
     // Add this new function to handle role request
     const handleRoleRequest = async () => {
-        if (!requestedRole || processingRoleRequest) return;
+        if (!requestedRole) return;
 
         setProcessingRoleRequest(true);
         setMessage({ type: '', text: '' });
 
         try {
             // Get current roles
-            const currentRoles = Array.isArray(userRole) ? userRole : [userRole];
+            const currentRoles = Array.isArray(userRoles) ? userRoles : [userRole];
 
             // Check if user already has the requested role
             if (currentRoles.includes(requestedRole)) {
@@ -633,14 +633,28 @@ const ProfilePage = () => {
                 return;
             }
 
-            // Add the role to the user
-            const success = await addUserRole(requestedRole);
+            // Check if current user is admin
+            const isAdmin = currentRoles.includes('admin');
 
-            if (success) {
-                setMessage({ type: 'success', text: `Successfully added ${requestedRole} role to your account!` });
+            try {
+                // Try to add the role (will either add directly for admins or create a request for regular users)
+                const result = await addUserRole(requestedRole);
+
+                if (result && result.isRequest) {
+                    // Handle the case where a role request was created instead of direct role addition
+                    setMessage({ type: 'success', text: result.message });
+                } else {
+                    // Role was directly added (admin case)
+                    setMessage({ type: 'success', text: `Successfully added ${requestedRole} role to your account!` });
+                }
+
                 setRequestedRole(''); // Reset the dropdown
-            } else {
-                setMessage({ type: 'error', text: 'Failed to update your role. Please try again.' });
+            } catch (error) {
+                console.error("Error handling role request:", error);
+                setMessage({
+                    type: 'error',
+                    text: error.message || 'An error occurred while processing your request.'
+                });
             }
         } catch (error) {
             console.error("Error requesting role:", error);

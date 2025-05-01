@@ -5,7 +5,7 @@ import { db } from '../config/firebase';
 import ProductCard from '../components/ProductCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import DOMPurify from 'dompurify'; // Import DOMPurify for sanitizing HTML
-import '../styles/ProductsPage.css';
+import '../styles/ProductsPage.css'; // Import CSS from the styles directory
 
 const ProductsPage = () => {
     const navigate = useNavigate();

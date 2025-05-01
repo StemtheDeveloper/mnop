@@ -28,7 +28,7 @@ const MAX_IMAGES = 5; // Maximum number of images allowed
 const ProductEditPage = () => {
     const navigate = useNavigate();
     const { productId } = useParams();
-    const { currentUser, userRole } = useUser();
+    const { currentUser, userRole, hasRole } = useUser();
     const { success, error } = useToast();
 
     const [loading, setLoading] = useState(true);
@@ -88,12 +88,14 @@ const ProductEditPage = () => {
         resetForm
     } = useLocalStorageForm(formStorageKey, defaultFormData, originalProductData, sanitizeString);
 
+    // Simplified check for admin status directly from the roles array
+    const isAdmin = hasRole('admin');
+
     // Check if user has designer role
-    const isDesigner = userRole && (
-        typeof userRole === 'string' ?
-            userRole === 'designer' :
-            Array.isArray(userRole) && userRole.includes('designer')
-    );
+    const isDesigner = hasRole('designer');
+
+    // Determine if this user can edit products
+    const canEditProduct = isAdmin || isDesigner;
 
     // Fetch the product data
     useEffect(() => {
@@ -110,22 +112,23 @@ const ProductEditPage = () => {
 
                 const productData = productSnap.data();
 
-                // Check if the current user is the designer of this product or an admin
-                const isAdmin = Array.isArray(userRole)
-                    ? userRole.includes('admin')
-                    : userRole === 'admin';
+                // Check admin status directly from the roles array in currentUser
+                const isAdmin = hasRole('admin');
 
+                // Check if user is product designer or admin
                 const isProductDesigner = productData.designerId === currentUser.uid;
 
-                // Log user and product info for debugging authorization issues
+                // Debug log for troubleshooting permissions
+                console.log('User Roles from currentUser:', currentUser.roles);
                 console.log('Product Edit Authorization Check:', {
                     currentUserId: currentUser.uid,
                     productDesignerId: productData.designerId,
-                    userRoles: userRole,
+                    userRoles: currentUser.roles || [],
                     isAdmin,
                     isProductDesigner
                 });
 
+                // Allow access if user is either the designer or an admin
                 if (!isProductDesigner && !isAdmin) {
                     throw new Error('You do not have permission to edit this product');
                 }
@@ -605,7 +608,7 @@ const ProductEditPage = () => {
     };
 
     // Redirect if user is not a designer
-    if (userRole !== null && !isDesigner) {
+    if (userRole !== null && !canEditProduct) {
         return (
             <div className="role-error-container">
                 <h2>Designer Access Only</h2>
