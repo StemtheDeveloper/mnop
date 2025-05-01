@@ -161,6 +161,59 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     };
 
+    const removeRoleFromUser = async (userId, roleId) => {
+        if (!userId || !roleId) return false;
+
+        setLoading(true);
+        setResult({ success: false, message: 'Removing user role...', details: null });
+
+        try {
+            const success = await removeRoleDirectly(userId, roleId);
+
+            if (success) {
+                // Update the local user data
+                const userRef = doc(db, 'users', userId);
+                const userSnap = await getDoc(userRef);
+                const userData = userSnap.data();
+
+                // Update the user in the users list
+                setUsers(prevUsers => prevUsers.map(user =>
+                    user.id === userId
+                        ? {
+                            ...user,
+                            roles: userData.roles,
+                            role: userData.role
+                        }
+                        : user
+                ));
+
+                setResult({
+                    success: true,
+                    message: `Removed ${roleId} role from ${userData.email || 'user'}`,
+                    details: null
+                });
+                return true;
+            } else {
+                setResult({
+                    success: false,
+                    message: `User doesn't have the ${roleId} role`,
+                    details: null
+                });
+                return false;
+            }
+        } catch (error) {
+            console.error('Error removing user role:', error);
+            setResult({
+                success: false,
+                message: `Failed to remove role: ${error.message}`,
+                details: null
+            });
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleAddSelfRole = async (roleId) => {
         if (!currentUser || adminRoles.includes(roleId)) return;
 
@@ -822,10 +875,45 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                 {roleModalOpen && selectedUser && (
                                     <div className="modal-overlay">
                                         <div className="modal-container">
-                                            <h2>Change User Role</h2>
+                                            <h2>Manage User Roles</h2>
                                             <div className="modal-content">
                                                 <p><strong>User:</strong> {selectedUser.email}</p>
-                                                <p><strong>Current Role(s):</strong> {formatRoleDisplay(selectedUser)}</p>
+
+                                                <div className="current-roles-section">
+                                                    <h3>Current Roles</h3>
+                                                    {Array.isArray(selectedUser.roles) && selectedUser.roles.length > 0 ? (
+                                                        <ul className="user-roles-list">
+                                                            {selectedUser.roles.map((role) => (
+                                                                <li key={role} className="user-role-item">
+                                                                    <span className={`role-badge ${role}`}>{role}</span>
+                                                                    <button
+                                                                        onClick={() => removeRoleFromUser(selectedUser.id, role)}
+                                                                        disabled={loading || selectedUser.roles.length === 1}
+                                                                        className="role-action-button remove-button"
+                                                                        title={selectedUser.roles.length === 1 ? "Users must have at least one role" : "Remove this role"}
+                                                                    >
+                                                                        Remove
+                                                                    </button>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : selectedUser.role ? (
+                                                        <ul className="user-roles-list">
+                                                            <li className="user-role-item">
+                                                                <span className={`role-badge ${selectedUser.role}`}>{selectedUser.role}</span>
+                                                                <button
+                                                                    disabled={true}
+                                                                    className="role-action-button remove-button"
+                                                                    title="Users must have at least one role"
+                                                                >
+                                                                    Remove
+                                                                </button>
+                                                            </li>
+                                                        </ul>
+                                                    ) : (
+                                                        <p>No roles assigned. This is unusual - adding a default role is recommended.</p>
+                                                    )}
+                                                </div>
 
                                                 <div className="form-group">
                                                     <label htmlFor="newRole">Add New Role:</label>
@@ -835,7 +923,15 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                                         onChange={(e) => setNewRole(e.target.value)}
                                                     >
                                                         <option value="">Select a role</option>
-                                                        {USER_ROLES.map(role => (
+                                                        {USER_ROLES.filter(role => {
+                                                            // Filter out roles the user already has
+                                                            if (Array.isArray(selectedUser.roles)) {
+                                                                return !selectedUser.roles.includes(role);
+                                                            } else if (selectedUser.role) {
+                                                                return selectedUser.role !== role;
+                                                            }
+                                                            return true;
+                                                        }).map(role => (
                                                             <option key={role} value={role}>{role}</option>
                                                         ))}
                                                     </select>
@@ -847,14 +943,14 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                                         onClick={updateUserRole}
                                                         disabled={!newRole || loading}
                                                     >
-                                                        {loading ? 'Updating...' : 'Update Role'}
+                                                        {loading ? 'Updating...' : 'Add Role'}
                                                     </button>
                                                     <button
                                                         className="admin-button secondary"
                                                         onClick={() => setRoleModalOpen(false)}
                                                         disabled={loading}
                                                     >
-                                                        Cancel
+                                                        Close
                                                     </button>
                                                 </div>
                                             </div>

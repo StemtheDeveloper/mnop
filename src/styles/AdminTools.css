@@ -2396,3 +2396,56 @@ input:checked + .toggle-slider:before {
   border-radius: 10px;
   margin: 0 10px;
 }
+
+/* User Roles Management in Modal */
+.current-roles-section {
+  margin-bottom: 20px;
+}
+
+.current-roles-section h3 {
+  font-size: 16px;
+  margin-bottom: 10px;
+  color: #444;
+}
+
+.user-roles-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.user-role-item {
+  display: flex;
+  align-items: center;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  padding: 5px;
+  border: 1px solid #e9ecef;
+}
+
+.user-role-item .role-badge {
+  margin-right: 8px;
+}
+
+.user-role-item .remove-button {
+  padding: 2px 8px;
+  font-size: 12px;
+  background-color: transparent;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+}
+
+.user-role-item .remove-button:hover:not(:disabled) {
+  background-color: #dc3545;
+  color: white;
+}
+
+.user-role-item .remove-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: #6c757d;
+  color: #6c757d;
+}
