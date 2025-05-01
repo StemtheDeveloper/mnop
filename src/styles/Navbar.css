@@ -773,6 +773,36 @@ li {
   }
 }
 
+/* Currency selector styles in navbar */
+.currency-selector-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0;
+  width: 100%;
+}
+
+.currency-selector-label {
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin-right: 10px;
+}
+
+.navbar .currency-selector {
+  margin-left: 10px;
+}
+
+.desktop-nav .auth-actions .currency-selector {
+  margin: 0 5px;
+}
+
+@media (max-width: 912px) {
+  .currency-selector-container {
+    padding: 0.7rem 15px;
+    border-top: 1px solid var(--border-color);
+  }
+}
+
 .auth-actions {
   display: flex;
   align-items: center;

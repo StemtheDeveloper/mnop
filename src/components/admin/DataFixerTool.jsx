@@ -439,7 +439,9 @@ const ValidationResults = ({
     setValidationComplete,
     setSchemaValidation,
     applySchemaFixes,
-    loading
+    applyMultiCollectionFixes,
+    loading,
+    multiCollectionMode
 }) => {
     const itemsWithIssues = useMemo(() => {
         return schemaValidation.filter(item => item.issues.length > 0);
@@ -466,6 +468,9 @@ const ValidationResults = ({
                             <div key={item.id} className="validation-item">
                                 <div className="validation-item-header">
                                     <span className="validation-item-name">{item.name}</span>
+                                    {item.collectionType && (
+                                        <span className="validation-item-collection">{item.collectionType}</span>
+                                    )}
                                     <span className="validation-item-id">ID: {item.id}</span>
                                 </div>
                                 <div className="validation-issues">
@@ -482,7 +487,7 @@ const ValidationResults = ({
 
                     <button
                         className="apply-fixes-btn"
-                        onClick={applySchemaFixes}
+                        onClick={multiCollectionMode ? applyMultiCollectionFixes : applySchemaFixes}
                         disabled={loading}
                     >
                         {loading ? 'Applying Fixes...' : `Apply Fixes to ${itemsWithIssues.length} Items`}
@@ -548,9 +553,12 @@ const DataFixerTool = () => {
 
     // Batch operations
     const [batchMode, setBatchMode] = useState(false);
+    const [multiCollectionBatchMode, setMultiCollectionBatchMode] = useState(false);
     const [selectedItems, setSelectedItems] = useState([]);
+    const [multiCollectionItems, setMultiCollectionItems] = useState({});
     const [schemaValidation, setSchemaValidation] = useState([]);
     const [validationComplete, setValidationComplete] = useState(false);
+    const [selectedCollections, setSelectedCollections] = useState([]);
 
     // Define collection mapping
     const collectionMapping = useMemo(() => ({
@@ -915,6 +923,316 @@ const DataFixerTool = () => {
         }
     }, [validationComplete, schemaValidation, collectionMapping, dataType, data, schemas, fetchData]);
 
+    // Helper functions for multi-collection batch mode
+    const fetchMultiCollectionData = useCallback(async () => {
+        if (selectedCollections.length === 0) {
+            setError('Please select at least one collection type');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+        setMultiCollectionItems({});
+
+        try {
+            const collectionResults = {};
+
+            // Fetch data from each selected collection
+            for (const collType of selectedCollections) {
+                const collectionName = collectionMapping[collType];
+                const dataQuery = collection(db, collectionName);
+                const snapshot = await getDocs(dataQuery);
+
+                if (!snapshot.empty) {
+                    const fetchedData = snapshot.docs
+                        .map(doc => ({
+                            id: doc.id,
+                            ...doc.data(),
+                            __collectionType: collType // Add metadata about which collection this item belongs to
+                        }))
+                        .slice(0, queryLimit);
+
+                    collectionResults[collType] = fetchedData;
+                } else {
+                    collectionResults[collType] = [];
+                }
+            }
+
+            setMultiCollectionItems(collectionResults);
+
+            const totalItems = Object.values(collectionResults)
+                .reduce((acc, curr) => acc + curr.length, 0);
+
+            setSuccess(`Successfully loaded ${totalItems} items from ${selectedCollections.length} collections`);
+        } catch (err) {
+            console.error('Error fetching multiple collections:', err);
+            setError(`Failed to load collections: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedCollections, collectionMapping, queryLimit]);
+
+    // Check if all items in a collection are selected
+    const isCollectionFullySelected = useCallback((collType) => {
+        if (!multiCollectionItems[collType] || multiCollectionItems[collType].length === 0) {
+            return false;
+        }
+
+        const collectionItemIds = multiCollectionItems[collType].map(item => item.id);
+        const selectedItemsInCollection = multiCollectionItems[collType]
+            .filter(item => item.__selected)
+            .map(item => item.id);
+
+        return selectedItemsInCollection.length === collectionItemIds.length;
+    }, [multiCollectionItems]);
+
+    // Toggle selection for all items in a collection
+    const toggleAllInCollection = useCallback((collType) => {
+        if (!multiCollectionItems[collType]) return;
+
+        setMultiCollectionItems(prev => {
+            const newItems = { ...prev };
+            const allSelected = isCollectionFullySelected(collType);
+
+            newItems[collType] = newItems[collType].map(item => ({
+                ...item,
+                __selected: !allSelected
+            }));
+
+            return newItems;
+        });
+    }, [isCollectionFullySelected, multiCollectionItems]);
+
+    // Get total number of selected items across all collections
+    const getTotalSelectedItems = useCallback(() => {
+        return Object.values(multiCollectionItems)
+            .flat()
+            .filter(item => item.__selected)
+            .length;
+    }, [multiCollectionItems]);
+
+    // Check if schemas exist for all selected collection types with selected items
+    const allSchemasExist = useCallback(() => {
+        for (const [collType, items] of Object.entries(multiCollectionItems)) {
+            const hasSelectedItems = items.some(item => item.__selected);
+
+            if (hasSelectedItems && !schemas[collType]) {
+                return false;
+            }
+        }
+        return true;
+    }, [multiCollectionItems, schemas]);
+
+    // Validate multiple collections against their schemas
+    const validateMultiCollections = useCallback(() => {
+        const validationResults = [];
+
+        for (const [collType, items] of Object.entries(multiCollectionItems)) {
+            // Skip if no items selected from this collection
+            if (!items.some(item => item.__selected)) continue;
+
+            // Skip if no schema for this collection type
+            if (!schemas[collType]) continue;
+
+            const schema = schemas[collType].schema;
+
+            items.forEach(item => {
+                if (!item.__selected) return;
+
+                const issues = [];
+                let needsFix = false;
+
+                // Special case for products.categories
+                if (collType === 'products') {
+                    // Check if categories should be an array but isn't
+                    if (schema.categories === 'array' && !Array.isArray(item.categories)) {
+                        issues.push({
+                            field: 'categories',
+                            currentType: item.categories ? typeof item.categories : 'missing',
+                            expectedType: 'array',
+                            fix: 'Convert to array or create from category field'
+                        });
+                        needsFix = true;
+                    }
+
+                    // Check if there's a category field but no categories array
+                    if (item.category && (!item.categories || item.categories.length === 0)) {
+                        issues.push({
+                            field: 'category',
+                            issue: 'Single category field exists but no categories array',
+                            fix: 'Create categories array from category field'
+                        });
+                        needsFix = true;
+                    }
+                }
+
+                // Check other fields against schema
+                Object.entries(schema).forEach(([field, type]) => {
+                    if (field === 'categories' && collType === 'products') {
+                        // Already handled in special case
+                        return;
+                    }
+
+                    if (item[field] === undefined || item[field] === null) {
+                        issues.push({
+                            field,
+                            issue: 'Missing field',
+                            expectedType: type,
+                            fix: `Create ${field} as ${type === 'array' ? '[]' : type === 'object' ? '{}' : 'default value'}`
+                        });
+                        needsFix = true;
+                    } else if (
+                        (type === 'array' && !Array.isArray(item[field])) ||
+                        (type !== 'array' && typeof item[field] !== type)
+                    ) {
+                        issues.push({
+                            field,
+                            currentType: Array.isArray(item[field]) ? 'array' : typeof item[field],
+                            expectedType: type,
+                            fix: `Convert to ${type}`
+                        });
+                        needsFix = true;
+                    }
+                });
+
+                if (issues.length > 0) {
+                    validationResults.push({
+                        id: item.id,
+                        name: item.name || item.title || item.id,
+                        collectionType: collType,
+                        issues,
+                        needsFix
+                    });
+                }
+            });
+        }
+
+        setSchemaValidation(validationResults);
+        setValidationComplete(true);
+    }, [multiCollectionItems, schemas]);
+
+    // Apply fixes to items from multiple collections
+    const applyMultiCollectionFixes = useCallback(async () => {
+        if (!validationComplete || schemaValidation.length === 0) {
+            setError('Please validate items against schemas first');
+            return;
+        }
+
+        const itemsToFix = schemaValidation.filter(item => item.needsFix);
+
+        if (itemsToFix.length === 0) {
+            setSuccess('No issues to fix in selected items');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            // Group items by collection type for efficient batch processing
+            const itemsByCollection = {};
+
+            for (const item of itemsToFix) {
+                const { collectionType } = item;
+                if (!itemsByCollection[collectionType]) {
+                    itemsByCollection[collectionType] = [];
+                }
+                itemsByCollection[collectionType].push(item);
+            }
+
+            let totalFixedCount = 0;
+
+            // Process each collection type separately
+            for (const [collType, items] of Object.entries(itemsByCollection)) {
+                const collectionName = collectionMapping[collType];
+                const batch = writeBatch(db);
+                let fixedCount = 0;
+
+                for (const validationItem of items) {
+                    const originalItem = multiCollectionItems[collType].find(i => i.id === validationItem.id);
+                    if (!originalItem) continue;
+
+                    const docRef = doc(db, collectionName, validationItem.id);
+                    const updates = {};
+
+                    // Apply collection-specific fixes
+                    if (collType === 'products') {
+                        // Handle category/categories inconsistency
+                        if (!Array.isArray(originalItem.categories)) {
+                            if (originalItem.category) {
+                                updates.categories = [originalItem.category];
+                            } else {
+                                updates.categories = [];
+                            }
+                        }
+                    }
+
+                    // Apply schema-based fixes
+                    const schema = schemas[collType].schema;
+                    Object.entries(schema).forEach(([field, type]) => {
+                        if (field in updates) return; // Skip if already handled
+
+                        if (originalItem[field] === undefined || originalItem[field] === null) {
+                            // Create missing field with default value
+                            if (type === 'array') updates[field] = [];
+                            else if (type === 'object') updates[field] = {};
+                            else if (type === 'string') updates[field] = '';
+                            else if (type === 'number') updates[field] = 0;
+                            else if (type === 'boolean') updates[field] = false;
+                        } else if (
+                            (type === 'array' && !Array.isArray(originalItem[field])) ||
+                            (type !== 'array' && typeof originalItem[field] !== type)
+                        ) {
+                            // Convert field to correct type
+                            if (type === 'array') {
+                                updates[field] = typeof originalItem[field] === 'string'
+                                    ? [originalItem[field]]
+                                    : [];
+                            } else if (type === 'string') {
+                                updates[field] = String(originalItem[field]);
+                            } else if (type === 'number') {
+                                updates[field] = Number(originalItem[field]) || 0;
+                            } else if (type === 'boolean') {
+                                updates[field] = Boolean(originalItem[field]);
+                            } else if (type === 'object') {
+                                updates[field] = {};
+                            }
+                        }
+                    });
+
+                    if (Object.keys(updates).length > 0) {
+                        batch.update(docRef, updates);
+                        fixedCount++;
+                    }
+                }
+
+                // Commit batch for this collection type
+                if (fixedCount > 0) {
+                    await batch.commit();
+                    totalFixedCount += fixedCount;
+                }
+            }
+
+            // Refresh data if fixes were applied
+            if (totalFixedCount > 0) {
+                await fetchMultiCollectionData();
+                setSuccess(`Successfully fixed ${totalFixedCount} documents across multiple collections`);
+            } else {
+                setSuccess('No documents needed updates');
+            }
+
+            setValidationComplete(false);
+            setSchemaValidation([]);
+        } catch (err) {
+            console.error('Error applying multi-collection fixes:', err);
+            setError(`Failed to apply fixes: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    }, [validationComplete, schemaValidation, multiCollectionItems, schemas, collectionMapping, fetchMultiCollectionData]);
+
     // Filter data items based on search term
     const filteredData = useMemo(() => {
         if (!filter) return data;
@@ -1028,17 +1346,35 @@ const DataFixerTool = () => {
                     </button>
 
                     {data.length > 0 && (
-                        <button
-                            className={`batch-mode-btn ${batchMode ? 'active' : ''}`}
-                            onClick={() => {
-                                setBatchMode(prev => !prev);
-                                setSelectedItems([]);
-                                setValidationComplete(false);
-                                setSchemaValidation([]);
-                            }}
-                        >
-                            {batchMode ? 'Exit Batch Mode' : 'Enter Batch Mode'}
-                        </button>
+                        <>
+                            <button
+                                className={`batch-mode-btn ${batchMode ? 'active' : ''}`}
+                                onClick={() => {
+                                    setBatchMode(prev => !prev);
+                                    setMultiCollectionBatchMode(false);
+                                    setSelectedItems([]);
+                                    setValidationComplete(false);
+                                    setSchemaValidation([]);
+                                }}
+                            >
+                                {batchMode ? 'Exit Batch Mode' : 'Enter Batch Mode'}
+                            </button>
+
+                            <button
+                                className={`multi-collection-batch-btn ${multiCollectionBatchMode ? 'active' : ''}`}
+                                onClick={() => {
+                                    setMultiCollectionBatchMode(prev => !prev);
+                                    setBatchMode(false);
+                                    setSelectedItems([]);
+                                    setMultiCollectionItems({});
+                                    setSelectedCollections([]);
+                                    setValidationComplete(false);
+                                    setSchemaValidation([]);
+                                }}
+                            >
+                                {multiCollectionBatchMode ? 'Exit Multi-Collection Mode' : 'Multi-Collection Batch Mode'}
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
@@ -1098,6 +1434,137 @@ const DataFixerTool = () => {
                         </div>
                     )}
 
+                    {multiCollectionBatchMode && (
+                        <div className="multi-collection-controls">
+                            <h3>Multi-Collection Batch Mode</h3>
+                            <p>Select collection types to include in batch operations:</p>
+
+                            <div className="collection-selection">
+                                {Object.keys(collectionMapping).map(collType => (
+                                    <label key={collType} className="collection-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCollections.includes(collType)}
+                                            onChange={() => {
+                                                setSelectedCollections(prev =>
+                                                    prev.includes(collType)
+                                                        ? prev.filter(c => c !== collType)
+                                                        : [...prev, collType]
+                                                );
+                                            }}
+                                        />
+                                        {collType.charAt(0).toUpperCase() + collType.slice(1)}
+                                    </label>
+                                ))}
+                            </div>
+
+                            {selectedCollections.length > 0 && (
+                                <button
+                                    className="load-multi-collections-btn"
+                                    onClick={fetchMultiCollectionData}
+                                    disabled={loading}
+                                >
+                                    {loading ? 'Loading...' : 'Load Selected Collections'}
+                                </button>
+                            )}
+
+                            {Object.keys(multiCollectionItems).length > 0 && (
+                                <div className="multi-collection-summary">
+                                    <h4>Loaded Collections:</h4>
+                                    <ul>
+                                        {Object.entries(multiCollectionItems).map(([collType, items]) => (
+                                            <li key={collType}>
+                                                {collType}: {items.length} items
+                                                {items.length > 0 && (
+                                                    <button
+                                                        className="toggle-selection-btn"
+                                                        onClick={() => toggleAllInCollection(collType)}
+                                                    >
+                                                        {isCollectionFullySelected(collType) ? 'Deselect All' : 'Select All'}
+                                                    </button>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+
+                                    {getTotalSelectedItems() > 0 && allSchemasExist() && (
+                                        <button
+                                            className="validate-multi-btn"
+                                            onClick={validateMultiCollections}
+                                            disabled={loading}
+                                        >
+                                            Validate {getTotalSelectedItems()} Items Against Schemas
+                                        </button>
+                                    )}
+
+                                    {getTotalSelectedItems() > 0 && !allSchemasExist() && (
+                                        <div className="schema-warning">
+                                            Some selected collections don't have schemas defined.
+                                            Please create schemas for all selected collection types.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {multiCollectionBatchMode && Object.keys(multiCollectionItems).length > 0 && (
+                        <div className="multi-collection-data-display">
+                            <h4>Data from Multiple Collections</h4>
+
+                            {Object.entries(multiCollectionItems).map(([collType, items]) => (
+                                <div key={collType} className="multi-collection-section">
+                                    <div className="collection-header">
+                                        <h5>{collType.charAt(0).toUpperCase() + collType.slice(1)} ({items.length})</h5>
+                                        <button
+                                            className="toggle-collection-btn"
+                                            onClick={() => toggleAllInCollection(collType)}
+                                        >
+                                            {isCollectionFullySelected(collType) ? 'Deselect All' : 'Select All'}
+                                        </button>
+                                    </div>
+
+                                    <div className="collection-items">
+                                        {items.map(item => (
+                                            <div
+                                                key={item.id}
+                                                className={`multi-collection-item ${item.__selected ? 'selected' : ''}`}
+                                                onClick={() => {
+                                                    setMultiCollectionItems(prev => {
+                                                        const newItems = { ...prev };
+                                                        const collectionItems = [...newItems[collType]];
+
+                                                        const itemIndex = collectionItems.findIndex(i => i.id === item.id);
+                                                        if (itemIndex !== -1) {
+                                                            collectionItems[itemIndex] = {
+                                                                ...collectionItems[itemIndex],
+                                                                __selected: !collectionItems[itemIndex].__selected
+                                                            };
+                                                        }
+
+                                                        newItems[collType] = collectionItems;
+                                                        return newItems;
+                                                    });
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={item.__selected || false}
+                                                    onChange={() => { }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                />
+                                                <div className="item-details">
+                                                    <div className="item-name">{item.name || item.title || item.id}</div>
+                                                    <div className="item-id">ID: {item.id}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="data-explorer">
                         <div className="data-list">
                             {filteredData.length > 0 ? (
@@ -1147,7 +1614,9 @@ const DataFixerTool = () => {
                                     setValidationComplete={setValidationComplete}
                                     setSchemaValidation={setSchemaValidation}
                                     applySchemaFixes={applySchemaFixes}
+                                    applyMultiCollectionFixes={applyMultiCollectionFixes}
                                     loading={loading}
+                                    multiCollectionMode={multiCollectionBatchMode}
                                 />
                             )}
 

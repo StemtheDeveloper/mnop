@@ -6,6 +6,8 @@ import { updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredent
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import TwoFactorAuthManagement from '../components/TwoFactorAuthManagement';
+import accountDeletionService from '../services/accountDeletionService';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import '../styles/UserSettingsPage.css';
 
@@ -103,6 +105,11 @@ const UserSettingsPage = () => {
                     </div>
 
                     {/* More settings options can be added here */}
+                </div>
+
+                <div className="settings-section">
+                    <h2>Security</h2>
+                    <TwoFactorAuthManagement />
                 </div>
 
                 <div className="danger-zone">

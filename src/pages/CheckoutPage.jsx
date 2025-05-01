@@ -1,15 +1,152 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp, getDoc, getDocs, limit } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../contexts/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import notificationService from '../services/notificationService';
+import cartRecoveryService from '../services/cartRecoveryService';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import taxRates from '../config/taxRates';
 import '../styles/CheckoutPage.css';
+
+// CrossSellingSuggestions Component
+const CrossSellingSuggestions = ({ cartItems }) => {
+    const [suggestions, setSuggestions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const { showError } = useToast();
+
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            if (!cartItems || cartItems.length === 0) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                setLoading(true);
+
+                // Get categories from current cart items
+                const cartProductIds = cartItems.map(item => item.id);
+                const productRefs = cartProductIds.map(id => doc(db, 'products', id));
+
+                // Fetch product details for cart items
+                const productData = [];
+                for (const productRef of productRefs) {
+                    const productDoc = await getDoc(productRef);
+                    if (productDoc.exists()) {
+                        productData.push(productDoc.data());
+                    }
+                }
+
+                // Extract categories from products
+                const categories = new Set();
+                productData.forEach(product => {
+                    if (product.categories && Array.isArray(product.categories)) {
+                        product.categories.forEach(category => categories.add(category));
+                    } else if (product.category) {
+                        categories.add(product.category);
+                    }
+                });
+
+                // Extract designer IDs from products
+                const designers = new Set();
+                productData.forEach(product => {
+                    if (product.designerId) {
+                        designers.add(product.designerId);
+                    }
+                });
+
+                // If no categories found, return
+                if (categories.size === 0 && designers.size === 0) {
+                    setLoading(false);
+                    return;
+                }
+
+                // Find related products based on categories or designers
+                const productsRef = collection(db, 'products');
+                let suggestionsQuery;
+
+                if (categories.size > 0) {
+                    // Get products in similar categories
+                    const categoriesArray = Array.from(categories);
+                    suggestionsQuery = query(
+                        productsRef,
+                        where('status', '==', 'active'),
+                        where('categories', 'array-contains-any', categoriesArray),
+                        limit(6)
+                    );
+                } else {
+                    // Fallback to designer's other products
+                    const designersArray = Array.from(designers);
+                    suggestionsQuery = query(
+                        productsRef,
+                        where('status', '==', 'active'),
+                        where('designerId', 'in', designersArray),
+                        limit(6)
+                    );
+                }
+
+                const suggestionsSnapshot = await getDocs(suggestionsQuery);
+
+                // Filter out products that are already in the cart
+                const suggestedProducts = suggestionsSnapshot.docs
+                    .map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }))
+                    .filter(product => !cartProductIds.includes(product.id));
+
+                // Get only the first 4 products
+                setSuggestions(suggestedProducts.slice(0, 4));
+
+            } catch (error) {
+                console.error('Error fetching product suggestions:', error);
+                showError('Error loading product suggestions');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSuggestions();
+    }, [cartItems, showError]);
+
+    // Don't show component if no suggestions or still loading
+    if (loading || suggestions.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="cross-selling-suggestions">
+            <h3>You might also like</h3>
+            <div className="suggestions-container">
+                {suggestions.map(product => (
+                    <div key={product.id} className="suggestion-item">
+                        <Link to={`/product/${product.id}`}>
+                            <div className="suggestion-image">
+                                <img
+                                    src={product.imageUrl || product.imageUrls?.[0] || 'https://via.placeholder.com/120?text=Product'}
+                                    alt={product.name}
+                                />
+                            </div>
+                            <div className="suggestion-details">
+                                <h4>{product.name}</h4>
+                                <div className="suggestion-price">
+                                    {new Intl.NumberFormat('en-US', {
+                                        style: 'currency',
+                                        currency: 'USD'
+                                    }).format(product.price || 0)}
+                                </div>
+                            </div>
+                        </Link>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 const CheckoutPage = () => {
     const { currentUser, userProfile, userWallet } = useUser();
@@ -524,6 +661,17 @@ const CheckoutPage = () => {
 
             const orderRef = await addDoc(collection(db, 'orders'), orderData);
             setOrderId(orderRef.id);
+
+            // Mark cart as recovered for analytics purposes
+            if (currentUser && cartId) {
+                try {
+                    await cartRecoveryService.markCartAsRecovered(cartId);
+                    console.log('Cart marked as recovered for tracking abandoned cart recovery metrics');
+                } catch (err) {
+                    // Don't block the order process if this fails
+                    console.error('Error marking cart as recovered:', err);
+                }
+            }
 
             // Process sales - including designer payments, business commissions, and investor revenue
             for (const item of cartItems) {
@@ -1242,6 +1390,9 @@ const CheckoutPage = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Cross-Selling Suggestions */}
+                    <CrossSellingSuggestions cartItems={cartItems} />
                 </div>
             </div>
         </div>

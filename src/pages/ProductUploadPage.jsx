@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, collection, addDoc, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, getDocs, getDoc, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
@@ -58,8 +58,11 @@ const ProductUploadPage = () => {
         manufacturingCost: '',
         isCrowdfunded: false,
         isDirectSell: true,
+        isComposite: false, // New field for composite products
+        componentProducts: [], // New field to store component products
+        bundleDiscountType: 'fixed', // Default discount type
+        bundleDiscountValue: '', // Discount value (percentage or fixed amount)
         fundingGoal: '0',
-        // Add shipping-related fields
         customShipping: false,
         standardShippingCost: '',
         expressShippingCost: '',
@@ -67,10 +70,15 @@ const ProductUploadPage = () => {
         freeShippingThreshold: '',
         shippingProvider: 'standard',
         customProviderName: '',
-        // Add trackInventory field with default value
         trackInventory: false,
         lowStockThreshold: '5'
     });
+
+    // Component products state
+    const [availableProducts, setAvailableProducts] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedComponents, setSelectedComponents] = useState([]);
+    const [showComponentSearch, setShowComponentSearch] = useState(false);
 
     // Multiple image handling state
     const [productImages, setProductImages] = useState([]);
@@ -193,6 +201,36 @@ const ProductUploadPage = () => {
         };
     }, [loading, productImages.length]);
 
+    // Fetch available products that can be used as components
+    useEffect(() => {
+        if (formData.isComposite) {
+            const fetchProducts = async () => {
+                try {
+                    const productsRef = collection(db, 'products');
+                    const q = query(
+                        productsRef,
+                        where('designerId', '==', currentUser.uid),
+                        where('status', '==', 'active'),
+                        where('isComposite', '==', false) // Prevent recursive composite products
+                    );
+                    const snapshot = await getDocs(q);
+
+                    const fetchedProducts = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        quantityInComposite: 1 // Default quantity for composite
+                    }));
+
+                    setAvailableProducts(fetchedProducts);
+                } catch (err) {
+                    console.error('Error fetching available products:', err);
+                    showError('Error loading available products for composite');
+                }
+            };
+            fetchProducts();
+        }
+    }, [formData.isComposite, currentUser]);
+
     // Handle files dropped into the drag area
     const handleDroppedFiles = (files) => {
         // Filter for image files only
@@ -232,7 +270,7 @@ const ProductUploadPage = () => {
         const { name, value } = e.target;
 
         // Special handling for price and fundingGoal to ensure they're numeric
-        if (name === 'price' || name === 'fundingGoal' || name === 'manufacturingCost') {
+        if (name === 'price' || name === 'fundingGoal' || name === 'manufacturingCost' || name === 'bundleDiscountValue') {
             // Allow only numbers and decimal point
             const numericValue = value.replace(/[^0-9.]/g, '');
             // Ensure only one decimal point
@@ -267,6 +305,159 @@ const ProductUploadPage = () => {
             isCrowdfunded
         }));
     };
+
+    // Toggle composite product type
+    const handleCompositeToggle = (e) => {
+        const isComposite = e.target.checked;
+        setFormData(prev => ({
+            ...prev,
+            isComposite,
+            // If turning on composite, reset component selection
+            componentProducts: isComposite ? prev.componentProducts : []
+        }));
+
+        // Reset component selection when toggling off
+        if (!isComposite) {
+            setSelectedComponents([]);
+        }
+    };
+
+    // Handle bundle discount type change
+    const handleDiscountTypeChange = (type) => {
+        setFormData(prev => ({
+            ...prev,
+            bundleDiscountType: type,
+            // Reset the discount value when changing types to avoid confusion
+            bundleDiscountValue: ''
+        }));
+    };
+
+    // Handle component product search
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value);
+    };
+
+    // Filter available products based on search term
+    const filteredProducts = searchTerm
+        ? availableProducts.filter(product =>
+            product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase())))
+        : availableProducts;
+
+    // Add component to the composite product
+    const addComponent = (component) => {
+        // Check if component already exists in the selection
+        const exists = selectedComponents.some(item => item.id === component.id);
+
+        if (!exists) {
+            const componentWithQuantity = {
+                ...component,
+                quantityInComposite: 1 // Default quantity
+            };
+            setSelectedComponents([...selectedComponents, componentWithQuantity]);
+
+            // Update form data with component products
+            setFormData(prev => ({
+                ...prev,
+                componentProducts: [...prev.componentProducts, {
+                    id: component.id,
+                    name: component.name,
+                    quantity: 1
+                }]
+            }));
+        }
+    };
+
+    // Remove component from the composite product
+    const removeComponent = (componentId) => {
+        setSelectedComponents(selectedComponents.filter(item => item.id !== componentId));
+
+        // Update form data with remaining component products
+        setFormData(prev => ({
+            ...prev,
+            componentProducts: prev.componentProducts.filter(item => item.id !== componentId)
+        }));
+    };
+
+    // Update component quantity in the composite product
+    const updateComponentQuantity = (componentId, quantity) => {
+        const numericQuantity = parseInt(quantity) || 1;
+
+        // Update the selected components list
+        setSelectedComponents(prevComponents =>
+            prevComponents.map(component =>
+                component.id === componentId
+                    ? { ...component, quantityInComposite: numericQuantity }
+                    : component
+            )
+        );
+
+        // Update the form data
+        setFormData(prev => ({
+            ...prev,
+            componentProducts: prev.componentProducts.map(component =>
+                component.id === componentId
+                    ? { ...component, quantity: numericQuantity }
+                    : component
+            )
+        }));
+    };
+
+    // Calculate bundle pricing and savings
+    const calculateBundlePricing = () => {
+        if (!formData.isComposite || selectedComponents.length === 0) {
+            return { totalComponentsValue: 0, bundlePrice: 0, savings: 0, savingsPercentage: 0 };
+        }
+
+        // Calculate the total value of components
+        const totalComponentsValue = selectedComponents.reduce(
+            (total, component) => total + (component.price * component.quantityInComposite), 0
+        );
+
+        let bundlePrice = 0;
+        let savings = 0;
+        let savingsPercentage = 0;
+
+        // Calculate bundle price based on discount type and value
+        if (formData.bundleDiscountType === 'percentage' && formData.bundleDiscountValue) {
+            const discountPercent = Math.min(parseFloat(formData.bundleDiscountValue) || 0, 100);
+            bundlePrice = totalComponentsValue * (1 - (discountPercent / 100));
+            savings = totalComponentsValue - bundlePrice;
+            savingsPercentage = discountPercent;
+        } else if (formData.bundleDiscountType === 'fixed' && formData.bundleDiscountValue) {
+            const fixedDiscount = Math.min(parseFloat(formData.bundleDiscountValue) || 0, totalComponentsValue);
+            bundlePrice = totalComponentsValue - fixedDiscount;
+            savings = fixedDiscount;
+            savingsPercentage = (savings / totalComponentsValue) * 100;
+        } else if (formData.bundleDiscountType === 'price' && formData.price) {
+            bundlePrice = parseFloat(formData.price) || 0;
+            savings = totalComponentsValue - bundlePrice;
+            savingsPercentage = (savings / totalComponentsValue) * 100;
+        } else {
+            bundlePrice = totalComponentsValue;
+        }
+
+        // Ensure bundle price is not negative
+        bundlePrice = Math.max(bundlePrice, 0);
+
+        // If the price field should be updated automatically
+        if (formData.bundleDiscountType !== 'price') {
+            setFormData(prev => ({
+                ...prev,
+                price: bundlePrice.toFixed(2)
+            }));
+        }
+
+        return {
+            totalComponentsValue,
+            bundlePrice,
+            savings,
+            savingsPercentage
+        };
+    };
+
+    // Calculate bundle pricing whenever relevant data changes
+    const bundlePricing = calculateBundlePricing();
 
     // Handle category selection (for multi-select)
     const handleCategoryChange = (e) => {
@@ -413,6 +604,39 @@ const ProductUploadPage = () => {
             return false;
         }
 
+        // For composite products, validate component selection
+        if (formData.isComposite && formData.componentProducts.length < 2) {
+            setError('Composite products must have at least 2 component products');
+            return false;
+        }
+
+        // For composite products with discounts, validate discount values
+        if (formData.isComposite) {
+            if (formData.bundleDiscountType === 'percentage' && formData.bundleDiscountValue) {
+                const discountPercent = parseFloat(formData.bundleDiscountValue);
+                if (isNaN(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+                    setError('Percentage discount must be between 0 and 100');
+                    return false;
+                }
+            } else if (formData.bundleDiscountType === 'fixed' && formData.bundleDiscountValue) {
+                const fixedDiscount = parseFloat(formData.bundleDiscountValue);
+                if (isNaN(fixedDiscount) || fixedDiscount < 0) {
+                    setError('Fixed discount must be a positive number');
+                    return false;
+                }
+
+                // Calculate total components value to compare against fixed discount
+                const totalComponentsValue = selectedComponents.reduce(
+                    (total, component) => total + (component.price * component.quantityInComposite), 0
+                );
+
+                if (fixedDiscount > totalComponentsValue) {
+                    setError('Fixed discount cannot be greater than the total value of components');
+                    return false;
+                }
+            }
+        }
+
         if (productImages.length === 0) {
             setError('At least one product image is required');
             return false;
@@ -492,14 +716,35 @@ const ProductUploadPage = () => {
                 currentFunding: formData.isCrowdfunded ? 0 : parseFloat(formData.price), // Initial funding amount or fully funded for direct selling
                 isCrowdfunded: formData.isCrowdfunded, // Store whether product is crowdfunded
                 isDirectSell: !formData.isCrowdfunded, // Add a direct sell flag for filtering
+                isComposite: formData.isComposite, // Add flag for composite products
+                componentProducts: formData.isComposite ? formData.componentProducts : [], // Add component products for composite
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
                 storagePaths: storagePaths, // Store the correct paths for future reference
-                // Add stock management data
-                trackInventory: formData.trackInventory,
-                stockQuantity: formData.trackInventory ? parseInt(formData.stockQuantity) || 0 : null,
-                lowStockThreshold: formData.trackInventory ? parseInt(formData.lowStockThreshold) || 5 : null,
+                // Add stock management data - for composite products, this is calculated from components
+                trackInventory: formData.isComposite ? true : formData.trackInventory,
+                stockQuantity: formData.isComposite ? null : (formData.trackInventory ? parseInt(formData.stockQuantity) || 0 : null),
+                lowStockThreshold: formData.isComposite ? 5 : (formData.trackInventory ? parseInt(formData.lowStockThreshold) || 5 : null),
             };
+
+            // Add bundle discount information for composite products
+            if (formData.isComposite) {
+                productData.bundleDiscountType = formData.bundleDiscountType;
+                productData.bundleDiscountValue = parseFloat(formData.bundleDiscountValue) || 0;
+
+                // Calculate and store the original price (sum of components)
+                productData.bundleOriginalPrice = selectedComponents.reduce(
+                    (total, component) => total + (component.price * component.quantityInComposite), 0
+                );
+
+                // Calculate and store the savings amount
+                productData.bundleSavingsAmount = productData.bundleOriginalPrice - productData.price;
+
+                // Calculate and store the savings percentage
+                productData.bundleSavingsPercent = productData.bundleOriginalPrice > 0
+                    ? Math.round((productData.bundleSavingsAmount / productData.bundleOriginalPrice) * 100)
+                    : 0;
+            }
 
             console.log('Creating Firestore document with data:', {
                 ...productData,
@@ -561,11 +806,12 @@ const ProductUploadPage = () => {
                 customCategory: '',
                 fundingGoal: '',
                 isCrowdfunded: true, // Reset to default
+                isComposite: false, // Reset to default
+                componentProducts: [], // Reset component products
                 manufacturingCost: '', // Reset to default
                 stockQuantity: '', // Reset to default
                 lowStockThreshold: '', // Reset to default
                 trackInventory: false, // Reset to default value
-                // Reset shipping-related fields
                 customShipping: false,
                 standardShippingCost: '',
                 expressShippingCost: '',
@@ -577,6 +823,7 @@ const ProductUploadPage = () => {
             setProductImages([]);
             setImagePreviewUrls([]);
             setUseCustomCategory(false);
+            setSelectedComponents([]);
 
             // On successful upload, check for achievements, but don't let failures affect success state
             try {
@@ -684,7 +931,7 @@ const ProductUploadPage = () => {
                                             value="crowdfunded"
                                             checked={formData.isCrowdfunded}
                                             onChange={handleProductTypeToggle}
-                                            disabled={loading}
+                                            disabled={loading || formData.isComposite}
                                         />
                                         Crowdfunded Product
                                     </label>
@@ -696,15 +943,32 @@ const ProductUploadPage = () => {
                                             value="direct"
                                             checked={!formData.isCrowdfunded}
                                             onChange={handleProductTypeToggle}
-                                            disabled={loading}
+                                            disabled={loading || formData.isComposite}
                                         />
                                         Direct Selling (Existing Product)
                                     </label>
                                 </div>
+
+                                {/* Add composite product toggle */}
+                                <div className="composite-toggle">
+                                    <label htmlFor="isComposite">
+                                        <input
+                                            type="checkbox"
+                                            id="isComposite"
+                                            name="isComposite"
+                                            checked={formData.isComposite}
+                                            onChange={handleCompositeToggle}
+                                            disabled={loading}
+                                        />
+                                        Create a composite product (bundle)
+                                    </label>
+                                </div>
                                 <p className="form-hint">
-                                    {formData.isCrowdfunded
-                                        ? "Crowdfunded products need to reach a funding goal before they can be purchased."
-                                        : "Direct selling products are immediately available for purchase without funding."}
+                                    {formData.isComposite
+                                        ? "Composite products combine multiple products into a single item. Inventory is tracked across all components."
+                                        : formData.isCrowdfunded
+                                            ? "Crowdfunded products need to reach a funding goal before they can be purchased."
+                                            : "Direct selling products are immediately available for purchase without funding."}
                                 </p>
                             </div>
 
@@ -748,7 +1012,7 @@ const ProductUploadPage = () => {
                                     />
                                 </div>
 
-                                {formData.isCrowdfunded && (
+                                {formData.isCrowdfunded && !formData.isComposite && (
                                     <div className="form-group">
                                         <label htmlFor="fundingGoal">Funding Goal ($)*</label>
                                         <input
@@ -777,10 +1041,239 @@ const ProductUploadPage = () => {
                                         disabled={loading}
                                     />
                                     <p className="form-hint">
-                                        This is the cost to produce each unit. It's used to calculate profits and investor revenue sharing.
+                                        {formData.isComposite
+                                            ? "This is the additional cost beyond the components (e.g., assembly, packaging)."
+                                            : "This is the cost to produce each unit. It's used to calculate profits and investor revenue sharing."}
                                     </p>
                                 </div>
                             </div>
+
+                            {/* Composite product component selection */}
+                            {formData.isComposite && (
+                                <div className="form-group composite-products">
+                                    <h3>Component Products</h3>
+                                    <p className="form-hint">
+                                        Select at least 2 products to include in this composite product bundle.
+                                    </p>
+
+                                    <div className="component-search">
+                                        <button
+                                            type="button"
+                                            className="search-toggle-btn"
+                                            onClick={() => setShowComponentSearch(!showComponentSearch)}
+                                        >
+                                            {showComponentSearch ? "Hide Product Search" : "Search Products to Add"}
+                                        </button>
+
+                                        {showComponentSearch && (
+                                            <div className="search-container">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search your products..."
+                                                    value={searchTerm}
+                                                    onChange={handleSearchChange}
+                                                    className="component-search-input"
+                                                />
+
+                                                <div className="product-search-results">
+                                                    {filteredProducts.length === 0 ? (
+                                                        <p className="no-results">No matching products found</p>
+                                                    ) : (
+                                                        filteredProducts.map(product => (
+                                                            <div key={product.id} className="product-search-item">
+                                                                <div className="product-search-info">
+                                                                    <img
+                                                                        src={product.imageUrls && product.imageUrls[0] ? product.imageUrls[0] : '/placeholder.jpg'}
+                                                                        alt={product.name}
+                                                                        className="product-search-image"
+                                                                    />
+                                                                    <div className="product-search-details">
+                                                                        <h4>{product.name}</h4>
+                                                                        <p>${product.price ? product.price.toFixed(2) : '0.00'}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    className="add-component-btn"
+                                                                    onClick={() => addComponent(product)}
+                                                                    disabled={selectedComponents.some(item => item.id === product.id)}
+                                                                >
+                                                                    {selectedComponents.some(item => item.id === product.id) ? 'Added' : 'Add'}
+                                                                </button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="selected-components">
+                                        <h4>Selected Components ({selectedComponents.length})</h4>
+                                        {selectedComponents.length === 0 ? (
+                                            <p className="no-components">No components selected yet</p>
+                                        ) : (
+                                            <div className="component-list">
+                                                {selectedComponents.map(component => (
+                                                    <div key={component.id} className="component-item">
+                                                        <div className="component-info">
+                                                            <img
+                                                                src={component.imageUrls && component.imageUrls[0] ? component.imageUrls[0] : '/placeholder.jpg'}
+                                                                alt={component.name}
+                                                                className="component-image"
+                                                            />
+                                                            <div className="component-details">
+                                                                <h4>{component.name}</h4>
+                                                                <p>${component.price ? component.price.toFixed(2) : '0.00'} each</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="component-actions">
+                                                            <div className="quantity-control">
+                                                                <label htmlFor={`quantity-${component.id}`}>Qty:</label>
+                                                                <input
+                                                                    type="number"
+                                                                    id={`quantity-${component.id}`}
+                                                                    min="1"
+                                                                    value={component.quantityInComposite}
+                                                                    onChange={(e) => updateComponentQuantity(component.id, e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                className="remove-component-btn"
+                                                                onClick={() => removeComponent(component.id)}
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                {/* Bundle pricing options - only for composite products */}
+                                                {selectedComponents.length >= 2 && (
+                                                    <div className="bundle-pricing-options">
+                                                        <h4>Bundle Pricing Options</h4>
+                                                        <div className="discount-type-options">
+                                                            <label className={`discount-type-option ${formData.bundleDiscountType === 'percentage' ? 'active' : ''}`}>
+                                                                <input
+                                                                    type="radio"
+                                                                    name="bundleDiscountType"
+                                                                    value="percentage"
+                                                                    checked={formData.bundleDiscountType === 'percentage'}
+                                                                    onChange={() => handleDiscountTypeChange('percentage')}
+                                                                />
+                                                                Percentage Discount
+                                                            </label>
+                                                            <label className={`discount-type-option ${formData.bundleDiscountType === 'fixed' ? 'active' : ''}`}>
+                                                                <input
+                                                                    type="radio"
+                                                                    name="bundleDiscountType"
+                                                                    value="fixed"
+                                                                    checked={formData.bundleDiscountType === 'fixed'}
+                                                                    onChange={() => handleDiscountTypeChange('fixed')}
+                                                                />
+                                                                Fixed Amount Off
+                                                            </label>
+                                                            <label className={`discount-type-option ${formData.bundleDiscountType === 'price' ? 'active' : ''}`}>
+                                                                <input
+                                                                    type="radio"
+                                                                    name="bundleDiscountType"
+                                                                    value="price"
+                                                                    checked={formData.bundleDiscountType === 'price'}
+                                                                    onChange={() => handleDiscountTypeChange('price')}
+                                                                />
+                                                                Set Custom Price
+                                                            </label>
+                                                        </div>
+
+                                                        {formData.bundleDiscountType === 'percentage' && (
+                                                            <div className="discount-value-input">
+                                                                <label htmlFor="bundleDiscountValue">Percentage Discount (%)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    id="bundleDiscountValue"
+                                                                    name="bundleDiscountValue"
+                                                                    value={formData.bundleDiscountValue}
+                                                                    onChange={handleChange}
+                                                                    placeholder="Enter discount percentage"
+                                                                    min="0"
+                                                                    max="100"
+                                                                />
+                                                                <p className="form-hint">
+                                                                    Enter a discount percentage (0-100%) to apply to the bundle.
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {formData.bundleDiscountType === 'fixed' && (
+                                                            <div className="discount-value-input">
+                                                                <label htmlFor="bundleDiscountValue">Fixed Amount Off ($)</label>
+                                                                <input
+                                                                    type="text"
+                                                                    id="bundleDiscountValue"
+                                                                    name="bundleDiscountValue"
+                                                                    value={formData.bundleDiscountValue}
+                                                                    onChange={handleChange}
+                                                                    placeholder="Enter fixed discount amount"
+                                                                    min="0"
+                                                                />
+                                                                <p className="form-hint">
+                                                                    Enter a fixed dollar amount to discount from the total component value.
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {formData.bundleDiscountType === 'price' && (
+                                                            <div className="discount-value-input">
+                                                                <p className="form-hint">
+                                                                    Using the bundle price from the main price field: {formData.price ? `$${formData.price}` : '$0.00'}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Summary of component values and pricing */}
+                                                        <div className="components-summary pricing-details">
+                                                            <div className="pricing-row">
+                                                                <span>Total Components Value:</span>
+                                                                <span>${bundlePricing.totalComponentsValue.toFixed(2)}</span>
+                                                            </div>
+                                                            <div className="pricing-row">
+                                                                <span>Bundle Price:</span>
+                                                                <span>${bundlePricing.bundlePrice.toFixed(2)}</span>
+                                                            </div>
+                                                            <div className="pricing-row highlight">
+                                                                <span>Customer Savings:</span>
+                                                                <span>${bundlePricing.savings.toFixed(2)} ({Math.round(bundlePricing.savingsPercentage)}%)</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Summary of component values */}
+                                                <div className="components-summary">
+                                                    <p>
+                                                        <strong>Total Components Value:</strong> $
+                                                        {selectedComponents.reduce((total, component) =>
+                                                            total + (component.price * component.quantityInComposite), 0).toFixed(2)}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Bundle Price:</strong> $
+                                                        {formData.price ? parseFloat(formData.price).toFixed(2) : '0.00'}
+                                                    </p>
+                                                    {formData.price && (
+                                                        <p>
+                                                            <strong>Customer Savings:</strong> $
+                                                            {(selectedComponents.reduce((total, component) =>
+                                                                total + (component.price * component.quantityInComposite), 0) -
+                                                                parseFloat(formData.price)).toFixed(2)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="form-group">
                                 <div className="category-selection">
@@ -905,63 +1398,77 @@ const ProductUploadPage = () => {
                                 <p className="drag-drop-hint">Pro tip: Drag and drop images directly onto the upload area</p>
                             </div>
 
-                            {/* Add Stock Management Section */}
-                            <div className="form-group stock-management">
-                                <h3>Stock Management</h3>
+                            {/* Stock Management Section - only show for non-composite products */}
+                            {!formData.isComposite && (
+                                <div className="form-group stock-management">
+                                    <h3>Stock Management</h3>
 
-                                <div className="stock-tracking-toggle">
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            name="trackInventory"
-                                            checked={formData.trackInventory}
-                                            onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
-                                            disabled={loading}
-                                        />
-                                        Track inventory for this product
-                                    </label>
-                                    <p className="form-hint">
-                                        Enable to track stock levels and receive notifications when inventory is low.
-                                    </p>
-                                </div>
+                                    <div className="stock-tracking-toggle">
+                                        <label>
+                                            <input
+                                                type="checkbox"
+                                                name="trackInventory"
+                                                checked={formData.trackInventory}
+                                                onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
+                                                disabled={loading}
+                                            />
+                                            Track inventory for this product
+                                        </label>
+                                        <p className="form-hint">
+                                            Enable to track stock levels and receive notifications when inventory is low.
+                                        </p>
+                                    </div>
 
-                                {formData.trackInventory && (
-                                    <div className="stock-fields">
-                                        <div className="form-row">
-                                            <div className="form-group">
-                                                <label htmlFor="stockQuantity">Initial Stock Quantity*</label>
-                                                <input
-                                                    type="number"
-                                                    id="stockQuantity"
-                                                    name="stockQuantity"
-                                                    value={formData.stockQuantity}
-                                                    onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
-                                                    placeholder="0"
-                                                    min="0"
-                                                    disabled={loading}
-                                                />
-                                            </div>
+                                    {formData.trackInventory && (
+                                        <div className="stock-fields">
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label htmlFor="stockQuantity">Initial Stock Quantity*</label>
+                                                    <input
+                                                        type="number"
+                                                        id="stockQuantity"
+                                                        name="stockQuantity"
+                                                        value={formData.stockQuantity}
+                                                        onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
+                                                        placeholder="0"
+                                                        min="0"
+                                                        disabled={loading}
+                                                    />
+                                                </div>
 
-                                            <div className="form-group">
-                                                <label htmlFor="lowStockThreshold">Low Stock Threshold</label>
-                                                <input
-                                                    type="number"
-                                                    id="lowStockThreshold"
-                                                    name="lowStockThreshold"
-                                                    value={formData.lowStockThreshold}
-                                                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })}
-                                                    placeholder="5"
-                                                    min="0"
-                                                    disabled={loading}
-                                                />
-                                                <p className="form-hint">
-                                                    You'll be notified when stock reaches this level.
-                                                </p>
+                                                <div className="form-group">
+                                                    <label htmlFor="lowStockThreshold">Low Stock Threshold</label>
+                                                    <input
+                                                        type="number"
+                                                        id="lowStockThreshold"
+                                                        name="lowStockThreshold"
+                                                        value={formData.lowStockThreshold}
+                                                        onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })}
+                                                        placeholder="5"
+                                                        min="0"
+                                                        disabled={loading}
+                                                    />
+                                                    <p className="form-hint">
+                                                        You'll be notified when stock reaches this level.
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* For composite products, show an inventory note instead */}
+                            {formData.isComposite && (
+                                <div className="form-group composite-inventory-note">
+                                    <h3>Inventory Management</h3>
+                                    <p>
+                                        <strong>Note:</strong> Inventory for composite products is automatically tracked based on the
+                                        availability of all component products. When a composite product is purchased, inventory for
+                                        each component will be reduced accordingly.
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Add Shipping Settings Section */}
                             <div className="form-group shipping-settings">
@@ -1105,11 +1612,6 @@ const ProductUploadPage = () => {
                                         )}
                                     </div>
                                 )}
-                            </div>
-
-                            <div className="form-group">
-                                <div className="category-selection">
-                                </div>
                             </div>
                         </div>
                     </div>

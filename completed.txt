@@ -1,5 +1,6 @@
 # Completed Improvements
 
+- Create granular logging system for audit trails
 - Fix loading spinner: remove text, fix aspect ratio to 1:1, make sure that each component can only load one instance of the loading spinner at a time. Because at the moment there are multiple loading spinners overlapping on a single component or page.
 - Add option to omit "state" for some countries
 - Designers should be able to see refund requests on the customer orders tab and either grant refund or deny refund
@@ -9,3 +10,8 @@
 - Add change detection to inputs using local storage to prevent unnecessary writes to the database
 - Customers can't see order details: "Page Not Found The page you are looking for doesn't exist or has been moved." orders/GpjrMadUmKE8JsIGB0Rr
 - Add tax calculations based on the country and territory of the user
+- Add a system to create composite products which are made up of 2 or more other products. The system will need to account for inventory levels.
+- Create advanced filtering system for product search with multiple parameters
+- Add batch operations in admin DataFixerTool for multiple collection types
+- Add two-factor authentication for admin and designer accounts
+

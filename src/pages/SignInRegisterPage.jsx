@@ -10,6 +10,9 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, googleProvider } from "../config/firebase.js";
 import { USER_ROLES } from "../context/UserContext";
+import twoFactorAuthService from "../services/twoFactorAuthService";
+import socialMediaService from "../services/socialMediaService";
+import TwoFactorAuthVerification from "../components/TwoFactorAuthVerification";
 import "../styles/SignIn.css";
 
 const SignInRegisterPage = () => {
@@ -26,6 +29,12 @@ const SignInRegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const [resetRequested, setResetRequested] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+
+  // Two-factor authentication state
+  const [show2FAVerification, setShow2FAVerification] = useState(false);
+  const [twoFactorSecret, setTwoFactorSecret] = useState('');
+  const [pendingUserId, setPendingUserId] = useState('');
+  const [pendingPhoneNumber, setPendingPhoneNumber] = useState('');
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -85,9 +94,35 @@ const SignInRegisterPage = () => {
     setError("");
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Redirect will happen automatically via auth state change in App component
-      navigate(from);
+      // Sign in with Firebase Authentication
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Check if user has 2FA enabled
+      const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
+
+      if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
+        // User has 2FA enabled, sign them out and show 2FA verification
+        await auth.signOut();
+
+        // Get the user document to retrieve the phone number
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userData = userDoc.data();
+
+        if (userData && userData.twoFactorAuth && userData.twoFactorAuth.phoneNumber) {
+          // Save user ID and phone number for verification
+          setPendingUserId(user.uid);
+          setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
+          setShow2FAVerification(true);
+        } else {
+          setError("Two-factor authentication is enabled but not properly configured. Please contact support.");
+        }
+
+        setLoading(false);
+      } else {
+        // User doesn't have 2FA enabled, proceed with login
+        navigate(from);
+      }
     } catch (err) {
       console.error("Sign in error:", err);
       setError(getAuthErrorMessage(err.code));
@@ -155,23 +190,129 @@ const SignInRegisterPage = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
-      } else {
-        // For existing users, update the last login time
-        const userRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userRef);
 
-        if (userDoc.exists()) {
+        // No need to check 2FA for new users
+        navigate(from);
+      } else {
+        // For existing users, check if they have 2FA enabled
+        const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
+
+        if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
+          // User has 2FA enabled, sign them out and show 2FA verification
+          await auth.signOut();
+
+          // Get the user document to retrieve the phone number
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          const userData = userDoc.data();
+
+          if (userData?.twoFactorAuth?.phoneNumber) {
+            // Save user ID and phone number for verification
+            setPendingUserId(user.uid);
+            setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
+            setShow2FAVerification(true);
+          } else {
+            setError("Two-factor authentication is enabled but not properly configured. Please contact support.");
+          }
+
+          setLoading(false);
+        } else {
+          // Update last login time
+          const userRef = doc(db, "users", user.uid);
           await setDoc(userRef, {
             lastLogin: serverTimestamp()
           }, { merge: true });
+
+          // User doesn't have 2FA enabled, proceed with login
+          navigate(from);
         }
       }
-
-      // Redirect handled by auth state change
-      navigate(from);
     } catch (err) {
       console.error("Google sign in error:", err);
       setError(getAuthErrorMessage(err.code));
+      setLoading(false);
+    }
+  };
+
+  // Handle Facebook sign in
+  const handleFacebookSignIn = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await socialMediaService.signInWithFacebook();
+
+      if (!result.success) {
+        throw new Error(result.error || "Facebook sign-in failed");
+      }
+
+      // Check for 2FA if needed (similar to Google sign-in flow)
+      const user = result.user;
+      const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
+
+      if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
+        // Handle 2FA verification as with Google login
+        await auth.signOut();
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userData = userDoc.data();
+
+        if (userData?.twoFactorAuth?.phoneNumber) {
+          setPendingUserId(user.uid);
+          setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
+          setShow2FAVerification(true);
+        } else {
+          setError("Two-factor authentication is enabled but not properly configured.");
+        }
+
+        setLoading(false);
+      } else {
+        // Proceed with navigation
+        navigate(from);
+      }
+    } catch (err) {
+      console.error("Facebook sign in error:", err);
+      setError(getAuthErrorMessage(err.code) || err.message);
+      setLoading(false);
+    }
+  };
+
+  // Handle Twitter sign in
+  const handleTwitterSignIn = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await socialMediaService.signInWithTwitter();
+
+      if (!result.success) {
+        throw new Error(result.error || "Twitter sign-in failed");
+      }
+
+      // Check for 2FA if needed (similar to Google sign-in flow)
+      const user = result.user;
+      const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
+
+      if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
+        // Handle 2FA verification as with Google login
+        await auth.signOut();
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userData = userDoc.data();
+
+        if (userData?.twoFactorAuth?.phoneNumber) {
+          setPendingUserId(user.uid);
+          setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
+          setShow2FAVerification(true);
+        } else {
+          setError("Two-factor authentication is enabled but not properly configured.");
+        }
+
+        setLoading(false);
+      } else {
+        // Proceed with navigation
+        navigate(from);
+      }
+    } catch (err) {
+      console.error("Twitter sign in error:", err);
+      setError(getAuthErrorMessage(err.code) || err.message);
       setLoading(false);
     }
   };
@@ -227,6 +368,43 @@ const SignInRegisterPage = () => {
     }
   };
 
+  // Handle successful 2FA verification
+  const handle2FAVerificationSuccess = async () => {
+    setLoading(true);
+
+    try {
+      // Re-sign in the user
+      // For security reasons, we need to ask for their password again
+      await signInWithEmailAndPassword(auth, email, password);
+
+      // Update last login time
+      const userRef = doc(db, "users", pendingUserId);
+      await setDoc(userRef, {
+        lastLogin: serverTimestamp()
+      }, { merge: true });
+
+      // Reset 2FA state
+      setShow2FAVerification(false);
+      setPendingUserId('');
+      setPendingPhoneNumber('');
+
+      // Redirect to the destination
+      navigate(from);
+    } catch (err) {
+      console.error("Error after 2FA verification:", err);
+      setError("Authentication failed after two-factor verification. Please try again.");
+      setShow2FAVerification(false);
+      setLoading(false);
+    }
+  };
+
+  // Handle 2FA verification cancellation
+  const handle2FAVerificationCancel = () => {
+    setShow2FAVerification(false);
+    setPendingUserId('');
+    setPendingPhoneNumber('');
+  };
+
   // Render password reset form
   if (resetRequested) {
     return (
@@ -267,6 +445,20 @@ const SignInRegisterPage = () => {
             Back to Sign In
           </button>
         </form>
+      </div>
+    );
+  }
+
+  // Render 2FA verification form
+  if (show2FAVerification) {
+    return (
+      <div className="signin-register-container">
+        <TwoFactorAuthVerification
+          userId={pendingUserId}
+          phoneNumber={pendingPhoneNumber}
+          onVerificationSuccess={handle2FAVerificationSuccess}
+          onCancel={handle2FAVerificationCancel}
+        />
       </div>
     );
   }
@@ -407,6 +599,32 @@ const SignInRegisterPage = () => {
           <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
         </svg>
         {loading ? 'Processing...' : 'Continue with Google'}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleFacebookSignIn}
+        className="btn-facebook"
+        disabled={loading}
+        aria-label="Sign in with Facebook"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2.04C6.5 2.04 2 6.53 2 12.06c0 5.1 3.75 9.35 8.68 10.12v-7.15H7.9v-2.97h2.78V9.85c0-2.75 1.64-4.27 4.15-4.27.82 0 1.73.1 2.55.2v2.86h-1.45c-1.36 0-1.73.65-1.73 1.54v1.86h2.97l-.45 2.97h-2.52v7.15c4.92-.77 8.68-5.02 8.68-10.12 0-5.53-4.5-10.02-10-10.02z" />
+        </svg>
+        {loading ? 'Processing...' : 'Continue with Facebook'}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleTwitterSignIn}
+        className="btn-twitter"
+        disabled={loading}
+        aria-label="Sign in with Twitter"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.93.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z" />
+        </svg>
+        {loading ? 'Processing...' : 'Continue with Twitter'}
       </button>
 
       <div className="auth-switch">

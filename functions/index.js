@@ -1,10 +1,19 @@
 const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+
+// Initialize Firebase admin
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
 const dailyInterestCalculation = require("./dailyInterestCalculation");
 const processInvestment = require("./processInvestment");
 const trendingProductExtension = require("./trendingProductExtension");
 const updateMarketRates = require("./updateMarketRates");
 const checkProductDeadlines = require("./checkProductDeadlines");
 const distributeRevenue = require("./distributeRevenue");
+const stockNotifications = require("./stockNotifications");
+const updateExchangeRates = require("./updateExchangeRates");
 
 // Export the functions
 // Daily interest calculation functions
@@ -31,3 +40,13 @@ exports.checkProductDeadlines = checkProductDeadlines.checkProductDeadlines;
 
 // Revenue distribution functions
 exports.distributeInvestorRevenue = distributeRevenue.distributeInvestorRevenue;
+
+// Stock notification functions
+exports.checkProductsBackInStock = stockNotifications.checkProductsBackInStock;
+exports.notifyForBackInStock = stockNotifications.notifyForBackInStock;
+exports.checkLowStockLevels = stockNotifications.checkLowStockLevels;
+exports.processPurchaseOrderUpdate =
+  stockNotifications.processPurchaseOrderUpdate;
+
+// Currency exchange rate functions
+exports.updateExchangeRates = updateExchangeRates.updateExchangeRates;

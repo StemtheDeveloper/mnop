@@ -5,6 +5,7 @@ import { db, auth } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../contexts/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import cartRecoveryService from '../services/cartRecoveryService';
 import '../styles/CartPage.css';
 
 const CartPage = () => {
@@ -56,6 +57,12 @@ const CartPage = () => {
                     const items = cart.items || [];
                     setCartItems(items);
                     setTotal(calculateTotal(items));
+
+                    // Track cart for abandoned cart recovery if it has items
+                    if (items.length > 0) {
+                        cartRecoveryService.trackCart(currentUser.uid, cartDoc.id, items);
+                    }
+
                     setLoading(false);
                 }, (err) => {
                     console.error("Error fetching cart:", err);

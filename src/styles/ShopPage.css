@@ -282,3 +282,18 @@
     align-items: center;
   }
 }
+
+.shop-search-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto 20px;
+}
+
+.shop-enhanced-search .enhanced-search-form {
+  width: 100%;
+}
+
+/* Make sure the suggestions dropdown appears above other elements */
+.shop-enhanced-search .search-suggestions-dropdown {
+  z-index: 50;
+}

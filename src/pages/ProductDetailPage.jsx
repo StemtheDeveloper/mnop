@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import InvestmentModal from '../components/InvestmentModal';
 import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal'; // Add import for new component
 import TrendingExtensionButton from '../components/TrendingExtensionButton';
+import SocialShareButtons from '../components/SocialShareButtons';
 import productTrendingService from '../services/productTrendingService';
 import reviewService from '../services/reviewService'; // Import the review service
 import '../styles/ProductDetailPage.css';
@@ -30,6 +31,10 @@ const ProductDetailPage = () => {
     const [buttonAnimation, setButtonAnimation] = useState('');
     const [designer, setDesigner] = useState(null);
     const [categoryNames, setCategoryNames] = useState([]); // Add this state for category names
+    const [componentProducts, setComponentProducts] = useState([]);
+    const [componentInventory, setComponentInventory] = useState({});
+    const [cartQuantity, setCartQuantity] = useState(1);
+    const [maxAvailableQuantity, setMaxAvailableQuantity] = useState(0);
 
     // Enhanced reviews state
     const [reviews, setReviews] = useState([]);
@@ -88,6 +93,63 @@ const ProductDetailPage = () => {
                 };
 
                 setProduct(productData);
+
+                // If this is a composite product, fetch the component products
+                if (productData.isComposite && productData.componentProducts &&
+                    Array.isArray(productData.componentProducts) && productData.componentProducts.length > 0) {
+                    try {
+                        const componentDetails = [];
+                        const inventoryStatus = {};
+
+                        // Fetch each component product details
+                        for (const component of productData.componentProducts) {
+                            const componentRef = doc(db, 'products', component.id);
+                            const componentDoc = await getDoc(componentRef);
+
+                            if (componentDoc.exists()) {
+                                const componentData = {
+                                    ...componentDoc.data(),
+                                    id: componentDoc.id,
+                                    quantityInComposite: component.quantity || 1
+                                };
+
+                                componentDetails.push(componentData);
+
+                                // Track inventory for each component
+                                if (componentData.trackInventory) {
+                                    inventoryStatus[component.id] = {
+                                        stockQuantity: componentData.stockQuantity || 0,
+                                        quantityNeeded: component.quantity || 1,
+                                        available: Math.floor((componentData.stockQuantity || 0) / (component.quantity || 1))
+                                    };
+                                } else {
+                                    // If component doesn't track inventory, assume unlimited
+                                    inventoryStatus[component.id] = {
+                                        stockQuantity: null,
+                                        quantityNeeded: component.quantity || 1,
+                                        available: Number.MAX_SAFE_INTEGER
+                                    };
+                                }
+                            }
+                        }
+
+                        setComponentProducts(componentDetails);
+                        setComponentInventory(inventoryStatus);
+
+                        // Calculate max available quantity based on component inventory
+                        if (Object.keys(inventoryStatus).length > 0) {
+                            const maxQuantity = Math.min(
+                                ...Object.values(inventoryStatus).map(item => item.available)
+                            );
+                            setMaxAvailableQuantity(maxQuantity);
+                        } else {
+                            // If no component products have inventory tracking
+                            setMaxAvailableQuantity(Number.MAX_SAFE_INTEGER);
+                        }
+                    } catch (err) {
+                        console.error('Error fetching component products:', err);
+                    }
+                }
 
                 // Fetch category names if categories exist
                 if (productData.categories && Array.isArray(productData.categories) && productData.categories.length > 0) {
@@ -232,329 +294,29 @@ const ProductDetailPage = () => {
         fetchReviews();
     }, [productId, currentUser, reviewSortBy, reviewRatingFilter, reviewsToShow]);
 
-    // Function to handle sorting reviews
-    const handleSortReviews = (sortBy) => {
-        if (sortBy !== reviewSortBy) {
-            setReviewSortBy(sortBy);
+    // Handle Cart Quantity Change
+    const handleQuantityChange = (e) => {
+        const value = parseInt(e.target.value) || 1;
+        // Ensure quantity is within valid range
+        const newQuantity = Math.min(Math.max(1, value), maxAvailableQuantity);
+        setCartQuantity(newQuantity);
+    };
+
+    // Increment Cart Quantity
+    const incrementQuantity = () => {
+        if (cartQuantity < maxAvailableQuantity) {
+            setCartQuantity(cartQuantity + 1);
         }
     };
 
-    // Function to handle filtering reviews by rating
-    const handleFilterByRating = (rating) => {
-        setReviewRatingFilter(rating === reviewRatingFilter ? 0 : rating);
-    };
-
-    // Function to load more reviews
-    const handleLoadMoreReviews = async () => {
-        if (!productId || !lastVisibleReview || !hasMoreReviews || reviewsLoading) return;
-
-        setReviewsLoading(true);
-
-        try {
-            const result = await reviewService.getProductReviews(productId, {
-                sortBy: reviewSortBy,
-                ratingFilter: reviewRatingFilter,
-                pageSize: 5, // Load 5 more reviews
-                lastDoc: lastVisibleReview,
-                withReplies: true
-            });
-
-            if (result.success) {
-                setReviews(prevReviews => [...prevReviews, ...result.data]);
-                setLastVisibleReview(result.lastVisible);
-                setHasMoreReviews(result.hasMore);
-            } else {
-                console.error('Error loading more reviews:', result.error);
-                showError("Failed to load more reviews");
-            }
-        } catch (error) {
-            console.error('Error loading more reviews:', error);
-            showError("Failed to load more reviews");
-        } finally {
-            setReviewsLoading(false);
+    // Decrement Cart Quantity
+    const decrementQuantity = () => {
+        if (cartQuantity > 1) {
+            setCartQuantity(cartQuantity - 1);
         }
     };
 
-    // Function to mark a review as helpful
-    const handleMarkReviewHelpful = async (reviewId) => {
-        if (!currentUser) {
-            showError("Please sign in to mark reviews as helpful");
-            return;
-        }
-
-        try {
-            const result = await reviewService.markReviewHelpful(reviewId, currentUser.uid, true);
-
-            if (result.success) {
-                // Update the reviews state to reflect the new helpful count
-                setReviews(prevReviews => prevReviews.map(review =>
-                    review.id === reviewId
-                        ? {
-                            ...review,
-                            helpfulCount: result.data.helpfulCount,
-                            helpfulVoters: review.helpfulVoters
-                                ? (result.data.hasVoted
-                                    ? [...review.helpfulVoters, currentUser.uid]
-                                    : review.helpfulVoters.filter(id => id !== currentUser.uid))
-                                : (result.data.hasVoted ? [currentUser.uid] : [])
-                        }
-                        : review
-                ));
-
-                showSuccess(result.message);
-            } else {
-                showError(result.error || "Failed to mark review as helpful");
-            }
-        } catch (error) {
-            console.error('Error marking review as helpful:', error);
-            showError("Failed to mark review as helpful");
-        }
-    };
-
-    // Function to add a reply to a review
-    const handleReplyToReview = async (reviewId) => {
-        if (!currentUser) {
-            showError("Please sign in to reply to reviews");
-            return;
-        }
-
-        if (!replyText.trim()) {
-            showError("Reply cannot be empty");
-            return;
-        }
-
-        setIsSubmittingReply(true);
-
-        try {
-            // Determine if the current user is the designer or an admin
-            const isDesigner = product.designerId === currentUser.uid;
-            const isAdmin = hasRole('admin');
-
-            const replyData = {
-                reviewId,
-                userId: currentUser.uid,
-                userName: currentUser.displayName || 'Anonymous',
-                userPhotoURL: currentUser.photoURL || null,
-                text: replyText.trim(),
-                isDesigner,
-                isAdmin
-            };
-
-            const result = await reviewService.addReviewReply(replyData);
-
-            if (result.success) {
-                // Update the reviews state to include the new reply
-                setReviews(prevReviews => prevReviews.map(review =>
-                    review.id === reviewId
-                        ? {
-                            ...review,
-                            replies: [...(review.replies || []), result.data],
-                            replyCount: (review.replyCount || 0) + 1
-                        }
-                        : review
-                ));
-
-                // Clear the reply form and close it
-                setReplyText('');
-                setReplyingToReview(null);
-                showSuccess("Reply added successfully");
-            } else {
-                showError(result.error || "Failed to add reply");
-            }
-        } catch (error) {
-            console.error('Error adding reply:', error);
-            showError("Failed to add reply");
-        } finally {
-            setIsSubmittingReply(false);
-        }
-    };
-
-    // Function to delete a reply
-    const handleDeleteReply = async (replyId, reviewId) => {
-        if (!currentUser) return;
-
-        try {
-            const result = await reviewService.deleteReviewReply(replyId, reviewId);
-
-            if (result.success) {
-                // Update the reviews state to remove the deleted reply
-                setReviews(prevReviews => prevReviews.map(review =>
-                    review.id === reviewId
-                        ? {
-                            ...review,
-                            replies: (review.replies || []).filter(reply => reply.id !== replyId),
-                            replyCount: Math.max(0, (review.replyCount || 0) - 1)
-                        }
-                        : review
-                ));
-
-                showSuccess("Reply deleted successfully");
-            } else {
-                showError(result.error || "Failed to delete reply");
-            }
-        } catch (error) {
-            console.error('Error deleting reply:', error);
-            showError("Failed to delete reply");
-        }
-    };
-
-    // Function to moderate a review (admin only)
-    const handleModerateReview = async (reviewId, action) => {
-        if (!currentUser || !hasRole('admin')) {
-            showError("You don't have permission to moderate reviews");
-            return;
-        }
-
-        setModerationStatus({
-            loading: true,
-            error: null,
-            success: null
-        });
-
-        try {
-            // For rejection, make sure we have a reason
-            if (action === 'reject' && !rejectionReason.trim()) {
-                setModerationStatus({
-                    loading: false,
-                    error: "Please provide a reason for rejection",
-                    success: null
-                });
-                return;
-            }
-
-            const result = await reviewService.moderateReview(
-                reviewId,
-                action,
-                currentUser.uid,
-                rejectionReason.trim()
-            );
-
-            if (result.success) {
-                // Update the reviews state to reflect the moderation action
-                setReviews(prevReviews => prevReviews.map(review =>
-                    review.id === reviewId
-                        ? {
-                            ...review,
-                            status: action === 'approve' ? 'active' : action === 'reject' ? 'rejected' : 'deleted',
-                            isApproved: action === 'approve',
-                            isDeleted: action === 'delete',
-                            rejectionReason: action === 'reject' ? rejectionReason.trim() : review.rejectionReason,
-                            moderatedBy: currentUser.uid,
-                            moderatedAt: new Date()
-                        }
-                        : review
-                ));
-
-                setModerationStatus({
-                    loading: false,
-                    error: null,
-                    success: result.message
-                });
-
-                // Clear moderation state
-                setModerationAction(null);
-                setRejectionReason('');
-
-                showSuccess(result.message);
-            } else {
-                setModerationStatus({
-                    loading: false,
-                    error: result.error || "Failed to moderate review",
-                    success: null
-                });
-
-                showError(result.error || "Failed to moderate review");
-            }
-        } catch (error) {
-            console.error('Error moderating review:', error);
-
-            setModerationStatus({
-                loading: false,
-                error: "Failed to moderate review",
-                success: null
-            });
-
-            showError("Failed to moderate review");
-        }
-    };
-
-    // Function to check if a user has marked a review as helpful
-    const hasMarkedHelpful = (review) => {
-        return currentUser && review.helpfulVoters && review.helpfulVoters.includes(currentUser.uid);
-    };
-
-    // Handle funding amount change
-    const handleFundAmountChange = (e) => {
-        const value = e.target.value;
-        // Allow only numbers and decimal points
-        if (/^\d*\.?\d*$/.test(value)) {
-            setFundAmount(value);
-        }
-    };
-
-    // Handle funding submission
-    const handleFundProduct = async () => {
-        if (!currentUser) {
-            showError("Please sign in to fund this product");
-            return;
-        }
-
-        const amount = parseFloat(fundAmount);
-
-        if (isNaN(amount) || amount <= 0) {
-            showError("Please enter a valid funding amount");
-            return;
-        }
-
-        // Check if user has sufficient wallet balance
-        if (!userWallet || amount > userWallet.balance) {
-            showError("Insufficient wallet balance");
-            return;
-        }
-
-        setIsFunding(true);
-
-        try {
-            const result = await fundProduct(productId, product.name, amount);
-            showSuccess(`Successfully funded ${amount.toFixed(2)} credits`);
-            setFundAmount(''); // Clear the input field
-
-            // Update the product's funding in the UI
-            setProduct(prev => ({
-                ...prev,
-                currentFunding: result.newTotal,
-            }));
-
-        } catch (err) {
-            console.error('Error funding product:', err);
-            showError(err.message || 'Failed to fund product');
-        } finally {
-            setIsFunding(false);
-        }
-    };
-
-    const handleInvestSuccess = (amount, updatedFundingProgress) => {
-        showSuccess(`Successfully invested ${amount.toFixed(2)} credits`);
-        setProduct(prev => ({
-            ...prev,
-            fundingProgress: updatedFundingProgress || (prev.fundingProgress || 0) + amount
-        }));
-    };
-
-    // Handle manufacturer selection success
-    const handleManufacturerSuccess = (result) => {
-        showSuccess(`Successfully transferred ${result.amount?.toLocaleString()} credits to manufacturer`);
-
-        // Update the product in the UI to reflect the manufacturing status
-        setProduct(prev => ({
-            ...prev,
-            manufacturingStatus: "funded",
-            fundsSentToManufacturer: true,
-            businessHeldFunds: 0, // Reset held funds since they've been transferred
-        }));
-    };
-
-    // Handle Add to Cart
+    // Handle Add to Cart - Modified to handle composite products and quantity
     const handleAddToCart = async () => {
         if (!currentUser) {
             showError("Please sign in to add items to cart");
@@ -579,17 +341,27 @@ const ProductDetailPage = () => {
             const cartQuery = query(cartsRef, where('userId', '==', currentUser.uid));
             const cartSnapshot = await getDocs(cartQuery);
 
+            // Prepare the cart item
+            const cartItem = {
+                id: product.id,
+                name: product.name,
+                price: product.price || 0,
+                imageUrl: imageToUse,
+                quantity: cartQuantity,
+                isComposite: product.isComposite || false,
+                // Include component info for inventory tracking if this is a composite product
+                componentProducts: product.isComposite ?
+                    product.componentProducts.map(comp => ({
+                        id: comp.id,
+                        quantity: comp.quantity * cartQuantity
+                    })) : []
+            };
+
             if (cartSnapshot.empty) {
                 // Create a new cart
                 const cartData = {
                     userId: currentUser.uid,
-                    items: [{
-                        id: product.id,
-                        name: product.name,
-                        price: product.price || 0,
-                        imageUrl: imageToUse,
-                        quantity: 1
-                    }],
+                    items: [cartItem],
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp()
                 };
@@ -602,11 +374,20 @@ const ProductDetailPage = () => {
                 const items = cartData.items || [];
 
                 // Check if product already in cart
-                const existingItem = items.find(item => item.id === product.id);
+                const existingItemIndex = items.findIndex(item => item.id === product.id);
 
-                if (existingItem) {
+                if (existingItemIndex >= 0) {
                     // Increase quantity
-                    existingItem.quantity += 1;
+                    items[existingItemIndex].quantity += cartQuantity;
+
+                    // Update component quantities if this is a composite product
+                    if (items[existingItemIndex].isComposite && items[existingItemIndex].componentProducts) {
+                        items[existingItemIndex].componentProducts =
+                            items[existingItemIndex].componentProducts.map(comp => ({
+                                id: comp.id,
+                                quantity: comp.quantity + (comp.quantity / items[existingItemIndex].quantity) * cartQuantity
+                            }));
+                    }
 
                     await updateDoc(doc(db, 'carts', cartDoc.id), {
                         items,
@@ -615,13 +396,7 @@ const ProductDetailPage = () => {
                 } else {
                     // Add new item
                     await updateDoc(doc(db, 'carts', cartDoc.id), {
-                        items: [...items, {
-                            id: product.id,
-                            name: product.name,
-                            price: product.price || 0,
-                            imageUrl: imageToUse,
-                            quantity: 1
-                        }],
+                        items: [...items, cartItem],
                         updatedAt: serverTimestamp()
                     });
                 }
@@ -632,7 +407,7 @@ const ProductDetailPage = () => {
                 await addDoc(collection(db, 'notifications'), {
                     userId: currentUser.uid,
                     title: 'Product Added to Cart',
-                    message: `${product.name} has been added to your cart.`,
+                    message: `${cartQuantity} ${cartQuantity > 1 ? 'units' : 'unit'} of ${product.name} added to your cart.`,
                     type: 'cart_update',
                     productId: product.id,
                     read: false,
@@ -641,7 +416,10 @@ const ProductDetailPage = () => {
             }
 
             // Show success notification with product details
-            showSuccess(`Added to cart: ${product.name} (${formatPrice(product.price || 0)})`);
+            showSuccess(`Added to cart: ${cartQuantity} ${cartQuantity > 1 ? 'units' : 'unit'} of ${product.name} (${formatPrice(product.price * cartQuantity || 0)})`);
+
+            // Reset cart quantity to 1 after successful add
+            setCartQuantity(1);
         } catch (error) {
             console.error("Error adding to cart:", error);
             showError("Failed to add to cart");
@@ -649,83 +427,6 @@ const ProductDetailPage = () => {
             setIsAddingToCart(false);
             // Reset animation after a delay
             setTimeout(() => setButtonAnimation(''), 700);
-        }
-    };
-
-    const handleSubmitReview = async () => {
-        if (!currentUser) {
-            showError("Please sign in to submit a review");
-            return;
-        }
-
-        if (!userReview.rating || !userReview.text) {
-            showError("Please provide a rating and review text");
-            return;
-        }
-
-        setIsSubmittingReview(true);
-
-        try {
-            const reviewData = {
-                productId: product.id,
-                userId: currentUser.uid,
-                userName: currentUser.displayName || 'Anonymous',
-                userPhotoURL: currentUser.photoURL || null,
-                rating: userReview.rating,
-                text: userReview.text
-            };
-
-            const result = await reviewService.addReview(reviewData);
-
-            if (result.success) {
-                showSuccess(result.message || "Review submitted successfully");
-
-                // If it was a new review (not an update), add it to the reviews list
-                if (!reviews.some(rev => rev.userId === currentUser.uid)) {
-                    setReviews(prev => [
-                        {
-                            id: result.data.id,
-                            ...reviewData,
-                            createdAt: new Date()
-                        },
-                        ...prev
-                    ]);
-                } else {
-                    // Update the existing review in the list
-                    setReviews(prev => prev.map(rev =>
-                        rev.userId === currentUser.uid
-                            ? { ...rev, rating: userReview.rating, text: userReview.text, updatedAt: new Date() }
-                            : rev
-                    ));
-                }
-
-                // Update the product's average rating in the UI
-                if (product.reviewCount) {
-                    const totalRating = reviews.reduce((sum, rev) => {
-                        // If this is the user's review, use the new rating
-                        if (rev.userId === currentUser.uid) {
-                            return sum + userReview.rating;
-                        }
-                        return sum + rev.rating;
-                    }, 0);
-
-                    const newAvgRating = (totalRating / product.reviewCount).toFixed(1);
-                    setProduct(prev => ({
-                        ...prev,
-                        averageRating: parseFloat(newAvgRating)
-                    }));
-                }
-
-                // Clear the review form if it was successful
-                setUserReview({ rating: 0, text: '' });
-            } else {
-                showError(result.error || "Failed to submit review");
-            }
-        } catch (error) {
-            console.error("Error submitting review:", error);
-            showError("Failed to submit review");
-        } finally {
-            setIsSubmittingReview(false);
         }
     };
 
@@ -823,14 +524,49 @@ const ProductDetailPage = () => {
                     <h1 className="product-title">{product.name}</h1>
                     <p className="product-price">{formatPrice(product.price || 0)}</p>
 
+                    {/* Social Share Buttons */}
+                    <div className="product-social-share">
+                        <SocialShareButtons
+                            url={window.location.href}
+                            title={`Check out ${product.name} on M'NOP`}
+                            description={product.description ? product.description.slice(0, 150) + (product.description.length > 150 ? '...' : '') : ''}
+                            mediaUrl={productImages[0]}
+                            hashtags="mnop,product,design"
+                            showText={false}
+                            layout="horizontal"
+                            platforms={['facebook', 'twitter', 'pinterest', 'linkedin', 'whatsapp', 'email', 'copy']}
+                        />
+                    </div>
+
                     {/* Product Type Badge */}
                     <div className="product-type-badge">
-                        {product.isCrowdfunded !== false ? (
+                        {product.isComposite ? (
+                            <span className="badge composite">Composite Product</span>
+                        ) : product.isCrowdfunded !== false ? (
                             <span className="badge crowdfunding">Crowdfunded Product</span>
                         ) : (
                             <span className="badge direct-sell">Direct Purchase</span>
                         )}
                     </div>
+
+                    {/* Inventory Status */}
+                    {product.isComposite ? (
+                        <div className="inventory-status">
+                            <span className={`inventory-badge ${maxAvailableQuantity > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                                {maxAvailableQuantity > 0
+                                    ? `In Stock (${maxAvailableQuantity > 100 ? '100+' : maxAvailableQuantity} available)`
+                                    : 'Out of Stock'}
+                            </span>
+                        </div>
+                    ) : product.trackInventory ? (
+                        <div className="inventory-status">
+                            <span className={`inventory-badge ${(product.stockQuantity || 0) > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                                {(product.stockQuantity || 0) > 0
+                                    ? `In Stock (${product.stockQuantity > 100 ? '100+' : product.stockQuantity} available)`
+                                    : 'Out of Stock'}
+                            </span>
+                        </div>
+                    ) : null}
 
                     {/* Categories */}
                     {categoryNames.length > 0 && (
@@ -871,6 +607,82 @@ const ProductDetailPage = () => {
                             })
                         }}></p>
                     </div>
+
+                    {/* Composite Product Components Section */}
+                    {product.isComposite && componentProducts.length > 0 && (
+                        <div className="composite-components">
+                            <h3>This bundle includes:</h3>
+                            <div className="component-list">
+                                {componentProducts.map((component, index) => (
+                                    <div key={component.id} className="component-item">
+                                        <div className="component-image">
+                                            <img
+                                                src={component.imageUrls?.[0] || 'https://placehold.co/100x100?text=Product'}
+                                                alt={component.name}
+                                            />
+                                        </div>
+                                        <div className="component-details">
+                                            <h4 className="component-name">{component.name}</h4>
+                                            <div className="component-price">
+                                                {formatPrice(component.price)} × {component.quantityInComposite}
+                                            </div>
+                                            <div className="component-inventory">
+                                                {componentInventory[component.id]?.stockQuantity !== null ? (
+                                                    <span className={`inventory-status ${componentInventory[component.id]?.available > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                                                        {componentInventory[component.id]?.available > 0
+                                                            ? `In stock`
+                                                            : 'Out of stock'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="inventory-status in-stock">Available</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="composite-summary">
+                                <div className="value-calculation">
+                                    <div className="individual-value">
+                                        <span>Individual Value:</span>
+                                        <span>{formatPrice(componentProducts.reduce((total, component) =>
+                                            total + (component.price * component.quantityInComposite), 0))}</span>
+                                    </div>
+                                    <div className="bundle-price">
+                                        <span>Bundle Price:</span>
+                                        <span>{formatPrice(product.price)}</span>
+                                    </div>
+                                    <div className="savings">
+                                        <span>You Save:</span>
+                                        <span className="savings-amount">{formatPrice(
+                                            componentProducts.reduce((total, component) =>
+                                                total + (component.price * component.quantityInComposite), 0) - product.price
+                                        )}</span>
+                                        <span className="savings-percentage">
+                                            ({product.bundleSavingsPercent || Math.round(
+                                                (componentProducts.reduce((total, component) =>
+                                                    total + (component.price * component.quantityInComposite), 0) - product.price) /
+                                                componentProducts.reduce((total, component) =>
+                                                    total + (component.price * component.quantityInComposite), 0) * 100
+                                            )}% off)
+                                        </span>
+                                    </div>
+                                    {product.bundleDiscountType && (
+                                        <div className="discount-type">
+                                            <span className="discount-badge">
+                                                {product.bundleDiscountType === 'percentage' ?
+                                                    `${Math.round(product.bundleDiscountValue)}% Bundle Discount` :
+                                                    product.bundleDiscountType === 'fixed' ?
+                                                        `$${product.bundleDiscountValue.toFixed(2)} Off Bundle` :
+                                                        'Special Bundle Price'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Ratings and Reviews Section */}
                     <div className="product-reviews">
@@ -927,7 +739,7 @@ const ProductDetailPage = () => {
                                 <select
                                     className="review-filter-select"
                                     value={reviewSortBy}
-                                    onChange={(e) => handleSortReviews(e.target.value)}
+                                    onChange={(e) => setReviewSortBy(e.target.value)}
                                 >
                                     <option value="newest">Newest First</option>
                                     <option value="highest">Highest Rating</option>
@@ -943,7 +755,7 @@ const ProductDetailPage = () => {
                                         <button
                                             key={rating}
                                             className={`star-button ${reviewRatingFilter === rating ? 'active' : ''}`}
-                                            onClick={() => handleFilterByRating(rating)}
+                                            onClick={() => setReviewRatingFilter(rating === reviewRatingFilter ? 0 : rating)}
                                         >
                                             <span className="star">★</span> {rating}
                                         </button>
@@ -961,49 +773,6 @@ const ProductDetailPage = () => {
                             )}
                         </div>
 
-                        {currentUser ? (
-                            <div className="write-review">
-                                <h4>Write a Review</h4>
-                                <div className="review-form">
-                                    <div className="rating-select">
-                                        <label>Your Rating:</label>
-                                        <div className="star-rating-select">
-                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                <span
-                                                    key={star}
-                                                    className={`star ${star <= (userReview.rating || 0) ? 'filled' : ''}`}
-                                                    onClick={() => setUserReview({ ...userReview, rating: star })}
-                                                >
-                                                    ★
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="review-content">
-                                        <label htmlFor="reviewText">Your Review:</label>
-                                        <textarea
-                                            id="reviewText"
-                                            value={userReview.text}
-                                            onChange={(e) => setUserReview({ ...userReview, text: e.target.value })}
-                                            placeholder="Share your thoughts about this product..."
-                                            rows="4"
-                                        ></textarea>
-                                    </div>
-                                    <button
-                                        className="submit-review-btn"
-                                        onClick={handleSubmitReview}
-                                        disabled={isSubmittingReview || !userReview.rating || !userReview.text}
-                                    >
-                                        {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="login-to-review">
-                                <Link to="/signin">Sign in</Link> to leave a review
-                            </div>
-                        )}
-
                         {reviewsLoading && reviews.length === 0 ? (
                             <div className="loading-container">
                                 <LoadingSpinner />
@@ -1013,14 +782,6 @@ const ProductDetailPage = () => {
                             <div className="reviews-list">
                                 {reviews.map((review) => (
                                     <div key={review.id} className="review-item">
-                                        {/* Admin can see review status if it's not active */}
-                                        {hasRole('admin') && review.status !== 'active' && (
-                                            <div className={`review-status-badge ${review.status}`}>
-                                                {review.status === 'pending' ? 'Pending Approval' :
-                                                    review.status === 'rejected' ? 'Rejected' : 'Deleted'}
-                                            </div>
-                                        )}
-
                                         <div className="review-header">
                                             <div className="reviewer-info">
                                                 {review.userPhotoURL ? (
@@ -1031,16 +792,6 @@ const ProductDetailPage = () => {
                                                     </div>
                                                 )}
                                                 <span className="reviewer-name">{review.userName || 'Anonymous'}</span>
-
-                                                {/* If this user is the product designer */}
-                                                {review.userId === product.designerId && (
-                                                    <span className="reviewer-badge designer">Designer</span>
-                                                )}
-
-                                                {/* If user has admin role */}
-                                                {review.isAdmin && (
-                                                    <span className="reviewer-badge admin">Admin</span>
-                                                )}
                                             </div>
                                             <div className="review-rating">
                                                 {[1, 2, 3, 4, 5].map((star) => (
@@ -1060,207 +811,6 @@ const ProductDetailPage = () => {
                                         <div className="review-text">
                                             {review.text}
                                         </div>
-
-                                        {/* Rejection reason (admin only) */}
-                                        {hasRole('admin') && review.status === 'rejected' && review.rejectionReason && (
-                                            <div className="rejection-info">
-                                                <strong>Rejection reason:</strong> {review.rejectionReason}
-                                            </div>
-                                        )}
-
-                                        {/* Admin Moderation Controls */}
-                                        {hasRole('admin') && review.status === 'pending' && (
-                                            <div className="moderation-controls">
-                                                <div className="moderation-title">Moderation Controls</div>
-                                                <button
-                                                    className="moderation-btn approve-btn"
-                                                    onClick={() => handleModerateReview(review.id, 'approve')}
-                                                    disabled={moderationStatus.loading}
-                                                >
-                                                    Approve
-                                                </button>
-
-                                                {moderationAction === 'reject' && review.id === moderationActionReviewId ? (
-                                                    <>
-                                                        <input
-                                                            type="text"
-                                                            className="rejection-reason"
-                                                            value={rejectionReason}
-                                                            onChange={(e) => setRejectionReason(e.target.value)}
-                                                            placeholder="Reason for rejection (required)"
-                                                        />
-                                                        <button
-                                                            className="moderation-btn reject-btn"
-                                                            onClick={() => handleModerateReview(review.id, 'reject')}
-                                                            disabled={moderationStatus.loading || !rejectionReason.trim()}
-                                                        >
-                                                            Confirm Rejection
-                                                        </button>
-                                                        <button
-                                                            className="moderation-btn"
-                                                            onClick={() => {
-                                                                setModerationAction(null);
-                                                                setRejectionReason('');
-                                                            }}
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <button
-                                                        className="moderation-btn reject-btn"
-                                                        onClick={() => {
-                                                            setModerationAction('reject');
-                                                            setModerationActionReviewId(review.id);
-                                                        }}
-                                                        disabled={moderationStatus.loading}
-                                                    >
-                                                        Reject
-                                                    </button>
-                                                )}
-
-                                                <button
-                                                    className="moderation-btn delete-btn"
-                                                    onClick={() => handleModerateReview(review.id, 'delete')}
-                                                    disabled={moderationStatus.loading}
-                                                >
-                                                    Delete
-                                                </button>
-
-                                                {moderationStatus.error && (
-                                                    <div className="moderation-action-msg error">{moderationStatus.error}</div>
-                                                )}
-
-                                                {moderationStatus.success && (
-                                                    <div className="moderation-action-msg success">{moderationStatus.success}</div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Review Action Buttons (helpful, reply) */}
-                                        <div className="review-actions">
-                                            <div className="review-action-buttons">
-                                                <button
-                                                    className={`helpful-btn ${hasMarkedHelpful(review) ? 'active' : ''}`}
-                                                    onClick={() => handleMarkReviewHelpful(review.id)}
-                                                    disabled={!currentUser}
-                                                >
-                                                    <span className="helpful-icon">👍</span>
-                                                    {hasMarkedHelpful(review) ? 'Helpful' : 'Mark as Helpful'}
-                                                    <span className="helpful-count">({review.helpfulCount || 0})</span>
-                                                </button>
-
-                                                {currentUser && (
-                                                    <button
-                                                        className="reply-btn"
-                                                        onClick={() => setReplyingToReview(
-                                                            replyingToReview === review.id ? null : review.id
-                                                        )}
-                                                    >
-                                                        <span className="reply-icon">↩️</span>
-                                                        Reply
-                                                    </button>
-                                                )}
-
-                                                {hasRole('admin') && (
-                                                    <button className="report-btn">
-                                                        <span className="report-icon">🚫</span>
-                                                        Report
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Review Replies */}
-                                        {review.replies && review.replies.length > 0 && (
-                                            <div className="review-replies">
-                                                <div className="reply-count">
-                                                    {review.replies.length} {review.replies.length === 1 ? 'reply' : 'replies'}
-                                                </div>
-                                                <div className="reply-list">
-                                                    {review.replies
-                                                        .filter(reply => !reply.isDeleted)
-                                                        .map(reply => (
-                                                            <div
-                                                                key={reply.id}
-                                                                className={`reply-item ${reply.isDesigner ? 'designer' : ''} ${reply.isAdmin ? 'admin' : ''}`}
-                                                            >
-                                                                <div className="reply-header">
-                                                                    <div className="replier-info">
-                                                                        {reply.userPhotoURL ? (
-                                                                            <img
-                                                                                src={reply.userPhotoURL}
-                                                                                alt={reply.userName}
-                                                                                className="replier-avatar"
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="replier-avatar default-avatar">
-                                                                                {reply.userName?.charAt(0).toUpperCase() || 'A'}
-                                                                            </div>
-                                                                        )}
-                                                                        <span className="replier-name">{reply.userName || 'Anonymous'}</span>
-
-                                                                        {reply.isDesigner && (
-                                                                            <span className="replier-badge designer">Designer</span>
-                                                                        )}
-
-                                                                        {reply.isAdmin && (
-                                                                            <span className="replier-badge admin">Admin</span>
-                                                                        )}
-                                                                    </div>
-                                                                    <span className="reply-date">
-                                                                        {reply.createdAt ? new Date(reply.createdAt.seconds * 1000).toLocaleDateString() : 'Recently'}
-                                                                    </span>
-                                                                </div>
-
-                                                                <div className="reply-text">
-                                                                    {reply.text}
-                                                                </div>
-
-                                                                {/* Delete button for own replies or admin */}
-                                                                {((currentUser && currentUser.uid === reply.userId) || hasRole('admin')) && (
-                                                                    <button
-                                                                        className="reply-delete-btn"
-                                                                        onClick={() => handleDeleteReply(reply.id, review.id)}
-                                                                    >
-                                                                        ×
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Reply Form */}
-                                        {replyingToReview === review.id && currentUser && (
-                                            <div className="reply-form">
-                                                <textarea
-                                                    value={replyText}
-                                                    onChange={(e) => setReplyText(e.target.value)}
-                                                    placeholder="Write your reply..."
-                                                    rows="3"
-                                                ></textarea>
-                                                <div className="reply-form-actions">
-                                                    <button
-                                                        className="reply-form-cancel-btn"
-                                                        onClick={() => {
-                                                            setReplyingToReview(null);
-                                                            setReplyText('');
-                                                        }}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button
-                                                        className="reply-form-submit-btn"
-                                                        onClick={() => handleReplyToReview(review.id)}
-                                                        disabled={isSubmittingReply || !replyText.trim()}
-                                                    >
-                                                        {isSubmittingReply ? 'Submitting...' : 'Submit Reply'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -1274,7 +824,7 @@ const ProductDetailPage = () => {
                         {hasMoreReviews && (
                             <button
                                 className="load-more-reviews"
-                                onClick={handleLoadMoreReviews}
+                                onClick={() => setReviewsToShow(reviewsToShow + 5)}
                                 disabled={reviewsLoading}
                             >
                                 {reviewsLoading ? 'Loading...' : 'Load More Reviews'}
@@ -1321,90 +871,45 @@ const ProductDetailPage = () => {
                                 <div className="progress" style={{ width: `${fundingPercentage}%` }}></div>
                             </div>
                             <div className="funding-percentage">{Math.round(fundingPercentage)}% funded</div>
-
-                            {/* Funding Form - only show for crowdfunded products that aren't fully funded */}
-                            {!isFullyFunded && currentUser && (
-                                <div className="funding-form">
-                                    <h4>Help fund this product</h4>
-                                    <div className="funding-input-group">
-                                        <div className="funding-input-wrapper">
-                                            <span className="currency-symbol">$</span>
-                                            <input
-                                                type="text"
-                                                value={fundAmount}
-                                                onChange={handleFundAmountChange}
-                                                placeholder={`Up to ${formatPrice(remainingFunding)}`}
-                                                disabled={isFunding}
-                                            />
-                                        </div>
-                                        <button
-                                            className="fund-button"
-                                            onClick={handleFundProduct}
-                                            disabled={isFunding || !fundAmount}
-                                        >
-                                            {isFunding ? 'Processing...' : 'Fund Now'}
-                                        </button>
-                                    </div>
-                                    <div className="funding-wallet-balance">
-                                        Your wallet balance: {formatPrice(userWallet?.balance || 0)}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* If fully funded, show success message */}
-                            {isFullyFunded && (
-                                <div className="funding-complete-message">
-                                    This product has been fully funded! 🎉
-
-                                    {/* Show manufacturer selection button for the product designer */}
-                                    {currentUser && product.designerId === currentUser.uid &&
-                                        !product.fundsSentToManufacturer && (
-                                            <div className="manufacturing-options">
-                                                <button
-                                                    className="btn-secondary select-manufacturer-button"
-                                                    onClick={() => setShowManufacturerModal(true)}
-                                                >
-                                                    Select Manufacturer
-                                                </button>
-                                                <p className="manufacturer-info-text">
-                                                    Your product is fully funded. Select a manufacturer to begin production.
-                                                </p>
-                                            </div>
-                                        )}
-
-                                    {/* Show manufacturing in progress message */}
-                                    {product.fundsSentToManufacturer && (
-                                        <div className="manufacturing-status">
-                                            <p className="manufacturing-progress">
-                                                <span className="badge manufacturing">Manufacturing In Progress</span>
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                         </div>
                     )}
 
                     <div className="product-actions">
-                        {/* Add to Cart Button - always shown for all users */}
+                        {/* Quantity controls */}
+                        <div className="quantity-control">
+                            <button
+                                className="quantity-btn"
+                                onClick={decrementQuantity}
+                                disabled={isAddingToCart || cartQuantity <= 1}
+                            >
+                                -
+                            </button>
+                            <input
+                                type="number"
+                                value={cartQuantity}
+                                onChange={handleQuantityChange}
+                                min="1"
+                                max={maxAvailableQuantity}
+                                disabled={isAddingToCart || maxAvailableQuantity <= 0}
+                            />
+                            <button
+                                className="quantity-btn"
+                                onClick={incrementQuantity}
+                                disabled={isAddingToCart || cartQuantity >= maxAvailableQuantity}
+                            >
+                                +
+                            </button>
+                        </div>
+
+                        {/* Add to Cart Button - always shown for all users, but disabled if out of stock */}
                         <button
                             className={`btn-primary add-to-cart-button ${buttonAnimation}`}
-                            disabled={isAddingToCart}
+                            disabled={isAddingToCart || (product.isComposite && maxAvailableQuantity <= 0) ||
+                                (!product.isComposite && product.trackInventory && (product.stockQuantity || 0) <= 0)}
                             onClick={handleAddToCart}
                         >
                             {isAddingToCart ? 'Adding...' : 'Add to Cart'}
                         </button>
-
-                        {/* Investment Button - only show for crowdfunded products */}
-                        {currentUser && hasRole('investor') && product.fundingGoal > 0 &&
-                            product.isCrowdfunded !== false && !isFullyFunded && (
-                                <button
-                                    className="invest-button btn-secondary"
-                                    onClick={() => setShowInvestModal(true)}
-                                >
-                                    Invest in This Product
-                                </button>
-                            )}
                     </div>
                 </div>
             </div>
@@ -1418,7 +923,6 @@ const ProductDetailPage = () => {
                     isOpen={showInvestModal}
                     onClose={() => setShowInvestModal(false)}
                     product={product}
-                    onSuccess={handleInvestSuccess}
                 />
             )}
 
@@ -1428,7 +932,6 @@ const ProductDetailPage = () => {
                     isOpen={showManufacturerModal}
                     onClose={() => setShowManufacturerModal(false)}
                     product={product}
-                    onSuccess={handleManufacturerSuccess}
                 />
             )}
         </div>

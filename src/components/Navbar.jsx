@@ -10,12 +10,15 @@ import CloseBurger from "../assets/Close-Burger@4x.png"
 import MessageIcon from "../assets/message icon mini.png";
 import NotificationsIcon from "../assets/Notification icon mini.png";
 import CartIcon from "../assets/Shopping trolly drag edition.png";
+import WishlistIcon from "../assets/Heart mini.png";
 import WalletIcon from "../assets/Wally no legs big eyes@2x.webp";
 import NotificationCenter from "./NotificationCenter";
 import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';
 import NotificationInbox from './NotificationInbox';
 import ThemeToggle from './ThemeToggle';
+import CurrencySelector from './CurrencySelector';
+import EnhancedSearchInput from './EnhancedSearchInput';
 import { useToast } from '../contexts/ToastContext';
 import { useNotifications } from './notifications/NotificationSystem';
 
@@ -143,6 +146,7 @@ const Navbar = () => {
           <Link to="/profile">Profile</Link>
           <Link to="/profile/achievements">Achievements</Link>
           <Link to="/orders">Orders</Link>
+          <Link to="/wishlist">Wishlist</Link>
           <Link to="/settings">Account Settings</Link>
           <button onClick={handleSignOut}>Sign Out</button>
         </div>
@@ -221,6 +225,9 @@ const Navbar = () => {
                 <Link to="/messages" className={isActive('/messages') ? 'active' : ''} onClick={() => setIsOpen(false)}>Messages</Link>
               </li>
               <li className="nav-item">
+                <Link to="/wishlist" className={isActive('/wishlist') ? 'active' : ''} onClick={() => setIsOpen(false)}>Wishlist</Link>
+              </li>
+              <li className="nav-item">
                 <Link to="/notifications" className={isActive('/notifications') ? 'active' : ''} onClick={() => setIsOpen(false)}>
                   <div className="notification-indicator">
                     Notifications
@@ -233,6 +240,10 @@ const Navbar = () => {
                   Wallet {walletBalance !== null && `($${walletBalance.toFixed(0)})`}
                 </Link>
               </li>
+              <li className="nav-item currency-selector-container">
+                <div className="currency-selector-label">Currency</div>
+                <CurrencySelector compact={true} />
+              </li>
               <li className="nav-item theme-toggle-container">
                 <div className="theme-toggle-label">Theme Mode</div>
                 <ThemeToggle />
@@ -244,6 +255,11 @@ const Navbar = () => {
             <li className="nav-item navbar-icons">
               <Link to="/messages">
                 <img src={MessageIcon} alt="Message icon" />
+              </Link>
+            </li>
+            <li className="nav-item navbar-icons">
+              <Link to="/wishlist">
+                <img src={WishlistIcon} alt="Wishlist icon" />
               </Link>
             </li>
             <li className="nav-item navbar-icons">
@@ -262,21 +278,7 @@ const Navbar = () => {
           </ul>
 
           <div className="search-container">
-            <form onSubmit={handleSearch} className="search-form">
-              <input
-                type="search"
-                placeholder="Search products..."
-                className="search-input"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <button
-                type="submit"
-                className="search-button"
-              >
-                Search
-              </button>
-            </form>
+            <EnhancedSearchInput />
           </div>
 
           <div className="desktop-nav">
@@ -289,6 +291,12 @@ const Navbar = () => {
                 <li className="nav-item navbar-icons">
                   <Link to="/messages">
                     <img src={MessageIcon} alt="Message icon" title="Messages" />
+                  </Link>
+                </li>
+                <div className="c-h-r"></div>
+                <li className="nav-item navbar-icons">
+                  <Link to="/wishlist">
+                    <img src={WishlistIcon} alt="Wishlist icon" title="Wishlist" />
                   </Link>
                 </li>
                 <div className="c-h-r"></div>
@@ -324,6 +332,7 @@ const Navbar = () => {
                     <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
                   </li>
                 )}
+                <CurrencySelector compact={true} />
                 <ThemeToggle />
               </div>
             </div>

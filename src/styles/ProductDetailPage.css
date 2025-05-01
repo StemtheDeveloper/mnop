@@ -593,6 +593,11 @@
   border: 1px solid #c8e6c9;
 }
 
+/* Composite product badge */
+.badge.composite {
+  background-color: #6f42c1;
+}
+
 /* Categories Display */
 .product-categories {
   margin: 15px 0;
@@ -1390,6 +1395,474 @@
   border-radius: 4px;
   font-size: 13px;
   color: #c62828;
+}
+
+/* Composite Product Styles */
+
+/* Composite components section */
+.composite-components {
+  margin: 30px 0;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.composite-components h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 18px;
+  color: #333;
+}
+
+.component-list {
+  margin-bottom: 20px;
+}
+
+.component-item {
+  display: flex;
+  padding: 15px;
+  margin-bottom: 10px;
+  background-color: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.component-image {
+  width: 80px;
+  height: 80px;
+  margin-right: 15px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.component-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.component-details {
+  flex: 1;
+}
+
+.component-name {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.component-price {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.component-inventory {
+  font-size: 13px;
+}
+
+.component-inventory .inventory-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.component-inventory .inventory-status.in-stock {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.component-inventory .inventory-status.out-of-stock {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Value calculation and summary */
+.composite-summary {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.value-calculation {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.individual-value,
+.bundle-price,
+.savings {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+}
+
+.individual-value {
+  color: #666;
+}
+
+.bundle-price {
+  font-weight: 600;
+  color: #333;
+}
+
+.savings {
+  font-weight: 600;
+  color: #2e7d32;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 10px;
+  margin-top: 5px;
+}
+
+.savings-amount {
+  color: #2e7d32;
+}
+
+.savings-percentage {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2e7d32;
+}
+
+/* Bundle discount badge styling */
+.discount-type {
+  text-align: center;
+  margin-top: 15px;
+}
+
+.discount-badge {
+  display: inline-block;
+  padding: 6px 15px;
+  background-color: #ffecb3;
+  color: #e65100;
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: 20px;
+  border: 1px dashed #ffb74d;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 183, 77, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 183, 77, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 183, 77, 0);
+  }
+}
+
+/* Inventory status styling */
+.inventory-status {
+  margin: 10px 0;
+}
+
+.inventory-badge {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.inventory-badge.in-stock {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.inventory-badge.out-of-stock {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Quantity control styles */
+.quantity-control {
+  display: flex;
+  align-items: center;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  overflow: hidden;
+  width: fit-content;
+  margin-right: 15px;
+}
+
+.quantity-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background-color: #f0f0f0;
+  color: #333;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.quantity-btn:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.quantity-btn:disabled {
+  color: #999;
+  cursor: not-allowed;
+}
+
+.quantity-control input {
+  width: 50px;
+  height: 40px;
+  border: none;
+  background-color: #f5f5f5;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 500;
+  -moz-appearance: textfield; /* Remove spinner for Firefox */
+}
+
+.quantity-control input::-webkit-outer-spin-button,
+.quantity-control input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Product actions with quantity control */
+.product-actions {
+  display: flex;
+  align-items: center;
+  margin-top: 30px;
+  margin-bottom: 20px;
+}
+
+/* Composite components section */
+.composite-components {
+  margin: 30px 0;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.composite-components h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 18px;
+  color: #333;
+}
+
+.component-list {
+  margin-bottom: 20px;
+}
+
+.component-item {
+  display: flex;
+  padding: 15px;
+  margin-bottom: 10px;
+  background-color: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.component-image {
+  width: 80px;
+  height: 80px;
+  margin-right: 15px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.component-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.component-details {
+  flex: 1;
+}
+
+.component-name {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.component-price {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.component-inventory {
+  font-size: 13px;
+}
+
+.component-inventory .inventory-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.component-inventory .inventory-status.in-stock {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.component-inventory .inventory-status.out-of-stock {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Value calculation and summary */
+.composite-summary {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.value-calculation {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.individual-value,
+.bundle-price,
+.savings {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+}
+
+.individual-value {
+  color: #666;
+}
+
+.bundle-price {
+  font-weight: 600;
+  color: #333;
+}
+
+.savings {
+  font-weight: 600;
+  color: #2e7d32;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 10px;
+  margin-top: 5px;
+}
+
+.savings-amount {
+  color: #2e7d32;
+}
+
+.savings-percentage {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2e7d32;
+}
+
+/* Bundle discount badge styling */
+.discount-type {
+  text-align: center;
+  margin-top: 15px;
+}
+
+.discount-badge {
+  display: inline-block;
+  padding: 6px 15px;
+  background-color: #ffecb3;
+  color: #e65100;
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: 20px;
+  border: 1px dashed #ffb74d;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 183, 77, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 183, 77, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 183, 77, 0);
+  }
+}
+
+/* Social Share Buttons in Product Detail */
+.product-social-share {
+  margin: 15px 0;
+  padding-bottom: 10px;
+}
+
+.product-social-share .social-share-buttons {
+  margin: 0;
+}
+
+.product-social-share .social-share-buttons.icons-only .share-button {
+  width: 36px;
+  height: 36px;
+  transition: transform 0.2s ease;
+}
+
+.product-social-share .social-share-buttons.icons-only .share-button:hover {
+  transform: translateY(-2px);
+}
+
+.product-social-share .social-share-buttons .share-button .icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Tooltip position adjustment for product page */
+.product-social-share .social-share-buttons .tooltip {
+  bottom: -30px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .product-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quantity-control {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 15px;
+    justify-content: center;
+  }
+
+  .component-item {
+    flex-direction: column;
+  }
+
+  .component-image {
+    width: 100%;
+    height: 150px;
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
 }
 
 @media (max-width: 768px) {

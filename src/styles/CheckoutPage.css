@@ -637,6 +637,89 @@
   text-decoration: underline;
 }
 
+/* Cross-selling suggestions styles */
+.cross-selling-suggestions {
+  margin-top: 30px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.cross-selling-suggestions h3 {
+  font-size: 18px;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.suggestions-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.suggestion-item {
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+  overflow: hidden;
+}
+
+.suggestion-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.suggestion-item a {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.suggestion-image {
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+}
+
+.suggestion-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.suggestion-details {
+  padding: 12px;
+}
+
+.suggestion-details h4 {
+  font-size: 14px;
+  margin: 0 0 6px;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-price {
+  font-weight: 600;
+  color: #ef3c23;
+  font-size: 14px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .suggestions-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .suggestions-container {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Responsive design */
 @media (max-width: 992px) {
   .checkout-content {

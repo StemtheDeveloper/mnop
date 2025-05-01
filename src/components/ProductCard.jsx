@@ -4,6 +4,7 @@ import { doc, updateDoc, arrayUnion, arrayRemove, getDoc, query, where, getDocs 
 import { db } from '../config/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '../contexts/ToastContext';
+import { useCurrency } from '../context/CurrencyContext';
 import DOMPurify from 'dompurify'; // Import DOMPurify for HTML sanitization
 import '../styles/ProductCard.css';
 
@@ -26,6 +27,7 @@ const ProductCard = ({
 }) => {
   const { currentUser } = useUser();
   const { success: showSuccess, error: showError } = useToast(); // Map to correct function names
+  const { formatAmount } = useCurrency(); // Use the currency context
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -53,14 +55,6 @@ const ProductCard = ({
 
   // Determine if product is fully funded
   const isFullyFunded = fundingPercentage >= 100;
-
-  // Format price as currency
-  const formatPrice = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(value);
-  };
 
   // Check if the current user is the designer of this product
   const isProductDesigner = currentUser && designerId === currentUser.uid;
@@ -219,7 +213,7 @@ const ProductCard = ({
       }
 
       // Show success notification with product details
-      showSuccess(`Added to cart: ${title} (${formatPrice(numericPrice)})`);
+      showSuccess(`Added to cart: ${title} (${formatAmount(numericPrice)})`);
     } catch (error) {
       console.error("Error adding to cart:", error);
       showError("Failed to add to cart");
@@ -403,13 +397,13 @@ const ProductCard = ({
             </div>
             <div className="funding-text">
               <span>{Math.round(fundingPercentage)}% funded</span>
-              <span className="funding-goal">{formatPrice(sanitizedFundingGoal)} goal</span>
+              <span className="funding-goal">{formatAmount(sanitizedFundingGoal)} goal</span>
             </div>
           </div>
         )}
 
         <div className="product-meta">
-          <div className="product-price">{formatPrice(numericPrice)}</div>
+          <div className="product-price">{formatAmount(numericPrice)}</div>
 
           {sanitizedRating > 0 && (
             <div className="product-rating">

@@ -17,6 +17,7 @@ import NopsManagementPanel from '../components/admin/NopsManagementPanel';
 import AchievementsManagementPanel from '../components/admin/AchievementsManagementPanel';
 import AdminInvestmentSettings from '../components/admin/AdminInvestmentSettings';
 import RefundManagementPanel from '../components/admin/RefundManagementPanel';
+import CurrencyManagementPanel from '../components/admin/CurrencyManagementPanel';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -916,6 +917,18 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                 <ProductApprovalPanel />
                                 <TrendingProductsPanel />
                                 <ProductArchivePanel />
+
+                                <div className="admin-section">
+                                    <div className="admin-card">
+                                        <h3>Inventory Alerts & Reordering</h3>
+                                        <p>
+                                            Manage low stock alerts and automated reordering settings. View products that are running low on inventory and configure automatic purchase orders.
+                                        </p>
+                                        <a href="/admin/inventory-alerts" className="admin-button">
+                                            Open Inventory Alerts Panel
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -931,6 +944,16 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                         </p>
                                         <a href="/admin/review-moderation" className="admin-button">
                                             Open Review Moderation Panel
+                                        </a>
+                                    </div>
+
+                                    <div className="admin-card">
+                                        <h3>User Feedback</h3>
+                                        <p>
+                                            View and manage user feedback submitted through the feedback pop-out bar. Analyze user suggestions and experience reports to improve the platform.
+                                        </p>
+                                        <a href="/admin/feedback" className="admin-button">
+                                            Open Feedback Management
                                         </a>
                                     </div>
 
@@ -981,6 +1004,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                 <BusinessAccountPanel />
                                 <PaymentSettingsPanel />
                                 <RefundManagementPanel />
+                                <CurrencyManagementPanel />
                                 <MarketRatesPanel />
                                 <InterestRateAdminPanel />
                             </div>

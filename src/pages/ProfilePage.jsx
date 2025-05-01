@@ -370,6 +370,11 @@ const ProfilePage = () => {
         }).format(date);
     };
 
+    // Function to navigate to product edit page
+    const handleEditProduct = (productId) => {
+        navigate(`/product-edit/${productId}`);
+    };
+
     // Check if order is within the cancellation window (1 hour)
     const isWithinCancellationWindow = (orderDate) => {
         if (!orderDate) return false;

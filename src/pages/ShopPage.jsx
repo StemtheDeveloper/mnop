@@ -4,6 +4,7 @@ import { collection, getDocs, query, where, orderBy, limit, startAfter } from 'f
 import { db } from '../config/firebase';
 import ProductCard from '../components/ProductCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import EnhancedSearchInput from '../components/EnhancedSearchInput';
 import { useNavigate } from 'react-router-dom';
 import '../styles/ShopPage.css';
 
@@ -457,25 +458,12 @@ const ShopPage = () => {
 
                 {/* Search and Filters */}
                 <div className="shop-controls">
-                    <form className="search-form" onSubmit={handleSearch}>
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Search products..."
-                            className="search-input"
+                    <div className="shop-search-container">
+                        <EnhancedSearchInput
+                            placeholder="Search products in shop..."
+                            className="shop-enhanced-search"
                         />
-                        <button type="submit" className="search-button">Search</button>
-                        {searchTerm && (
-                            <button
-                                type="button"
-                                className="clear-search"
-                                onClick={handleClearSearch}
-                            >
-                                Clear
-                            </button>
-                        )}
-                    </form>
+                    </div>
 
                     <div className="filters">
                         <div className="filter-group">

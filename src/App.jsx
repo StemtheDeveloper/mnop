@@ -1,17 +1,21 @@
 import React from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
-import Nav from './components/Navbar.jsx';
+import Nav from './components/Navbar';
 import Footer from './components/Footer';
 import { UserProvider } from './context/UserContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, AuthConsumer } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { FeedbackProvider } from './contexts/FeedbackContext';
+import { CurrencyProvider } from './context/CurrencyContext';
 import NotificationToastContainer from './components/NotificationToastContainer';
 import NotificationRefresher from './components/NotificationRefresher';
 import AdminProductNotifier from './components/admin/AdminProductNotifier';
 import PolicyNotificationBanner from './components/PolicyNotificationBanner';
+import TwoFactorAuthPrompt from './components/TwoFactorAuthPrompt';
+import FeedbackBar from './components/FeedbackBar';
 import './styles/App.css';
 import './styles/Buttons.css'; // Importing common button styles
 
@@ -23,17 +27,23 @@ function App() {
           <AuthConsumer>
             <NotificationProvider>
               <ToastProvider>
-                <div className="app">
-                  <Nav />
-                  <NotificationToastContainer />
-                  <NotificationRefresher />
-                  <AdminProductNotifier />
-                  <PolicyNotificationBanner />
-                  <main className="main-content">
-                    <AppRoutes />
-                  </main>
-                  <Footer />
-                </div>
+                <CurrencyProvider>
+                  <FeedbackProvider>
+                    <div className="app">
+                      <Nav />
+                      <NotificationToastContainer />
+                      <NotificationRefresher />
+                      <AdminProductNotifier />
+                      <PolicyNotificationBanner />
+                      <TwoFactorAuthPrompt />
+                      <FeedbackBar />
+                      <main className="main-content">
+                        <AppRoutes />
+                      </main>
+                      <Footer />
+                    </div>
+                  </FeedbackProvider>
+                </CurrencyProvider>
               </ToastProvider>
             </NotificationProvider>
           </AuthConsumer>
