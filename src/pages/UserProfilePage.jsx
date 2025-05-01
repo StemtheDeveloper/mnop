@@ -144,7 +144,10 @@ const UserProfilePage = () => {
         return (
             <div className="user-profile-page">
                 <div className="loading-container">
-                    <LoadingSpinner />
+                    <LoadingSpinner
+                        componentId="user-profile"
+                        context={`user-profile-${userId}`}
+                    />
                     <p>Loading user profile...</p>
                 </div>
             </div>
@@ -334,7 +337,10 @@ const UserProfilePage = () => {
 
                                 {loadingProducts ? (
                                     <div className="loading-container">
-                                        <LoadingSpinner />
+                                        <LoadingSpinner
+                                            componentId="user-products"
+                                            context={`user-profile-${userId}-products`}
+                                        />
                                         <p>Loading products...</p>
                                     </div>
                                 ) : userProducts.length === 0 ? (

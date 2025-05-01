@@ -1630,7 +1630,10 @@ const ProductUploadPage = () => {
                             className="submit-button"
                             disabled={loading}
                         >
-                            {loading ? <LoadingSpinner /> : 'Upload Product'}
+                            {loading ? <LoadingSpinner
+                                componentId="product-upload"
+                                context="product-form-submission"
+                            /> : 'Upload Product'}
                         </button>
                     </div>
                 </form>

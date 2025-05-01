@@ -1752,7 +1752,10 @@ const ProfilePage = () => {
                                         <>
                                             {loadingProducts ? (
                                                 <div className="loading-container">
-                                                    <LoadingSpinner />
+                                                    <LoadingSpinner
+                                                        componentId="profile-products"
+                                                        context={`profile-${userId}-products`}
+                                                    />
                                                     <p>Loading your products...</p>
                                                 </div>
                                             ) : designerProducts.length === 0 ? (
@@ -1829,7 +1832,10 @@ const ProfilePage = () => {
                                                 </div>
                                             ) : loadingProducts ? (
                                                 <div className="loading-container">
-                                                    <LoadingSpinner />
+                                                    <LoadingSpinner
+                                                        componentId="profile-visitor-products"
+                                                        context={`profile-${userId}-visitor-products`}
+                                                    />
                                                     <p>Loading products...</p>
                                                 </div>
                                             ) : designerProducts.length === 0 ? (
@@ -1916,7 +1922,10 @@ const ProfilePage = () => {
 
                                     {loadingOrders ? (
                                         <div className="loading-container">
-                                            <LoadingSpinner />
+                                            <LoadingSpinner
+                                                componentId="profile-customer-orders"
+                                                context={`profile-${userId}-orders`}
+                                            />
                                             <p>Loading customer orders...</p>
                                         </div>
                                     ) : (
@@ -2285,7 +2294,10 @@ const ProfilePage = () => {
 
                                     {loadingShippingSettings ? (
                                         <div className="loading-container">
-                                            <LoadingSpinner />
+                                            <LoadingSpinner
+                                                componentId="profile-shipping"
+                                                context={`profile-${userId}-shipping`}
+                                            />
                                             <p>Loading shipping settings...</p>
                                         </div>
                                     ) : (

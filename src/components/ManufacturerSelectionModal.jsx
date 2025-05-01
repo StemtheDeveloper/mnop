@@ -161,12 +161,18 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess }) => 
 
                 {loading ? (
                     <div className="loading-container">
-                        <LoadingSpinner />
+                        <LoadingSpinner
+                            componentId="manufacturer-transfer"
+                            context="fund-transfer-process"
+                        />
                         <p>Processing fund transfer...</p>
                     </div>
                 ) : loadingManufacturers ? (
                     <div className="loading-container">
-                        <LoadingSpinner />
+                        <LoadingSpinner
+                            componentId="manufacturer-list"
+                            context="manufacturer-selection"
+                        />
                         <p>Loading verified manufacturers...</p>
                     </div>
                 ) : (

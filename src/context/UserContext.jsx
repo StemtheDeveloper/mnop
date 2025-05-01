@@ -25,6 +25,7 @@ export const UserProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [authInitialized, setAuthInitialized] = useState(false);
     const [transactions, setTransactions] = useState([]);
+    const [roleLoading, setRoleLoading] = useState(false); // Track role-specific loading state
     const [twoFactorStatus, setTwoFactorStatus] = useState({
         enabled: false,
         required: false,
@@ -215,6 +216,7 @@ export const UserProvider = ({ children }) => {
     // Add user role function
     const addUserRole = async (roleId, userId = null) => {
         try {
+            setRoleLoading(true);
             const targetUserId = userId || currentUser?.uid;
             if (!targetUserId) throw new Error("No user ID provided");
 
@@ -269,9 +271,11 @@ export const UserProvider = ({ children }) => {
                 await refreshUserData();
             }
 
+            setRoleLoading(false);
             return true;
         } catch (error) {
             console.error("Error adding role:", error);
+            setRoleLoading(false);
             throw error; // Propagate the error for better handling in UI components
         }
     };
@@ -310,6 +314,7 @@ export const UserProvider = ({ children }) => {
     // Remove user role function
     const removeUserRole = async (roleId, userId = null) => {
         try {
+            setRoleLoading(true);
             const targetUserId = userId || currentUser?.uid;
             if (!targetUserId) throw new Error("No user ID provided");
 
@@ -369,9 +374,11 @@ export const UserProvider = ({ children }) => {
                 await refreshUserData();
             }
 
+            setRoleLoading(false);
             return true;
         } catch (error) {
             console.error("Error removing role:", error);
+            setRoleLoading(false);
             throw error; // Propagate error for better UI handling
         }
     };
@@ -379,6 +386,7 @@ export const UserProvider = ({ children }) => {
     // Set primary role function
     const setPrimaryRole = async (roleId, userId = null) => {
         try {
+            setRoleLoading(true);
             const targetUserId = userId || currentUser?.uid;
             if (!targetUserId) throw new Error("No user ID provided");
 
@@ -421,9 +429,11 @@ export const UserProvider = ({ children }) => {
                 await refreshUserData();
             }
 
+            setRoleLoading(false);
             return true;
         } catch (error) {
             console.error("Error setting primary role:", error);
+            setRoleLoading(false);
             return false;
         }
     };
@@ -555,6 +565,7 @@ export const UserProvider = ({ children }) => {
         transactions,
         twoFactorStatus,
         loading,
+        roleLoading, // Expose role-specific loading state
         authInitialized,
         isLoggedIn: !!currentUser, // Explicitly provide login status
         hasRole,
