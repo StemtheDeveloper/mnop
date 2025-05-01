@@ -5,7 +5,8 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
+  getMultiFactorResolver
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, googleProvider } from "../config/firebase.js";
@@ -35,6 +36,8 @@ const SignInRegisterPage = () => {
   const [twoFactorSecret, setTwoFactorSecret] = useState('');
   const [pendingUserId, setPendingUserId] = useState('');
   const [pendingPhoneNumber, setPendingPhoneNumber] = useState('');
+  const [mfaError, setMfaError] = useState(null);
+  const [mfaResolver, setMfaResolver] = useState(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -228,7 +231,54 @@ const SignInRegisterPage = () => {
       }
     } catch (err) {
       console.error("Google sign in error:", err);
-      setError(getAuthErrorMessage(err.code));
+
+      // Check for multi-factor authentication required error
+      if (err.code === 'auth/multi-factor-auth-required') {
+        try {
+          // Get the resolver from the error
+          const resolver = getMultiFactorResolver(auth, err);
+
+          // Get the first hint (usually the phone number)
+          const phoneHint = resolver.hints[0];
+
+          if (phoneHint) {
+            // Store the MFA error and resolver for the verification component
+            setMfaError(err);
+            setMfaResolver(resolver);
+
+            // We need to get the user ID from the pending credential
+            const pendingCred = resolver.session;
+            if (pendingCred) {
+              const userId = pendingCred.user?.uid;
+
+              // Attempt to get the user's phone number for display
+              if (userId) {
+                const userDoc = await getDoc(doc(db, "users", userId));
+                const userData = userDoc.data();
+
+                setPendingUserId(userId);
+                if (userData?.twoFactorAuth?.phoneNumber) {
+                  setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
+                } else {
+                  // If we can't get the phone number from Firestore, try to use the hint
+                  setPendingPhoneNumber(phoneHint.phoneNumber || "");
+                }
+              }
+            }
+
+            // Show the 2FA verification screen
+            setShow2FAVerification(true);
+            setLoading(false);
+            return;
+          }
+        } catch (mfaError) {
+          console.error("Error handling MFA:", mfaError);
+          setError("Error initializing two-factor authentication. Please try again or use another sign-in method.");
+        }
+      } else {
+        setError(getAuthErrorMessage(err.code));
+      }
+
       setLoading(false);
     }
   };
@@ -369,24 +419,40 @@ const SignInRegisterPage = () => {
   };
 
   // Handle successful 2FA verification
-  const handle2FAVerificationSuccess = async () => {
+  const handle2FAVerificationSuccess = async (credential) => {
     setLoading(true);
 
     try {
-      // Re-sign in the user
-      // For security reasons, we need to ask for their password again
-      await signInWithEmailAndPassword(auth, email, password);
+      // Handle situation differently based on whether we have a credential from MFA
+      if (credential) {
+        // For MFA resolver flow (typically from Google, Facebook, Twitter sign in)
+        // We already have a valid user credential from the MFA verification
 
-      // Update last login time
-      const userRef = doc(db, "users", pendingUserId);
-      await setDoc(userRef, {
-        lastLogin: serverTimestamp()
-      }, { merge: true });
+        // Update last login time if we have user ID
+        if (credential.user?.uid) {
+          const userRef = doc(db, "users", credential.user.uid);
+          await setDoc(userRef, {
+            lastLogin: serverTimestamp()
+          }, { merge: true });
+        }
+      } else {
+        // For manual 2FA flow (typically from email/password)
+        // Re-sign in the user with email/password
+        await signInWithEmailAndPassword(auth, email, password);
+
+        // Update last login time
+        const userRef = doc(db, "users", pendingUserId);
+        await setDoc(userRef, {
+          lastLogin: serverTimestamp()
+        }, { merge: true });
+      }
 
       // Reset 2FA state
       setShow2FAVerification(false);
       setPendingUserId('');
       setPendingPhoneNumber('');
+      setMfaError(null);
+      setMfaResolver(null);
 
       // Redirect to the destination
       navigate(from);
@@ -408,7 +474,8 @@ const SignInRegisterPage = () => {
   // Render password reset form
   if (resetRequested) {
     return (
-      <div className="signin-register-container">
+
+      < div className="signin-register-container" >
         <h1>Reset Your Password</h1>
         <p className="form-subtext">Enter your email address and we'll send you a link to reset your password.</p>
 
@@ -445,7 +512,7 @@ const SignInRegisterPage = () => {
             Back to Sign In
           </button>
         </form>
-      </div>
+      </div >
     );
   }
 
@@ -456,6 +523,8 @@ const SignInRegisterPage = () => {
         <TwoFactorAuthVerification
           userId={pendingUserId}
           phoneNumber={pendingPhoneNumber}
+          mfaError={mfaError}
+          mfaResolver={mfaResolver}
           onVerificationSuccess={handle2FAVerificationSuccess}
           onCancel={handle2FAVerificationCancel}
         />
@@ -466,6 +535,7 @@ const SignInRegisterPage = () => {
   // Main signin/register form
   return (
     <div className="signin-register-container">
+      <br /><br /><br /><br /><br />
       <h1>{isRegisterMode ? 'Create an Account' : 'Sign In to Your Account'}</h1>
 
       {redirectMessage && (

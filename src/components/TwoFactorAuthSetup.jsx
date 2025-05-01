@@ -1,7 +1,9 @@
 // filepath: c:\Users\GGPC\Desktop\mnop-app\src\components\TwoFactorAuthSetup.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
+import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import twoFactorAuthService from '../services/twoFactorAuthService';
+import recaptchaService from '../services/recaptchaService';
 import '../styles/TwoFactorAuth.css';
 
 const TwoFactorAuthSetup = ({ onSetupComplete }) => {
@@ -15,43 +17,41 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
     const [showBackupCodes, setShowBackupCodes] = useState(false);
     const [codeSent, setCodeSent] = useState(false);
     const [countdown, setCountdown] = useState(0);
-    const [recaptchaReady, setRecaptchaReady] = useState(false);
 
-    // Reference to store the verification ID needed to complete enrollment
+    // For reauthentication
+    const [needsReauth, setNeedsReauth] = useState(false);
+    const [password, setPassword] = useState('');
+
+    // Reference to store the verification ID needed for enrollment
     const verificationIdRef = useRef(null);
     const countdownTimerRef = useRef(null);
 
-    // Generate a unique ID for the recaptcha container
-    const recaptchaContainerId = useRef('recaptcha-container-' + Math.random().toString(36).substring(2, 11));
+    // Unique ID for the invisible recaptcha
+    const recaptchaContainerId = 'recaptcha-container-2fa-setup';
 
-    // Setup recaptcha container after component mounts
+    // Setup recaptcha container - use an invisible one at the body level
     useEffect(() => {
-        // Add an ID to the document for tracking initialization
-        if (!document.getElementById("recaptcha-initialized")) {
-            const marker = document.createElement("div");
-            marker.id = "recaptcha-initialized";
-            marker.style.display = "none";
-            document.body.appendChild(marker);
+        // Create an invisible recaptcha container at the body level
+        if (!document.getElementById(recaptchaContainerId)) {
+            const invisibleContainer = document.createElement('div');
+            invisibleContainer.id = recaptchaContainerId;
+            invisibleContainer.style.position = 'fixed';
+            invisibleContainer.style.bottom = '0';
+            invisibleContainer.style.right = '0';
+            invisibleContainer.style.opacity = '0.01';
+            invisibleContainer.style.zIndex = '-1';
+            invisibleContainer.style.width = '300px';
+            invisibleContainer.style.height = '100px';
+            document.body.appendChild(invisibleContainer);
+            console.log('Created invisible recaptcha container:', recaptchaContainerId);
         }
 
-        // Wait to ensure the DOM is fully rendered
-        const timer = setTimeout(() => {
-            const container = document.getElementById(recaptchaContainerId.current);
-            if (container) {
-                // Make sure the container is clearly visible and has dimensions
-                container.style.display = 'block';
-                container.style.minHeight = '70px';
-                container.style.width = '100%';
-                setRecaptchaReady(true);
-            }
-        }, 1000);
-
-        // Clean up timer on unmount
+        // Clean up on unmount
         return () => {
-            clearTimeout(timer);
             if (countdownTimerRef.current) {
                 clearInterval(countdownTimerRef.current);
             }
+            // No need to remove the container - it's reusable
         };
     }, []);
 
@@ -108,7 +108,37 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
         return phoneNumber.replace(/\D/g, '');
     };
 
-    const handleSendCode = async () => {
+    // Handle reauthentication
+    const handleReauthenticate = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+
+        try {
+            // Reauthenticate with Firebase
+            const credential = EmailAuthProvider.credential(
+                currentUser.email,
+                password
+            );
+
+            await reauthenticateWithCredential(currentUser, credential);
+
+            // Successfully reauthenticated
+            setNeedsReauth(false);
+            setPassword('');
+
+            // Continue with the send code process
+            await sendVerificationCode();
+        } catch (error) {
+            console.error('Reauthentication error:', error);
+            setError(error.message || 'Incorrect password. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Send verification code to user's phone
+    const sendVerificationCode = async () => {
         setLoading(true);
         setError('');
 
@@ -133,43 +163,6 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
         }
 
         try {
-            // Make sure we have a valid reCAPTCHA container
-            let container = document.getElementById(recaptchaContainerId.current);
-
-            // If no container, create one
-            if (!container) {
-                console.log("No reCAPTCHA container found, creating one");
-                const parent = document.querySelector('.phone-setup-section');
-                if (parent) {
-                    container = document.createElement('div');
-                    container.id = recaptchaContainerId.current;
-                    container.className = 'recaptcha-container';
-                    container.style.marginBottom = '10px';
-                    container.style.minHeight = '70px';
-                    container.style.width = '100%';
-                    container.style.display = 'block'; // Ensure visibility
-
-                    // Find the right position to insert it
-                    const verificationSection = parent.querySelector('.verification-section');
-                    if (verificationSection) {
-                        parent.insertBefore(container, verificationSection);
-                    } else {
-                        parent.appendChild(container);
-                    }
-
-                    // Wait a bit for DOM to update
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                } else {
-                    setError('Verification system container not found. Please refresh the page and try again.');
-                    setLoading(false);
-                    return;
-                }
-            } else {
-                // Reset the container to ensure it's clean
-                container.innerHTML = '';
-                container.style.display = 'block';
-            }
-
             let formattedPhone;
 
             // Format phone number with appropriate country code
@@ -183,16 +176,11 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
                 console.log("Using US phone format:", formattedPhone);
             }
 
-            // Debug information before sending
-            console.log("About to enroll with phone number:", formattedPhone);
-            console.log("reCAPTCHA container ID:", recaptchaContainerId.current);
-            console.log("Container exists:", !!document.getElementById(recaptchaContainerId.current));
-
-            // Enroll with Firebase MFA
+            // Enroll with Firebase MFA using the invisible reCAPTCHA
             const result = await twoFactorAuthService.enrollWithPhoneNumber(
                 currentUser,
                 formattedPhone,
-                recaptchaContainerId.current
+                recaptchaContainerId
             );
 
             if (result.success) {
@@ -203,16 +191,38 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
 
                 // Start a 60-second countdown before showing resend option
                 setCountdown(60);
+            } else if (result.error && result.error.includes('requires-recent-login')) {
+                console.log("Recent authentication required");
+                setNeedsReauth(true);
             } else {
                 console.error("Verification failed:", result.error);
                 setError(result.error || 'Failed to send verification code');
+
+                // Reset reCAPTCHA to prepare for another attempt
+                recaptchaService.reset();
             }
         } catch (error) {
             console.error('Error sending verification code:', error);
-            setError(`Error: ${error.message || 'An error occurred sending the verification code. Please try again.'}`);
+            if (error.code === 'auth/requires-recent-login') {
+                setNeedsReauth(true);
+            } else {
+                setError(`Error: ${error.message || 'An error occurred sending the verification code. Please try again.'}`);
+                // Reset reCAPTCHA to prepare for another attempt
+                recaptchaService.reset();
+            }
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSendCode = async () => {
+        // Check if we need to reauthenticate first
+        if (needsReauth) {
+            return;
+        }
+
+        // Otherwise proceed with sending the code
+        await sendVerificationCode();
     };
 
     const handleVerify = async () => {
@@ -289,6 +299,43 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
         copyToClipboard(codesText);
     };
 
+    // Render reauthentication form
+    if (needsReauth) {
+        return (
+            <div className="two-factor-setup">
+                <h2>Authentication Required</h2>
+                <p>
+                    For security reasons, please re-enter your password to continue setting up
+                    two-factor authentication.
+                </p>
+
+                {error && <div className="error-message">{error}</div>}
+
+                <form onSubmit={handleReauthenticate} className="reauth-form">
+                    <div className="form-group">
+                        <label htmlFor="password">Password</label>
+                        <input
+                            id="password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Enter your password"
+                            required
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={loading || !password}
+                        className="verify-button"
+                    >
+                        {loading ? 'Verifying...' : 'Continue'}
+                    </button>
+                </form>
+            </div>
+        );
+    }
+
     if (loading && step === 1 && !codeSent) {
         return <div className="two-factor-loading">Setting up two-factor authentication...</div>;
     }
@@ -319,20 +366,13 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
                             {!codeSent && (
                                 <button
                                     onClick={handleSendCode}
-                                    disabled={loading || (getRawPhoneNumber().length < 9) || !recaptchaReady}
+                                    disabled={loading || (getRawPhoneNumber().length < 9)}
                                     className="send-code-button"
                                 >
-                                    {loading ? 'Sending...' : (recaptchaReady ? 'Send Code' : 'Preparing...')}
+                                    {loading ? 'Sending...' : 'Send Code'}
                                 </button>
                             )}
                         </div>
-
-                        {/* Create visible container for reCAPTCHA that stays in the DOM */}
-                        <div
-                            id={recaptchaContainerId.current}
-                            className="recaptcha-container"
-                            style={{ marginBottom: '10px', minHeight: '70px', width: '100%' }}
-                        ></div>
 
                         {codeSent && (
                             <div className="verification-section">

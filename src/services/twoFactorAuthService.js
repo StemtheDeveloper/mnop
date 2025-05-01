@@ -13,18 +13,7 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { db, auth } from "../config/firebase";
-
-// Import the recaptcha helper if available or create a placeholder
-let getRecaptchaVerifier = () => null;
-let resetRecaptcha = () => {};
-
-try {
-  const recaptchaModule = require("./recaptcha");
-  getRecaptchaVerifier = recaptchaModule.getRecaptchaVerifier;
-  resetRecaptcha = recaptchaModule.resetRecaptcha;
-} catch (error) {
-  console.warn("Recaptcha helper module not available");
-}
+import recaptchaService from "./recaptchaService";
 
 class TwoFactorAuthService {
   /**
@@ -34,34 +23,8 @@ class TwoFactorAuthService {
    */
   initRecaptchaVerifier(containerId = "recaptcha-container") {
     try {
-      const container = document.getElementById(containerId);
-      if (!container) {
-        throw new Error(
-          `reCAPTCHA container with ID '${containerId}' not found in DOM`
-        );
-      }
-
-      // Clear any existing reCAPTCHA instances
-      container.innerHTML = "";
-
-      // Make sure the container is visible in the DOM
-      container.style.display = "block";
-
-      // Create a new RecaptchaVerifier instance with clear parameters
-      const recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
-        size: "invisible",
-        callback: () => {
-          console.log("reCAPTCHA verified");
-        },
-        "expired-callback": () => {
-          console.log("reCAPTCHA expired");
-        },
-      });
-
-      // Render the reCAPTCHA to make sure it's properly initialized
-      recaptchaVerifier.render();
-
-      return recaptchaVerifier;
+      // Use the new recaptchaService to get a verifier
+      return recaptchaService.getVerifier(containerId);
     } catch (error) {
       console.error("Error initializing recaptcha:", error);
       throw error;
@@ -115,14 +78,21 @@ class TwoFactorAuthService {
    * @param {string} recaptchaContainerId - DOM element ID for the reCAPTCHA container
    * @returns {Promise<Object>} - Object containing verification session info
    */
-  async enrollWithPhoneNumber(user, phoneNumber, recaptchaContainerId) {
+  async enrollWithPhoneNumber(
+    user,
+    phoneNumber,
+    recaptchaContainerId = "recaptcha-container"
+  ) {
     try {
       // Make sure user is recently signed in
       const multiFactorUser = multiFactor(user);
 
-      // Create and render the reCAPTCHA verifier
-      const recaptchaVerifier =
-        this.initRecaptchaVerifier(recaptchaContainerId);
+      // Use our recaptchaService to get a verifier
+      const verifier = recaptchaService.getVerifier(recaptchaContainerId);
+
+      if (!verifier) {
+        throw new Error("No valid reCAPTCHA verifier available");
+      }
 
       // Format phone number to ensure it has a country code
       let formattedPhone = phoneNumber;
@@ -143,35 +113,52 @@ class TwoFactorAuthService {
 
       console.log("Using formatted phone number:", formattedPhone);
 
-      // Start the enrollment process
-      const session = await multiFactorUser.getSession();
+      try {
+        // Start the enrollment process
+        const session = await multiFactorUser.getSession();
 
-      // Request verification code be sent to the user's phone
-      const phoneInfoOptions = {
-        phoneNumber: formattedPhone,
-        session,
-      };
+        // Request verification code be sent to the user's phone
+        const phoneInfoOptions = {
+          phoneNumber: formattedPhone,
+          session,
+        };
 
-      // Send verification code to phone
-      const phoneAuthProvider = new PhoneAuthProvider(auth);
-      const verificationId = await phoneAuthProvider.verifyPhoneNumber(
-        phoneInfoOptions,
-        recaptchaVerifier
-      );
+        // Send verification code to phone
+        const phoneAuthProvider = new PhoneAuthProvider(auth);
+        const verificationId = await phoneAuthProvider.verifyPhoneNumber(
+          phoneInfoOptions,
+          verifier
+        );
 
-      // Store the phone number in user document
-      await this.updatePhoneNumber(user.uid, formattedPhone);
+        // Store the phone number in user document
+        await this.updatePhoneNumber(user.uid, formattedPhone);
 
-      return {
-        success: true,
-        verificationId,
-        phoneNumber: formattedPhone,
-      };
+        return {
+          success: true,
+          verificationId,
+          phoneNumber: formattedPhone,
+        };
+      } catch (innerError) {
+        // Check specifically for requires-recent-login error
+        if (innerError.code === "auth/requires-recent-login") {
+          return {
+            success: false,
+            error: "Recent authentication required",
+            requiresReauth: true,
+            code: innerError.code,
+          };
+        }
+        throw innerError; // rethrow to be caught by the outer catch
+      }
     } catch (error) {
+      // If we encounter an error, reset the recaptcha to ensure it's fresh for next attempt
+      recaptchaService.reset();
       console.error("Error enrolling with phone number:", error);
       return {
         success: false,
         error: error.message || "Failed to send verification code",
+        code: error.code || null,
+        requiresReauth: error.code === "auth/requires-recent-login",
       };
     }
   }
@@ -221,17 +208,30 @@ class TwoFactorAuthService {
    * @param {string} recaptchaContainerId - DOM element ID for reCAPTCHA
    * @returns {Promise<Object>} - Info needed for the next step
    */
-  async handleMfaRequired(error, recaptchaContainerId) {
+  async handleMfaRequired(error, recaptchaContainerId = "recaptcha-container") {
     try {
       // Get the resolver from the error
       const resolver = getMultiFactorResolver(auth, error);
 
-      // Create and render reCAPTCHA
-      const recaptchaVerifier =
-        this.initRecaptchaVerifier(recaptchaContainerId);
-
       // Get enrolled second factors
       const hints = resolver.hints;
+
+      // Make sure we have hints
+      if (!hints || hints.length === 0) {
+        return {
+          success: false,
+          error: "No multi-factor authentication methods found",
+        };
+      }
+
+      // Ensure we have a clean reCAPTCHA environment
+      recaptchaService.cleanup();
+
+      // Add a small delay to ensure DOM is ready
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Use recaptchaService to get verifier
+      const verifier = await recaptchaService.getVerifier(recaptchaContainerId);
 
       // We'll handle the first phone hint
       const phoneInfoOptions = {
@@ -243,7 +243,7 @@ class TwoFactorAuthService {
       const phoneAuthProvider = new PhoneAuthProvider(auth);
       const verificationId = await phoneAuthProvider.verifyPhoneNumber(
         phoneInfoOptions,
-        recaptchaVerifier
+        verifier
       );
 
       return {
@@ -252,6 +252,8 @@ class TwoFactorAuthService {
         resolver,
       };
     } catch (error) {
+      // If we encounter an error, reset the recaptcha to ensure it's fresh for next use
+      recaptchaService.cleanup();
       console.error("Error handling MFA:", error);
       return {
         success: false,
@@ -362,13 +364,13 @@ class TwoFactorAuthService {
       const cred = await signInWithEmailAndPassword(auth, email, password);
 
       // 2. Prepare & send the SMS for MFA enrollment
-      resetRecaptcha();
+      recaptchaService.reset();
       const session = await multiFactor(cred.user).getSession();
       const verificationId = await new PhoneAuthProvider(
         auth
       ).verifyPhoneNumber(
         { phoneNumber: phone, session },
-        getRecaptchaVerifier()
+        recaptchaService.getVerifier()
       );
 
       // 3. Finalize enrollment with the verification code
@@ -425,7 +427,7 @@ class TwoFactorAuthService {
         }
 
         // 2. Send verification code via SMS
-        resetRecaptcha();
+        recaptchaService.reset();
         const verificationId = await new PhoneAuthProvider(
           auth
         ).verifyPhoneNumber(
@@ -433,7 +435,7 @@ class TwoFactorAuthService {
             session: resolver.session,
             phoneNumber: phoneInfo.phoneNumber,
           },
-          getRecaptchaVerifier()
+          recaptchaService.getVerifier()
         );
 
         // 3. Resolve sign-in with the verification code

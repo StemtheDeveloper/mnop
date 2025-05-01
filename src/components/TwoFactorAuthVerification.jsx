@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 import twoFactorAuthService from '../services/twoFactorAuthService';
+import recaptchaService from '../services/recaptchaService';
 import '../styles/TwoFactorAuth.css';
 
 const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSuccess, onCancel }) => {
@@ -20,17 +21,31 @@ const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSucces
     // Generate a unique ID for the recaptcha container
     const recaptchaContainerId = useRef('recaptcha-container-verification-' + Math.random().toString(36).substring(2, 11));
 
-    // Cleanup function on unmount
+    // Clean up reCAPTCHA on unmount
     useEffect(() => {
         return () => {
-            // Cleanup will happen automatically with Firebase
+            // Cleanup reCAPTCHA
+            recaptchaService.cleanup();
         };
     }, []);
 
     // Initialize verification on mount
     useEffect(() => {
         if (mfaError && !codeSent) {
-            initializeMfaVerification();
+            // Clean up any previous reCAPTCHA instances first
+            recaptchaService.cleanup();
+
+            // Ensure the container is ready
+            const container = document.getElementById(recaptchaContainerId.current);
+            if (container) {
+                container.innerHTML = '';
+                container.style.display = 'block';
+            }
+
+            // Wait a bit for the DOM to be ready before initializing
+            setTimeout(() => {
+                initializeMfaVerification();
+            }, 300);
         }
     }, [mfaError]);
 
@@ -76,12 +91,16 @@ const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSucces
         setError('');
 
         try {
-            // Re-initialize the MFA verification
-            await initializeMfaVerification();
+            // Clean up reCAPTCHA first
+            recaptchaService.cleanup();
+
+            // Wait a bit before reinitializing
+            setTimeout(async () => {
+                await initializeMfaVerification();
+            }, 300);
         } catch (error) {
             console.error('Error resending code:', error);
             setError('Failed to resend verification code');
-        } finally {
             setLoading(false);
         }
     };
