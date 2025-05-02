@@ -17,12 +17,11 @@
   </head>
   <body>
     <div id="root"></div>
-    <div id="recaptcha-container" style="position: fixed; bottom: -1000px">
-      <div style="width: 0px; height: 0px">
-        <iframe … title="reCAPTCHA"></iframe>
-        <!-- stays put while you test -->
-      </div>
-    </div>
+    <!-- Permanent reCAPTCHA container outside React to avoid HMR/StrictMode issues -->
+    <div
+      id="recaptcha-container"
+      style="position: fixed; bottom: -1000px"
+    ></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

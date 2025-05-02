@@ -101,29 +101,31 @@ const SignInRegisterPage = () => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Check if user has 2FA enabled
-      const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
+      // Check if user has 2FA enabled - get the most current status
+      const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid, true);
 
-      if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
+      // Only treat 2FA as enabled if both the enabled flag is true and we have a valid phone number
+      if (twoFactorStatus.success &&
+        twoFactorStatus.data.enabled === true &&
+        twoFactorStatus.data.phoneNumber) {
+
         // User has 2FA enabled, sign them out and show 2FA verification
         await auth.signOut();
 
-        // Get the user document to retrieve the phone number
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        const userData = userDoc.data();
-
-        if (userData && userData.twoFactorAuth && userData.twoFactorAuth.phoneNumber) {
-          // Save user ID and phone number for verification
-          setPendingUserId(user.uid);
-          setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
-          setShow2FAVerification(true);
-        } else {
-          setError("Two-factor authentication is enabled but not properly configured. Please contact support.");
-        }
+        // Save user ID and phone number for verification
+        setPendingUserId(user.uid);
+        setPendingPhoneNumber(twoFactorStatus.data.phoneNumber);
+        setShow2FAVerification(true);
 
         setLoading(false);
       } else {
-        // User doesn't have 2FA enabled, proceed with login
+        // User doesn't have 2FA enabled or it was disabled, proceed with login
+        // Update last login time
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(userRef, {
+          lastLogin: serverTimestamp()
+        }, { merge: true });
+
         navigate(from);
       }
     } catch (err) {
@@ -535,7 +537,7 @@ const SignInRegisterPage = () => {
   // Main signin/register form
   return (
     <div className="signin-register-container">
-      <br /><br /><br /><br /><br />
+
       <h1>{isRegisterMode ? 'Create an Account' : 'Sign In to Your Account'}</h1>
 
       {redirectMessage && (

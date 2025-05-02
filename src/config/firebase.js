@@ -79,6 +79,12 @@ try {
   db = getFirestore(app);
   auth = getAuth(app);
   functions = getFunctions(app);
+
+  // Configure phone authentication settings
+  // For development/testing purposes only, not for production
+  if (import.meta.env.MODE === "development") {
+    auth.settings.appVerificationDisabledForTesting = true;
+  }
 } catch (error) {
   console.error("Error initializing Firebase:", error);
 }

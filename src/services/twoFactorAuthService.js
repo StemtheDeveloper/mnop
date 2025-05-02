@@ -1,277 +1,240 @@
-// filepath: c:\Users\GGPC\Desktop\mnop-app\src\services\twoFactorAuthService.js
-import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import {
-  RecaptchaVerifier,
   PhoneAuthProvider,
-  signInWithPhoneNumber,
-  multiFactor,
   PhoneMultiFactorGenerator,
-  getMultiFactorResolver,
+  multiFactor,
   getAuth,
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-  signInWithEmailAndPassword,
 } from "firebase/auth";
-import { db, auth } from "../config/firebase";
-import recaptchaService from "./recaptchaService";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { db } from "../config/firebase";
+import { getRecaptchaVerifier, resetRecaptcha } from "./infra/recaptcha";
 
+/**
+ * Two-factor authentication service
+ * Handles phone-based 2FA operations
+ */
 class TwoFactorAuthService {
-  /**
-   * Initialize the recaptcha verifier needed for SMS verification
-   * @param {string} containerId - DOM element ID for the reCAPTCHA container
-   * @returns {RecaptchaVerifier} - The reCAPTCHA verifier instance
-   */
-  initRecaptchaVerifier(containerId = "recaptcha-container") {
-    try {
-      // Use the new recaptchaService to get a verifier
-      return recaptchaService.getVerifier(containerId);
-    } catch (error) {
-      console.error("Error initializing recaptcha:", error);
-      throw error;
-    }
+  constructor() {
+    // Initialize auth but also provide a method to refresh it
+    this.auth = getAuth();
+    this._systemSettings = null;
+    this._systemSettingsTimestamp = 0;
+
+    // Add a method to refresh auth when needed
+    this.refreshAuth = () => {
+      this.auth = getAuth();
+      return this.auth;
+    };
   }
 
   /**
-   * Check if multi-factor authentication is enabled for a user
-   * @param {string} userId - The user's ID
-   * @returns {Promise<Object>} - Result with MFA status
+   * Get 2FA status for a user
+   * @param {string} userId - User ID to check
+   * @param {boolean} forceFresh - Whether to bypass any caching and get fresh status
+   * @returns {Promise<Object>} Status object with enabled and verified flags
    */
-  async get2FAStatus(userId) {
+  async get2FAStatus(userId, forceFresh = false) {
     try {
-      const userRef = doc(db, "users", userId);
-      const userDoc = await getDoc(userRef);
+      // Use a cache buster to ensure we get the latest data
+      const options = forceFresh ? { source: "server" } : {};
+      const userDoc = await getDoc(doc(db, "users", userId), options);
 
       if (!userDoc.exists()) {
-        return { success: false, error: "User not found" };
+        return {
+          success: false,
+          error: "User document not found",
+        };
       }
 
       const userData = userDoc.data();
-      const twoFactorAuth = userData.twoFactorAuth || {
-        enabled: false,
-        verified: false,
-      };
+      const twoFactorData = userData.twoFactorAuth || {};
+
+      // Check for complete and valid 2FA setup
+      const isEnabled = !!twoFactorData.enabled && !!twoFactorData.phoneNumber;
 
       return {
         success: true,
         data: {
-          enabled: twoFactorAuth.enabled === true,
-          verified: twoFactorAuth.verified === true,
-          phoneNumber: twoFactorAuth.phoneNumber || null,
-          backupCodesGenerated:
-            Array.isArray(twoFactorAuth.backupCodes) &&
-            twoFactorAuth.backupCodes.length > 0,
+          enabled: isEnabled,
+          verified: !!twoFactorData.verified,
+          phoneNumber: twoFactorData.phoneNumber || null,
         },
       };
     } catch (error) {
       console.error("Error getting 2FA status:", error);
       return {
         success: false,
-        error: error.message || "Failed to get 2FA status",
+        error: error.message,
       };
     }
   }
 
   /**
-   * Enroll a user in multi-factor authentication using phone
-   * @param {Object} user - Firebase user object
-   * @param {string} phoneNumber - The phone number to use for MFA
-   * @param {string} recaptchaContainerId - DOM element ID for the reCAPTCHA container
-   * @returns {Promise<Object>} - Object containing verification session info
+   * Check if 2FA is required for a user's roles
+   * @param {Array<string>} roles - User roles
+   * @returns {Promise<boolean>} Whether 2FA is required
    */
-  async enrollWithPhoneNumber(
-    user,
-    phoneNumber,
-    recaptchaContainerId = "recaptcha-container"
-  ) {
+  async is2FARequiredForRoles(roles) {
+    if (!roles || !Array.isArray(roles)) {
+      return false;
+    }
+
     try {
-      // Make sure user is recently signed in
-      const multiFactorUser = multiFactor(user);
+      // Get system settings (with 5-minute cache)
+      const settings = await this._getSystemSettings();
 
-      // Use our recaptchaService to get a verifier
-      const verifier = recaptchaService.getVerifier(recaptchaContainerId);
-
-      if (!verifier) {
-        throw new Error("No valid reCAPTCHA verifier available");
+      // If 2FA is not required system-wide, return false
+      if (!settings.requireTwoFactorAuth) {
+        return false;
       }
 
-      // Format phone number to ensure it has a country code
-      let formattedPhone = phoneNumber;
+      // Check if any of the user's roles require 2FA
+      return roles.some((role) => settings.requiredRoles.includes(role));
+    } catch (error) {
+      console.error("Error checking if 2FA is required:", error);
 
-      // Clean the phone number of any formatting
-      const cleanNumber = phoneNumber.replace(/\D/g, "");
+      // Default to previous hard-coded behavior if there's an error
+      const defaultRequiredRoles = ["admin", "designer"];
+      return roles.some((role) => defaultRequiredRoles.includes(role));
+    }
+  }
 
-      // Check if the number already has a country code (starts with +)
-      if (!phoneNumber.startsWith("+")) {
-        // Handle New Zealand numbers (start with 02)
-        if (cleanNumber.startsWith("02")) {
-          formattedPhone = `+64${cleanNumber.substring(1)}`; // Replace the '0' with NZ country code
-        } else {
-          // Default to US format for backward compatibility
-          formattedPhone = `+1${cleanNumber}`;
-        }
-      }
+  /**
+   * Get system security settings with caching
+   * @private
+   * @returns {Promise<Object>} System security settings
+   */
+  async _getSystemSettings() {
+    const now = Date.now();
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-      console.log("Using formatted phone number:", formattedPhone);
+    // Return cached settings if available and not expired
+    if (
+      this._systemSettings &&
+      now - this._systemSettingsTimestamp < CACHE_DURATION
+    ) {
+      return this._systemSettings;
+    }
 
-      try {
-        // Start the enrollment process
-        const session = await multiFactorUser.getSession();
+    try {
+      const settingsRef = doc(db, "settings", "securitySettings");
+      const settingsDoc = await getDoc(settingsRef);
 
-        // Request verification code be sent to the user's phone
-        const phoneInfoOptions = {
-          phoneNumber: formattedPhone,
-          session,
+      if (settingsDoc.exists()) {
+        const data = settingsDoc.data();
+        this._systemSettings = {
+          requireTwoFactorAuth: data.requireTwoFactorAuth ?? true,
+          requiredRoles: data.requiredRoles ?? ["admin", "designer"],
         };
+      } else {
+        // Default settings if none exist
+        this._systemSettings = {
+          requireTwoFactorAuth: true,
+          requiredRoles: ["admin", "designer"],
+        };
+      }
 
-        // Send verification code to phone
-        const phoneAuthProvider = new PhoneAuthProvider(auth);
-        const verificationId = await phoneAuthProvider.verifyPhoneNumber(
-          phoneInfoOptions,
-          verifier
+      this._systemSettingsTimestamp = now;
+      return this._systemSettings;
+    } catch (error) {
+      console.error("Error fetching system security settings:", error);
+      // Return default settings
+      return {
+        requireTwoFactorAuth: true,
+        requiredRoles: ["admin", "designer"],
+      };
+    }
+  }
+
+  /**
+   * Send verification code to user's phone
+   * @param {string} phoneNumber - Phone number in E.164 format (e.g., +16505551234)
+   * @returns {Promise<Object>} Result object with session information
+   */
+  async sendVerificationCode(phoneNumber) {
+    try {
+      // Get fresh auth instance to ensure we have the latest state
+      this.auth = getAuth();
+
+      // Force a timeout to make sure auth state is fully processed
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          this.auth = getAuth();
+          resolve();
+        }, 1000);
+      });
+
+      if (!this.auth.currentUser) {
+        console.error(
+          "Authentication error: currentUser is null after refresh attempts"
         );
-
-        // Store the phone number in user document
-        await this.updatePhoneNumber(user.uid, formattedPhone);
-
-        return {
-          success: true,
-          verificationId,
-          phoneNumber: formattedPhone,
-        };
-      } catch (innerError) {
-        // Check specifically for requires-recent-login error
-        if (innerError.code === "auth/requires-recent-login") {
-          return {
-            success: false,
-            error: "Recent authentication required",
-            requiresReauth: true,
-            code: innerError.code,
-          };
-        }
-        throw innerError; // rethrow to be caught by the outer catch
-      }
-    } catch (error) {
-      // If we encounter an error, reset the recaptcha to ensure it's fresh for next attempt
-      recaptchaService.reset();
-      console.error("Error enrolling with phone number:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to send verification code",
-        code: error.code || null,
-        requiresReauth: error.code === "auth/requires-recent-login",
-      };
-    }
-  }
-
-  /**
-   * Complete enrollment after code verification
-   * @param {Object} user - Firebase user object
-   * @param {string} verificationId - Verification ID from enrollWithPhoneNumber
-   * @param {string} verificationCode - Code entered by user
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async completeEnrollment(user, verificationId, verificationCode) {
-    try {
-      // Create credential from verification ID and code
-      const phoneAuthCredential = PhoneAuthProvider.credential(
-        verificationId,
-        verificationCode
-      );
-
-      // Create multi-factor assertion
-      const multiFactorAssertion =
-        PhoneMultiFactorGenerator.assertion(phoneAuthCredential);
-
-      // Complete enrollment
-      const multiFactorUser = multiFactor(user);
-      await multiFactorUser.enroll(multiFactorAssertion, "My phone number");
-
-      // Update user document in Firestore
-      await this.updateUserMfaStatus(user.uid, true, true);
-
-      return {
-        success: true,
-        message: "Multi-factor authentication enrolled successfully",
-      };
-    } catch (error) {
-      console.error("Error completing MFA enrollment:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to verify code and enable MFA",
-      };
-    }
-  }
-
-  /**
-   * Handle MFA sign-in when prompted during login
-   * @param {Error} error - The auth error that triggered MFA
-   * @param {string} recaptchaContainerId - DOM element ID for reCAPTCHA
-   * @returns {Promise<Object>} - Info needed for the next step
-   */
-  async handleMfaRequired(error, recaptchaContainerId = "recaptcha-container") {
-    try {
-      // Get the resolver from the error
-      const resolver = getMultiFactorResolver(auth, error);
-
-      // Get enrolled second factors
-      const hints = resolver.hints;
-
-      // Make sure we have hints
-      if (!hints || hints.length === 0) {
-        return {
-          success: false,
-          error: "No multi-factor authentication methods found",
-        };
+        throw new Error(
+          "User is not authenticated. Please sign in again and retry."
+        );
       }
 
-      // Ensure we have a clean reCAPTCHA environment
-      recaptchaService.cleanup();
+      // Reset any existing recaptcha
+      resetRecaptcha();
 
-      // Add a small delay to ensure DOM is ready
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Get the singleton verifier instance
+      const recaptchaVerifier = getRecaptchaVerifier();
 
-      // Use recaptchaService to get verifier
-      const verifier = await recaptchaService.getVerifier(recaptchaContainerId);
-
-      // We'll handle the first phone hint
-      const phoneInfoOptions = {
-        multiFactorHint: hints[0],
-        session: resolver.session,
-      };
+      const multiFactorUser = multiFactor(this.auth.currentUser);
+      const phoneAuthProvider = new PhoneAuthProvider(this.auth);
 
       // Send verification code
-      const phoneAuthProvider = new PhoneAuthProvider(auth);
       const verificationId = await phoneAuthProvider.verifyPhoneNumber(
-        phoneInfoOptions,
-        verifier
+        phoneNumber,
+        recaptchaVerifier
       );
 
       return {
         success: true,
-        verificationId,
-        resolver,
+        data: {
+          verificationId,
+          phoneNumber,
+        },
       };
     } catch (error) {
-      // If we encounter an error, reset the recaptcha to ensure it's fresh for next use
-      recaptchaService.cleanup();
-      console.error("Error handling MFA:", error);
+      console.error("Error sending verification code:", error);
       return {
         success: false,
-        error: error.message || "Failed to start MFA verification",
+        error: error.message,
       };
     }
   }
 
   /**
-   * Complete MFA sign-in with verification code
-   * @param {Object} resolver - MFA resolver from handleMfaRequired
-   * @param {string} verificationId - Verification ID from handleMfaRequired
-   * @param {string} verificationCode - Code entered by user
-   * @returns {Promise<Object>} - Result with user credential
+   * Complete phone number verification and enroll in MFA
+   * @param {string} verificationId - Verification ID from sendVerificationCode
+   * @param {string} verificationCode - OTP code from SMS
+   * @param {string} phoneNumber - Phone number being verified
+   * @returns {Promise<Object>} Result object
    */
-  async completeMfaSignIn(resolver, verificationId, verificationCode) {
+  async verifyPhoneAndEnroll(verificationId, verificationCode, phoneNumber) {
     try {
-      // Create credential from verification ID and code
+      // Get fresh auth instance to ensure we have the latest state
+      this.auth = getAuth();
+
+      // Force a timeout to make sure auth state is fully processed
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          this.auth = getAuth();
+          resolve();
+        }, 1000);
+      });
+
+      if (!this.auth.currentUser) {
+        console.error(
+          "Authentication error: currentUser is null after refresh attempts"
+        );
+        throw new Error(
+          "User is not authenticated. Please sign in again and retry."
+        );
+      }
+
+      const multiFactorUser = multiFactor(this.auth.currentUser);
+
+      // Create credential
       const phoneAuthCredential = PhoneAuthProvider.credential(
         verificationId,
         verificationCode
@@ -281,182 +244,21 @@ class TwoFactorAuthService {
       const multiFactorAssertion =
         PhoneMultiFactorGenerator.assertion(phoneAuthCredential);
 
-      // Complete sign-in
-      const userCredential = await resolver.resolveSignIn(multiFactorAssertion);
+      // Enroll the user in MFA
+      await multiFactorUser.enroll(multiFactorAssertion, phoneNumber);
+
+      // Update Firestore document
+      await this.enable2FA(this.auth.currentUser.uid, phoneNumber, true);
 
       return {
         success: true,
-        credential: userCredential,
+        message: "Successfully enrolled in two-factor authentication",
       };
     } catch (error) {
-      console.error("Error completing MFA sign-in:", error);
+      console.error("Error verifying phone and enrolling in MFA:", error);
       return {
         success: false,
-        error: error.message || "Invalid verification code",
-      };
-    }
-  }
-
-  /**
-   * Update the user's MFA status in Firestore
-   * @param {string} userId - The user's ID
-   * @param {boolean} enabled - Whether MFA is enabled
-   * @param {boolean} verified - Whether MFA is verified
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async updateUserMfaStatus(userId, enabled = true, verified = true) {
-    try {
-      const userRef = doc(db, "users", userId);
-
-      await updateDoc(userRef, {
-        "twoFactorAuth.enabled": enabled,
-        "twoFactorAuth.verified": verified,
-        "twoFactorAuth.lastUpdated": new Date(),
-        updatedAt: new Date(),
-      });
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error updating MFA status:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to update MFA status",
-      };
-    }
-  }
-
-  /**
-   * Update a user's phone number
-   * @param {string} userId - User ID
-   * @param {string} phoneNumber - Phone number
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async updatePhoneNumber(userId, phoneNumber) {
-    try {
-      const userRef = doc(db, "users", userId);
-
-      await updateDoc(userRef, {
-        "twoFactorAuth.phoneNumber": phoneNumber,
-        updatedAt: new Date(),
-      });
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error updating phone number:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to update phone number",
-      };
-    }
-  }
-
-  /**
-   * Simplified enrollment with phone number (alternative implementation)
-   * @param {string} email - User email
-   * @param {string} password - User password
-   * @param {string} phone - Phone number
-   * @param {string} verificationCode - Verification code from SMS
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async simplifiedEnrollWithMfa(email, password, phone, verificationCode) {
-    try {
-      // 1. Log in with the primary factor (email/password)
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-
-      // 2. Prepare & send the SMS for MFA enrollment
-      recaptchaService.reset();
-      const session = await multiFactor(cred.user).getSession();
-      const verificationId = await new PhoneAuthProvider(
-        auth
-      ).verifyPhoneNumber(
-        { phoneNumber: phone, session },
-        recaptchaService.getVerifier()
-      );
-
-      // 3. Finalize enrollment with the verification code
-      const phoneCred = PhoneAuthProvider.credential(
-        verificationId,
-        verificationCode
-      );
-      await multiFactor(cred.user).enroll(phoneCred, "Primary phone");
-
-      // Update user document in Firestore
-      await this.updatePhoneNumber(cred.user.uid, phone);
-      await this.updateUserMfaStatus(cred.user.uid, true, true);
-
-      return {
-        success: true,
-        message: "Multi-factor authentication enrolled successfully",
-      };
-    } catch (error) {
-      console.error("Error in simplified MFA enrollment:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to enroll in MFA",
-      };
-    }
-  }
-
-  /**
-   * Simplified sign in with MFA (alternative implementation)
-   * @param {string} email - User email
-   * @param {string} password - User password
-   * @param {string} phone - Phone number
-   * @param {string} verificationCode - Verification code from SMS
-   * @returns {Promise<Object>} - Result with user credential or error
-   */
-  async simplifiedSignInWithMfa(email, password, phone, verificationCode) {
-    try {
-      try {
-        // Try regular sign in first
-        const credential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-        return { success: true, credential, mfaRequired: false };
-      } catch (err) {
-        if (err.code !== "auth/multi-factor-auth-required") throw err;
-
-        // 1. Get the resolver that specifies the next MFA steps
-        const resolver = err.resolver;
-        const phoneInfo = resolver.hints.find((h) => h.phoneNumber === phone);
-
-        if (!phoneInfo) {
-          throw new Error("Phone number not found in enrolled factors");
-        }
-
-        // 2. Send verification code via SMS
-        recaptchaService.reset();
-        const verificationId = await new PhoneAuthProvider(
-          auth
-        ).verifyPhoneNumber(
-          {
-            session: resolver.session,
-            phoneNumber: phoneInfo.phoneNumber,
-          },
-          recaptchaService.getVerifier()
-        );
-
-        // 3. Resolve sign-in with the verification code
-        const phoneCred = PhoneAuthProvider.credential(
-          verificationId,
-          verificationCode
-        );
-        const mfaCred = PhoneMultiFactorGenerator.assertion(phoneCred);
-        const userCredential = await resolver.resolveSignIn(mfaCred);
-
-        return {
-          success: true,
-          credential: userCredential,
-          mfaRequired: true,
-        };
-      }
-    } catch (error) {
-      console.error("Error in simplified MFA sign in:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to sign in with MFA",
+        error: error.message,
       };
     }
   }
@@ -464,28 +266,70 @@ class TwoFactorAuthService {
   /**
    * Enable 2FA for a user
    * @param {string} userId - User ID
-   * @param {string} secret - The secret for 2FA
-   * @param {boolean} verified - Whether the 2FA is verified
-   * @returns {Promise<Object>} - Result with success status
+   * @param {string} phoneNumber - Phone number for 2FA
+   * @param {boolean} verified - Whether phone has been verified
+   * @returns {Promise<Object>} Result object
    */
-  async enable2FA(userId, secret, verified = false) {
+  async enable2FA(userId, phoneNumber, verified = false) {
     try {
       const userRef = doc(db, "users", userId);
 
       await updateDoc(userRef, {
-        "twoFactorAuth.enabled": true,
-        "twoFactorAuth.secret": secret,
-        "twoFactorAuth.verified": verified,
-        "twoFactorAuth.lastUpdated": new Date(),
+        twoFactorAuth: {
+          enabled: true,
+          verified: verified,
+          phoneNumber: phoneNumber,
+          updatedAt: new Date(),
+        },
         updatedAt: new Date(),
       });
 
-      return { success: true, message: "Two-factor authentication enabled" };
+      return {
+        success: true,
+        message: "Two-factor authentication enabled successfully",
+      };
     } catch (error) {
       console.error("Error enabling 2FA:", error);
       return {
         success: false,
-        error: error.message || "Failed to enable 2FA",
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Verify a code during the sign-in process
+   * @param {object} resolver - MFA resolver from auth/multi-factor-auth-required error
+   * @param {string} verificationCode - Code from SMS
+   * @returns {Promise<Object>} Result with user credential
+   */
+  async verifySignInCode(resolver, verificationCode) {
+    try {
+      // Get the first phone hint
+      const hint = resolver.hints[0];
+
+      // Create phone credential
+      const phoneAuthCredential = PhoneAuthProvider.credential(
+        resolver.session.verificationId,
+        verificationCode
+      );
+
+      // Create multi-factor assertion
+      const multiFactorAssertion =
+        PhoneMultiFactorGenerator.assertion(phoneAuthCredential);
+
+      // Resolve sign in
+      const credential = await resolver.resolveSignIn(multiFactorAssertion);
+
+      return {
+        success: true,
+        credential,
+      };
+    } catch (error) {
+      console.error("Error verifying sign-in code:", error);
+      return {
+        success: false,
+        error: error.message,
       };
     }
   }
@@ -493,227 +337,94 @@ class TwoFactorAuthService {
   /**
    * Disable 2FA for a user
    * @param {string} userId - User ID
-   * @returns {Promise<Object>} - Result with success status
+   * @returns {Promise<Object>} Result object
    */
   async disable2FA(userId) {
     try {
       const userRef = doc(db, "users", userId);
 
+      // Complete reset of 2FA data to ensure all traces are removed
       await updateDoc(userRef, {
-        "twoFactorAuth.enabled": false,
-        "twoFactorAuth.verified": false,
-        "twoFactorAuth.lastUpdated": new Date(),
+        twoFactorAuth: {
+          enabled: false,
+          verified: false,
+          phoneNumber: null, // Clear the phone number to prevent reuse
+          updatedAt: new Date(),
+        },
         updatedAt: new Date(),
       });
 
-      return { success: true, message: "Two-factor authentication disabled" };
+      // Force the user's MFA enrollment to be removed from Firebase Auth
+      // This is done silently, as we don't have direct access to the user object here
+      try {
+        // This is a best-effort attempt - the document update above is the primary action
+        const auth = getAuth();
+        if (auth.currentUser && auth.currentUser.uid === userId) {
+          const multiFactorUser = multiFactor(auth.currentUser);
+          // If there are enrolled factors, attempt to unenroll them
+          const enrolledFactors = await multiFactorUser.getEnrolledFactors();
+
+          if (enrolledFactors && enrolledFactors.length > 0) {
+            // Unenroll each factor
+            for (const factor of enrolledFactors) {
+              try {
+                await multiFactorUser.unenroll(factor);
+              } catch (err) {
+                console.warn("Could not unenroll factor:", err);
+                // Continue with other factors
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Log but don't fail the operation if we can't clean up Firebase Auth
+        console.warn("Could not remove 2FA from Firebase Auth:", err);
+      }
+
+      return {
+        success: true,
+        message: "Two-factor authentication disabled successfully",
+      };
     } catch (error) {
       console.error("Error disabling 2FA:", error);
       return {
         success: false,
-        error: error.message || "Failed to disable 2FA",
-      };
-    }
-  }
-
-  /**
-   * Disable MFA for a user
-   * @param {Object} user - Firebase user object
-   * @param {string} password - User's current password for reauthentication
-   * @param {string} email - User's email
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async disableMfa(user, email, password) {
-    try {
-      // Reauthenticate the user first
-      const credential = EmailAuthProvider.credential(email, password);
-      await reauthenticateWithCredential(user, credential);
-
-      // Get enrolled factors
-      const multiFactorUser = multiFactor(user);
-      const enrolledFactors = multiFactorUser.enrolledFactors;
-
-      // Unenroll all factors
-      if (enrolledFactors.length > 0) {
-        await multiFactorUser.unenroll(enrolledFactors[0]);
-      }
-
-      // Update user document in Firestore
-      await this.updateUserMfaStatus(user.uid, false, false);
-
-      return {
-        success: true,
-        message: "Multi-factor authentication disabled successfully",
-      };
-    } catch (error) {
-      console.error("Error disabling MFA:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to disable MFA",
-      };
-    }
-  }
-
-  /**
-   * Generate random backup codes
-   * @param {number} count - Number of backup codes to generate
-   * @returns {Array<string>} - Array of backup codes
-   */
-  generateBackupCodes(count = 10) {
-    const codes = [];
-
-    for (let i = 0; i < count; i++) {
-      // Create a random 10-character alphanumeric code
-      let code = "";
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
-      for (let j = 0; j < 10; j++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-
-      // Format as XXXXX-XXXXX for readability
-      code = code.substring(0, 5) + "-" + code.substring(5);
-      codes.push(code);
-    }
-
-    return codes;
-  }
-
-  /**
-   * Save backup codes for a user
-   * @param {string} userId - The user's ID
-   * @param {Array<string>} backupCodes - Array of backup codes
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async saveBackupCodes(userId, backupCodes) {
-    try {
-      const userRef = doc(db, "users", userId);
-
-      await updateDoc(userRef, {
-        "twoFactorAuth.backupCodes": backupCodes,
-        updatedAt: new Date(),
-      });
-
-      return { success: true, message: "Backup codes saved successfully" };
-    } catch (error) {
-      console.error("Error saving backup codes:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to save backup codes",
-      };
-    }
-  }
-
-  /**
-   * Check if 2FA is required for a user based on their roles
-   * @param {Array<string>} userRoles - Array of user roles
-   * @returns {boolean} - Whether 2FA is required
-   */
-  is2FARequiredForRoles(userRoles) {
-    // Check if the user has admin or designer role
-    return userRoles.includes("admin") || userRoles.includes("designer");
-  }
-
-  /**
-   * Verify a backup code for a user
-   * @param {string} userId - The user's ID
-   * @param {string} backupCode - The backup code to verify
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async verifyBackupCode(userId, backupCode) {
-    try {
-      const userRef = doc(db, "users", userId);
-      const userDoc = await getDoc(userRef);
-
-      if (!userDoc.exists()) {
-        return { success: false, error: "User not found" };
-      }
-
-      const userData = userDoc.data();
-      const twoFactorAuth = userData.twoFactorAuth || {};
-      const backupCodes = twoFactorAuth.backupCodes || [];
-
-      // Normalize the backup code format (remove dashes, uppercase)
-      const normalizedInputCode = backupCode.replace(/-/g, "").toUpperCase();
-      const normalizedStoredCodes = backupCodes.map((code) =>
-        code.replace(/-/g, "").toUpperCase()
-      );
-
-      const index = normalizedStoredCodes.indexOf(normalizedInputCode);
-
-      if (index === -1) {
-        return { success: false, error: "Invalid backup code" };
-      }
-
-      // Remove the used backup code
-      backupCodes.splice(index, 1);
-
-      // Update the user document
-      await updateDoc(userRef, {
-        "twoFactorAuth.backupCodes": backupCodes,
-        updatedAt: new Date(),
-      });
-
-      return { success: true, message: "Backup code verified successfully" };
-    } catch (error) {
-      console.error("Error verifying backup code:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to verify backup code",
-      };
-    }
-  }
-
-  /**
-   * Get the current multi-factor auth configuration for a user
-   * @param {Object} user - Firebase user object
-   * @returns {Promise<Object>} - MFA configuration info
-   */
-  getMfaInfo(user) {
-    try {
-      if (!user) {
-        return {
-          enrolled: false,
-          factors: [],
-        };
-      }
-
-      const multiFactorUser = multiFactor(user);
-      const enrolledFactors = multiFactorUser.enrolledFactors || [];
-
-      return {
-        enrolled: enrolledFactors.length > 0,
-        factors: enrolledFactors.map((factor) => ({
-          uid: factor.uid,
-          displayName: factor.displayName,
-          factorId: factor.factorId,
-          enrollmentTime: factor.enrollmentTime,
-        })),
-      };
-    } catch (error) {
-      console.error("Error getting MFA info:", error);
-      return {
-        enrolled: false,
-        factors: [],
         error: error.message,
       };
     }
   }
 
-  // Helper functions to expose the simplified functions as standalone exports
-  static enrolWithPhoneNumber = async (email, password, phone, codeFromUI) => {
-    const service = new TwoFactorAuthService();
-    return service.simplifiedEnrollWithMfa(email, password, phone, codeFromUI);
-  };
+  /**
+   * Update phone number for 2FA
+   * @param {string} userId - User ID
+   * @param {string} phoneNumber - New phone number
+   * @param {boolean} verified - Whether new phone is verified
+   * @returns {Promise<Object>} Result object
+   */
+  async updatePhoneNumber(userId, phoneNumber, verified = false) {
+    try {
+      const userRef = doc(db, "users", userId);
 
-  static signInWithMfa = async (email, password, phone, codeFromUI) => {
-    const service = new TwoFactorAuthService();
-    return service.simplifiedSignInWithMfa(email, password, phone, codeFromUI);
-  };
+      await updateDoc(userRef, {
+        "twoFactorAuth.phoneNumber": phoneNumber,
+        "twoFactorAuth.verified": verified,
+        "twoFactorAuth.updatedAt": new Date(),
+        updatedAt: new Date(),
+      });
+
+      return {
+        success: true,
+        message: "Phone number updated successfully",
+      };
+    } catch (error) {
+      console.error("Error updating phone number:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
 }
-
-// Export the static methods separately for direct import
-export const { enrolWithPhoneNumber, signInWithMfa } = TwoFactorAuthService;
 
 const twoFactorAuthService = new TwoFactorAuthService();
 export default twoFactorAuthService;

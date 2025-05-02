@@ -7,10 +7,11 @@ import { auth, db, storage } from '../config/firebase';
 import '../styles/ProfilePage.css';
 import '../styles/ImageCropper.css';
 import ImageCropper from '../components/ImageCropper';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NopCollection from '../components/NopCollection';
+import TwoFactorAuthSetup from '../components/TwoFactorAuthSetup';
 import refundService from '../services/refundService'; // Import refundService
 
 const ProfilePage = () => {
@@ -1066,6 +1067,7 @@ const ProfilePage = () => {
         const tabs = [
             { id: 'personal', label: 'Personal Info', roles: ['all'] },
             { id: 'account', label: 'Account Settings', roles: ['all'] },
+            { id: 'security', label: 'Security', roles: ['all'] },
             { id: 'preferences', label: 'Preferences', roles: ['all'] },
             { id: 'privacy', label: 'Privacy Settings', roles: ['all'] },
             { id: 'collectibles', label: 'Collectibles', roles: ['all'] } // Add Collectibles tab for all users
@@ -2438,6 +2440,33 @@ const ProfilePage = () => {
 
                                     <div className="collectibles-info">
                                         <p>Don't forget to check the footer each day for a new collectible Nop!</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'security' && (
+                                <div className="settings-section security-settings-section">
+                                    <h3>Security Settings</h3>
+                                    <p>Manage your account security options</p>
+
+                                    {/* Two-Factor Authentication */}
+                                    <div className="security-section">
+                                        <TwoFactorAuthSetup />
+                                    </div>
+
+                                    {/* Password section */}
+                                    <div className="security-section">
+                                        <h3>Password</h3>
+                                        <p>Update your password or set up password recovery options.</p>
+                                        <div className="form-group">
+                                            <button
+                                                type="button"
+                                                className="btn-secondary"
+                                                onClick={() => navigate('/reset-password')}
+                                            >
+                                                Reset Password
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

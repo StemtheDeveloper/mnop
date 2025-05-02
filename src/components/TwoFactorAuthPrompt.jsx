@@ -1,49 +1,75 @@
-// filepath: c:\Users\GGPC\Desktop\mnop-app\src\components\TwoFactorAuthPrompt.jsx
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import twoFactorAuthService from '../services/twoFactorAuthService';
 import '../styles/TwoFactorAuth.css';
 
+/**
+ * A prompt shown to users with required roles (admin, designer) who haven't set up 2FA
+ */
 const TwoFactorAuthPrompt = () => {
-    const { twoFactorStatus, userRoles } = useUser();
-    const navigate = useNavigate();
+    const { userRoles, twoFactorStatus } = useUser();
+    const [showPrompt, setShowPrompt] = useState(false);
+    const [loading, setLoading] = useState(true);
 
-    // Don't show anything if:
-    // - Two-factor auth is not required
-    // - Or if it's already enabled
-    if (!twoFactorStatus.required || twoFactorStatus.enabled) {
+    // Check if the prompt should be shown based on user roles and system settings
+    useEffect(() => {
+        const checkPromptVisibility = async () => {
+            // Don't show the prompt if 2FA is already enabled
+            if (twoFactorStatus.enabled) {
+                setShowPrompt(false);
+                setLoading(false);
+                return;
+            }
+
+            try {
+                // Check if 2FA is required for this user based on system settings
+                const is2FARequired = await twoFactorAuthService.is2FARequiredForRoles(userRoles);
+                setShowPrompt(is2FARequired);
+            } catch (error) {
+                console.error('Error checking 2FA requirements:', error);
+                // Default to showing if user is admin or designer
+                const defaultRequired = userRoles.some(role => ['admin', 'designer'].includes(role));
+                setShowPrompt(defaultRequired);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        checkPromptVisibility();
+    }, [userRoles, twoFactorStatus]);
+
+    // Don't render anything while checking
+    if (loading) {
         return null;
     }
 
-    const roleNames = userRoles
-        .filter(role => role === 'admin' || role === 'designer')
-        .map(role => role.charAt(0).toUpperCase() + role.slice(1))
-        .join(' and ');
+    // Don't render if prompt shouldn't be shown
+    if (!showPrompt) {
+        return null;
+    }
 
-    const handleNavigateToSettings = () => {
-        navigate('/settings');
-    };
+    // Determine role-specific messaging
+    const isAdmin = userRoles.includes('admin');
+    const roleText = isAdmin ? 'administrator' : 'designer';
 
     return (
         <div className="two-factor-prompt">
             <div className="prompt-content">
-                <div className="prompt-icon">🔐</div>
+                <div className="prompt-icon">🔒</div>
                 <div className="prompt-message">
-                    <h3>Security Enhancement Required</h3>
+                    <h3>Security Verification Required</h3>
                     <p>
-                        As a {roleNames}, your account requires two-factor authentication for added security.
-                        Please set up text message verification in your account settings.
+                        As an {roleText}, you need to set up two-factor authentication
+                        to access restricted areas of the platform.
                     </p>
                     <p className="prompt-urgency">
-                        This is required to access {roleNames.toLowerCase()} features.
+                        Please set up 2FA now to ensure continued access.
                     </p>
                 </div>
-                <button
-                    onClick={handleNavigateToSettings}
-                    className="setup-button"
-                >
+                <Link to="/profile" state={{ defaultTab: 'security' }} className="setup-button">
                     Set Up Two-Factor Authentication
-                </button>
+                </Link>
             </div>
         </div>
     );

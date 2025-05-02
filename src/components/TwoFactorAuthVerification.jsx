@@ -1,271 +1,179 @@
-// filepath: c:\Users\GGPC\Desktop\mnop-app\src\components\TwoFactorAuthVerification.jsx
-import React, { useState, useRef, useEffect } from 'react';
-import { useUser } from '../context/UserContext';
+import React, { useState, useEffect } from 'react';
+import { PhoneAuthProvider } from 'firebase/auth';
+import { auth } from '../config/firebase.js';
 import twoFactorAuthService from '../services/twoFactorAuthService';
-import recaptchaService from '../services/recaptchaService';
-import '../styles/TwoFactorAuth.css';
+import "../styles/TwoFactorAuth.css";
 
-const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSuccess, onCancel }) => {
+/**
+ * Component for handling two-factor authentication verification
+ * Used during sign-in when 2FA is enabled for a user
+ */
+const TwoFactorAuthVerification = ({
+    userId,
+    phoneNumber,
+    mfaError,
+    mfaResolver,
+    onVerificationSuccess,
+    onCancel
+}) => {
     const [verificationCode, setVerificationCode] = useState('');
-    const [backupCode, setBackupCode] = useState('');
-    const [useBackupCode, setUseBackupCode] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
     const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [codeSent, setCodeSent] = useState(false);
-    const [countdown, setCountdown] = useState(0);
+    const [isCodeSent, setIsCodeSent] = useState(false);
+    const [verificationId, setVerificationId] = useState('');
 
-    // MFA verification references
-    const verificationIdRef = useRef(null);
-    const resolverRef = useRef(mfaResolver);
+    // Format phone number for display (show only last 4 digits)
+    const formatPhoneNumber = (number) => {
+        if (!number) return '';
+        return number.replace(/^(.*)(\d{4})$/, '••• •••• $2');
+    };
 
-    // Generate a unique ID for the recaptcha container
-    const recaptchaContainerId = useRef('recaptcha-container-verification-' + Math.random().toString(36).substring(2, 11));
-
-    // Clean up reCAPTCHA on unmount
+    // Initialize when component mounts
     useEffect(() => {
-        return () => {
-            // Cleanup reCAPTCHA
-            recaptchaService.cleanup();
-        };
-    }, []);
-
-    // Initialize verification on mount
-    useEffect(() => {
-        if (mfaError && !codeSent) {
-            // Clean up any previous reCAPTCHA instances first
-            recaptchaService.cleanup();
-
-            // Ensure the container is ready
-            const container = document.getElementById(recaptchaContainerId.current);
-            if (container) {
-                container.innerHTML = '';
-                container.style.display = 'block';
-            }
-
-            // Wait a bit for the DOM to be ready before initializing
-            setTimeout(() => {
-                initializeMfaVerification();
-            }, 300);
+        // If we have an MFA resolver from Firebase, we're in the MFA resolution flow
+        // No need to send code, Firebase has already handled this
+        if (mfaResolver) {
+            setIsCodeSent(true);
         }
-    }, [mfaError]);
+    }, [mfaResolver]);
 
-    // Handle countdown timer
-    useEffect(() => {
-        let timer;
-        if (countdown > 0) {
-            timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    const handleSendCode = async () => {
+        if (!phoneNumber) {
+            setError("Phone number is missing");
+            return;
         }
-        return () => clearTimeout(timer);
-    }, [countdown]);
 
-    const initializeMfaVerification = async () => {
-        setLoading(true);
+        setIsVerifying(true);
         setError('');
 
         try {
-            // Initialize MFA verification using the resolver from the auth error
-            const result = await twoFactorAuthService.handleMfaRequired(
-                mfaError,
-                recaptchaContainerId.current
-            );
+            // Send verification code to the user's phone
+            const result = await twoFactorAuthService.sendVerificationCode(phoneNumber);
 
             if (result.success) {
-                // Store verification details
-                verificationIdRef.current = result.verificationId;
-                resolverRef.current = result.resolver;
-                setCodeSent(true);
-                setCountdown(60); // 60 second cooldown
+                setIsCodeSent(true);
+                setVerificationId(result.data.verificationId);
             } else {
-                setError(result.error || 'Failed to start verification');
+                setError(result.error || "Failed to send verification code");
             }
-        } catch (error) {
-            console.error('Error initializing MFA verification:', error);
-            setError('Failed to start verification. Please try again.');
+        } catch (err) {
+            console.error("Error sending verification code:", err);
+            setError("Failed to send verification code. Please try again.");
         } finally {
-            setLoading(false);
+            setIsVerifying(false);
         }
     };
 
-    const handleResendCode = async () => {
-        setLoading(true);
-        setError('');
-
-        try {
-            // Clean up reCAPTCHA first
-            recaptchaService.cleanup();
-
-            // Wait a bit before reinitializing
-            setTimeout(async () => {
-                await initializeMfaVerification();
-            }, 300);
-        } catch (error) {
-            console.error('Error resending code:', error);
-            setError('Failed to resend verification code');
-            setLoading(false);
-        }
-    };
-
-    const handleVerify = async () => {
-        setLoading(true);
-        setError('');
-
-        if (!verificationCode && !useBackupCode) {
-            setError('Please enter the verification code');
-            setLoading(false);
+    const handleVerifyCode = async () => {
+        if (!verificationCode) {
+            setError("Please enter the verification code");
             return;
         }
 
-        if (useBackupCode && !backupCode) {
-            setError('Please enter a backup code');
-            setLoading(false);
-            return;
-        }
+        setIsVerifying(true);
+        setError('');
 
         try {
-            if (useBackupCode) {
-                // Verify using backup code
-                // For backup codes, we'd need the userId
-                const { currentUser } = useUser();
-                if (!currentUser || !currentUser.uid) {
-                    throw new Error('User information not available');
-                }
-
-                const result = await twoFactorAuthService.verifyBackupCode(
-                    currentUser.uid,
-                    backupCode
-                );
-
-                if (result.success) {
-                    if (onVerificationSuccess) {
-                        onVerificationSuccess();
-                    }
-                } else {
-                    setError(result.error || 'Invalid backup code');
-                }
-            } else {
-                // Verify using SMS code with Firebase MFA
-                if (!verificationIdRef.current || !resolverRef.current) {
-                    throw new Error('Verification session expired. Please try again.');
-                }
-
-                const result = await twoFactorAuthService.completeMfaSignIn(
-                    resolverRef.current,
-                    verificationIdRef.current,
+            // Handle MFA resolution flow
+            if (mfaResolver) {
+                const result = await twoFactorAuthService.verifySignInCode(
+                    mfaResolver,
                     verificationCode
                 );
 
                 if (result.success) {
-                    if (onVerificationSuccess) {
-                        onVerificationSuccess(result.credential);
-                    }
+                    // Pass the credential back to the parent component
+                    onVerificationSuccess(result.credential);
                 } else {
-                    setError(result.error || 'Invalid verification code');
+                    setError(result.error || "Verification failed");
                 }
             }
-        } catch (error) {
-            console.error('Error during verification:', error);
-            setError('An error occurred during verification. Please try again.');
+            // Handle standard verification flow
+            else if (verificationId) {
+                // In this flow, we need to sign in again after verification
+                const credential = PhoneAuthProvider.credential(
+                    verificationId,
+                    verificationCode
+                );
+
+                // Phone number verified successfully, now handle sign-in manually
+                onVerificationSuccess();
+            } else {
+                setError("Verification session expired. Please try signing in again.");
+            }
+        } catch (err) {
+            console.error("Error verifying code:", err);
+            setError(err.message || "Failed to verify code. Please try again.");
         } finally {
-            setLoading(false);
-        }
-    };
-
-    const toggleUseBackupCode = () => {
-        setUseBackupCode(!useBackupCode);
-        setError('');
-    };
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            handleVerify();
+            setIsVerifying(false);
         }
     };
 
     return (
         <div className="two-factor-verification">
             <h2>Two-Factor Authentication</h2>
-
             <p className="verification-instructions">
-                {useBackupCode
-                    ? 'Enter one of your backup codes to sign in.'
-                    : 'Enter the verification code sent to your phone.'}
+                Please enter the verification code sent to your phone
+                {phoneNumber && <span className="phone-hint"> ({formatPhoneNumber(phoneNumber)})</span>}
+                {!isCodeSent && !mfaResolver && " after clicking 'Send Code'"}
             </p>
-
-            {!useBackupCode ? (
-                <div className="verification-input-container">
-                    {/* Visible reCAPTCHA container */}
-                    <div
-                        id={recaptchaContainerId.current}
-                        className="recaptcha-container"
-                        style={{ marginBottom: '10px', minHeight: '70px', width: '100%' }}
-                    ></div>
-
-                    <input
-                        type="text"
-                        placeholder="Enter verification code"
-                        value={verificationCode}
-                        onChange={(e) => setVerificationCode(e.target.value.trim())}
-                        onKeyDown={handleKeyDown}
-                        className="verification-input"
-                        autoFocus
-                    />
-                    {codeSent && countdown === 0 && (
-                        <button
-                            onClick={handleResendCode}
-                            className="resend-code-button"
-                            disabled={loading}
-                        >
-                            Resend Code
-                        </button>
-                    )}
-                    {countdown > 0 && (
-                        <div className="countdown-timer">
-                            Resend in {countdown}s
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="verification-input-container">
-                    <input
-                        type="text"
-                        placeholder="Enter backup code (XXXXX-XXXXX)"
-                        value={backupCode}
-                        onChange={(e) => setBackupCode(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="verification-input"
-                        autoFocus
-                    />
-                </div>
-            )}
 
             {error && <div className="error-message">{error}</div>}
 
-            <div className="verification-actions">
-                <button
-                    onClick={handleVerify}
-                    disabled={loading || (!useBackupCode && !verificationCode) || (useBackupCode && !backupCode)}
-                    className="verify-button"
-                >
-                    {loading ? 'Verifying...' : 'Verify'}
-                </button>
+            <div className="verification-section">
+                {/* Conditionally render the send code button if code hasn't been sent and we're not in MFA resolution */}
+                {!isCodeSent && !mfaResolver && (
+                    <>
+                        <button
+                            onClick={handleSendCode}
+                            className="verify-button"
+                            disabled={isVerifying}
+                        >
+                            {isVerifying ? "Sending..." : "Send Verification Code"}
+                        </button>
+                    </>
+                )}
 
-                <button
-                    onClick={toggleUseBackupCode}
-                    className="toggle-backup-button"
-                >
-                    {useBackupCode ? 'Use text message code instead' : 'Use a backup code instead'}
-                </button>
+                {/* Verification code input */}
+                {(isCodeSent || mfaResolver) && (
+                    <>
+                        <div className="verification-input-container">
+                            <input
+                                type="text"
+                                className="verification-input"
+                                placeholder="Enter verification code"
+                                value={verificationCode}
+                                onChange={(e) => setVerificationCode(e.target.value)}
+                                autoComplete="one-time-code"
+                                maxLength={6}
+                                disabled={isVerifying}
+                            />
+                        </div>
 
-                {onCancel && (
-                    <button
-                        onClick={onCancel}
-                        className="cancel-button"
-                        disabled={loading}
-                    >
-                        Cancel
-                    </button>
+                        <div className="verification-actions">
+                            <button
+                                onClick={handleVerifyCode}
+                                className="verify-button"
+                                disabled={isVerifying || !verificationCode}
+                            >
+                                {isVerifying ? "Verifying..." : "Verify"}
+                            </button>
+
+                            <button
+                                onClick={onCancel}
+                                className="cancel-button"
+                                disabled={isVerifying}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </>
                 )}
             </div>
+
+            <p className="verification-note">
+                If you don't receive a code within 1 minute, please check your phone number and try again.
+            </p>
         </div>
     );
 };

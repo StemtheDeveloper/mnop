@@ -1,205 +1,151 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
-import { db, auth } from '../config/firebase';
-import { updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../context/ToastContext';
-import LoadingSpinner from '../components/LoadingSpinner';
-import TwoFactorAuthManagement from '../components/TwoFactorAuthManagement';
-import accountDeletionService from '../services/accountDeletionService';
-import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
-import '../styles/UserSettingsPage.css';
+import TwoFactorAuthSetup from '../components/TwoFactorAuthSetup';
+import '../styles/UserSettings.css';
 
 const UserSettingsPage = () => {
-    const { currentUser, userProfile, deleteUserAccount } = useUser();
+    const location = useLocation();
     const navigate = useNavigate();
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [deleteStep, setDeleteStep] = useState(1);
+    const { currentUser, userProfile } = useUser();
 
-    // Delete user account and related data
-    const handleDeleteAccount = async (e) => {
-        e.preventDefault();
+    // Default to security tab if coming from 2FA prompt
+    const defaultTab = location.state?.defaultTab || 'security';
+    const [activeTab, setActiveTab] = useState(defaultTab);
 
-        if (!password) {
-            setError('Password is required to confirm account deletion');
-            return;
-        }
+    // Redirect message from other components (e.g., TwoFactorAuthGuard)
+    const message = location.state?.message;
+    const returnPath = location.state?.from;
 
-        setLoading(true);
-        setError('');
-
-        try {
-            // Step 1: Re-authenticate the user
-            const { success, error } = await deleteUserAccount(sanitizeString(password));
-
-            if (!success) {
-                throw new Error(error || 'Authentication failed');
-            }
-
-            // Move to final confirmation step after successful authentication
-            setDeleteStep(2);
-            setLoading(false);
-            return;
-        } catch (error) {
-            console.error('Error during re-authentication:', error);
-            setError('Incorrect password. Please try again.');
-            setLoading(false);
-            return;
-        }
-    };
-
-    // Final deletion step
-    const confirmDeleteAccount = async () => {
-        setLoading(true);
-        setError('');
-
-        try {
-            // Step 2: Delete user data from Firestore
-            const { success, error } = await accountDeletionService.deleteUserData(currentUser.uid);
-
-            if (!success) {
-                throw new Error(error || 'Failed to delete user data');
-            }
-
-            // Step 3: Delete the Firebase Authentication account
-            await deleteUser(currentUser);
-
-            // Redirect to home page after successful deletion
-            navigate('/', {
-                state: {
-                    message: 'Your account has been successfully deleted. We\'re sorry to see you go!'
-                }
-            });
-        } catch (error) {
-            console.error('Error deleting account:', error);
-            setError(`Failed to delete account: ${error.message}`);
-            setLoading(false);
-        }
-    };
-
-    // Cancel deletion process
-    const cancelDelete = () => {
-        setShowDeleteConfirm(false);
-        setPassword('');
-        setError('');
-        setDeleteStep(1);
-    };
+    if (!currentUser) {
+        return (
+            <div className="settings-page">
+                <div className="settings-container">
+                    <h2>Settings</h2>
+                    <p>Please sign in to access your account settings.</p>
+                    <button
+                        className="settings-button"
+                        onClick={() => navigate('/signin', { state: { from: '/settings' } })}
+                    >
+                        Sign In
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="user-settings-page">
+        <div className="settings-page">
             <div className="settings-container">
                 <h1>Account Settings</h1>
 
-                <div className="settings-section">
-                    <h2>Personal Information</h2>
-                    <p>Manage your account details and preferences</p>
-
-                    <div className="user-info">
-                        <p><strong>Email:</strong> {currentUser?.email}</p>
-                        <p><strong>Name:</strong> {userProfile?.displayName || 'Not set'}</p>
-                        <p><strong>Account created:</strong> {userProfile?.createdAt ? new Date(userProfile.createdAt.seconds * 1000).toLocaleDateString() : 'Unknown'}</p>
+                {message && (
+                    <div className="settings-message">
+                        <p>{message}</p>
+                        {returnPath && (
+                            <p className="return-link">
+                                You will be returned to <strong>{returnPath}</strong> after setup.
+                            </p>
+                        )}
                     </div>
+                )}
 
-                    {/* More settings options can be added here */}
+                {/* Settings tabs */}
+                <div className="settings-tabs">
+                    <button
+                        className={`tab-button ${activeTab === 'profile' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('profile')}
+                    >
+                        Profile
+                    </button>
+                    <button
+                        className={`tab-button ${activeTab === 'security' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('security')}
+                    >
+                        Security
+                    </button>
+                    <button
+                        className={`tab-button ${activeTab === 'notifications' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('notifications')}
+                    >
+                        Notifications
+                    </button>
+                    <button
+                        className={`tab-button ${activeTab === 'preferences' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('preferences')}
+                    >
+                        Preferences
+                    </button>
                 </div>
 
-                <div className="settings-section">
-                    <h2>Security</h2>
-                    <TwoFactorAuthManagement />
-                </div>
-
-                <div className="danger-zone">
-                    <h2>Danger Zone</h2>
-
-                    {!showDeleteConfirm ? (
-                        <div className="delete-account-section">
-                            <p>Permanently delete your account and all your data</p>
-                            <button
-                                className="delete-button"
-                                onClick={() => setShowDeleteConfirm(true)}
-                            >
-                                Delete Account
-                            </button>
+                {/* Tab content */}
+                <div className="tab-content">
+                    {activeTab === 'profile' && (
+                        <div className="profile-settings">
+                            <h2>Profile Settings</h2>
+                            <p>Update your profile information here.</p>
+                            {/* Profile settings form would go here */}
+                            <div className="placeholder-content">
+                                <p>Profile settings functionality will be implemented soon.</p>
+                            </div>
                         </div>
-                    ) : (
-                        <div className="delete-confirmation">
-                            <h3>Delete Your Account</h3>
+                    )}
 
-                            {deleteStep === 1 ? (
-                                <form onSubmit={handleDeleteAccount}>
-                                    <p className="warning">
-                                        <strong>Warning:</strong> This action cannot be undone. All your data will be permanently deleted.
-                                    </p>
+                    {activeTab === 'security' && (
+                        <div className="security-settings">
+                            <h2>Security Settings</h2>
 
-                                    <div className="form-group">
-                                        <label htmlFor="password">Enter your password to confirm:</label>
-                                        <input
-                                            type="password"
-                                            id="password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            required
-                                            className="form-input"
-                                        />
-                                    </div>
+                            {/* Two-Factor Authentication */}
+                            <div className="security-section">
+                                <TwoFactorAuthSetup />
+                            </div>
 
-                                    {error && <p className="error-message">{error}</p>}
-
-                                    <div className="button-group">
-                                        <button
-                                            type="button"
-                                            className="cancel-button"
-                                            onClick={cancelDelete}
-                                            disabled={loading}
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            className="confirm-button"
-                                            disabled={loading || !password}
-                                        >
-                                            {loading ? 'Verifying...' : 'Continue'}
-                                        </button>
-                                    </div>
-                                </form>
-                            ) : (
-                                <div className="final-confirmation">
-                                    <p className="warning">
-                                        <strong>Final Warning:</strong> You are about to delete your account and all associated data.
-                                    </p>
-                                    <p>This includes your profile, orders, comments, and all other personal data.</p>
-                                    <p>Are you absolutely sure you want to proceed?</p>
-
-                                    {error && <p className="error-message">{error}</p>}
-
-                                    <div className="button-group">
-                                        <button
-                                            type="button"
-                                            className="cancel-button"
-                                            onClick={cancelDelete}
-                                            disabled={loading}
-                                        >
-                                            No, Keep My Account
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="delete-button final"
-                                            onClick={confirmDeleteAccount}
-                                            disabled={loading}
-                                        >
-                                            {loading ? 'Deleting Account...' : 'Yes, Delete My Account'}
-                                        </button>
-                                    </div>
+                            {/* Password section */}
+                            <div className="security-section">
+                                <h3>Password</h3>
+                                <p>Update your password or set up password recovery options.</p>
+                                {/* Password update functionality would go here */}
+                                <div className="placeholder-content">
+                                    <p>Password management functionality will be implemented soon.</p>
                                 </div>
-                            )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'notifications' && (
+                        <div className="notification-settings">
+                            <h2>Notification Settings</h2>
+                            <p>Manage how you receive notifications.</p>
+                            {/* Notification settings would go here */}
+                            <div className="placeholder-content">
+                                <p>Notification settings functionality will be implemented soon.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'preferences' && (
+                        <div className="preference-settings">
+                            <h2>Preferences</h2>
+                            <p>Set your account preferences.</p>
+                            {/* Preference settings would go here */}
+                            <div className="placeholder-content">
+                                <p>User preferences functionality will be implemented soon.</p>
+                            </div>
                         </div>
                     )}
                 </div>
+
+                {/* Return button when coming from another page */}
+                {returnPath && (
+                    <div className="return-section">
+                        <button
+                            className="return-button"
+                            onClick={() => navigate(returnPath)}
+                        >
+                            Return to Previous Page
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

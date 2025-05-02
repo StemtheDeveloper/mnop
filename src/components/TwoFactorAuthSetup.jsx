@@ -1,470 +1,313 @@
-// filepath: c:\Users\GGPC\Desktop\mnop-app\src\components\TwoFactorAuthSetup.jsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useUser } from '../context/UserContext';
-import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import twoFactorAuthService from '../services/twoFactorAuthService';
-import recaptchaService from '../services/recaptchaService';
-import '../styles/TwoFactorAuth.css';
+import "../styles/TwoFactorAuth.css";
 
-const TwoFactorAuthSetup = ({ onSetupComplete }) => {
-    const { currentUser } = useUser();
+/**
+ * Component for setting up two-factor authentication
+ * Allows users to enroll in 2FA with their phone number
+ */
+const TwoFactorAuthSetup = () => {
+    const navigate = useNavigate();
+    const { currentUser, twoFactorStatus, setupTwoFactorAuth, disableTwoFactorAuth } = useUser();
     const [phoneNumber, setPhoneNumber] = useState('');
     const [verificationCode, setVerificationCode] = useState('');
-    const [backupCodes, setBackupCodes] = useState([]);
-    const [step, setStep] = useState(1);
+    const [verificationId, setVerificationId] = useState('');
+    const [step, setStep] = useState('phone'); // phone -> verify -> success
     const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [showBackupCodes, setShowBackupCodes] = useState(false);
-    const [codeSent, setCodeSent] = useState(false);
-    const [countdown, setCountdown] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
+    const [authChecked, setAuthChecked] = useState(false);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-    // For reauthentication
-    const [needsReauth, setNeedsReauth] = useState(false);
-    const [password, setPassword] = useState('');
-
-    // Reference to store the verification ID needed for enrollment
-    const verificationIdRef = useRef(null);
-    const countdownTimerRef = useRef(null);
-
-    // Unique ID for the invisible recaptcha
-    const recaptchaContainerId = 'recaptcha-container-2fa-setup';
-
-    // Setup recaptcha container - use an invisible one at the body level
+    // Check auth state when component mounts
     useEffect(() => {
-        // Create an invisible recaptcha container at the body level
-        if (!document.getElementById(recaptchaContainerId)) {
-            const invisibleContainer = document.createElement('div');
-            invisibleContainer.id = recaptchaContainerId;
-            invisibleContainer.style.position = 'fixed';
-            invisibleContainer.style.bottom = '0';
-            invisibleContainer.style.right = '0';
-            invisibleContainer.style.opacity = '0.01';
-            invisibleContainer.style.zIndex = '-1';
-            invisibleContainer.style.width = '300px';
-            invisibleContainer.style.height = '100px';
-            document.body.appendChild(invisibleContainer);
-            console.log('Created invisible recaptcha container:', recaptchaContainerId);
-        }
+        const auth = getAuth();
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setIsAuthenticated(!!user);
+            setAuthChecked(true);
+        });
 
-        // Clean up on unmount
-        return () => {
-            if (countdownTimerRef.current) {
-                clearInterval(countdownTimerRef.current);
-            }
-            // No need to remove the container - it's reusable
-        };
+        return () => unsubscribe();
     }, []);
 
-    // Handle countdown timer with useEffect
-    useEffect(() => {
-        if (countdown > 0) {
-            countdownTimerRef.current = setInterval(() => {
-                setCountdown(prev => prev - 1);
-            }, 1000);
+    // Format and validate phone number
+    const formatPhoneNumber = (value) => {
+        // Remove all non-numeric characters
+        const numericValue = value.replace(/\D/g, '');
 
-            return () => {
-                clearInterval(countdownTimerRef.current);
-            };
-        } else if (countdown === 0) {
-            clearInterval(countdownTimerRef.current);
+        // Format as international number if it doesn't start with '+'
+        if (!value.startsWith('+') && numericValue.length > 0) {
+            return `+${numericValue}`;
         }
-    }, [countdown]);
 
-    // Format phone number as user types (support both US and NZ formats)
+        return value;
+    };
+
     const handlePhoneNumberChange = (e) => {
-        const input = e.target.value.replace(/\D/g, '');
-        let formatted = '';
-
-        // Check for NZ number (starting with 02)
-        if (input.startsWith('02')) {
-            // Format as NZ mobile
-            if (input.length > 0) {
-                formatted = `(${input.substring(0, 2)})`;
-                if (input.length > 2) {
-                    formatted += ` ${input.substring(2, 5)}`;
-                    if (input.length > 5) {
-                        formatted += `-${input.substring(5, 10)}`;
-                    }
-                }
-            }
-        } else {
-            // Use US format as fallback
-            if (input.length > 0) {
-                formatted = `(${input.substring(0, 3)}`;
-                if (input.length > 3) {
-                    formatted += `) ${input.substring(3, 6)}`;
-                    if (input.length > 6) {
-                        formatted += `-${input.substring(6, 10)}`;
-                    }
-                }
-            }
-        }
-
-        setPhoneNumber(input.length > 0 ? formatted : '');
+        setPhoneNumber(formatPhoneNumber(e.target.value));
     };
 
-    // Get raw phone number without formatting
-    const getRawPhoneNumber = () => {
-        return phoneNumber.replace(/\D/g, '');
-    };
-
-    // Handle reauthentication
-    const handleReauthenticate = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-
-        try {
-            // Reauthenticate with Firebase
-            const credential = EmailAuthProvider.credential(
-                currentUser.email,
-                password
-            );
-
-            await reauthenticateWithCredential(currentUser, credential);
-
-            // Successfully reauthenticated
-            setNeedsReauth(false);
-            setPassword('');
-
-            // Continue with the send code process
-            await sendVerificationCode();
-        } catch (error) {
-            console.error('Reauthentication error:', error);
-            setError(error.message || 'Incorrect password. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Send verification code to user's phone
-    const sendVerificationCode = async () => {
-        setLoading(true);
-        setError('');
-
-        const rawPhoneNumber = getRawPhoneNumber();
-        console.log("Raw phone number:", rawPhoneNumber);
-
-        // Special validation for NZ numbers
-        if (rawPhoneNumber.startsWith('02')) {
-            // For NZ mobile numbers (starting with 02), validate as 9 or 10 digits
-            if (rawPhoneNumber.length < 9 || rawPhoneNumber.length > 10) {
-                setError('Please enter a valid New Zealand mobile number');
-                setLoading(false);
-                return;
-            }
-            // Valid NZ mobile number
-            console.log("Valid NZ number detected");
-        } else if (rawPhoneNumber.length !== 10) {
-            // For other numbers, require exactly 10 digits
-            setError('Please enter a valid 10-digit phone number');
-            setLoading(false);
+    const handleSendVerificationCode = async () => {
+        // Basic validation
+        if (!phoneNumber || phoneNumber.length < 10) {
+            setError("Please enter a valid phone number");
             return;
         }
 
+        // Check authentication status
+        if (!isAuthenticated) {
+            setError("You need to be signed in to enable two-factor authentication. Please sign in again.");
+            return;
+        }
+
+        setError('');
+        setIsLoading(true);
+
         try {
-            let formattedPhone;
+            // Send verification code to the phone number
+            const result = await twoFactorAuthService.sendVerificationCode(phoneNumber);
 
-            // Format phone number with appropriate country code
-            if (rawPhoneNumber.startsWith('02')) {
-                // New Zealand format: +64 + number without leading 0
-                formattedPhone = `+64${rawPhoneNumber.substring(1)}`;
-                console.log("Using NZ phone format:", formattedPhone);
+            if (result.success) {
+                setVerificationId(result.data.verificationId);
+                setStep('verify');
             } else {
-                // US format
-                formattedPhone = `+1${rawPhoneNumber}`;
-                console.log("Using US phone format:", formattedPhone);
+                if (result.error && result.error.includes("not authenticated")) {
+                    setError("Authentication error. Please sign out, sign in again, and then try setting up 2FA.");
+                } else {
+                    throw new Error(result.error || "Failed to send verification code");
+                }
             }
+        } catch (err) {
+            console.error("Error sending verification code:", err);
+            if (err.message && err.message.includes("not authenticated")) {
+                setError("Authentication error. Please sign out, sign in again, and then try setting up 2FA.");
+            } else {
+                setError(err.message || "Failed to send verification code. Please try again.");
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-            // Enroll with Firebase MFA using the invisible reCAPTCHA
-            const result = await twoFactorAuthService.enrollWithPhoneNumber(
-                currentUser,
-                formattedPhone,
-                recaptchaContainerId
+    const handleVerifyCode = async () => {
+        if (!verificationCode || verificationCode.length < 6) {
+            setError("Please enter the 6-digit verification code");
+            return;
+        }
+
+        // Check authentication status again
+        if (!isAuthenticated) {
+            setError("You need to be signed in to verify the code. Please sign in again.");
+            return;
+        }
+
+        setError('');
+        setIsLoading(true);
+
+        try {
+            // Verify the code and enroll the user in 2FA
+            const result = await twoFactorAuthService.verifyPhoneAndEnroll(
+                verificationId,
+                verificationCode,
+                phoneNumber
             );
 
             if (result.success) {
-                // Store the verification ID for later use
-                console.log("Verification successful, ID stored");
-                verificationIdRef.current = result.verificationId;
-                setCodeSent(true);
-
-                // Start a 60-second countdown before showing resend option
-                setCountdown(60);
-            } else if (result.error && result.error.includes('requires-recent-login')) {
-                console.log("Recent authentication required");
-                setNeedsReauth(true);
+                // Update context with 2FA status
+                await setupTwoFactorAuth(phoneNumber, true);
+                setStep('success');
             } else {
-                console.error("Verification failed:", result.error);
-                setError(result.error || 'Failed to send verification code');
-
-                // Reset reCAPTCHA to prepare for another attempt
-                recaptchaService.reset();
+                if (result.error && result.error.includes("not authenticated")) {
+                    setError("Authentication error. Please sign out, sign in again, and then try setting up 2FA.");
+                } else {
+                    throw new Error(result.error || "Failed to verify code");
+                }
             }
-        } catch (error) {
-            console.error('Error sending verification code:', error);
-            if (error.code === 'auth/requires-recent-login') {
-                setNeedsReauth(true);
+        } catch (err) {
+            console.error("Error verifying code:", err);
+            if (err.message && err.message.includes("not authenticated")) {
+                setError("Authentication error. Please sign out, sign in again, and then try setting up 2FA.");
             } else {
-                setError(`Error: ${error.message || 'An error occurred sending the verification code. Please try again.'}`);
-                // Reset reCAPTCHA to prepare for another attempt
-                recaptchaService.reset();
+                setError(err.message || "Verification failed. Please try again.");
             }
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const handleSendCode = async () => {
-        // Check if we need to reauthenticate first
-        if (needsReauth) {
-            return;
-        }
-
-        // Otherwise proceed with sending the code
-        await sendVerificationCode();
-    };
-
-    const handleVerify = async () => {
-        setLoading(true);
+    const handleDisable2FA = async () => {
+        setIsLoading(true);
         setError('');
 
-        if (!verificationCode) {
-            setError('Please enter the verification code');
-            setLoading(false);
-            return;
-        }
-
         try {
-            if (!verificationIdRef.current) {
-                throw new Error('Verification session expired. Please request a new code.');
-            }
-
-            // Complete enrollment with Firebase MFA
-            const result = await twoFactorAuthService.completeEnrollment(
-                currentUser,
-                verificationIdRef.current,
-                verificationCode
-            );
+            const result = await disableTwoFactorAuth();
 
             if (result.success) {
-                // Generate backup codes
-                const newBackupCodes = twoFactorAuthService.generateBackupCodes();
-                setBackupCodes(newBackupCodes);
-
-                // Save backup codes
-                await twoFactorAuthService.saveBackupCodes(
-                    currentUser.uid,
-                    newBackupCodes
-                );
-
-                // Update phone number in user profile
-                await twoFactorAuthService.updateUserMfaStatus(
-                    currentUser.uid,
-                    true,
-                    true
-                );
-
-                // Move to next step
-                setStep(2);
+                // Reset state
+                setPhoneNumber('');
+                setVerificationCode('');
+                setVerificationId('');
+                setStep('phone');
             } else {
-                setError(result.error || 'Invalid verification code. Please try again.');
+                throw new Error(result.error || "Failed to disable two-factor authentication");
             }
-        } catch (error) {
-            console.error('Error verifying code:', error);
-            setError('Failed to verify the code. Please try again.');
+        } catch (err) {
+            console.error("Error disabling 2FA:", err);
+            setError(err.message || "Failed to disable two-factor authentication");
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const handleFinish = async () => {
-        if (onSetupComplete) {
-            onSetupComplete();
-        }
+    const handleSignOut = () => {
+        navigate('/signin?action=refresh', { state: { message: "Please sign in again to set up two-factor authentication" } });
     };
 
-    const copyToClipboard = (text) => {
-        navigator.clipboard.writeText(text)
-            .then(() => {
-                alert('Copied to clipboard');
-            })
-            .catch(err => {
-                console.error('Failed to copy text: ', err);
-            });
-    };
-
-    const copyBackupCodes = () => {
-        const codesText = backupCodes.join('\n');
-        copyToClipboard(codesText);
-    };
-
-    // Render reauthentication form
-    if (needsReauth) {
-        return (
-            <div className="two-factor-setup">
-                <h2>Authentication Required</h2>
-                <p>
-                    For security reasons, please re-enter your password to continue setting up
-                    two-factor authentication.
-                </p>
-
-                {error && <div className="error-message">{error}</div>}
-
-                <form onSubmit={handleReauthenticate} className="reauth-form">
-                    <div className="form-group">
-                        <label htmlFor="password">Password</label>
-                        <input
-                            id="password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Enter your password"
-                            required
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading || !password}
-                        className="verify-button"
-                    >
-                        {loading ? 'Verifying...' : 'Continue'}
-                    </button>
-                </form>
-            </div>
-        );
-    }
-
-    if (loading && step === 1 && !codeSent) {
-        return <div className="two-factor-loading">Setting up two-factor authentication...</div>;
+    // If we haven't checked auth state yet, show nothing
+    if (!authChecked) {
+        return null;
     }
 
     return (
         <div className="two-factor-setup">
-            {step === 1 ? (
-                <>
-                    <h2>Set Up Two-Factor Authentication</h2>
-                    <p className="setup-instructions">
-                        Two-factor authentication adds an extra layer of security to your account.
-                        Every time you sign in, we'll send a verification code to your phone
-                        in addition to requiring your password.
+            <h2>Two-Factor Authentication</h2>
+
+            {/* Show current status */}
+            <div className={`status-indicator ${twoFactorStatus.enabled ? 'status-enabled' : 'status-disabled'}`}>
+                {twoFactorStatus.enabled
+                    ? "Two-factor authentication is enabled"
+                    : "Two-factor authentication is disabled"}
+            </div>
+
+            {!isAuthenticated && (
+                <div className="auth-notice">
+                    <p>
+                        <strong>Authentication Required:</strong> You need to be signed in to manage two-factor authentication.
                     </p>
+                    <button onClick={handleSignOut} className="btn-primary">
+                        Sign In Again
+                    </button>
+                </div>
+            )}
 
-                    <div className="phone-setup-section">
-                        <h3>Step 1: Enter your phone number</h3>
-                        <div className="phone-input-container">
-                            <input
-                                type="tel"
-                                placeholder="(123) 456-7890"
-                                value={phoneNumber}
-                                onChange={handlePhoneNumberChange}
-                                className="phone-input"
-                                disabled={codeSent}
-                            />
+            {isAuthenticated && twoFactorStatus.required && !twoFactorStatus.enabled && (
+                <div className="required-notice">
+                    <p>
+                        <strong>Required for your role:</strong> As an admin or designer, two-factor authentication is required for your account.
+                    </p>
+                </div>
+            )}
 
-                            {!codeSent && (
-                                <button
-                                    onClick={handleSendCode}
-                                    disabled={loading || (getRawPhoneNumber().length < 9)}
-                                    className="send-code-button"
-                                >
-                                    {loading ? 'Sending...' : 'Send Code'}
-                                </button>
-                            )}
+            {error && <div className="error-message">{error}</div>}
+
+            {/* Show appropriate UI based on current setup state and 2FA status */}
+            {isAuthenticated && !twoFactorStatus.enabled ? (
+                <>
+                    {step === 'phone' && (
+                        <div className="setup-phone-section">
+                            <p className="setup-instructions">
+                                To enable two-factor authentication, please enter your phone number.
+                                You'll receive a verification code via SMS.
+                            </p>
+
+                            <div className="phone-input-container">
+                                <input
+                                    type="tel"
+                                    className="phone-input"
+                                    placeholder="Enter phone number (e.g., +15551234567)"
+                                    value={phoneNumber}
+                                    onChange={handlePhoneNumberChange}
+                                    disabled={isLoading}
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleSendVerificationCode}
+                                className="verify-button"
+                                disabled={isLoading || !phoneNumber}
+                            >
+                                {isLoading ? "Sending..." : "Send Verification Code"}
+                            </button>
                         </div>
+                    )}
 
-                        {codeSent && (
-                            <div className="verification-section">
-                                <h3>Step 2: Enter the verification code</h3>
-                                <p>
-                                    We've sent a verification code to your phone number. Enter it below
-                                    to verify your phone.
-                                </p>
-                                <div className="code-input-container">
-                                    <input
-                                        type="text"
-                                        placeholder="Enter verification code"
-                                        value={verificationCode}
-                                        onChange={(e) => setVerificationCode(e.target.value.trim())}
-                                        className="verification-input"
-                                        autoFocus
-                                    />
+                    {step === 'verify' && (
+                        <div className="verification-section">
+                            <p className="verification-instructions">
+                                Enter the 6-digit verification code sent to {phoneNumber}
+                            </p>
 
-                                    {countdown === 0 ? (
-                                        <button
-                                            onClick={handleSendCode}
-                                            className="resend-code-button"
-                                            disabled={loading}
-                                        >
-                                            Resend Code
-                                        </button>
-                                    ) : (
-                                        <div className="countdown-timer">
-                                            Resend in {countdown}s
-                                        </div>
-                                    )}
-                                </div>
+                            <div className="verification-input-container">
+                                <input
+                                    type="text"
+                                    className="verification-input"
+                                    placeholder="Enter verification code"
+                                    value={verificationCode}
+                                    onChange={(e) => setVerificationCode(e.target.value)}
+                                    autoComplete="one-time-code"
+                                    maxLength={6}
+                                    disabled={isLoading}
+                                />
+                            </div>
 
-                                {error && <div className="error-message">{error}</div>}
+                            <div className="verification-actions">
+                                <button
+                                    onClick={handleVerifyCode}
+                                    className="verify-button"
+                                    disabled={isLoading || !verificationCode}
+                                >
+                                    {isLoading ? "Verifying..." : "Verify and Enable 2FA"}
+                                </button>
 
                                 <button
-                                    onClick={handleVerify}
-                                    disabled={loading || !verificationCode.trim()}
-                                    className="verify-button"
+                                    onClick={() => setStep('phone')}
+                                    className="cancel-button"
+                                    disabled={isLoading}
                                 >
-                                    {loading ? 'Verifying...' : 'Verify & Enable'}
+                                    Back
                                 </button>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
+
+                    {step === 'success' && (
+                        <div className="success-section">
+                            <div className="success-icon">✓</div>
+                            <h3>Two-Factor Authentication Enabled</h3>
+                            <p>
+                                You've successfully set up two-factor authentication. You'll now need to verify
+                                your phone number when signing in to your account.
+                            </p>
+                            <p className="security-note">
+                                This adds an extra layer of security to your account.
+                            </p>
+                        </div>
+                    )}
                 </>
-            ) : (
-                <div className="backup-codes-section">
-                    <h2>Two-Factor Authentication Enabled!</h2>
+            ) : isAuthenticated && (
+                <div className="management-section">
+                    <h3>Manage Two-Factor Authentication</h3>
                     <p>
-                        Your account is now protected with two-factor authentication.
-                        We'll send a verification code to your phone when you sign in.
+                        Your account is currently protected with two-factor authentication.
                     </p>
-
-                    <div className="backup-codes">
-                        <h3>Backup Codes</h3>
-                        <p>
-                            If you lose access to your phone, you can use one of these backup codes to sign in.
-                            Each code can only be used once. Keep these codes in a safe place!
+                    {twoFactorStatus.phoneNumber && (
+                        <p className="phone-info">
+                            Phone number: {twoFactorStatus.phoneNumber}
                         </p>
+                    )}
 
-                        <button
-                            onClick={() => setShowBackupCodes(!showBackupCodes)}
-                            className="toggle-codes-button"
-                        >
-                            {showBackupCodes ? 'Hide Backup Codes' : 'Show Backup Codes'}
-                        </button>
-
-                        {showBackupCodes && (
-                            <>
-                                <div className="backup-codes-grid">
-                                    {backupCodes.map((code, index) => (
-                                        <div key={index} className="backup-code">
-                                            {code}
-                                        </div>
-                                    ))}
-                                </div>
-                                <button onClick={copyBackupCodes} className="copy-codes-button">
-                                    Copy All Codes
-                                </button>
-                            </>
+                    <div className="management-actions">
+                        {!twoFactorStatus.required && (
+                            <button
+                                onClick={handleDisable2FA}
+                                className="disable-button"
+                                disabled={isLoading}
+                            >
+                                {isLoading ? "Disabling..." : "Disable Two-Factor Authentication"}
+                            </button>
                         )}
-                    </div>
-
-                    <div className="finish-section">
-                        <p>
-                            You've successfully set up two-factor authentication. From now on, you'll
-                            need to provide a verification code sent to your phone when signing in.
-                        </p>
-                        <button onClick={handleFinish} className="finish-button">
-                            Finish Setup
-                        </button>
                     </div>
                 </div>
             )}

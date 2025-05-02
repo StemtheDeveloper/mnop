@@ -18,6 +18,7 @@ import AchievementsManagementPanel from '../components/admin/AchievementsManagem
 import AdminInvestmentSettings from '../components/admin/AdminInvestmentSettings';
 import RefundManagementPanel from '../components/admin/RefundManagementPanel';
 import CurrencyManagementPanel from '../components/admin/CurrencyManagementPanel';
+import SecuritySettingsPanel from '../components/admin/SecuritySettingsPanel';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -1120,6 +1121,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
                                 <div className="settings-content">
                                     <AdminInvestmentSettings />
+                                    <SecuritySettingsPanel />
                                 </div>
                             </div>
                         )}

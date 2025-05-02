@@ -137,12 +137,13 @@ export const UserProvider = ({ children }) => {
 
             if (result.success) {
                 // Check if 2FA is required for the user's roles
-                const isRequired = twoFactorAuthService.is2FARequiredForRoles(roles);
+                const isRequired = await twoFactorAuthService.is2FARequiredForRoles(roles);
 
                 setTwoFactorStatus({
                     enabled: result.data.enabled,
                     verified: result.data.verified,
-                    required: isRequired
+                    required: isRequired,
+                    phoneNumber: result.data.phoneNumber
                 });
             }
         } catch (error) {
