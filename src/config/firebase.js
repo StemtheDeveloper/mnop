@@ -10,6 +10,11 @@ import {
   signOut,
   updateProfile,
   GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  RecaptchaVerifier,
+  multiFactor, // Import multiFactor utility
 } from "firebase/auth";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import "firebase/firestore";
