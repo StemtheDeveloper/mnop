@@ -1,39 +1,102 @@
-import { useState } from 'react';
-import { enrolWithPhoneNumber } from '../services/twoFactorAuthService';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import twoFactorAuthService from '../services/twoFactorAuthService';
+import { auth } from '../config/firebase';
+import LoadingSpinner from './LoadingSpinner';
+import '../styles/MfaSetup.css';
 
 export default function SimpleTwoFactorAuthSetup() {
-    const [phone, setPhone] = useState('+64275433744');
+    const [phone, setPhone] = useState('');
     const [code, setCode] = useState('');
-    const [stage, setStage] = useState('collectPhone');   // 'collectCode' | 'done'
+    const [stage, setStage] = useState('collectPhone');   // 'collectPhone' | 'collectCode' | 'done'
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const email = 'user@example.com';     // <– replace with data from context / form
-    const password = 'pa$$word';
+    const [success, setSuccess] = useState('');
+    const [recaptchaInitialized, setRecaptchaInitialized] = useState(false);
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        // Check if user is authenticated
+        if (!auth.currentUser) {
+            setError('You must be signed in to set up two-factor authentication');
+            return;
+        }
+
+        // Initialize reCAPTCHA
+        const initRecaptcha = async () => {
+            try {
+                twoFactorAuthService.initRecaptchaVerifier('recaptcha-container', true);
+                setRecaptchaInitialized(true);
+            } catch (error) {
+                console.error('Error initializing reCAPTCHA:', error);
+                setError('Failed to initialize verification system. Please refresh the page and try again.');
+            }
+        };
+
+        initRecaptcha();
+
+        // Clean up reCAPTCHA on unmount
+        return () => {
+            // Any cleanup needed
+        };
+    }, []);
 
     const handleSendCode = async () => {
+        if (!phone.trim()) {
+            setError('Please enter a valid phone number');
+            return;
+        }
+
         setLoading(true);
         setError('');
+        setSuccess('');
+
         try {
-            // For demo purposes we're using a test code directly
-            // In production, we'd handle this in two steps:
-            // 1. Send the code, then 2. Verify with the user-entered code
-            await enrolWithPhoneNumber(email, password, phone, '123456'); // test number
-            setStage('done');
+            // Step 1: Initial sign-in happens automatically using the current user's session
+            // Step 2: Send verification code to the provided phone number
+            await twoFactorAuthService.enrolWithPhoneNumber(
+                null, // Not needed when already signed in
+                null, // Not needed when already signed in
+                phone,
+                null  // No verification code yet
+            );
+
+            setSuccess('Verification code sent to your phone!');
+            setStage('collectCode');
         } catch (e) {
-            console.error('Enroll error:', e);
-            setError(e.message || 'Failed to enroll phone for MFA');
+            console.error('Send code error:', e);
+            setError(e.message || 'Failed to send verification code');
         } finally {
             setLoading(false);
         }
     };
 
     const handleVerifyCode = async () => {
+        if (!code.trim()) {
+            setError('Please enter the verification code');
+            return;
+        }
+
         setLoading(true);
         setError('');
+        setSuccess('');
+
         try {
-            // In a real implementation, we'd use the code entered by the user
-            await enrolWithPhoneNumber(email, password, phone, code);
+            // Verify the code and enroll the phone as an MFA factor
+            await twoFactorAuthService.enrolWithPhoneNumber(
+                null, // Not needed when already signed in
+                null, // Not needed when already signed in
+                phone,
+                code
+            );
+
+            setSuccess('Two-factor authentication enabled successfully!');
             setStage('done');
+
+            // After a short delay, redirect to profile page
+            setTimeout(() => {
+                navigate('/profile');
+            }, 2000);
         } catch (e) {
             console.error('Verification error:', e);
             setError(e.message || 'Failed to verify code');
@@ -42,45 +105,111 @@ export default function SimpleTwoFactorAuthSetup() {
         }
     };
 
-    const handleCollectCode = () => {
-        // In a real implementation, this would trigger sending the verification code
-        // and transition to the code collection state
-        setStage('collectCode');
+    const formatPhoneNumber = (value) => {
+        // Keep only digits, '+' and spaces
+        return value.replace(/[^\d\s+]/g, '');
     };
 
-    if (stage === 'done') return <p>✅ Phone enrolled! MFA enabled for your account.</p>;
+    const handlePhoneChange = (e) => {
+        setPhone(formatPhoneNumber(e.target.value));
+    };
+
+    const handleBack = () => {
+        navigate('/profile');
+    };
 
     return (
-        <section className="simple-2fa-setup">
-            <h2>Enable two-factor authentication</h2>
+        <div className="mfa-setup-container">
+            <h2>Two-Factor Authentication Setup</h2>
+            <p className="mfa-description">
+                Add an extra layer of security to your account by enabling two-factor authentication.
+                When you sign in, you'll need to provide a code sent to your phone.
+            </p>
 
+            {/* reCAPTCHA container */}
+            <div id="recaptcha-container" className="recaptcha-container"></div>
+
+            {/* Message display */}
             {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
 
-            {stage === 'collectPhone' && (
-                <>
-                    <input
-                        value={phone}
-                        onChange={e => setPhone(e.target.value)}
-                        placeholder="+64275433744"
-                    />
-                    <button onClick={handleCollectCode} disabled={loading}>
-                        {loading ? 'Sending…' : 'Send verification code'}
-                    </button>
-                </>
+            {/* Loading spinner */}
+            {loading && <LoadingSpinner />}
+
+            {stage === 'collectPhone' && !loading && (
+                <div className="setup-step">
+                    <h3>Step 1: Enter your phone number</h3>
+                    <p>We'll send a verification code to this number.</p>
+
+                    <div className="phone-input-container">
+                        <input
+                            type="tel"
+                            value={phone}
+                            onChange={handlePhoneChange}
+                            placeholder="+1 234 567 8900"
+                            className="phone-input"
+                            disabled={!recaptchaInitialized}
+                        />
+                    </div>
+
+                    <div className="button-group">
+                        <button onClick={handleBack} className="btn-cancel">
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSendCode}
+                            disabled={!phone.trim() || !recaptchaInitialized}
+                            className="btn-primary"
+                        >
+                            Send Verification Code
+                        </button>
+                    </div>
+                </div>
             )}
 
-            {stage === 'collectCode' && (
-                <>
-                    <input
-                        value={code}
-                        onChange={e => setCode(e.target.value)}
-                        placeholder="123456"
-                    />
-                    <button onClick={handleVerifyCode} disabled={loading}>
-                        {loading ? 'Verifying…' : 'Verify & enable'}
-                    </button>
-                </>
+            {stage === 'collectCode' && !loading && (
+                <div className="setup-step">
+                    <h3>Step 2: Enter verification code</h3>
+                    <p>
+                        We've sent a code to {phone}. Please enter it below.
+                    </p>
+
+                    <div className="code-input-container">
+                        <input
+                            type="text"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                            placeholder="123456"
+                            className="code-input"
+                            autoFocus
+                        />
+                    </div>
+
+                    <div className="button-group">
+                        <button onClick={() => setStage('collectPhone')} className="btn-back">
+                            Back
+                        </button>
+                        <button
+                            onClick={handleVerifyCode}
+                            disabled={!code.trim()}
+                            className="btn-primary"
+                        >
+                            Verify and Enable
+                        </button>
+                    </div>
+                </div>
             )}
-        </section>
+
+            {stage === 'done' && !loading && (
+                <div className="setup-complete">
+                    <div className="success-icon">✓</div>
+                    <h3>Setup Complete!</h3>
+                    <p>Two-factor authentication has been successfully enabled for your account.</p>
+                    <button onClick={handleBack} className="btn-primary">
+                        Return to Profile
+                    </button>
+                </div>
+            )}
+        </div>
     );
 }

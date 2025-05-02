@@ -1521,6 +1521,24 @@ const ProfilePage = () => {
                                         <p>Your account is <strong>Active</strong></p>
                                     </div>
 
+                                    {/* Security Settings Section */}
+                                    <div className="security-settings">
+                                        <hr />
+                                        <h4>Security Settings</h4>
+                                        <div className="security-options">
+                                            <div className="security-option">
+                                                <div className="security-option-info">
+                                                    <h5>Two-Factor Authentication</h5>
+                                                    <p>Add an extra layer of security to your account by requiring a verification code when you sign in.</p>
+                                                </div>
+                                                <Link to="/mfa-setup" className="btn-secondary">
+                                                    {/* Add optional badge showing if MFA is enabled, if available */}
+                                                    {userProfile?.mfaEnabled ? "Manage 2FA" : "Set up 2FA"}
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {isOwnProfile && (
                                         <div className="account-actions">
                                             <hr />

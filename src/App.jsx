@@ -8,13 +8,12 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, AuthConsumer } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ToastProvider } from './contexts/ToastContext';
-import { FeedbackProvider } from './contexts/FeedbackContext';
+import { FeedbackProvider } from './contexts/FeedbackContext.jsx';
 import { CurrencyProvider } from './context/CurrencyContext';
 import NotificationToastContainer from './components/NotificationToastContainer';
 import NotificationRefresher from './components/NotificationRefresher';
 import AdminProductNotifier from './components/admin/AdminProductNotifier';
 import PolicyNotificationBanner from './components/PolicyNotificationBanner';
-import TwoFactorAuthPrompt from './components/TwoFactorAuthPrompt';
 import FeedbackBar from './components/FeedbackBar';
 import './styles/App.css';
 import './styles/Buttons.css'; // Importing common button styles
@@ -35,7 +34,7 @@ function App() {
                       <NotificationRefresher />
                       <AdminProductNotifier />
                       <PolicyNotificationBanner />
-                      <TwoFactorAuthPrompt />
+
                       <FeedbackBar />
                       <main className="main-content">
                         <AppRoutes />

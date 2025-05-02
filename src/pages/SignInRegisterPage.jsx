@@ -5,15 +5,13 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   sendPasswordResetEmail,
-  updateProfile,
-  getMultiFactorResolver
+  updateProfile
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, googleProvider } from "../config/firebase.js";
 import { USER_ROLES } from "../context/UserContext";
-import twoFactorAuthService from "../services/twoFactorAuthService";
 import socialMediaService from "../services/socialMediaService";
-import TwoFactorAuthVerification from "../components/TwoFactorAuthVerification";
+import MfaVerification from "../components/MfaVerification";
 import "../styles/SignIn.css";
 
 const SignInRegisterPage = () => {
@@ -31,13 +29,9 @@ const SignInRegisterPage = () => {
   const [resetRequested, setResetRequested] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
 
-  // Two-factor authentication state
-  const [show2FAVerification, setShow2FAVerification] = useState(false);
-  const [twoFactorSecret, setTwoFactorSecret] = useState('');
-  const [pendingUserId, setPendingUserId] = useState('');
-  const [pendingPhoneNumber, setPendingPhoneNumber] = useState('');
+  // State for MFA handling
   const [mfaError, setMfaError] = useState(null);
-  const [mfaResolver, setMfaResolver] = useState(null);
+  const [showMfaVerification, setShowMfaVerification] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -95,40 +89,25 @@ const SignInRegisterPage = () => {
 
     setLoading(true);
     setError("");
+    setMfaError(null);
 
     try {
       // Sign in with Firebase Authentication
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
 
-      // Check if user has 2FA enabled
-      const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
-
-      if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
-        // User has 2FA enabled, sign them out and show 2FA verification
-        await auth.signOut();
-
-        // Get the user document to retrieve the phone number
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        const userData = userDoc.data();
-
-        if (userData && userData.twoFactorAuth && userData.twoFactorAuth.phoneNumber) {
-          // Save user ID and phone number for verification
-          setPendingUserId(user.uid);
-          setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
-          setShow2FAVerification(true);
-        } else {
-          setError("Two-factor authentication is enabled but not properly configured. Please contact support.");
-        }
-
-        setLoading(false);
-      } else {
-        // User doesn't have 2FA enabled, proceed with login
-        navigate(from);
-      }
+      // Proceed with login
+      navigate(from);
     } catch (err) {
       console.error("Sign in error:", err);
-      setError(getAuthErrorMessage(err.code));
+
+      // Handle MFA challenge
+      if (err.code === 'auth/multi-factor-required') {
+        // Set the MFA error to be handled by MfaVerification component
+        setMfaError(err);
+        setShowMfaVerification(true);
+      } else {
+        setError(getAuthErrorMessage(err.code));
+      }
       setLoading(false);
     }
   };
@@ -174,6 +153,7 @@ const SignInRegisterPage = () => {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError("");
+    setMfaError(null);
 
     try {
       const result = await signInWithPopup(auth, googleProvider);
@@ -193,93 +173,27 @@ const SignInRegisterPage = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
-
-        // No need to check 2FA for new users
-        navigate(from);
       } else {
-        // For existing users, check if they have 2FA enabled
-        const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
-
-        if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
-          // User has 2FA enabled, sign them out and show 2FA verification
-          await auth.signOut();
-
-          // Get the user document to retrieve the phone number
-          const userDoc = await getDoc(doc(db, "users", user.uid));
-          const userData = userDoc.data();
-
-          if (userData?.twoFactorAuth?.phoneNumber) {
-            // Save user ID and phone number for verification
-            setPendingUserId(user.uid);
-            setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
-            setShow2FAVerification(true);
-          } else {
-            setError("Two-factor authentication is enabled but not properly configured. Please contact support.");
-          }
-
-          setLoading(false);
-        } else {
-          // Update last login time
-          const userRef = doc(db, "users", user.uid);
-          await setDoc(userRef, {
-            lastLogin: serverTimestamp()
-          }, { merge: true });
-
-          // User doesn't have 2FA enabled, proceed with login
-          navigate(from);
-        }
+        // Update last login time
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(userRef, {
+          lastLogin: serverTimestamp()
+        }, { merge: true });
       }
+
+      // Navigate to destination
+      navigate(from);
     } catch (err) {
       console.error("Google sign in error:", err);
 
-      // Check for multi-factor authentication required error
-      if (err.code === 'auth/multi-factor-auth-required') {
-        try {
-          // Get the resolver from the error
-          const resolver = getMultiFactorResolver(auth, err);
-
-          // Get the first hint (usually the phone number)
-          const phoneHint = resolver.hints[0];
-
-          if (phoneHint) {
-            // Store the MFA error and resolver for the verification component
-            setMfaError(err);
-            setMfaResolver(resolver);
-
-            // We need to get the user ID from the pending credential
-            const pendingCred = resolver.session;
-            if (pendingCred) {
-              const userId = pendingCred.user?.uid;
-
-              // Attempt to get the user's phone number for display
-              if (userId) {
-                const userDoc = await getDoc(doc(db, "users", userId));
-                const userData = userDoc.data();
-
-                setPendingUserId(userId);
-                if (userData?.twoFactorAuth?.phoneNumber) {
-                  setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
-                } else {
-                  // If we can't get the phone number from Firestore, try to use the hint
-                  setPendingPhoneNumber(phoneHint.phoneNumber || "");
-                }
-              }
-            }
-
-            // Show the 2FA verification screen
-            setShow2FAVerification(true);
-            setLoading(false);
-            return;
-          }
-        } catch (mfaError) {
-          console.error("Error handling MFA:", mfaError);
-          setError("Error initializing two-factor authentication. Please try again or use another sign-in method.");
-        }
+      // Handle MFA challenge
+      if (err.code === 'auth/multi-factor-required') {
+        setMfaError(err);
+        setShowMfaVerification(true);
       } else {
         setError(getAuthErrorMessage(err.code));
+        setLoading(false);
       }
-
-      setLoading(false);
     }
   };
 
@@ -287,6 +201,7 @@ const SignInRegisterPage = () => {
   const handleFacebookSignIn = async () => {
     setLoading(true);
     setError("");
+    setMfaError(null);
 
     try {
       const result = await socialMediaService.signInWithFacebook();
@@ -295,33 +210,19 @@ const SignInRegisterPage = () => {
         throw new Error(result.error || "Facebook sign-in failed");
       }
 
-      // Check for 2FA if needed (similar to Google sign-in flow)
-      const user = result.user;
-      const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
-
-      if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
-        // Handle 2FA verification as with Google login
-        await auth.signOut();
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        const userData = userDoc.data();
-
-        if (userData?.twoFactorAuth?.phoneNumber) {
-          setPendingUserId(user.uid);
-          setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
-          setShow2FAVerification(true);
-        } else {
-          setError("Two-factor authentication is enabled but not properly configured.");
-        }
-
-        setLoading(false);
-      } else {
-        // Proceed with navigation
-        navigate(from);
-      }
+      // Update login time and navigate
+      navigate(from);
     } catch (err) {
       console.error("Facebook sign in error:", err);
-      setError(getAuthErrorMessage(err.code) || err.message);
-      setLoading(false);
+
+      // Handle MFA challenge
+      if (err.code === 'auth/multi-factor-required') {
+        setMfaError(err);
+        setShowMfaVerification(true);
+      } else {
+        setError(getAuthErrorMessage(err.code) || err.message);
+        setLoading(false);
+      }
     }
   };
 
@@ -329,6 +230,7 @@ const SignInRegisterPage = () => {
   const handleTwitterSignIn = async () => {
     setLoading(true);
     setError("");
+    setMfaError(null);
 
     try {
       const result = await socialMediaService.signInWithTwitter();
@@ -337,33 +239,19 @@ const SignInRegisterPage = () => {
         throw new Error(result.error || "Twitter sign-in failed");
       }
 
-      // Check for 2FA if needed (similar to Google sign-in flow)
-      const user = result.user;
-      const twoFactorStatus = await twoFactorAuthService.get2FAStatus(user.uid);
-
-      if (twoFactorStatus.success && twoFactorStatus.data.enabled) {
-        // Handle 2FA verification as with Google login
-        await auth.signOut();
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        const userData = userDoc.data();
-
-        if (userData?.twoFactorAuth?.phoneNumber) {
-          setPendingUserId(user.uid);
-          setPendingPhoneNumber(userData.twoFactorAuth.phoneNumber);
-          setShow2FAVerification(true);
-        } else {
-          setError("Two-factor authentication is enabled but not properly configured.");
-        }
-
-        setLoading(false);
-      } else {
-        // Proceed with navigation
-        navigate(from);
-      }
+      // Navigate to destination
+      navigate(from);
     } catch (err) {
       console.error("Twitter sign in error:", err);
-      setError(getAuthErrorMessage(err.code) || err.message);
-      setLoading(false);
+
+      // Handle MFA challenge
+      if (err.code === 'auth/multi-factor-required') {
+        setMfaError(err);
+        setShowMfaVerification(true);
+      } else {
+        setError(getAuthErrorMessage(err.code) || err.message);
+        setLoading(false);
+      }
     }
   };
 
@@ -389,6 +277,33 @@ const SignInRegisterPage = () => {
       setLoading(false);
     }
   };
+
+  // Handle successful MFA verification
+  const handleMfaSuccess = (userCredential) => {
+    setShowMfaVerification(false);
+    setMfaError(null);
+    setSuccess("Successfully signed in!");
+    navigate(from);
+  };
+
+  // Handle MFA verification cancellation
+  const handleMfaCancel = () => {
+    setShowMfaVerification(false);
+    setMfaError(null);
+  };
+
+  // Render MFA verification if needed
+  if (showMfaVerification && mfaError) {
+    return (
+      <div className="signin-register-container">
+        <MfaVerification
+          error={mfaError}
+          onSuccess={handleMfaSuccess}
+          onCancel={handleMfaCancel}
+        />
+      </div>
+    );
+  }
 
   // Helper function to transform Firebase error codes into user-friendly messages
   const getAuthErrorMessage = (errorCode) => {
@@ -418,64 +333,10 @@ const SignInRegisterPage = () => {
     }
   };
 
-  // Handle successful 2FA verification
-  const handle2FAVerificationSuccess = async (credential) => {
-    setLoading(true);
-
-    try {
-      // Handle situation differently based on whether we have a credential from MFA
-      if (credential) {
-        // For MFA resolver flow (typically from Google, Facebook, Twitter sign in)
-        // We already have a valid user credential from the MFA verification
-
-        // Update last login time if we have user ID
-        if (credential.user?.uid) {
-          const userRef = doc(db, "users", credential.user.uid);
-          await setDoc(userRef, {
-            lastLogin: serverTimestamp()
-          }, { merge: true });
-        }
-      } else {
-        // For manual 2FA flow (typically from email/password)
-        // Re-sign in the user with email/password
-        await signInWithEmailAndPassword(auth, email, password);
-
-        // Update last login time
-        const userRef = doc(db, "users", pendingUserId);
-        await setDoc(userRef, {
-          lastLogin: serverTimestamp()
-        }, { merge: true });
-      }
-
-      // Reset 2FA state
-      setShow2FAVerification(false);
-      setPendingUserId('');
-      setPendingPhoneNumber('');
-      setMfaError(null);
-      setMfaResolver(null);
-
-      // Redirect to the destination
-      navigate(from);
-    } catch (err) {
-      console.error("Error after 2FA verification:", err);
-      setError("Authentication failed after two-factor verification. Please try again.");
-      setShow2FAVerification(false);
-      setLoading(false);
-    }
-  };
-
-  // Handle 2FA verification cancellation
-  const handle2FAVerificationCancel = () => {
-    setShow2FAVerification(false);
-    setPendingUserId('');
-    setPendingPhoneNumber('');
-  };
-
   // Render password reset form
   if (resetRequested) {
     return (
-
-      < div className="signin-register-container" >
+      <div className="signin-register-container">
         <h1>Reset Your Password</h1>
         <p className="form-subtext">Enter your email address and we'll send you a link to reset your password.</p>
 
@@ -512,22 +373,6 @@ const SignInRegisterPage = () => {
             Back to Sign In
           </button>
         </form>
-      </div >
-    );
-  }
-
-  // Render 2FA verification form
-  if (show2FAVerification) {
-    return (
-      <div className="signin-register-container">
-        <TwoFactorAuthVerification
-          userId={pendingUserId}
-          phoneNumber={pendingPhoneNumber}
-          mfaError={mfaError}
-          mfaResolver={mfaResolver}
-          onVerificationSuccess={handle2FAVerificationSuccess}
-          onCancel={handle2FAVerificationCancel}
-        />
       </div>
     );
   }

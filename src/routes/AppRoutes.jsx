@@ -2,7 +2,6 @@ import React, { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AuthGuard from '../components/AuthGuard';
-import TwoFactorAuthGuard from '../components/TwoFactorAuthGuard';
 
 // Lazy-loaded components
 const LandingPage = lazy(() => import('../pages/LandingPage'));
@@ -47,13 +46,13 @@ const MessagesPage = lazy(() => import('../pages/MessagesPage'));
 const ConversationPage = lazy(() => import('../pages/ConversationPage')); // Import ConversationPage instead
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
 const ToastDemoPage = lazy(() => import('../pages/ToastDemoPage'));
-const UserSettingsPage = lazy(() => import('../pages/UserSettingsPage'));
 const ProductsCsvExportPage = lazy(() => import('../pages/ProductsCsvExportPage'));
 const ProductsCsvImportPage = lazy(() => import('../pages/ProductsCsvImportPage'));
 const TermsAndConditionsPage = lazy(() => import('../pages/TermsAndConditionsPage'));
 const PrivacyPolicyPage = lazy(() => import('../pages/PrivacyPolicyPage'));
 const ContentPolicyPage = lazy(() => import('../pages/ContentPolicyPage'));
 const WishlistPage = lazy(() => import('../pages/WishlistPage')); // Import WishlistPage
+const MfaSetupPage = lazy(() => import('../pages/MfaSetupPage')); // Import MFA Setup Page
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -123,28 +122,17 @@ const AppRoutes = () => {
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/product-upload" element={
                     <AuthGuard allowedRoles={["designer"]}>
-                        <TwoFactorAuthGuard>
-                            <ProductUploadPage />
-                        </TwoFactorAuthGuard>
+                        <ProductUploadPage />
                     </AuthGuard>
                 } />
                 <Route path="/bulk-product-upload" element={
                     <AuthGuard allowedRoles={["designer"]}>
-                        <TwoFactorAuthGuard>
-                            <BulkProductUploaderPage />
-                        </TwoFactorAuthGuard>
+                        <BulkProductUploaderPage />
                     </AuthGuard>
                 } />
                 <Route path="/product-edit/:productId" element={
                     <AuthGuard allowedRoles={["designer"]}>
-                        <TwoFactorAuthGuard>
-                            <ProductEditPage />
-                        </TwoFactorAuthGuard>
-                    </AuthGuard>
-                } />
-                <Route path="/settings" element={
-                    <AuthGuard>
-                        <UserSettingsPage />
+                        <ProductEditPage />
                     </AuthGuard>
                 } />
                 <Route path="/achievements" element={
@@ -183,20 +171,21 @@ const AppRoutes = () => {
                         <InvestmentPortfolioPage />
                     </AuthGuard>
                 } />
+                <Route path="/mfa-setup" element={
+                    <AuthGuard>
+                        <MfaSetupPage />
+                    </AuthGuard>
+                } />
 
                 {/* Role-specific Routes */}
                 <Route path="/designer/quotes" element={
                     <AuthGuard allowedRoles={["designer"]}>
-                        <TwoFactorAuthGuard>
-                            <DesignerQuotesPage />
-                        </TwoFactorAuthGuard>
+                        <DesignerQuotesPage />
                     </AuthGuard>
                 } />
                 <Route path="/designer/quote/:quoteId" element={
                     <AuthGuard allowedRoles={["designer"]}>
-                        <TwoFactorAuthGuard>
-                            <DesignerQuoteDetailPage />
-                        </TwoFactorAuthGuard>
+                        <DesignerQuoteDetailPage />
                     </AuthGuard>
                 } />
                 <Route path="/manufacturer/quotes" element={
@@ -221,65 +210,47 @@ const AppRoutes = () => {
                 {/* Admin Routes */}
                 <Route path="/admin" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <AdminPage />
-                        </TwoFactorAuthGuard>
+                        <AdminPage />
                     </AuthGuard>
                 } />
                 <Route path="/admin/achievements" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <AdminPage activeTab="achievements" />
-                        </TwoFactorAuthGuard>
+                        <AdminPage activeTab="achievements" />
                     </AuthGuard>
                 } />
                 <Route path="/admin/data-fixer" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <AdminDataFixerPage />
-                        </TwoFactorAuthGuard>
+                        <AdminDataFixerPage />
                     </AuthGuard>
                 } />
                 <Route path="/admin/verify/:userId/:role" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <AdminVerificationPage />
-                        </TwoFactorAuthGuard>
+                        <AdminVerificationPage />
                     </AuthGuard>
                 } />
                 <Route path="/admin/products-csv-export" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <ProductsCsvExportPage />
-                        </TwoFactorAuthGuard>
+                        <ProductsCsvExportPage />
                     </AuthGuard>
                 } />
                 <Route path="/admin/products-csv-import" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <ProductsCsvImportPage />
-                        </TwoFactorAuthGuard>
+                        <ProductsCsvImportPage />
                     </AuthGuard>
                 } />
                 <Route path="/admin/review-moderation" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <ReviewModerationPanel />
-                        </TwoFactorAuthGuard>
+                        <ReviewModerationPanel />
                     </AuthGuard>
                 } />
                 <Route path="/admin/inventory-alerts" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <InventoryAlertsPanel />
-                        </TwoFactorAuthGuard>
+                        <InventoryAlertsPanel />
                     </AuthGuard>
                 } />
                 <Route path="/admin/feedback" element={
                     <AuthGuard allowedRoles="admin">
-                        <TwoFactorAuthGuard>
-                            <FeedbackAdminPage />
-                        </TwoFactorAuthGuard>
+                        <FeedbackAdminPage />
                     </AuthGuard>
                 } />
 

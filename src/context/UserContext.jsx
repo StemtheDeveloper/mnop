@@ -3,7 +3,6 @@ import { auth, db } from '../config/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import walletService from '../services/walletService';
-import twoFactorAuthService from '../services/twoFactorAuthService';
 
 const UserContext = createContext();
 
@@ -25,11 +24,6 @@ export const UserProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [authInitialized, setAuthInitialized] = useState(false);
     const [transactions, setTransactions] = useState([]);
-    const [twoFactorStatus, setTwoFactorStatus] = useState({
-        enabled: false,
-        required: false,
-        verified: false
-    });
 
     // Function to fetch user profile and data from Firestore
     const fetchUserData = async (uid) => {
@@ -73,9 +67,6 @@ export const UserProvider = ({ children }) => {
                 }
 
                 setUserRoles(rolesArray);
-
-                // Check two-factor authentication status
-                checkTwoFactorStatus(uid, rolesArray);
             } else {
                 // Create a new user document if it doesn't exist
                 const newUserData = {
@@ -120,26 +111,6 @@ export const UserProvider = ({ children }) => {
             console.error("Error fetching user data:", error);
             setUserProfile(null);
             setUserRoles([]);
-        }
-    };
-
-    // Check two-factor authentication status
-    const checkTwoFactorStatus = async (uid, roles) => {
-        try {
-            const result = await twoFactorAuthService.get2FAStatus(uid);
-
-            if (result.success) {
-                // Check if 2FA is required for the user's roles
-                const isRequired = twoFactorAuthService.is2FARequiredForRoles(roles);
-
-                setTwoFactorStatus({
-                    enabled: result.data.enabled,
-                    verified: result.data.verified,
-                    required: isRequired
-                });
-            }
-        } catch (error) {
-            console.error("Error checking 2FA status:", error);
         }
     };
 
@@ -359,60 +330,6 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Setup two-factor authentication
-    const setupTwoFactorAuth = async (secret, verified = false) => {
-        if (!currentUser) throw new Error("User not authenticated");
-
-        try {
-            const result = await twoFactorAuthService.enable2FA(currentUser.uid, secret, verified);
-
-            if (result.success) {
-                // Update local state
-                setTwoFactorStatus(prev => ({
-                    ...prev,
-                    enabled: true,
-                    verified
-                }));
-            }
-
-            return result;
-        } catch (error) {
-            console.error("Error setting up 2FA:", error);
-            throw error;
-        }
-    };
-
-    // Disable two-factor authentication
-    const disableTwoFactorAuth = async () => {
-        if (!currentUser) throw new Error("User not authenticated");
-
-        // Check if 2FA is required for user's role
-        if (twoFactorStatus.required) {
-            return {
-                success: false,
-                error: "Two-factor authentication is required for your account due to your role."
-            };
-        }
-
-        try {
-            const result = await twoFactorAuthService.disable2FA(currentUser.uid);
-
-            if (result.success) {
-                // Update local state
-                setTwoFactorStatus(prev => ({
-                    ...prev,
-                    enabled: false,
-                    verified: false
-                }));
-            }
-
-            return result;
-        } catch (error) {
-            console.error("Error disabling 2FA:", error);
-            throw error;
-        }
-    };
-
     // Custom sign out function
     const userSignOut = async () => {
         try {
@@ -422,11 +339,6 @@ export const UserProvider = ({ children }) => {
             setUserProfile(null);
             setUserRoles([]);
             setUserWallet(null);
-            setTwoFactorStatus({
-                enabled: false,
-                required: false,
-                verified: false
-            });
 
             // Return success for handling navigation in components
             return { success: true };
@@ -452,11 +364,6 @@ export const UserProvider = ({ children }) => {
                 setUserProfile(null);
                 setUserRoles([]);
                 setUserWallet(null);
-                setTwoFactorStatus({
-                    enabled: false,
-                    required: false,
-                    verified: false
-                });
             }
 
             setLoading(false);
@@ -484,7 +391,6 @@ export const UserProvider = ({ children }) => {
         userRoles, // New standardized array format
         userWallet,
         transactions,
-        twoFactorStatus,
         loading,
         authInitialized,
         isLoggedIn: !!currentUser, // Explicitly provide login status
@@ -497,9 +403,7 @@ export const UserProvider = ({ children }) => {
         refreshUserData,
         addUserRole,
         removeUserRole,
-        setPrimaryRole,
-        setupTwoFactorAuth,
-        disableTwoFactorAuth
+        setPrimaryRole
     };
 
     return (
