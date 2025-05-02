@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import twoFactorAuthService from '../services/twoFactorAuthService';
@@ -8,6 +8,7 @@ import '../styles/MfaSetupPage.css';
 const MfaSetupPage = () => {
     const { currentUser } = useUser();
     const navigate = useNavigate();
+    const recaptchaContainerRef = useRef(null);
 
     // State for the MFA setup process
     const [stage, setStage] = useState('initial');  // 'initial', 'collectPhone', 'collectCode', 'success', 'manage'
@@ -36,13 +37,33 @@ const MfaSetupPage = () => {
 
         checkMfa();
 
-        // Initialize reCAPTCHA
+        // Initialize reCAPTCHA with delay to ensure DOM is ready
         const initRecaptcha = async () => {
             try {
-                twoFactorAuthService.initRecaptchaVerifier('recaptcha-container', true);
-                setRecaptchaInitialized(true);
+                // Clear any previous message
+                setMessage({ type: '', text: '' });
+
+                // Small delay to ensure the DOM is fully rendered
+                setTimeout(() => {
+                    if (document.getElementById('recaptcha-container')) {
+                        twoFactorAuthService.initRecaptchaVerifier('recaptcha-container', true)
+                            .then(() => {
+                                console.log('reCAPTCHA initialized successfully');
+                                setRecaptchaInitialized(true);
+                            })
+                            .catch(error => {
+                                console.error('Error initializing reCAPTCHA:', error);
+                                setMessage({
+                                    type: 'error',
+                                    text: 'Failed to initialize verification system. Please refresh the page and try again.'
+                                });
+                            });
+                    } else {
+                        console.error('reCAPTCHA container not found in DOM');
+                    }
+                }, 500);
             } catch (error) {
-                console.error('Error initializing reCAPTCHA:', error);
+                console.error('Error in initRecaptcha:', error);
                 setMessage({
                     type: 'error',
                     text: 'Failed to initialize verification system. Please refresh the page and try again.'
@@ -54,7 +75,15 @@ const MfaSetupPage = () => {
 
         // Cleanup
         return () => {
-            // Clean up reCAPTCHA if needed
+            // Try to clean up reCAPTCHA if it exists
+            try {
+                const recaptchaVerifier = twoFactorAuthService.getRecaptchaVerifier();
+                if (recaptchaVerifier) {
+                    recaptchaVerifier.clear();
+                }
+            } catch (e) {
+                console.warn('Error cleaning up reCAPTCHA:', e);
+            }
         };
     }, [currentUser, navigate]);
 
@@ -62,6 +91,25 @@ const MfaSetupPage = () => {
     const handleStartEnrollment = () => {
         setStage('collectPhone');
         setMessage({ type: '', text: '' });
+
+        // Re-initialize reCAPTCHA if needed
+        if (!recaptchaInitialized) {
+            try {
+                twoFactorAuthService.initRecaptchaVerifier('recaptcha-container', true)
+                    .then(() => {
+                        setRecaptchaInitialized(true);
+                    })
+                    .catch(error => {
+                        console.error('Error re-initializing reCAPTCHA:', error);
+                        setMessage({
+                            type: 'error',
+                            text: 'Could not initialize verification system. Please refresh the page.'
+                        });
+                    });
+            } catch (error) {
+                console.error('Error starting enrollment:', error);
+            }
+        }
     };
 
     // Send verification code to the phone number
@@ -87,6 +135,19 @@ const MfaSetupPage = () => {
                 type: 'error',
                 text: error.message || 'Failed to send verification code. Please try again.'
             });
+
+            // If the error is related to reCAPTCHA, try to reinitialize it
+            if (error.message && (
+                error.message.includes('reCAPTCHA') ||
+                error.message.includes('Firebase Phone Auth')
+            )) {
+                try {
+                    await twoFactorAuthService.initRecaptchaVerifier('recaptcha-container', true);
+                    setRecaptchaInitialized(true);
+                } catch (e) {
+                    console.error('Failed to reinitialize reCAPTCHA:', e);
+                }
+            }
         } finally {
             setLoading(false);
         }

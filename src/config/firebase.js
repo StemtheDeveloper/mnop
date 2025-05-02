@@ -78,6 +78,12 @@ try {
   db = getFirestore(app);
   auth = getAuth(app);
   functions = getFunctions(app);
+
+  // Configure auth behavior for phone authentication
+  auth.settings = {
+    // This ensures phone auth works properly
+    appVerificationDisabledForTesting: false,
+  };
 } catch (error) {
   console.error("Error initializing Firebase:", error);
 }
@@ -89,7 +95,18 @@ const googleProvider = new GoogleAuthProvider();
 export { db, storage, auth, analytics, functions };
 
 // Export Firebase authentication functions
-export { onAuthStateChanged, signOut, updateProfile, googleProvider };
+export {
+  onAuthStateChanged,
+  signOut,
+  updateProfile,
+  googleProvider,
+  signInWithEmailAndPassword,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  RecaptchaVerifier,
+  multiFactor,
+  serverTimestamp,
+};
 
 // Export the app as default
 export default app;

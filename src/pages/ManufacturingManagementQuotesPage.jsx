@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { db } from '../config/firebase';
 
 const ManufacturingManagementQuotesPage = () => {
     const { userRole, userProfile } = useUser();

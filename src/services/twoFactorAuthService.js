@@ -1,14 +1,13 @@
-import { auth } from "../config/firebase";
 import {
+  auth,
+  db,
   PhoneAuthProvider,
   PhoneMultiFactorGenerator,
   RecaptchaVerifier,
   multiFactor,
   signInWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth";
+} from "../config/firebase";
 import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../config/firebase";
 
 // Store the current MFA session and resolver globally
 let resolver = null;
@@ -17,10 +16,43 @@ let selectedIndex = null;
 let verificationId = null;
 
 /**
+ * Validates a phone number format
+ * @param {string} phoneNumber - The phone number to validate
+ * @returns {string} Properly formatted phone number
+ */
+const validatePhoneNumber = (phoneNumber) => {
+  // Remove any non-digit characters except the leading +
+  let cleaned = phoneNumber.replace(/[^\d+]/g, "");
+
+  // Ensure it starts with +
+  if (!cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+
+  // Basic pattern check (has + followed by at least 6 digits)
+  const phonePattern = /^\+\d{6,}$/;
+  if (!phonePattern.test(cleaned)) {
+    throw new Error(
+      "Invalid phone number format. Please use international format with + (e.g., +12345678901)"
+    );
+  }
+
+  return cleaned;
+};
+
+/**
  * Service for handling two-factor authentication with Firebase
  * Supports MFA enrollment and verification
  */
 const twoFactorAuthService = {
+  /**
+   * Get the current reCAPTCHA verifier instance
+   * @returns {RecaptchaVerifier|null} The current reCAPTCHA verifier
+   */
+  getRecaptchaVerifier() {
+    return recaptchaVerifier;
+  },
+
   /**
    * Handle a multi-factor auth required error
    * @param {Object} error - Firebase auth error with code 'auth/multi-factor-required'
@@ -50,25 +82,47 @@ const twoFactorAuthService = {
     try {
       // Clean up any existing instance
       if (recaptchaVerifier) {
-        recaptchaVerifier.clear();
+        try {
+          recaptchaVerifier.clear();
+        } catch (e) {
+          console.warn("Error clearing reCAPTCHA verifier:", e);
+        }
+        recaptchaVerifier = null;
       }
 
-      // Create a new reCAPTCHA verifier
+      // Make sure the container exists
+      const container = document.getElementById(containerId);
+      if (!container) {
+        console.warn(`reCAPTCHA container #${containerId} not found in DOM`);
+        throw new Error(
+          `reCAPTCHA container #${containerId} not found. Please ensure the container exists in the DOM.`
+        );
+      }
+
+      // Force clear any previous instances
+      container.innerHTML = "";
+
+      // Create a new reCAPTCHA verifier with more robust configuration
       recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
         size: invisible ? "invisible" : "normal",
         callback: () => {
-          // reCAPTCHA solved, allow the user to continue
+          console.log("reCAPTCHA solved successfully");
         },
         "expired-callback": () => {
-          // Reset the reCAPTCHA
+          console.log("reCAPTCHA expired, refreshing");
           if (recaptchaVerifier) {
-            recaptchaVerifier.clear();
+            try {
+              recaptchaVerifier.clear();
+            } catch (e) {
+              console.warn("Error clearing expired reCAPTCHA:", e);
+            }
             this.initRecaptchaVerifier(containerId, invisible);
           }
         },
       });
 
-      return recaptchaVerifier;
+      // Render the reCAPTCHA to ensure it's ready
+      return recaptchaVerifier.render();
     } catch (error) {
       console.error("Error initializing reCAPTCHA:", error);
       throw error;
@@ -170,35 +224,78 @@ const twoFactorAuthService = {
    * @returns {Promise<string>} Verification ID
    */
   async sendVerificationCodeForEnrollment(phoneNumber) {
-    if (!recaptchaVerifier) {
-      throw new Error("reCAPTCHA not initialized");
-    }
-
-    const user = auth.currentUser;
-    if (!user) {
-      throw new Error("No authenticated user");
-    }
-
     try {
+      // Make sure reCAPTCHA is initialized
+      if (
+        !recaptchaVerifier ||
+        !document.getElementById("recaptcha-container")
+      ) {
+        console.log("Initializing reCAPTCHA for verification");
+        await this.initRecaptchaVerifier("recaptcha-container", true);
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("No authenticated user");
+      }
+
+      // Format and validate the phone number
+      const validPhoneNumber = validatePhoneNumber(phoneNumber);
+      console.log(`Starting SMS verification process for: ${validPhoneNumber}`);
+
       // Get the multiFactor object for the user
       const multiFactorUser = multiFactor(user);
 
       // Create a PhoneAuthProvider
       const phoneAuthProvider = new PhoneAuthProvider(auth);
 
-      // Send verification code
+      // Make sure session is obtained correctly
+      const session = await multiFactorUser.getSession();
+      console.log("MFA session obtained successfully");
+
+      // Send verification code - this will send a real SMS to the phone number
+      console.log("Sending verification code via SMS...");
       verificationId = await phoneAuthProvider.verifyPhoneNumber(
         {
-          phoneNumber,
-          session: await multiFactorUser.getSession(),
+          phoneNumber: validPhoneNumber,
+          session: session,
         },
         recaptchaVerifier
       );
 
+      console.log("SMS verification initiated successfully");
       return verificationId;
     } catch (error) {
       console.error("Error sending verification code for enrollment:", error);
-      throw error;
+
+      // Provide more detailed error messages based on error code
+      if (error.code === "auth/invalid-phone-number") {
+        throw new Error(
+          "Invalid phone number format. Please use international format with + (e.g., +12345678901)"
+        );
+      } else if (error.code === "auth/quota-exceeded") {
+        throw new Error("SMS quota exceeded. Please try again tomorrow.");
+      } else if (error.code === "auth/captcha-check-failed") {
+        throw new Error(
+          "reCAPTCHA validation failed. Please refresh the page and try again."
+        );
+      } else if (
+        error.code === "auth/invalid-app-credential" ||
+        error.code === "auth/missing-app-credential"
+      ) {
+        throw new Error(
+          "Firebase Phone Auth is not properly configured. Please ensure your Firebase project has phone authentication enabled in the console and the reCAPTCHA API key is correct."
+        );
+      } else if (error.code === "auth/network-request-failed") {
+        throw new Error(
+          "Network error. Please check your internet connection and try again."
+        );
+      }
+
+      // For other errors, throw a generic but helpful message
+      throw new Error(
+        `Error sending verification code: ${error.message || "Unknown error"}`
+      );
     }
   },
 
@@ -258,12 +355,15 @@ const twoFactorAuthService = {
    * @returns {Promise<void>}
    */
   async enrolWithPhoneNumber(email, password, phoneNumber, verificationCode) {
-    // Make sure reCAPTCHA is initialized
-    if (!recaptchaVerifier) {
-      this.initRecaptchaVerifier("recaptcha-container", true);
-    }
-
     try {
+      // Make sure reCAPTCHA is initialized
+      if (
+        !recaptchaVerifier ||
+        !document.getElementById("recaptcha-container")
+      ) {
+        await this.initRecaptchaVerifier("recaptcha-container", true);
+      }
+
       let user = auth.currentUser;
 
       // If user is not already signed in, sign them in with email and password
@@ -281,6 +381,9 @@ const twoFactorAuthService = {
         throw new Error("No authenticated user. Please sign in to enable MFA.");
       }
 
+      // Format and validate phone number
+      const validPhoneNumber = validatePhoneNumber(phoneNumber);
+
       // Get the multiFactor object for the user
       const multiFactorUser = multiFactor(user);
 
@@ -291,7 +394,7 @@ const twoFactorAuthService = {
       if (!verificationId) {
         verificationId = await phoneAuthProvider.verifyPhoneNumber(
           {
-            phoneNumber,
+            phoneNumber: validPhoneNumber,
             session: await multiFactorUser.getSession(),
           },
           recaptchaVerifier
@@ -314,7 +417,7 @@ const twoFactorAuthService = {
         PhoneMultiFactorGenerator.assertion(phoneAuthCredential);
 
       // Enroll the second factor
-      await multiFactorUser.enroll(multiFactorAssertion, phoneNumber);
+      await multiFactorUser.enroll(multiFactorAssertion, validPhoneNumber);
 
       // Update user profile in Firestore to mark MFA as enabled
       await updateDoc(doc(db, "users", user.uid), {
@@ -328,6 +431,16 @@ const twoFactorAuthService = {
       return { success: true };
     } catch (error) {
       console.error("Error enrolling phone for MFA:", error);
+
+      // Provide specific error messages
+      if (error.code === "auth/invalid-verification-code") {
+        throw new Error("Invalid verification code. Please try again.");
+      } else if (error.code === "auth/code-expired") {
+        throw new Error(
+          "Verification code has expired. Please request a new code."
+        );
+      }
+
       throw error;
     }
   },
