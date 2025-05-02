@@ -19,28 +19,22 @@ const TwoFactorAuthGuard = ({ children }) => {
         return children;
     }
 
-    // If 2FA is required but not enabled, show the prompt
+    // If 2FA is required but not enabled, redirect to settings with setup flag
     if (twoFactorStatus.required && !twoFactorStatus.enabled) {
-        // Store the current location so we can redirect back after setup
-        return (
-            <div className="two-factor-guard-container">
-                <TwoFactorAuthPrompt />
-                <div className="restricted-content-message">
-                    <p>
-                        Access to this area is restricted until you set up two-factor authentication.
-                        This additional security measure is required for all {userRoles.includes('admin') ? 'administrators' : 'designers'}.
-                    </p>
-                    <p>
-                        Please set up two-factor authentication to continue.
-                    </p>
-                </div>
-            </div>
-        );
+        return <Navigate to="/settings" state={{
+            from: location.pathname,
+            message: "Please set up two-factor authentication to continue.",
+            show2FASetup: true
+        }} />;
     }
 
     // If 2FA is enabled but not verified, redirect to settings
     if (twoFactorStatus.required && twoFactorStatus.enabled && !twoFactorStatus.verified) {
-        return <Navigate to="/settings" state={{ from: location.pathname, message: "Please complete your two-factor authentication setup." }} />;
+        return <Navigate to="/settings" state={{
+            from: location.pathname,
+            message: "Please complete your two-factor authentication setup.",
+            show2FASetup: true
+        }} />;
     }
 
     // If 2FA requirements are met, render the children

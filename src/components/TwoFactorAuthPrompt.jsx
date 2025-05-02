@@ -1,12 +1,13 @@
 // filepath: c:\Users\GGPC\Desktop\mnop-app\src\components\TwoFactorAuthPrompt.jsx
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import '../styles/TwoFactorAuth.css';
 
 const TwoFactorAuthPrompt = () => {
     const { twoFactorStatus, userRoles } = useUser();
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Don't show anything if:
     // - Two-factor auth is not required
@@ -23,6 +24,13 @@ const TwoFactorAuthPrompt = () => {
     const handleNavigateToSettings = () => {
         navigate('/settings');
     };
+
+    const isOnSettingsPage = location.pathname === '/settings';
+
+    // Don't show if user is already on the settings page
+    if (isOnSettingsPage) {
+        return null;
+    }
 
     return (
         <div className="two-factor-prompt">

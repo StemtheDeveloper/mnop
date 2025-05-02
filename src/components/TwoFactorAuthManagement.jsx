@@ -5,7 +5,7 @@ import twoFactorAuthService from '../services/twoFactorAuthService';
 import TwoFactorAuthSetup from './TwoFactorAuthSetup';
 import '../styles/TwoFactorAuth.css';
 
-const TwoFactorAuthManagement = () => {
+const TwoFactorAuthManagement = ({ initialShowSetup = false }) => {
     const { currentUser, userRoles, refreshUserData } = useUser();
     const [twoFactorStatus, setTwoFactorStatus] = useState({
         enabled: false,
@@ -13,12 +13,17 @@ const TwoFactorAuthManagement = () => {
         phoneNumber: null,
         backupCodesGenerated: false
     });
-    const [showSetup, setShowSetup] = useState(false);
+    const [showSetup, setShowSetup] = useState(initialShowSetup);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
 
     const is2FARequired = twoFactorAuthService.is2FARequiredForRoles(userRoles);
+
+    // Update showSetup if initialShowSetup changes
+    useEffect(() => {
+        setShowSetup(initialShowSetup);
+    }, [initialShowSetup]);
 
     useEffect(() => {
         if (currentUser) {
@@ -34,6 +39,11 @@ const TwoFactorAuthManagement = () => {
 
             if (result.success) {
                 setTwoFactorStatus(result.data);
+
+                // Auto-show setup if 2FA is required but not enabled
+                if (is2FARequired && !result.data.enabled && !showSetup) {
+                    setShowSetup(true);
+                }
             } else {
                 setError(result.error || 'Failed to get two-factor authentication status');
             }

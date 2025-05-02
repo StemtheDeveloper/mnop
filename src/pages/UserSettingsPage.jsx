@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { updateProfile, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -14,11 +14,24 @@ import '../styles/UserSettingsPage.css';
 const UserSettingsPage = () => {
     const { currentUser, userProfile, deleteUserAccount } = useUser();
     const navigate = useNavigate();
+    const location = useLocation();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [deleteStep, setDeleteStep] = useState(1);
+    const [show2FASetup, setShow2FASetup] = useState(false);
+
+    // Check if redirected with show2FASetup flag
+    useEffect(() => {
+        if (location.state?.show2FASetup) {
+            setShow2FASetup(true);
+            if (location.state?.message) {
+                // You could use your toast system here too
+                console.log(location.state.message);
+            }
+        }
+    }, [location.state]);
 
     // Delete user account and related data
     const handleDeleteAccount = async (e) => {
@@ -109,7 +122,7 @@ const UserSettingsPage = () => {
 
                 <div className="settings-section">
                     <h2>Security</h2>
-                    <TwoFactorAuthManagement />
+                    <TwoFactorAuthManagement initialShowSetup={show2FASetup} />
                 </div>
 
                 <div className="danger-zone">

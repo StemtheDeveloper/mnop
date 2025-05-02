@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 import twoFactorAuthService from '../services/twoFactorAuthService';
-import recaptchaService from '../services/recaptchaService';
+import { resetVerifier } from '../services/recaptchaSingleton';
 import '../styles/TwoFactorAuth.css';
 
 const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSuccess, onCancel }) => {
@@ -18,30 +18,9 @@ const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSucces
     const verificationIdRef = useRef(null);
     const resolverRef = useRef(mfaResolver);
 
-    // Generate a unique ID for the recaptcha container
-    const recaptchaContainerId = useRef('recaptcha-container-verification-' + Math.random().toString(36).substring(2, 11));
-
-    // Clean up reCAPTCHA on unmount
-    useEffect(() => {
-        return () => {
-            // Cleanup reCAPTCHA
-            recaptchaService.cleanup();
-        };
-    }, []);
-
     // Initialize verification on mount
     useEffect(() => {
         if (mfaError && !codeSent) {
-            // Clean up any previous reCAPTCHA instances first
-            recaptchaService.cleanup();
-
-            // Ensure the container is ready
-            const container = document.getElementById(recaptchaContainerId.current);
-            if (container) {
-                container.innerHTML = '';
-                container.style.display = 'block';
-            }
-
             // Wait a bit for the DOM to be ready before initializing
             setTimeout(() => {
                 initializeMfaVerification();
@@ -64,10 +43,7 @@ const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSucces
 
         try {
             // Initialize MFA verification using the resolver from the auth error
-            const result = await twoFactorAuthService.handleMfaRequired(
-                mfaError,
-                recaptchaContainerId.current
-            );
+            const result = await twoFactorAuthService.handleMfaRequired(mfaError);
 
             if (result.success) {
                 // Store verification details
@@ -91,13 +67,11 @@ const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSucces
         setError('');
 
         try {
-            // Clean up reCAPTCHA first
-            recaptchaService.cleanup();
+            // Reset the recaptcha verifier before sending a new code
+            resetVerifier();
 
-            // Wait a bit before reinitializing
-            setTimeout(async () => {
-                await initializeMfaVerification();
-            }, 300);
+            // Start a new verification session
+            await initializeMfaVerification();
         } catch (error) {
             console.error('Error resending code:', error);
             setError('Failed to resend verification code');
@@ -193,13 +167,6 @@ const TwoFactorAuthVerification = ({ mfaError, mfaResolver, onVerificationSucces
 
             {!useBackupCode ? (
                 <div className="verification-input-container">
-                    {/* Visible reCAPTCHA container */}
-                    <div
-                        id={recaptchaContainerId.current}
-                        className="recaptcha-container"
-                        style={{ marginBottom: '10px', minHeight: '70px', width: '100%' }}
-                    ></div>
-
                     <input
                         type="text"
                         placeholder="Enter verification code"

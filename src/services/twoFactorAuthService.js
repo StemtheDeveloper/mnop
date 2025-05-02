@@ -13,24 +13,9 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { db, auth } from "../config/firebase";
-import recaptchaService from "./recaptchaService";
+import { getVerifier, resetVerifier } from "./recaptchaSingleton";
 
 class TwoFactorAuthService {
-  /**
-   * Initialize the recaptcha verifier needed for SMS verification
-   * @param {string} containerId - DOM element ID for the reCAPTCHA container
-   * @returns {RecaptchaVerifier} - The reCAPTCHA verifier instance
-   */
-  initRecaptchaVerifier(containerId = "recaptcha-container") {
-    try {
-      // Use the new recaptchaService to get a verifier
-      return recaptchaService.getVerifier(containerId);
-    } catch (error) {
-      console.error("Error initializing recaptcha:", error);
-      throw error;
-    }
-  }
-
   /**
    * Check if multi-factor authentication is enabled for a user
    * @param {string} userId - The user's ID
@@ -75,25 +60,10 @@ class TwoFactorAuthService {
    * Enroll a user in multi-factor authentication using phone
    * @param {Object} user - Firebase user object
    * @param {string} phoneNumber - The phone number to use for MFA
-   * @param {string} recaptchaContainerId - DOM element ID for the reCAPTCHA container
    * @returns {Promise<Object>} - Object containing verification session info
    */
-  async enrollWithPhoneNumber(
-    user,
-    phoneNumber,
-    recaptchaContainerId = "recaptcha-container"
-  ) {
+  async enrollWithPhoneNumber(user, phoneNumber) {
     try {
-      // Make sure user is recently signed in
-      const multiFactorUser = multiFactor(user);
-
-      // Use our recaptchaService to get a verifier
-      const verifier = recaptchaService.getVerifier(recaptchaContainerId);
-
-      if (!verifier) {
-        throw new Error("No valid reCAPTCHA verifier available");
-      }
-
       // Format phone number to ensure it has a country code
       let formattedPhone = phoneNumber;
 
@@ -113,47 +83,50 @@ class TwoFactorAuthService {
 
       console.log("Using formatted phone number:", formattedPhone);
 
-      try {
-        // Start the enrollment process
-        const session = await multiFactorUser.getSession();
+      // Make sure user is recently signed in
+      const multiFactorUser = multiFactor(user);
 
-        // Request verification code be sent to the user's phone
-        const phoneInfoOptions = {
-          phoneNumber: formattedPhone,
-          session,
-        };
+      // Reset recaptcha before starting a new phone verification
+      resetVerifier();
 
-        // Send verification code to phone
-        const phoneAuthProvider = new PhoneAuthProvider(auth);
-        const verificationId = await phoneAuthProvider.verifyPhoneNumber(
-          phoneInfoOptions,
-          verifier
-        );
+      // Start the enrollment process
+      const session = await multiFactorUser.getSession();
 
-        // Store the phone number in user document
-        await this.updatePhoneNumber(user.uid, formattedPhone);
+      // Request verification code be sent to the user's phone
+      const phoneInfoOptions = {
+        phoneNumber: formattedPhone,
+        session,
+      };
 
-        return {
-          success: true,
-          verificationId,
-          phoneNumber: formattedPhone,
-        };
-      } catch (innerError) {
-        // Check specifically for requires-recent-login error
-        if (innerError.code === "auth/requires-recent-login") {
-          return {
-            success: false,
-            error: "Recent authentication required",
-            requiresReauth: true,
-            code: innerError.code,
-          };
-        }
-        throw innerError; // rethrow to be caught by the outer catch
-      }
+      // Send verification code to phone
+      const verifier = getVerifier();
+      const phoneAuthProvider = new PhoneAuthProvider(auth);
+      const verificationId = await phoneAuthProvider.verifyPhoneNumber(
+        phoneInfoOptions,
+        verifier
+      );
+
+      // Store the phone number in user document
+      await this.updatePhoneNumber(user.uid, formattedPhone);
+
+      return {
+        success: true,
+        verificationId,
+        phoneNumber: formattedPhone,
+      };
     } catch (error) {
-      // If we encounter an error, reset the recaptcha to ensure it's fresh for next attempt
-      recaptchaService.reset();
       console.error("Error enrolling with phone number:", error);
+
+      // Check specifically for requires-recent-login error
+      if (error.code === "auth/requires-recent-login") {
+        return {
+          success: false,
+          error: "Recent authentication required",
+          requiresReauth: true,
+          code: error.code,
+        };
+      }
+
       return {
         success: false,
         error: error.message || "Failed to send verification code",
@@ -205,10 +178,9 @@ class TwoFactorAuthService {
   /**
    * Handle MFA sign-in when prompted during login
    * @param {Error} error - The auth error that triggered MFA
-   * @param {string} recaptchaContainerId - DOM element ID for reCAPTCHA
    * @returns {Promise<Object>} - Info needed for the next step
    */
-  async handleMfaRequired(error, recaptchaContainerId = "recaptcha-container") {
+  async handleMfaRequired(error) {
     try {
       // Get the resolver from the error
       const resolver = getMultiFactorResolver(auth, error);
@@ -224,14 +196,8 @@ class TwoFactorAuthService {
         };
       }
 
-      // Ensure we have a clean reCAPTCHA environment
-      recaptchaService.cleanup();
-
-      // Add a small delay to ensure DOM is ready
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Use recaptchaService to get verifier
-      const verifier = await recaptchaService.getVerifier(recaptchaContainerId);
+      // Reset recaptcha before starting a new phone verification
+      resetVerifier();
 
       // We'll handle the first phone hint
       const phoneInfoOptions = {
@@ -243,7 +209,7 @@ class TwoFactorAuthService {
       const phoneAuthProvider = new PhoneAuthProvider(auth);
       const verificationId = await phoneAuthProvider.verifyPhoneNumber(
         phoneInfoOptions,
-        verifier
+        getVerifier()
       );
 
       return {
@@ -252,8 +218,6 @@ class TwoFactorAuthService {
         resolver,
       };
     } catch (error) {
-      // If we encounter an error, reset the recaptcha to ensure it's fresh for next use
-      recaptchaService.cleanup();
       console.error("Error handling MFA:", error);
       return {
         success: false,
@@ -351,117 +315,6 @@ class TwoFactorAuthService {
   }
 
   /**
-   * Simplified enrollment with phone number (alternative implementation)
-   * @param {string} email - User email
-   * @param {string} password - User password
-   * @param {string} phone - Phone number
-   * @param {string} verificationCode - Verification code from SMS
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async simplifiedEnrollWithMfa(email, password, phone, verificationCode) {
-    try {
-      // 1. Log in with the primary factor (email/password)
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-
-      // 2. Prepare & send the SMS for MFA enrollment
-      recaptchaService.reset();
-      const session = await multiFactor(cred.user).getSession();
-      const verificationId = await new PhoneAuthProvider(
-        auth
-      ).verifyPhoneNumber(
-        { phoneNumber: phone, session },
-        recaptchaService.getVerifier()
-      );
-
-      // 3. Finalize enrollment with the verification code
-      const phoneCred = PhoneAuthProvider.credential(
-        verificationId,
-        verificationCode
-      );
-      await multiFactor(cred.user).enroll(phoneCred, "Primary phone");
-
-      // Update user document in Firestore
-      await this.updatePhoneNumber(cred.user.uid, phone);
-      await this.updateUserMfaStatus(cred.user.uid, true, true);
-
-      return {
-        success: true,
-        message: "Multi-factor authentication enrolled successfully",
-      };
-    } catch (error) {
-      console.error("Error in simplified MFA enrollment:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to enroll in MFA",
-      };
-    }
-  }
-
-  /**
-   * Simplified sign in with MFA (alternative implementation)
-   * @param {string} email - User email
-   * @param {string} password - User password
-   * @param {string} phone - Phone number
-   * @param {string} verificationCode - Verification code from SMS
-   * @returns {Promise<Object>} - Result with user credential or error
-   */
-  async simplifiedSignInWithMfa(email, password, phone, verificationCode) {
-    try {
-      try {
-        // Try regular sign in first
-        const credential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-        return { success: true, credential, mfaRequired: false };
-      } catch (err) {
-        if (err.code !== "auth/multi-factor-auth-required") throw err;
-
-        // 1. Get the resolver that specifies the next MFA steps
-        const resolver = err.resolver;
-        const phoneInfo = resolver.hints.find((h) => h.phoneNumber === phone);
-
-        if (!phoneInfo) {
-          throw new Error("Phone number not found in enrolled factors");
-        }
-
-        // 2. Send verification code via SMS
-        recaptchaService.reset();
-        const verificationId = await new PhoneAuthProvider(
-          auth
-        ).verifyPhoneNumber(
-          {
-            session: resolver.session,
-            phoneNumber: phoneInfo.phoneNumber,
-          },
-          recaptchaService.getVerifier()
-        );
-
-        // 3. Resolve sign-in with the verification code
-        const phoneCred = PhoneAuthProvider.credential(
-          verificationId,
-          verificationCode
-        );
-        const mfaCred = PhoneMultiFactorGenerator.assertion(phoneCred);
-        const userCredential = await resolver.resolveSignIn(mfaCred);
-
-        return {
-          success: true,
-          credential: userCredential,
-          mfaRequired: true,
-        };
-      }
-    } catch (error) {
-      console.error("Error in simplified MFA sign in:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to sign in with MFA",
-      };
-    }
-  }
-
-  /**
    * Enable 2FA for a user
    * @param {string} userId - User ID
    * @param {string} secret - The secret for 2FA
@@ -512,44 +365,6 @@ class TwoFactorAuthService {
       return {
         success: false,
         error: error.message || "Failed to disable 2FA",
-      };
-    }
-  }
-
-  /**
-   * Disable MFA for a user
-   * @param {Object} user - Firebase user object
-   * @param {string} password - User's current password for reauthentication
-   * @param {string} email - User's email
-   * @returns {Promise<Object>} - Result with success status
-   */
-  async disableMfa(user, email, password) {
-    try {
-      // Reauthenticate the user first
-      const credential = EmailAuthProvider.credential(email, password);
-      await reauthenticateWithCredential(user, credential);
-
-      // Get enrolled factors
-      const multiFactorUser = multiFactor(user);
-      const enrolledFactors = multiFactorUser.enrolledFactors;
-
-      // Unenroll all factors
-      if (enrolledFactors.length > 0) {
-        await multiFactorUser.unenroll(enrolledFactors[0]);
-      }
-
-      // Update user document in Firestore
-      await this.updateUserMfaStatus(user.uid, false, false);
-
-      return {
-        success: true,
-        message: "Multi-factor authentication disabled successfully",
-      };
-    } catch (error) {
-      console.error("Error disabling MFA:", error);
-      return {
-        success: false,
-        error: error.message || "Failed to disable MFA",
       };
     }
   }
@@ -700,20 +515,137 @@ class TwoFactorAuthService {
     }
   }
 
-  // Helper functions to expose the simplified functions as standalone exports
-  static enrolWithPhoneNumber = async (email, password, phone, codeFromUI) => {
-    const service = new TwoFactorAuthService();
-    return service.simplifiedEnrollWithMfa(email, password, phone, codeFromUI);
-  };
+  /**
+   * Sign in with MFA using email, password and verification code
+   * @param {string} email - User email
+   * @param {string} password - User password
+   * @param {string} phoneNumber - Phone number
+   * @param {string} verificationCode - Code from SMS
+   * @returns {Promise<Object>} - Result with credential or error
+   */
+  async signInWithMfa(email, password, phoneNumber, verificationCode) {
+    try {
+      try {
+        // Try regular sign in first
+        const credential = await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+        return { success: true, credential, mfaRequired: false };
+      } catch (err) {
+        if (err.code !== "auth/multi-factor-auth-required") throw err;
 
-  static signInWithMfa = async (email, password, phone, codeFromUI) => {
-    const service = new TwoFactorAuthService();
-    return service.simplifiedSignInWithMfa(email, password, phone, codeFromUI);
-  };
+        // Get the resolver from the error
+        const resolver = getMultiFactorResolver(auth, err);
+
+        // Find the matching phone hint
+        const phoneInfo = resolver.hints.find(
+          (h) => h.phoneNumber === phoneNumber
+        );
+
+        if (!phoneInfo) {
+          throw new Error("Phone number not found in enrolled factors");
+        }
+
+        // Reset recaptcha and send verification code via SMS
+        resetVerifier();
+        const verificationId = await new PhoneAuthProvider(
+          auth
+        ).verifyPhoneNumber(
+          {
+            session: resolver.session,
+            phoneNumber: phoneInfo.phoneNumber,
+          },
+          getVerifier()
+        );
+
+        // Verify the code
+        const phoneCred = PhoneAuthProvider.credential(
+          verificationId,
+          verificationCode
+        );
+        const mfaAssertion = PhoneMultiFactorGenerator.assertion(phoneCred);
+        const userCredential = await resolver.resolveSignIn(mfaAssertion);
+
+        return {
+          success: true,
+          credential: userCredential,
+          mfaRequired: true,
+        };
+      }
+    } catch (error) {
+      console.error("Error in MFA sign in:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to sign in with MFA",
+      };
+    }
+  }
+
+  /**
+   * Enrol with phone number as second factor
+   * @param {string} email - User email
+   * @param {string} password - User password
+   * @param {string} phoneNumber - Phone number for 2FA
+   * @param {string} verificationCode - Code from SMS
+   * @returns {Promise<Object>} - Result
+   */
+  async enrolWithPhoneNumber(email, password, phoneNumber, verificationCode) {
+    try {
+      // Sign in first
+      const userCred = await signInWithEmailAndPassword(auth, email, password);
+
+      // Reset recaptcha before starting enrollment
+      resetVerifier();
+
+      // Start MFA enrollment
+      const session = await multiFactor(userCred.user).getSession();
+
+      // Send verification code
+      const verificationId = await new PhoneAuthProvider(
+        auth
+      ).verifyPhoneNumber({ phoneNumber, session }, getVerifier());
+
+      // Complete enrollment with the code
+      const phoneCred = PhoneAuthProvider.credential(
+        verificationId,
+        verificationCode
+      );
+      await multiFactor(userCred.user).enroll(phoneCred, "Primary phone");
+
+      // Update user document in Firestore
+      await this.updatePhoneNumber(userCred.user.uid, phoneNumber);
+      await this.updateUserMfaStatus(userCred.user.uid, true, true);
+
+      return {
+        success: true,
+        message: "Multi-factor authentication enrolled successfully",
+      };
+    } catch (error) {
+      console.error("Error enrolling with phone:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to enroll with phone number",
+      };
+    }
+  }
 }
-
-// Export the static methods separately for direct import
-export const { enrolWithPhoneNumber, signInWithMfa } = TwoFactorAuthService;
 
 const twoFactorAuthService = new TwoFactorAuthService();
 export default twoFactorAuthService;
+
+// Static methods for direct import
+export const { enrolWithPhoneNumber, signInWithMfa } = {
+  enrolWithPhoneNumber: async (email, password, phone, code) => {
+    return twoFactorAuthService.enrolWithPhoneNumber(
+      email,
+      password,
+      phone,
+      code
+    );
+  },
+  signInWithMfa: async (email, password, phone, code) => {
+    return twoFactorAuthService.signInWithMfa(email, password, phone, code);
+  },
+};

@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import twoFactorAuthService from '../services/twoFactorAuthService';
-import recaptchaService from '../services/recaptchaService';
+import { resetVerifier, getVerifier } from '../services/recaptchaSingleton';
 import '../styles/TwoFactorAuth.css';
 
 const TwoFactorAuthSetup = ({ onSetupComplete }) => {
@@ -26,32 +26,21 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
     const verificationIdRef = useRef(null);
     const countdownTimerRef = useRef(null);
 
-    // Unique ID for the invisible recaptcha
-    const recaptchaContainerId = 'recaptcha-container-2fa-setup';
-
-    // Setup recaptcha container - use an invisible one at the body level
+    // Initialize recaptcha on mount
     useEffect(() => {
-        // Create an invisible recaptcha container at the body level
-        if (!document.getElementById(recaptchaContainerId)) {
-            const invisibleContainer = document.createElement('div');
-            invisibleContainer.id = recaptchaContainerId;
-            invisibleContainer.style.position = 'fixed';
-            invisibleContainer.style.bottom = '0';
-            invisibleContainer.style.right = '0';
-            invisibleContainer.style.opacity = '0.01';
-            invisibleContainer.style.zIndex = '-1';
-            invisibleContainer.style.width = '300px';
-            invisibleContainer.style.height = '100px';
-            document.body.appendChild(invisibleContainer);
-            console.log('Created invisible recaptcha container:', recaptchaContainerId);
+        // Ensure the reCAPTCHA is initialized early
+        try {
+            getVerifier();
+            console.log("reCAPTCHA initialized on component mount");
+        } catch (err) {
+            console.error("Failed to initialize reCAPTCHA:", err);
         }
 
-        // Clean up on unmount
         return () => {
+            // Clean up any timers when component unmounts
             if (countdownTimerRef.current) {
                 clearInterval(countdownTimerRef.current);
             }
-            // No need to remove the container - it's reusable
         };
     }, []);
 
@@ -163,6 +152,9 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
         }
 
         try {
+            // Reset the reCAPTCHA verifier before proceeding
+            resetVerifier();
+
             let formattedPhone;
 
             // Format phone number with appropriate country code
@@ -176,11 +168,10 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
                 console.log("Using US phone format:", formattedPhone);
             }
 
-            // Enroll with Firebase MFA using the invisible reCAPTCHA
+            // Enroll with Firebase MFA
             const result = await twoFactorAuthService.enrollWithPhoneNumber(
                 currentUser,
-                formattedPhone,
-                recaptchaContainerId
+                formattedPhone
             );
 
             if (result.success) {
@@ -191,15 +182,12 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
 
                 // Start a 60-second countdown before showing resend option
                 setCountdown(60);
-            } else if (result.error && result.error.includes('requires-recent-login')) {
+            } else if (result.requiresReauth || (result.error && result.error.includes('requires-recent-login'))) {
                 console.log("Recent authentication required");
                 setNeedsReauth(true);
             } else {
                 console.error("Verification failed:", result.error);
                 setError(result.error || 'Failed to send verification code');
-
-                // Reset reCAPTCHA to prepare for another attempt
-                recaptchaService.reset();
             }
         } catch (error) {
             console.error('Error sending verification code:', error);
@@ -207,8 +195,6 @@ const TwoFactorAuthSetup = ({ onSetupComplete }) => {
                 setNeedsReauth(true);
             } else {
                 setError(`Error: ${error.message || 'An error occurred sending the verification code. Please try again.'}`);
-                // Reset reCAPTCHA to prepare for another attempt
-                recaptchaService.reset();
             }
         } finally {
             setLoading(false);
