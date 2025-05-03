@@ -7,11 +7,11 @@ import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import Burger from "../assets/Burger 3@4x.png"
 import CloseBurger from "../assets/Close-Burger@4x.png"
-import MessageIcon from "../assets/message icon mini.png";
-import NotificationsIcon from "../assets/Notification icon mini.png";
-import CartIcon from "../assets/Shopping trolly drag edition.png";
+import MessageIcon from "../assets/Message@4x.png";
+import NotificationsIcon from "../assets/Bell@4x.png";
+import CartIcon from "../assets/Shopping trolly drag edition@4x.png";
 import WishlistIcon from "../assets/Heart mini.png";
-import WalletIcon from "../assets/Wally no legs big eyes@2x.webp";
+import WalletIcon from "../assets/Wally no legs big eyes@4x.webp";
 import NotificationCenter from "./NotificationCenter";
 import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';

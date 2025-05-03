@@ -15,6 +15,7 @@ import {
   PhoneMultiFactorGenerator,
   RecaptchaVerifier,
   multiFactor, // Import multiFactor utility
+  getMultiFactorResolver, // Import the resolver function for MFA
 } from "firebase/auth";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import "firebase/firestore";
@@ -105,6 +106,7 @@ export {
   PhoneMultiFactorGenerator,
   RecaptchaVerifier,
   multiFactor,
+  getMultiFactorResolver,
   serverTimestamp,
 };
 

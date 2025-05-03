@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import twoFactorAuthService from '../services/twoFactorAuthService';
 import LoadingSpinner from './LoadingSpinner';
 import '../styles/MfaVerification.css';
@@ -11,29 +11,47 @@ const MfaVerification = ({ error, onSuccess, onCancel }) => {
     const [message, setMessage] = useState({ type: '', text: '' });
     const [mfaInfo, setMfaInfo] = useState(null);
     const [recaptchaInitialized, setRecaptchaInitialized] = useState(false);
+    const recaptchaContainerRef = useRef(null);
 
     useEffect(() => {
-        if (!error || error.code !== 'auth/multi-factor-required') {
+        if (!error || (error.code !== 'auth/multi-factor-required' && error.code !== 'auth/multi-factor-auth-required')) {
             return;
         }
 
         try {
+            console.log("Processing MFA error:", error.code);
+
             // Process the MFA error and get information about enrolled factors
             const info = twoFactorAuthService.handleMfaRequired(error);
+            console.log("MFA info retrieved:", {
+                hasHints: Array.isArray(info.hints),
+                hintsCount: Array.isArray(info.hints) ? info.hints.length : 0,
+                hasSession: !!info.session
+            });
+
             setMfaInfo(info);
 
-            // Initialize reCAPTCHA
+            // Initialize reCAPTCHA with a slight delay to ensure DOM is ready
             const initRecaptcha = async () => {
-                try {
-                    twoFactorAuthService.initRecaptchaVerifier('recaptcha-container-verification', true);
-                    setRecaptchaInitialized(true);
-                } catch (error) {
-                    console.error('Error initializing reCAPTCHA:', error);
-                    setMessage({
-                        type: 'error',
-                        text: 'Failed to initialize verification system. Please refresh the page and try again.'
-                    });
-                }
+                // Small delay to ensure the DOM element is rendered
+                setTimeout(async () => {
+                    try {
+                        if (!recaptchaContainerRef.current) {
+                            console.error('reCAPTCHA container ref is not available');
+                            return;
+                        }
+
+                        await twoFactorAuthService.initRecaptchaVerifier('recaptcha-container-verification', true);
+                        setRecaptchaInitialized(true);
+                        console.log("reCAPTCHA initialized successfully for MFA verification");
+                    } catch (error) {
+                        console.error('Error initializing reCAPTCHA:', error);
+                        setMessage({
+                            type: 'error',
+                            text: 'Failed to initialize verification system. Please refresh the page and try again.'
+                        });
+                    }
+                }, 500); // 500ms delay to ensure DOM is ready
             };
 
             initRecaptcha();
@@ -47,7 +65,14 @@ const MfaVerification = ({ error, onSuccess, onCancel }) => {
 
         // Clean up reCAPTCHA on unmount
         return () => {
-            // Clean up logic if needed
+            try {
+                const recaptchaVerifier = twoFactorAuthService.getRecaptchaVerifier();
+                if (recaptchaVerifier) {
+                    recaptchaVerifier.clear();
+                }
+            } catch (e) {
+                console.warn('Error cleaning up reCAPTCHA:', e);
+            }
         };
     }, [error]);
 
@@ -159,7 +184,7 @@ const MfaVerification = ({ error, onSuccess, onCancel }) => {
             )}
 
             {/* reCAPTCHA container */}
-            <div id="recaptcha-container-verification" className="recaptcha-container"></div>
+            <div id="recaptcha-container-verification" className="recaptcha-container" ref={recaptchaContainerRef}></div>
 
             {/* Loading spinner */}
             {loading && <LoadingSpinner />}
@@ -178,7 +203,7 @@ const MfaVerification = ({ error, onSuccess, onCancel }) => {
                             >
                                 <div className="factor-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                                     </svg>
                                 </div>
                                 <div className="factor-details">

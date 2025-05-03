@@ -187,7 +187,7 @@ const SignInRegisterPage = () => {
       console.error("Google sign in error:", err);
 
       // Handle MFA challenge
-      if (err.code === 'auth/multi-factor-required') {
+      if (err.code === 'auth/multi-factor-required' || err.code === 'auth/multi-factor-auth-required') {
         setMfaError(err);
         setShowMfaVerification(true);
       } else {
@@ -216,7 +216,7 @@ const SignInRegisterPage = () => {
       console.error("Facebook sign in error:", err);
 
       // Handle MFA challenge
-      if (err.code === 'auth/multi-factor-required') {
+      if (err.code === 'auth/multi-factor-required' || err.code === 'auth/multi-factor-auth-required') {
         setMfaError(err);
         setShowMfaVerification(true);
       } else {
@@ -245,7 +245,7 @@ const SignInRegisterPage = () => {
       console.error("Twitter sign in error:", err);
 
       // Handle MFA challenge
-      if (err.code === 'auth/multi-factor-required') {
+      if (err.code === 'auth/multi-factor-required' || err.code === 'auth/multi-factor-auth-required') {
         setMfaError(err);
         setShowMfaVerification(true);
       } else {

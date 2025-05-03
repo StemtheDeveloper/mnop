@@ -29,6 +29,7 @@ function App() {
                 <CurrencyProvider>
                   <FeedbackProvider>
                     <div className="app">
+                      <br /><br /><br /><br /><br />
                       <Nav />
                       <NotificationToastContainer />
                       <NotificationRefresher />

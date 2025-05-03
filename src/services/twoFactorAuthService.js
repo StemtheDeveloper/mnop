@@ -6,6 +6,7 @@ import {
   RecaptchaVerifier,
   multiFactor,
   signInWithEmailAndPassword,
+  getMultiFactorResolver,
 } from "../config/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 
@@ -55,22 +56,52 @@ const twoFactorAuthService = {
 
   /**
    * Handle a multi-factor auth required error
-   * @param {Object} error - Firebase auth error with code 'auth/multi-factor-required'
+   * @param {Object} error - Firebase auth error with code 'auth/multi-factor-required' or 'auth/multi-factor-auth-required'
    * @returns {Object} MFA session information including enrolled factors
    */
   handleMfaRequired(error) {
-    if (error.code !== "auth/multi-factor-required") {
+    if (
+      error.code !== "auth/multi-factor-required" &&
+      error.code !== "auth/multi-factor-auth-required"
+    ) {
       throw new Error("Not a multi-factor authentication error");
     }
 
-    // Get the resolver from the error
-    resolver = error.resolver;
+    try {
+      // For Google sign-in, the resolver might not be in the error object
+      if (!error.resolver) {
+        console.log(
+          "Resolver not found in error object, trying getMultiFactorResolver"
+        );
+        // Try to get the resolver manually using getMultiFactorResolver
+        resolver = getMultiFactorResolver(auth, error);
+      } else {
+        // Use the resolver from the error object
+        resolver = error.resolver;
+      }
 
-    // Return hints about the second factors
-    return {
-      hints: resolver.hints,
-      session: resolver.session,
-    };
+      // Make sure we have a resolver now
+      if (!resolver) {
+        throw new Error("Failed to get MFA resolver");
+      }
+
+      // Log relevant data for debugging
+      console.log("MFA Resolver data:", {
+        hints: resolver.hints
+          ? `${resolver.hints.length} factors found`
+          : "No hints available",
+        hasSession: !!resolver.session,
+      });
+
+      // Return hints about the second factors
+      return {
+        hints: resolver.hints || [],
+        session: resolver.session,
+      };
+    } catch (e) {
+      console.error("Error in handleMfaRequired:", e);
+      throw new Error("Failed to process MFA challenge: " + e.message);
+    }
   },
 
   /**
