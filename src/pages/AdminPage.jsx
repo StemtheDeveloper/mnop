@@ -102,9 +102,19 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
             if (!currentRoles.includes(roleId)) {
                 currentRoles.push(roleId);
 
+                // Determine primary role for backward compatibility
+                // If admin role exists, make it the primary role
+                let primaryRole = roleId;
+                if (currentRoles.includes('admin')) {
+                    primaryRole = 'admin';
+                } else if (roleId !== 'admin' && currentRoles.length > 0) {
+                    // Keep existing primary role if adding a non-admin role
+                    primaryRole = currentRoles[0];
+                }
+
                 await updateDoc(userRef, {
                     roles: currentRoles,
-                    role: roleId,
+                    role: primaryRole,
                     updatedAt: new Date()
                 });
 
@@ -120,6 +130,12 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
     const removeRoleDirectly = async (userId, roleId) => {
         try {
+            // Never allow removing admin role
+            if (roleId === 'admin') {
+                console.warn("Cannot remove admin role");
+                return false;
+            }
+
             const userRef = doc(db, 'users', userId);
             const userSnap = await getDoc(userRef);
 
@@ -145,9 +161,16 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                     newRoles.push('customer');
                 }
 
+                // Determine primary role for backward compatibility
+                // If admin role exists, make it the primary role
+                let primaryRole = newRoles[0];
+                if (newRoles.includes('admin')) {
+                    primaryRole = 'admin';
+                }
+
                 await updateDoc(userRef, {
                     roles: newRoles,
-                    role: newRoles[0],
+                    role: primaryRole,
                     updatedAt: new Date()
                 });
 

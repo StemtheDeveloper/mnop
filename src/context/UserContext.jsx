@@ -204,10 +204,20 @@ export const UserProvider = ({ children }) => {
             // Add the new role
             currentRoles.push(roleId);
 
+            // For backward compatibility, determine which role should be set as the single role field
+            // If user has admin role, always keep that as the primary role
+            let primaryRole = roleId;
+            if (currentRoles.includes('admin')) {
+                primaryRole = 'admin';
+            } else if (roleId !== 'admin' && currentRoles.length > 0) {
+                // Keep existing primary role if it's not admin and new role isn't admin
+                primaryRole = currentRoles[0];
+            }
+
             // Update document with new roles
             await updateDoc(userRef, {
                 roles: currentRoles,
-                role: roleId, // Keep role field updated for backward compatibility
+                role: primaryRole, // Keep role field updated for backward compatibility, prioritizing admin
                 updatedAt: new Date()
             });
 
@@ -229,6 +239,12 @@ export const UserProvider = ({ children }) => {
         try {
             const targetUserId = userId || currentUser?.uid;
             if (!targetUserId) throw new Error("No user ID provided");
+
+            // Never allow removing the admin role
+            if (roleId === 'admin') {
+                console.warn("Cannot remove admin role");
+                return false;
+            }
 
             const userRef = doc(db, "users", targetUserId);
             const userSnap = await getDoc(userRef);
@@ -258,10 +274,16 @@ export const UserProvider = ({ children }) => {
                 newRoles.push('customer');
             }
 
+            // For backward compatibility, determine which role should be set as the single role field
+            let primaryRole = newRoles[0];
+            if (newRoles.includes('admin')) {
+                primaryRole = 'admin'; // Always prioritize admin role if it exists
+            }
+
             // Update document with new roles
             await updateDoc(userRef, {
                 roles: newRoles,
-                role: newRoles[0], // Keep role field updated for backward compatibility
+                role: primaryRole, // Keep role field updated for backward compatibility, prioritizing admin
                 updatedAt: new Date()
             });
 
@@ -303,6 +325,13 @@ export const UserProvider = ({ children }) => {
 
             // Check if role exists
             if (!currentRoles.includes(roleId)) return false;
+
+            // If user has admin role and trying to set a different role as primary, deny the operation
+            // This ensures admin remains primary if the user has that role
+            if (currentRoles.includes('admin') && roleId !== 'admin') {
+                console.warn("Cannot change primary role: admin must remain primary");
+                return false;
+            }
 
             // Reorder roles array to put the primary role first
             const newRoles = [
@@ -387,7 +416,7 @@ export const UserProvider = ({ children }) => {
         user: currentUser, // Make sure we expose 'user' for compatibility
         currentUser,
         userProfile,
-        userRole: userRoles[0] || null, // For backward compatibility with a single role string
+        userRole: userRoles.length > 0 ? userRoles[0] : null, // For backward compatibility with a single role string
         userRoles, // New standardized array format
         userWallet,
         transactions,

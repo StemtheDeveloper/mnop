@@ -28,7 +28,7 @@ const MAX_IMAGES = 5; // Maximum number of images allowed
 const ProductEditPage = () => {
     const navigate = useNavigate();
     const { productId } = useParams();
-    const { currentUser, userRole } = useUser();
+    const { currentUser, userRoles, hasRole } = useUser(); // Use userRoles and hasRole function
     const { success, error } = useToast();
 
     const [loading, setLoading] = useState(true);
@@ -88,12 +88,8 @@ const ProductEditPage = () => {
         resetForm
     } = useLocalStorageForm(formStorageKey, defaultFormData, originalProductData, sanitizeString);
 
-    // Check if user has designer role or admin role
-    const isDesigner = userRole && (
-        typeof userRole === 'string' ?
-            (userRole === 'designer' || userRole === 'admin') :
-            (Array.isArray(userRole) && (userRole.includes('designer') || userRole.includes('admin')))
-    );
+    // Check if user has designer role or admin role using the hasRole function
+    const isDesigner = hasRole('designer') || hasRole('admin');
 
     // Fetch the product data
     useEffect(() => {
@@ -111,17 +107,14 @@ const ProductEditPage = () => {
                 const productData = productSnap.data();
 
                 // Check if the current user is the designer of this product or an admin
-                const isAdmin = Array.isArray(userRole)
-                    ? userRole.includes('admin')
-                    : userRole === 'admin';
-
+                const isAdmin = hasRole('admin');
                 const isProductDesigner = productData.designerId === currentUser.uid;
 
                 // Log user and product info for debugging authorization issues
                 console.log('Product Edit Authorization Check:', {
                     currentUserId: currentUser.uid,
                     productDesignerId: productData.designerId,
-                    userRoles: userRole,
+                    userRoles: userRoles,
                     isAdmin,
                     isProductDesigner
                 });
@@ -184,7 +177,7 @@ const ProductEditPage = () => {
         };
 
         fetchProduct();
-    }, [productId, currentUser, updateFormData]);
+    }, [productId, currentUser, updateFormData, userRoles, hasRole]);
 
     // Fetch categories on component mount
     useEffect(() => {
@@ -604,8 +597,8 @@ const ProductEditPage = () => {
         }
     };
 
-    // Redirect if user is not a designer
-    if (userRole !== null && !isDesigner) {
+    // Redirect if user is not a designer or admin
+    if (userRoles !== null && !isDesigner) {
         return (
             <div className="role-error-container">
                 <h2>Designer Access Only</h2>
