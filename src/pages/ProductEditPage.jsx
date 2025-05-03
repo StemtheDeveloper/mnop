@@ -88,11 +88,11 @@ const ProductEditPage = () => {
         resetForm
     } = useLocalStorageForm(formStorageKey, defaultFormData, originalProductData, sanitizeString);
 
-    // Check if user has designer role
+    // Check if user has designer role or admin role
     const isDesigner = userRole && (
         typeof userRole === 'string' ?
-            userRole === 'designer' :
-            Array.isArray(userRole) && userRole.includes('designer')
+            (userRole === 'designer' || userRole === 'admin') :
+            (Array.isArray(userRole) && (userRole.includes('designer') || userRole.includes('admin')))
     );
 
     // Fetch the product data
