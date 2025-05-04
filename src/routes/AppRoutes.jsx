@@ -53,6 +53,7 @@ const PrivacyPolicyPage = lazy(() => import('../pages/PrivacyPolicyPage'));
 const ContentPolicyPage = lazy(() => import('../pages/ContentPolicyPage'));
 const WishlistPage = lazy(() => import('../pages/WishlistPage')); // Import WishlistPage
 const MfaSetupPage = lazy(() => import('../pages/MfaSetupPage')); // Import MFA Setup Page
+const RegisterInvestorPage = lazy(() => import('../pages/RegisterInvestorPage')); // Import RegisterInvestorPage
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -174,6 +175,11 @@ const AppRoutes = () => {
                 <Route path="/mfa-setup" element={
                     <AuthGuard>
                         <MfaSetupPage />
+                    </AuthGuard>
+                } />
+                <Route path="/register-investor" element={
+                    <AuthGuard>
+                        <RegisterInvestorPage />
                     </AuthGuard>
                 } />
 

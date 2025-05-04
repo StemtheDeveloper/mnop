@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion, collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
@@ -11,12 +11,14 @@ import TrendingExtensionButton from '../components/TrendingExtensionButton';
 import SocialShareButtons from '../components/SocialShareButtons';
 import productTrendingService from '../services/productTrendingService';
 import reviewService from '../services/reviewService'; // Import the review service
+import walletService from '../services/walletService'; // Import wallet service
 import '../styles/ProductDetailPage.css';
 import { serverTimestamp } from 'firebase/firestore';
 import DOMPurify from 'dompurify'; // Add this import for safely rendering HTML
 
 const ProductDetailPage = () => {
     const { productId } = useParams();
+    const navigate = useNavigate();
     const { currentUser, hasRole, userWallet, fundProduct } = useUser();
     const { success: showSuccess, error: showError } = useToast(); // Map to correct function names
     const [product, setProduct] = useState(null);
@@ -871,6 +873,94 @@ const ProductDetailPage = () => {
                                 <div className="progress" style={{ width: `${fundingPercentage}%` }}></div>
                             </div>
                             <div className="funding-percentage">{Math.round(fundingPercentage)}% funded</div>
+
+                            {/* Add funding form for investors only */}
+                            {hasRole('investor') && !isFullyFunded && (
+                                <div className="funding-form">
+                                    <h4>Fund This Product</h4>
+                                    <div className="funding-input-group">
+                                        <div className="funding-input-wrapper">
+                                            <span className="currency-symbol">$</span>
+                                            <input
+                                                type="text"
+                                                value={fundAmount}
+                                                onChange={(e) => {
+                                                    // Allow only positive numbers with decimal
+                                                    const value = e.target.value;
+                                                    if (!value || value.match(/^\d*\.?\d*$/)) {
+                                                        setFundAmount(value);
+                                                    }
+                                                }}
+                                                placeholder="Enter amount"
+                                                disabled={isFunding}
+                                            />
+                                        </div>
+                                        <button
+                                            className="fund-button"
+                                            onClick={async () => {
+                                                if (!fundAmount || parseFloat(fundAmount) <= 0) {
+                                                    showError('Please enter a valid amount');
+                                                    return;
+                                                }
+
+                                                // Fetch the latest wallet balance directly from service
+                                                let currentBalance = 0;
+                                                try {
+                                                    const wallet = await walletService.getUserWallet(currentUser.uid);
+                                                    currentBalance = wallet?.balance || 0;
+                                                } catch (err) {
+                                                    console.error('Error fetching wallet balance:', err);
+                                                }
+
+                                                if (parseFloat(fundAmount) > currentBalance) {
+                                                    showError('Insufficient funds in your wallet');
+                                                    return;
+                                                }
+
+                                                setIsFunding(true);
+                                                try {
+                                                    const result = await fundProduct(
+                                                        product.id,
+                                                        product.name,
+                                                        parseFloat(fundAmount)
+                                                    );
+
+                                                    if (result.success) {
+                                                        showSuccess(`Successfully invested $${fundAmount} in ${product.name}`);
+                                                        setFundAmount('');
+                                                    } else {
+                                                        showError(result.error || 'Failed to process investment');
+                                                    }
+                                                } catch (err) {
+                                                    console.error('Error funding product:', err);
+                                                    showError(err.message || 'An error occurred while processing your investment');
+                                                } finally {
+                                                    setIsFunding(false);
+                                                }
+                                            }}
+                                            disabled={isFunding || !fundAmount}
+                                        >
+                                            {isFunding ? 'Processing...' : 'Fund Now'}
+                                        </button>
+                                    </div>
+                                    <div className="funding-wallet-balance">
+                                        Wallet Balance: {formatPrice(userWallet?.balance || 0)}
+                                    </div>
+
+                                    {remainingFunding > 0 && (
+                                        <p className="funding-remaining">
+                                            {formatPrice(remainingFunding)} more needed to reach the goal
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Show funding complete message if fully funded */}
+                            {isFullyFunded && (
+                                <div className="funding-complete-message">
+                                    <span>🎉 Funding goal reached! This product is fully funded.</span>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -910,6 +1000,16 @@ const ProductDetailPage = () => {
                         >
                             {isAddingToCart ? 'Adding...' : 'Add to Cart'}
                         </button>
+
+                        {/* Register as an Investor Button */}
+                        {!hasRole('investor') && (
+                            <button
+                                className="btn-secondary register-investor-button"
+                                onClick={() => navigate('/register-investor')}
+                            >
+                                Register as an Investor
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

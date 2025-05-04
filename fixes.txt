@@ -1,14 +1,13 @@
-- Add customer wish list functionality with notifications when items are back in stock
-- Implement abandoned cart recovery with automated email reminders
-- Implement multi-currency support with automatic exchange rate updates
-- Implement enhanced search with autocomplete and search suggestions
-- Add a feed back pop-out bar for users to drop feedback on the pages they're on
-- Implement inventory alerts for low stock and automated reordering
-- Add internationalization (i18n) support for multiple languages
-- Implement social media integration for sharing and login
-- Add advanced reporting with exportable data and visualizations
-- Create product bundling with special pricing options
-- Add drag-and-drop interface builder for landing pages
-- Create advanced security features with breach detection
-- Implement cross-selling suggestions at checkout
-- Add automatic image optimization and formatting
+Create a system for designers to optionally select a manufacturer before a product is fully funded. They should still be able to change this in their manufacturer settings on their profile. And I would like to give designers the option to automatically send the funds for a product when it is fully funded.
+Don't show product's stock quantity until it is fully funded. Also, do not show "add to cart" button unless the product is fully funded.
+Implement user search
+Fix Wallet display
+Fix T&Cs, policies' display
+Hide "Add Credits" Tab for all users except admins
+use actual social icons in the footer
+Add cookies management with a link in the footer
+Fix User search on messages so it updates as the user types. Currently it says "No users found matching "Rowan"" but if I click the search button it finds the user no problem.
+Make search drop down column !row 
+Clicking products on the search page should link to the product details
+Admins need to be able to read, update or delete all products
+Add a badge to the shopping trolly icon to show the number of items in the cart

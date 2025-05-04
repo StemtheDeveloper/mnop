@@ -323,7 +323,7 @@ const Navbar = () => {
               </ul>
               <div className="c-h-r"></div>
               <div className="auth-actions">
-                {user && AdminEmails.includes(user.email) ? (
+                {user ? (
                   <li className="nav-item">
                     <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
                   </li>

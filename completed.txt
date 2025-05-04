@@ -14,4 +14,6 @@
 - Create advanced filtering system for product search with multiple parameters
 - Add batch operations in admin DataFixerTool for multiple collection types
 - Add two-factor authentication for admin and designer accounts
+- Non admin users should not be able to change their role
+- Add a button on the product page for users who don't have the "investor" role. It should "Register as an investor" and will lead to a page for users to add information to become an investor.
 

@@ -1483,7 +1483,7 @@ const ProfilePage = () => {
                                             </div>
                                         </div>
 
-                                        {isOwnProfile && (
+                                        {isOwnProfile && hasRole('admin') && (
                                             <div className="role-upgrade-section">
                                                 <label htmlFor="requestRole">Request Additional Role:</label>
                                                 <div className="role-upgrade-controls">
