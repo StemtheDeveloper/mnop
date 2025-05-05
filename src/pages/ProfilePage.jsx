@@ -11,6 +11,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NopCollection from '../components/NopCollection';
+import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal';
 import refundService from '../services/refundService'; // Import refundService
 
 const ProfilePage = () => {
@@ -19,6 +20,38 @@ const ProfilePage = () => {
     const [activeTab, setActiveTab] = useState('personal');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+
+    // Add formatDate helper function
+    const formatDate = (date) => {
+        if (!date) return 'N/A';
+
+        // Handle Firebase Timestamp
+        if (date && typeof date === 'object' && date.toDate) {
+            date = date.toDate();
+        }
+
+        // Handle timestamp objects with seconds
+        if (date && typeof date === 'object' && date.seconds) {
+            date = new Date(date.seconds * 1000);
+        }
+
+        // If it's a string, try to convert to date
+        if (typeof date === 'string') {
+            date = new Date(date);
+        }
+
+        // Ensure it's a valid date
+        if (!(date instanceof Date) || isNaN(date)) {
+            return 'Invalid date';
+        }
+
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+
     const [formData, setFormData] = useState({
         displayName: '',
         email: '',
@@ -101,6 +134,14 @@ const ProfilePage = () => {
         useCustomShipping: true
     });
 
+    // State for manufacturer settings
+    const [manufacturerSettings, setManufacturerSettings] = useState({});
+    const [loadingManufacturers, setLoadingManufacturers] = useState(false);
+    const [manufacturers, setManufacturers] = useState([]);
+    const [selectedProductId, setSelectedProductId] = useState('');
+    const [autoTransferFunds, setAutoTransferFunds] = useState(false);
+    const [showManufacturerModal, setShowManufacturerModal] = useState(false);
+
     // Define shipping provider options
     const shippingProviders = [
         { id: 'standard', name: 'Standard Shipping' },
@@ -139,39 +180,39 @@ const ProfilePage = () => {
         }
     }, [userProfile, currentUser]);
 
+    // Function to fetch designer's products (used for refreshing data)
+    const fetchDesignerProducts = async () => {
+        if (!userId) return;
+
+        // Only try to fetch products if the user has designer role
+        const userIsDesigner = hasRole('designer');
+        if (!userIsDesigner) return;
+
+        console.log('Fetching designer products for userId:', userId);
+        setLoadingProducts(true);
+
+        try {
+            const productsRef = collection(db, 'products');
+            const q = query(productsRef, where('designerId', '==', userId));
+            const snapshot = await getDocs(q);
+
+            const products = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            console.log('Designer products fetched:', products.length);
+            setDesignerProducts(products);
+        } catch (error) {
+            console.error('Error fetching products:', error);
+            setMessage({ type: 'error', text: 'Failed to load your products.' });
+        } finally {
+            setLoadingProducts(false);
+        }
+    };
+
     // Fetch designer's products
     useEffect(() => {
-        const fetchDesignerProducts = async () => {
-            if (!userId) return;
-
-            // Only try to fetch products if the user has designer role
-            // We'll check both string and array formats of userRole
-            const userIsDesigner = hasRole('designer');
-            if (!userIsDesigner) return;
-
-            console.log('Fetching designer products for userId:', userId);
-            setLoadingProducts(true);
-
-            try {
-                const productsRef = collection(db, 'products');
-                const q = query(productsRef, where('designerId', '==', userId));
-                const snapshot = await getDocs(q);
-
-                const products = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-
-                console.log('Designer products fetched:', products.length);
-                setDesignerProducts(products);
-            } catch (error) {
-                console.error('Error fetching products:', error);
-                setMessage({ type: 'error', text: 'Failed to load your products.' });
-            } finally {
-                setLoadingProducts(false);
-            }
-        };
-
         fetchDesignerProducts();
     }, [userId, hasRole]); // Depend directly on hasRole to ensure role changes are detected
 
@@ -330,13 +371,13 @@ const ProfilePage = () => {
                 if (shippingSettingsDoc.exists()) {
                     const data = shippingSettingsDoc.data();
                     setShippingSettings({
-                        standardShippingCost: data.standardShippingCost !== undefined ? data.standardShippingCost : 10,
-                        expressShippingCost: data.expressShippingCost !== undefined ? data.expressShippingCost : 25,
+                        standardShippingCost: data.standardShippingCost || 10,
+                        expressShippingCost: data.expressShippingCost || 25,
                         shippingProvider: data.shippingProvider || 'standard',
                         customProviderName: data.customProviderName || '',
                         offerFreeShipping: data.offerFreeShipping || false,
-                        freeShippingThreshold: data.freeShippingThreshold || 50,
-                        useCustomShipping: data.useCustomShipping || false
+                        freeShippingThreshold: data.freeShippingThreshold || 0,
+                        useCustomShipping: data.useCustomShipping !== false
                     });
                 }
             } catch (error) {
@@ -350,29 +391,63 @@ const ProfilePage = () => {
         fetchShippingSettings();
     }, [userId, hasRole]);
 
+    // Fetch manufacturer settings for the designer
+    useEffect(() => {
+        if (!userId || !hasRole('designer') || activeTab !== 'manufacturer-settings') return;
+
+        const fetchManufacturerSettings = async () => {
+            setLoadingManufacturers(true);
+
+            try {
+                // Fetch existing manufacturer settings
+                const settingsRef = doc(db, 'designerSettings', userId);
+                const settingsDoc = await getDoc(settingsRef);
+
+                if (settingsDoc.exists() && settingsDoc.data().manufacturerSettings) {
+                    setManufacturerSettings(settingsDoc.data().manufacturerSettings);
+                    setAutoTransferFunds(settingsDoc.data().autoTransferFunds || false);
+                }
+
+                // Fetch ALL manufacturers with manufacturer role (not just verified ones)
+                const allManufacturers = [];
+                const usersRef = collection(db, 'users');
+                const manufacturersQuery = query(
+                    usersRef,
+                    where('roles', 'array-contains', 'manufacturer')
+                );
+
+                const manufacturersSnapshot = await getDocs(manufacturersQuery);
+                manufacturersSnapshot.forEach(doc => {
+                    allManufacturers.push({
+                        id: doc.id,
+                        displayName: doc.data().displayName || doc.data().email,
+                        verified: doc.data().manufacturerVerified === true,
+                        ...doc.data()
+                    });
+                });
+
+                setManufacturers(allManufacturers);
+            } catch (error) {
+                console.error('Error fetching manufacturer settings:', error);
+                setMessage({ type: 'error', text: 'Failed to load manufacturer settings.' });
+            } finally {
+                setLoadingManufacturers(false);
+            }
+        };
+
+        fetchManufacturerSettings();
+    }, [userId, hasRole, activeTab, db]);
+
     // Format price as currency
     const formatPrice = (price) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: 'USD'
-        }).format(price || 0);
+        }).format(price);
     };
 
-    // Format date
-    const formatDate = (timestamp) => {
-        if (!timestamp) return 'N/A';
-
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        return new Intl.DateTimeFormat('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        }).format(date);
-    };
-
-    // Function to navigate to product edit page
-    const handleEditProduct = (productId) => {
-        navigate(`/product-edit/${productId}`);
+    const handleProductClick = (productId) => {
+        navigate(`/product/${productId}`);
     };
 
     // Check if order is within the cancellation window (1 hour)
@@ -1061,6 +1136,7 @@ const ProfilePage = () => {
         if (hasRole('designer')) {
             tabs.push({ id: 'products', label: 'My Products', roles: ['designer'] });
             tabs.push({ id: 'sales', label: 'My Sales', roles: ['designer'] });
+            tabs.push({ id: 'manufacturer-settings', label: 'Manufacturer Settings', roles: ['designer'] });
             tabs.push({ id: 'shipping', label: 'Shipping Settings', roles: ['designer'] }); // Add new Shipping tab
             tabs.push({ id: 'customer-orders', label: 'Customer Orders', roles: ['designer'] });
         }
@@ -1122,10 +1198,16 @@ const ProfilePage = () => {
     };
 
     const handleSaveShippingSettings = async () => {
+        if (!userId || !hasRole('designer')) {
+            setMessage({ type: 'error', text: 'You need to have designer role to save shipping settings.' });
+            return;
+        }
+
         setLoading(true);
         setMessage({ type: '', text: '' });
 
         try {
+            // Reference to the designer settings document
             const shippingSettingsRef = doc(db, 'designerSettings', userId);
 
             // Ensure all values are proper types
@@ -1167,6 +1249,87 @@ const ProfilePage = () => {
         }
     };
 
+    const handleSaveManufacturerSettings = async () => {
+        if (!userId || !hasRole('designer')) {
+            setMessage({ type: 'error', text: 'You need to have designer role to save manufacturer settings.' });
+            return;
+        }
+
+        setLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            // Reference to the designer settings document
+            const settingsRef = doc(db, 'designerSettings', userId);
+
+            // Prepare the data to save
+            const manufacturerData = {
+                manufacturerSettings: manufacturerSettings, // Product ID to manufacturer ID mapping
+                autoTransferFunds: autoTransferFunds, // Flag to auto-transfer funds when products are fully funded
+                updatedAt: serverTimestamp()
+            };
+
+            // Check if document exists
+            const docSnap = await getDoc(settingsRef);
+            if (docSnap.exists()) {
+                await updateDoc(settingsRef, manufacturerData);
+            } else {
+                // Add createdAt for new documents
+                await setDoc(settingsRef, {
+                    ...manufacturerData,
+                    createdAt: serverTimestamp()
+                });
+            }
+
+            // If auto-transfer is enabled, check if any products are already fully funded
+            if (autoTransferFunds) {
+                const fullyFundedProducts = designerProducts.filter(
+                    product => product.currentFunding >= product.fundingGoal &&
+                        manufacturerSettings[product.id] &&
+                        !product.manufacturerId &&
+                        !product.fundsSentToManufacturer
+                );
+
+                if (fullyFundedProducts.length > 0) {
+                    // Transfer funds for fully funded products with selected manufacturers
+                    const walletService = await import('../services/walletService').then(module => module.default);
+
+                    for (const product of fullyFundedProducts) {
+                        const manufacturerId = manufacturerSettings[product.id];
+                        const manufacturer = manufacturers.find(m => m.id === manufacturerId);
+
+                        if (manufacturer) {
+                            await walletService.transferProductFundsToManufacturer(
+                                userId,
+                                product.id,
+                                manufacturer.email,
+                                "Auto-transferred funds for fully funded product"
+                            );
+                        }
+                    }
+
+                    // Refresh products list after transfers
+                    if (designerProducts.length > 0) {
+                        fetchDesignerProducts();
+                    }
+                }
+            }
+
+            setMessage({
+                type: 'success',
+                text: 'Manufacturer settings saved successfully!'
+            });
+        } catch (error) {
+            console.error('Error saving manufacturer settings:', error);
+            setMessage({
+                type: 'error',
+                text: 'Failed to save manufacturer settings. Please try again.'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="profile-page">
             {showProfileCropper && (
@@ -1196,55 +1359,57 @@ const ProfilePage = () => {
             )}
 
             {/* Refund Denial Modal */}
-            {showRefundModal && selectedRefundOrder && (
-                <div className="modal-overlay">
-                    <div className="refund-denial-modal">
-                        <h3>Deny Refund Request</h3>
-                        <p>Please provide a reason for denying the refund request for Order #{selectedRefundOrder.id.slice(-6)}</p>
+            {
+                showRefundModal && selectedRefundOrder && (
+                    <div className="modal-overlay">
+                        <div className="refund-denial-modal">
+                            <h3>Deny Refund Request</h3>
+                            <p>Please provide a reason for denying the refund request for Order #{selectedRefundOrder.id.slice(-6)}</p>
 
-                        <div className="refund-info">
-                            <div className="refund-order-details">
-                                <p><strong>Customer:</strong> {selectedRefundOrder.shippingInfo?.fullName || 'Unknown'}</p>
-                                <p><strong>Order Date:</strong> {formatDate(selectedRefundOrder.createdAt)}</p>
-                                <p><strong>Customer Reason:</strong> {selectedRefundOrder.refundRequestReason || 'No reason provided'}</p>
+                            <div className="refund-info">
+                                <div className="refund-order-details">
+                                    <p><strong>Customer:</strong> {selectedRefundOrder.shippingInfo?.fullName || 'Unknown'}</p>
+                                    <p><strong>Order Date:</strong> {formatDate(selectedRefundOrder.createdAt)}</p>
+                                    <p><strong>Customer Reason:</strong> {selectedRefundOrder.refundRequestReason || 'No reason provided'}</p>
+                                </div>
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="refundDenyReason">Denial Reason (required)</label>
+                                <textarea
+                                    id="refundDenyReason"
+                                    name="refundDenyReason"
+                                    value={refundDenyReason}
+                                    onChange={(e) => setRefundDenyReason(e.target.value)}
+                                    placeholder="Please explain why you are denying this refund request..."
+                                    rows={4}
+                                    required
+                                />
+                            </div>
+
+                            <div className="modal-actions">
+                                <button
+                                    className="btn-cancel"
+                                    onClick={() => {
+                                        setShowRefundModal(false);
+                                        setSelectedRefundOrder(null);
+                                        setRefundDenyReason('');
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn-deny-confirm"
+                                    onClick={() => handleDenyRefundRequest(selectedRefundOrder.id, refundDenyReason)}
+                                    disabled={!refundDenyReason.trim() || loading}
+                                >
+                                    {loading ? 'Processing...' : 'Deny Refund'}
+                                </button>
                             </div>
                         </div>
-
-                        <div className="form-group">
-                            <label htmlFor="refundDenyReason">Denial Reason (required)</label>
-                            <textarea
-                                id="refundDenyReason"
-                                name="refundDenyReason"
-                                value={refundDenyReason}
-                                onChange={(e) => setRefundDenyReason(e.target.value)}
-                                placeholder="Please explain why you are denying this refund request..."
-                                rows={4}
-                                required
-                            />
-                        </div>
-
-                        <div className="modal-actions">
-                            <button
-                                className="btn-cancel"
-                                onClick={() => {
-                                    setShowRefundModal(false);
-                                    setSelectedRefundOrder(null);
-                                    setRefundDenyReason('');
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn-deny-confirm"
-                                onClick={() => handleDenyRefundRequest(selectedRefundOrder.id, refundDenyReason)}
-                                disabled={!refundDenyReason.trim() || loading}
-                            >
-                                {loading ? 'Processing...' : 'Deny Refund'}
-                            </button>
-                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             <><div className="profile-header" style={{
                 backgroundImage: headerPhotoURL ? `url(${headerPhotoURL})` : 'none',
@@ -1481,39 +1646,10 @@ const ProfilePage = () => {
                                             <div className="roles-list account-roles-list">
                                                 {renderRolePills()}
                                             </div>
+                                            <p className="roles-info">
+                                                Settings for all your roles are accessible through the tabs above.
+                                            </p>
                                         </div>
-
-                                        {isOwnProfile && hasRole('admin') && (
-                                            <div className="role-upgrade-section">
-                                                <label htmlFor="requestRole">Request Additional Role:</label>
-                                                <div className="role-upgrade-controls">
-                                                    <select
-                                                        id="requestRole"
-                                                        value={requestedRole}
-                                                        onChange={(e) => setRequestedRole(e.target.value)}
-                                                        className="role-select"
-                                                        disabled={processingRoleRequest}
-                                                    >
-                                                        <option value="">Select a role</option>
-                                                        <option value="designer">Designer</option>
-                                                        <option value="manufacturer">Manufacturer</option>
-                                                        <option value="investor">Investor</option>
-                                                        <option value="customer">Customer</option>
-                                                    </select>
-                                                    <button
-                                                        type="button"
-                                                        className="role-request-button"
-                                                        onClick={handleRoleRequest}
-                                                        disabled={!requestedRole || processingRoleRequest}
-                                                    >
-                                                        {processingRoleRequest ? 'Processing...' : 'Request Role'}
-                                                    </button>
-                                                </div>
-                                                <p className="role-info">
-                                                    Adding a new role will give you access to additional features and capabilities.
-                                                </p>
-                                            </div>
-                                        )}
                                     </div>
 
                                     <div className="form-group">
@@ -2434,7 +2570,165 @@ const ProfilePage = () => {
                                 </div>
                             )}
 
-                            {/* Achievements Section */}
+                            {activeTab === 'manufacturer-settings' && hasRole('designer') && (
+                                <div className="settings-section manufacturer-settings-section">
+                                    <h3>Manufacturer Settings</h3>
+                                    <p>Pre-select manufacturers for your products and configure automatic fund transfers.</p>
+
+                                    {loading ? (
+                                        <div className="loading-container">
+                                            <LoadingSpinner />
+                                            <p>Loading manufacturer settings...</p>
+                                        </div>
+                                    ) : (
+                                        <form onSubmit={(e) => {
+                                            e.preventDefault();
+                                            handleSaveManufacturerSettings();
+                                        }}>
+                                            <div className="form-group checkbox">
+                                                <input
+                                                    type="checkbox"
+                                                    id="autoTransferFunds"
+                                                    checked={autoTransferFunds}
+                                                    onChange={(e) => setAutoTransferFunds(e.target.checked)}
+                                                />
+                                                <label htmlFor="autoTransferFunds">Automatically transfer funds to selected manufacturer when a product is fully funded</label>
+                                                <p className="field-description">When enabled, funds will be automatically sent to your pre-selected manufacturer as soon as a product reaches its funding goal</p>
+                                            </div>
+
+                                            <div className="manufacturer-product-section">
+                                                <h4>Assign Manufacturers to Products</h4>
+                                                <p>Select a preferred manufacturer for your products before they're fully funded:</p>
+
+                                                {designerProducts.length === 0 ? (
+                                                    <div className="empty-state">
+                                                        <p>You don't have any products yet.</p>
+                                                        <Link to="/product-upload" className="btn-secondary">
+                                                            Create Your First Product
+                                                        </Link>
+                                                    </div>
+                                                ) : (
+                                                    <div className="manufacturer-product-list">
+                                                        {designerProducts
+                                                            .filter(product => product.status === 'active') // Only show active products
+                                                            .map(product => (
+                                                                <div key={product.id} className="manufacturer-product-card">
+                                                                    <div className="product-info">
+                                                                        <div className="product-image">
+                                                                            <img
+                                                                                src={Array.isArray(product.imageUrls) && product.imageUrls.length > 0
+                                                                                    ? product.imageUrls[0]
+                                                                                    : product.imageUrl || '/placeholder-product.jpg'}
+                                                                                alt={product.name} />
+                                                                        </div>
+                                                                        <div className="product-details">
+                                                                            <h3>{product.name}</h3>
+                                                                            {product.fundingGoal > 0 && (
+                                                                                <div className="product-funding">
+                                                                                    <div className="funding-progress-bar">
+                                                                                        <div
+                                                                                            className="funding-bar"
+                                                                                            style={{ width: `${calculateFundingPercentage(product)}%` }}
+                                                                                        ></div>
+                                                                                    </div>
+                                                                                    <div className="funding-text">
+                                                                                        <span>{calculateFundingPercentage(product)}% funded</span>
+                                                                                        <span>{formatPrice(product.currentFunding || 0)} / {formatPrice(product.fundingGoal)}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="manufacturer-selection">
+                                                                        <label htmlFor={`manufacturer-${product.id}`}>Preferred Manufacturer:</label>
+                                                                        <select
+                                                                            id={`manufacturer-${product.id}`}
+                                                                            value={manufacturerSettings[product.id] || ''}
+                                                                            onChange={(e) => {
+                                                                                setManufacturerSettings({
+                                                                                    ...manufacturerSettings,
+                                                                                    [product.id]: e.target.value
+                                                                                });
+                                                                            }}
+                                                                            disabled={product.currentFunding >= product.fundingGoal || product.manufacturerId}
+                                                                        >
+                                                                            <option value="">-- Select a manufacturer --</option>
+                                                                            {manufacturers.map(manufacturer => (
+                                                                                <option
+                                                                                    key={manufacturer.id}
+                                                                                    value={manufacturer.id}
+                                                                                >
+                                                                                    {manufacturer.displayName || manufacturer.email} {manufacturer.manufacturerVerified && "✓"}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+
+                                                                        {product.currentFunding >= product.fundingGoal ? (
+                                                                            <div className="status-fully-funded">
+                                                                                This product is fully funded and ready for manufacturing.
+                                                                                {!product.manufacturerId && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="btn-select-now"
+                                                                                        onClick={() => {
+                                                                                            setSelectedProductId(product.id);
+                                                                                            setShowManufacturerModal(true);
+                                                                                        }}
+                                                                                    >
+                                                                                        Select Manufacturer Now
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : product.manufacturerId ? (
+                                                                            <div className="status-manufacturer-selected">
+                                                                                Manufacturer already assigned
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="status-pending">
+                                                                                Will be assigned when fully funded
+                                                                                {autoTransferFunds && manufacturerSettings[product.id] && (
+                                                                                    <span className="auto-transfer-badge">
+                                                                                        Auto-transfer enabled
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="form-actions">
+                                                <button
+                                                    type="submit"
+                                                    className="submit-button"
+                                                    disabled={loading}
+                                                >
+                                                    {loading ? 'Saving...' : 'Save Manufacturer Settings'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    )}
+
+                                    {showManufacturerModal && selectedProductId && (
+                                        <ManufacturerSelectionModal
+                                            isOpen={showManufacturerModal}
+                                            onClose={() => setShowManufacturerModal(false)}
+                                            product={designerProducts.find(p => p.id === selectedProductId)}
+                                            onSuccess={() => {
+                                                // Refresh products after successful manufacturer selection
+                                                fetchDesignerProducts();
+                                                setShowManufacturerModal(false);
+                                            }}
+                                            preSelection={!designerProducts.find(p => p.id === selectedProductId)?.currentFunding >=
+                                                designerProducts.find(p => p.id === selectedProductId)?.fundingGoal}
+                                        />
+                                    )}
+                                </div>
+                            )}
+
                             <div className="profile-section">
                                 <div className="section-header">
                                     <h2>Achievements</h2>
@@ -2450,6 +2744,7 @@ const ProfilePage = () => {
                         </div>
                     </div>
                 </div></>
+
         </div>
     );
 };

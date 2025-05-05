@@ -106,6 +106,30 @@ class VerificationService {
       return []; // Return empty array on error
     }
   }
+
+  /**
+   * Get all manufacturers (both verified and unverified)
+   * @returns {Promise<Array>} Array of all manufacturers with verification status
+   */
+  async getAllManufacturers() {
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(
+        usersRef,
+        where("roles", "array-contains", "manufacturer")
+      );
+      const snapshot = await getDocs(q);
+
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        verified: doc.data().manufacturerVerified === true,
+        ...doc.data(),
+      }));
+    } catch (error) {
+      console.error("Error getting manufacturers:", error);
+      return []; // Return empty array on error
+    }
+  }
 }
 
 const verificationService = new VerificationService();

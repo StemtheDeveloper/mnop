@@ -40,6 +40,11 @@
   background-color: white;
 }
 
+.form-group select.unverified-selection {
+  border-color: #ff9800;
+  background-color: #fff8e1;
+}
+
 .form-group textarea {
   resize: vertical;
   min-height: 80px;
@@ -127,13 +132,32 @@
   color: #0d47a1;
   margin-top: 5px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .verification-note::before {
-  content: "✓";
+  content: "ℹ️";
   display: inline-block;
   margin-right: 5px;
-  color: #2196f3;
   font-weight: bold;
+}
+
+.verification-warning {
+  background-color: #fff3e0;
+  border-left: 4px solid #ff9800;
+  color: #e65100;
+  padding: 10px 15px;
+  margin: 10px 0;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.verification-warning strong {
+  color: #e65100;
+  font-weight: bold;
+}
+
+.verification-warning p {
+  margin-top: 5px;
+  margin-bottom: 0;
 }

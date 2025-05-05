@@ -1,3 +1,4 @@
+Create a system for users to review eachother from the UserProfilePage, also show details l
 Create a system for designers to optionally select a manufacturer before a product is fully funded. They should still be able to change this in their manufacturer settings on their profile. And I would like to give designers the option to automatically send the funds for a product when it is fully funded.
 Don't show product's stock quantity until it is fully funded. Also, do not show "add to cart" button unless the product is fully funded.
 Implement user search

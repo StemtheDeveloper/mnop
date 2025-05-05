@@ -565,6 +565,22 @@ class WalletService {
         );
       }
 
+      // Check if the product has reached its funding goal now
+      const currentFunding = (productData.currentFunding || 0) + amount;
+      const fundingGoal = productData.fundingGoal || 0;
+
+      // If funding goal is reached, check for auto-transfer
+      if (fundingGoal > 0 && currentFunding >= fundingGoal) {
+        // Check for auto transfer settings
+        setTimeout(async () => {
+          try {
+            await this.checkAndAutoTransferFunds(productId);
+          } catch (error) {
+            console.error("Error in auto-transfer process:", error);
+          }
+        }, 1000); // Slight delay to ensure the batch commit is fully processed first
+      }
+
       return {
         success: true,
         message: `Successfully invested $${amount} in ${productData.name}`,
@@ -1167,6 +1183,149 @@ class WalletService {
       return {
         success: false,
         error: error.message || "Failed to transfer funds to manufacturer",
+      };
+    }
+  }
+
+  /**
+   * Check and auto-transfer funds to pre-selected manufacturer if enabled
+   * @param {string} productId - Product ID that just got funded
+   * @returns {Promise<Object>} Result with success status
+   */
+  async checkAndAutoTransferFunds(productId) {
+    try {
+      // 1. Verify the product exists and is fully funded
+      const productRef = doc(db, "products", productId);
+      const productDoc = await getDoc(productRef);
+
+      if (!productDoc.exists()) {
+        return {
+          success: false,
+          error: "Product not found",
+        };
+      }
+
+      const productData = productDoc.data();
+      const designerId = productData.designerId;
+
+      if (!designerId) {
+        return {
+          success: false,
+          error: "Product has no designer ID",
+        };
+      }
+
+      // 2. Check if product is fully funded
+      const currentFunding = productData.currentFunding || 0;
+      const fundingGoal = productData.fundingGoal || 0;
+
+      if (currentFunding < fundingGoal) {
+        return {
+          success: false,
+          error: "Product is not fully funded yet",
+        };
+      }
+
+      // 3. Check if funds were already sent to manufacturer
+      if (productData.fundsSentToManufacturer || productData.manufacturerId) {
+        return {
+          success: false,
+          error: "Funds have already been transferred to a manufacturer",
+        };
+      }
+
+      // 4. Check designer settings for auto-transfer preference
+      const designerSettingsRef = doc(db, "designerSettings", designerId);
+      const designerSettingsDoc = await getDoc(designerSettingsRef);
+
+      if (!designerSettingsDoc.exists()) {
+        return {
+          success: false,
+          error: "No designer settings found",
+        };
+      }
+
+      const designerSettings = designerSettingsDoc.data();
+
+      // Check if auto-transfer is enabled and if there's a pre-selected manufacturer
+      if (!designerSettings.autoTransferFunds) {
+        return {
+          success: false,
+          error: "Auto-transfer is not enabled for this designer",
+        };
+      }
+
+      // Check if there's a pre-selected manufacturer for this product
+      const manufacturerSettings = designerSettings.manufacturerSettings || {};
+      const preSelectedManufacturerId = manufacturerSettings[productId];
+
+      if (!preSelectedManufacturerId) {
+        return {
+          success: false,
+          error: "No pre-selected manufacturer found for this product",
+        };
+      }
+
+      // 5. Get manufacturer email (required for transferProductFundsToManufacturer)
+      const manufacturerRef = doc(db, "users", preSelectedManufacturerId);
+      const manufacturerDoc = await getDoc(manufacturerRef);
+
+      if (!manufacturerDoc.exists()) {
+        return {
+          success: false,
+          error: "Pre-selected manufacturer not found",
+        };
+      }
+
+      const manufacturerData = manufacturerDoc.data();
+      const manufacturerEmail = manufacturerData.email;
+
+      if (!manufacturerEmail) {
+        return {
+          success: false,
+          error: "Manufacturer email not found",
+        };
+      }
+
+      // 6. Transfer funds to the pre-selected manufacturer
+      const transferResult = await this.transferProductFundsToManufacturer(
+        designerId,
+        productId,
+        manufacturerEmail,
+        "Auto-transferred funds for fully funded product"
+      );
+
+      // 7. If successful, update product with information
+      if (transferResult.success) {
+        await updateDoc(productRef, {
+          autoTransferred: true,
+          autoTransferredAt: serverTimestamp(),
+        });
+
+        // Send an additional notification to the designer about the auto-transfer
+        const notificationService = await import("./notificationService").then(
+          (module) => module.default
+        );
+
+        await notificationService.createNotification(
+          designerId,
+          "manufacturing",
+          "Automatic Funds Transfer",
+          `Your product ${
+            productData.name || "product"
+          } was fully funded and funds ($${transferResult.amount.toFixed(
+            2
+          )}) were automatically transferred to your pre-selected manufacturer.`,
+          `/product/${productId}`
+        );
+      }
+
+      return transferResult;
+    } catch (error) {
+      console.error("Error in auto-transfer process:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to auto-transfer funds to manufacturer",
       };
     }
   }
