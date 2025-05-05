@@ -1,5 +1,6 @@
 # Completed Improvements for mnop-app
 
+- Standardize button styles across the application to use consistent CSS classes
 - Create automated testing suite with Jest and React Testing Library
 - Update React components to use React.memo for performance optimization
 - Implement caching strategy for frequently accessed data
@@ -46,4 +47,5 @@
 - Make search drop down column !row
 - Clicking products on the search page should link to the product details
 - Add dark mode support across the application
+- Implement a11y improvements for better accessibility (ARIA labels, keyboard navigation)
 

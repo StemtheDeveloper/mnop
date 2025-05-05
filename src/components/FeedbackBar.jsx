@@ -9,9 +9,12 @@ const FeedbackBar = () => {
         feedback,
         rating,
         loading,
+        isPermanentlyHidden,
         setFeedback,
         setRating,
         toggleFeedbackBar,
+        hideFeedbackBarTemporarily,
+        hideFeedbackBarPermanently,
         submitFeedback
     } = useFeedback();
 
@@ -43,6 +46,11 @@ const FeedbackBar = () => {
             }
         }
     }, [isOpen]);
+
+    // Don't render if permanently hidden
+    if (isPermanentlyHidden) {
+        return null;
+    }
 
     return (
         <div className={`feedback-bar ${isOpen ? 'open' : ''}`} role="dialog" aria-labelledby="feedback-title">
@@ -92,6 +100,23 @@ const FeedbackBar = () => {
                 >
                     {loading ? <LoadingSpinner size="small" /> : 'Submit Feedback'}
                 </button>
+
+                <div className="feedback-visibility-options">
+                    {/* <button
+                        className="hide-feedback-btn"
+                        onClick={hideFeedbackBarTemporarily}
+                        aria-label="Hide feedback bar temporarily"
+                    >
+                        Hide for now
+                    </button> */}
+                    <button
+                        className="hide-feedback-permanently-btn"
+                        onClick={hideFeedbackBarPermanently}
+                        aria-label="Hide feedback bar permanently"
+                    >
+                        Never show again
+                    </button>
+                </div>
             </div>
         </div>
     );

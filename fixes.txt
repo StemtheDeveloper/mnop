@@ -1,5 +1,32 @@
-// filepath: c:\Users\GGPC\Desktop\mnop-app\fixes.txt
-
 # Improvements for mnop-app
 
-- Implement accessibility improvements (ARIA attributes, keyboard navigation)
+Merge context and contexts folders
+
+Add file attachment encryption to messages
+
+Fix the display of cross sell items
+
+Commission needs to be taken from direct sell products
+
+Resolve customer orders link from notifications drawer
+
+Users are being charged too much for direct sell products. I tried to purchase an item for $5 and $10 shipping but ended up being charged $15.75 (virtual currency)
+
+Add sales history to the "my sales" tab on the profile
+
+Break the profile up into smaller components to improve loading times
+
+Add earnings summary to the /earnings page
+
+Remove duplicate styles
+
+{Order cancelation isn't working:
+refundService.js:489 Error processing refund: TypeError: walletService.addToWallet is not a function
+    at RefundService.processRefund (refundService.js:408:48)
+    at async handleCancelOrder (OrdersPage.jsx:96:34)
+}
+
+
+
+- Add internationalization (i18n) support for multiple languages
+

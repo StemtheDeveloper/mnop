@@ -99,14 +99,8 @@ export const UserProvider = ({ children }) => {
                 });
             }
 
-            // Fetch transaction history
-            try {
-                const transactionHistory = await walletService.getTransactionHistory(uid);
-                setTransactions(transactionHistory || []);
-            } catch (txError) {
-                console.error("Error fetching transactions:", txError);
-                setTransactions([]);
-            }
+            // Don't fetch transactions here - we'll let the WalletPage handle this
+            // This prevents double-fetching and performance issues
         } catch (error) {
             console.error("Error fetching user data:", error);
             setUserProfile(null);
@@ -166,9 +160,8 @@ export const UserProvider = ({ children }) => {
             const updatedWallet = await walletService.getUserWallet(currentUser.uid);
             setUserWallet(updatedWallet);
 
-            // Update transaction history
-            const updatedTransactions = await walletService.getTransactionHistory(currentUser.uid);
-            setTransactions(updatedTransactions);
+            // Don't update all transactions here - let the WalletPage handle its own transaction updates
+            // This prevents duplicate requests causing performance issues
 
             return result;
         } catch (error) {

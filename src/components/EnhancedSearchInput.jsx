@@ -379,7 +379,7 @@ const EnhancedSearchInput = ({ placeholder = "Search products...", className = "
                     )}
 
                     {!searchTerm && popularProducts.length > 0 && (
-                        <div className="suggestion-section">
+                        <div className="suggestion-section popular-products">
                             <h4>Popular Products</h4>
                             <ul>
                                 {popularProducts.map((product, index) => (

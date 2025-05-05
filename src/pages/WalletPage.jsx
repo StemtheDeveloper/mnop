@@ -12,20 +12,25 @@ import '../styles/WalletPage.css';
 
 const WalletPage = () => {
     const { currentUser, userWallet, userRole, hasRole } = useUser();
-    const { success: showSuccess, error: showError } = useToast(); // Map to correct function names
+    const { success: showSuccess, error: showError } = useToast();
 
     // Wallet state
     const [balance, setBalance] = useState(userWallet?.balance || 0);
     const [transactions, setTransactions] = useState([]);
     const [interestTransactions, setInterestTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [transactionLoading, setTransactionLoading] = useState(true);
+    const [transactionLoading, setTransactionLoading] = useState(false); // Initial value false
+    const [transactionError, setTransactionError] = useState(null);
 
     // UI state
     const [activeTab, setActiveTab] = useState('summary');
     const [activeTransactionType, setActiveTransactionType] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedMonths, setExpandedMonths] = useState({});
+
+    // Cache manager - for tracking transaction fetch times
+    const [lastFetchTime, setLastFetchTime] = useState(0);
+    const CACHE_TIMEOUT = 60000; // 1 minute cache timeout
 
     // Transfer state
     const [transferTo, setTransferTo] = useState('');
@@ -47,11 +52,10 @@ const WalletPage = () => {
     // Initialize user roles
     useEffect(() => {
         if (userRole) {
-            // Convert to array if it's a single string
             const roles = Array.isArray(userRole) ? userRole : [userRole];
             setUserRoles(roles);
         } else {
-            setUserRoles(['customer']); // Default role
+            setUserRoles(['customer']);
         }
     }, [userRole]);
 
@@ -69,122 +73,103 @@ const WalletPage = () => {
 
     // Function to determine if user has access to specific tabs
     const canAccessTab = (tabName) => {
-        // All users can access these tabs
+        // Basic access check implementation
         if (['summary'].includes(tabName)) return true;
-
-        // Only admins can access the "add" tab
         if (tabName === 'add') return userHasRole('admin');
-
-        // Transfer funds require any role beyond customer
         if (tabName === 'transfer') return userRoles.length > 0;
-
-        // Interest tab requires investor role
-        if (tabName === 'interest') {
-            return userHasRole('investor');
-        }
-
+        if (tabName === 'interest') return userHasRole('investor');
         return true;
     };
 
-    // Memoize loadWalletData to prevent recreation on each render
+    // Load wallet data
     const loadWalletData = useCallback(async () => {
-        setLoading(true);
         if (!currentUser) {
-            // Instead of returning, we'll wait for the user context to be available
-            console.log("Waiting for user authentication...");
-            setTimeout(() => {
-                if (currentUser) {
-                    loadWalletData();
-                } else {
-                    setLoading(false);
-                }
-            }, 2000);
+            setLoading(false);
             return;
         }
 
+        setLoading(true);
         try {
-            // Get the most up-to-date wallet data
             const walletData = await walletService.getUserWallet(currentUser.uid);
-            if (walletData) {
-                setBalance(walletData.balance || 0);
-            }
+            if (walletData) setBalance(walletData.balance || 0);
         } catch (error) {
-            console.error('Error loading wallet:', error);
+            console.error('[WalletPage] Error loading wallet:', error);
             showError('Failed to load wallet information');
         } finally {
             setLoading(false);
         }
     }, [currentUser, showError]);
 
-    // Set up real-time listener for wallet updates
+    // Set up real-time listener for just the wallet balance
     useEffect(() => {
-        if (!currentUser) return;
+        let unsubscribe = () => { };
 
-        const walletRef = doc(db, "wallets", currentUser.uid);
-
-        // Real-time listener for wallet updates
-        const unsubscribe = onSnapshot(walletRef,
-            (walletDoc) => {
-                if (walletDoc.exists()) {
-                    const walletData = walletDoc.data();
-                    setBalance(walletData.balance || 0);
+        if (currentUser) {
+            const walletRef = doc(db, "wallets", currentUser.uid);
+            unsubscribe = onSnapshot(
+                walletRef,
+                (walletDoc) => {
+                    if (walletDoc.exists()) {
+                        const walletData = walletDoc.data();
+                        setBalance(walletData.balance || 0);
+                    }
+                },
+                (error) => {
+                    console.error("[WalletPage] Error in wallet listener:", error);
+                    // Only do a manual fetch if the listener fails
+                    loadWalletData();
                 }
-            },
-            (error) => {
-                console.error("Error in wallet listener:", error);
-                // Fallback to manual fetch if real-time updates fail
-                loadWalletData();
-            }
-        );
+            );
+        }
 
-        // Initial load
+        // Run initial load
         loadWalletData();
 
         return () => unsubscribe();
     }, [currentUser, loadWalletData]);
 
-    // Real-time listener for transactions
+    // Function to load transactions - extracted so it can be called manually and for refreshing
+    const fetchTransactions = useCallback(async (force = false) => {
+        if (!currentUser) return;
+
+        // Skip fetching if cache is still valid and not forcing
+        const now = Date.now();
+        if (!force && transactions.length > 0 && now - lastFetchTime < CACHE_TIMEOUT) {
+            return;
+        }
+
+        setTransactionLoading(true);
+        setTransactionError(null);
+
+        try {
+            console.log('[WalletPage] Fetching transactions...');
+            const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
+            setTransactions(txData || []);
+            setLastFetchTime(now);
+
+            if (userHasRole('investor')) {
+                const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 50);
+                setInterestTransactions(interestTxData || []);
+            }
+        } catch (error) {
+            console.error('[WalletPage] Error fetching transactions:', error);
+            setTransactionError('Failed to load transaction history');
+        } finally {
+            setTransactionLoading(false);
+        }
+    }, [currentUser, userHasRole, transactions.length, lastFetchTime, CACHE_TIMEOUT]);
+
+    // Load transactions only once when component mounts
     useEffect(() => {
-        const loadTransactions = async () => {
-            if (!currentUser) {
-                // If no user yet, set a timeout to check again
-                setTimeout(() => {
-                    if (currentUser) {
-                        loadTransactions();
-                    } else {
-                        setTransactionLoading(false);
-                    }
-                }, 2000);
-                return;
-            }
+        if (currentUser) {
+            fetchTransactions(true);
+        }
+    }, [currentUser]); // Only depend on currentUser, not on fetchTransactions
 
-            setTransactionLoading(true);
-            try {
-                // Load regular transactions - remove limit to show all
-                const txData = await walletService.getTransactionHistory(currentUser.uid);
-                setTransactions(txData || []);
-
-                // Load interest transactions if user is an investor
-                if (userHasRole('investor')) {
-                    // No limit for interest transactions either
-                    const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid);
-                    setInterestTransactions(interestTxData || []);
-                }
-            } catch (error) {
-                console.error('Error loading transactions:', error);
-                // Don't show an error toast here to avoid duplicate errors
-            } finally {
-                setTransactionLoading(false);
-            }
-        };
-
-        loadTransactions();
-
-        // Set up a refresh interval for transactions (every 30 seconds)
-        const intervalId = setInterval(loadTransactions, 30000);
-
-        return () => clearInterval(intervalId);
-    }, [currentUser, userRoles, userHasRole]);
+    // Refresh button handler
+    const handleRefreshTransactions = () => {
+        fetchTransactions(true); // Force refresh
+    };
 
     // Handle wallet refresh button click
     const handleRefreshWallet = async () => {
@@ -192,10 +177,11 @@ const WalletPage = () => {
             const walletData = await walletService.getUserWallet(currentUser.uid);
             if (walletData) {
                 setBalance(walletData.balance || 0);
+                fetchTransactions(true); // Refresh transactions when wallet is refreshed
                 showSuccess("Wallet updated successfully");
             }
         } catch (error) {
-            console.error('Error refreshing wallet:', error);
+            console.error('[WalletPage] Error refreshing wallet:', error);
             showError('Failed to refresh wallet information');
         }
     };
@@ -237,22 +223,19 @@ const WalletPage = () => {
 
             if (result.success) {
                 setTransferSuccess('Transfer completed successfully!');
-                // Balance will be updated automatically by the listener
                 // Clear form
                 setTransferTo('');
                 setTransferAmount('');
                 setTransferNote('');
-                // Show success toast
                 showSuccess(`Successfully transferred ${formatCurrency(amount)} to ${transferTo}`);
 
-                // Refresh transactions - removed limit to get all transactions
-                const txData = await walletService.getTransactionHistory(currentUser.uid);
-                setTransactions(txData || []);
+                // Force refresh transactions
+                fetchTransactions(true);
             } else {
                 setTransferError(result.error || 'Transfer failed. Please try again.');
             }
         } catch (error) {
-            console.error('Transfer error:', error);
+            console.error('[WalletPage] Transfer error:', error);
             setTransferError(error.message || 'An error occurred during transfer');
         } finally {
             setTransferLoading(false);
@@ -277,8 +260,6 @@ const WalletPage = () => {
         setIsDepositing(true);
 
         try {
-            // For demo, we'll simulate a successful deposit
-            // In production, this would integrate with a payment processor
             const result = await walletService.simulateDeposit(
                 currentUser.uid,
                 amount,
@@ -286,21 +267,17 @@ const WalletPage = () => {
             );
 
             if (result.success) {
-                // Clear form
                 setDepositAmount('');
-                // Set success message
                 setDepositSuccess(`Successfully added ${formatCurrency(amount)} to your wallet`);
-                // Show success toast
                 showSuccess(`Added ${formatCurrency(amount)} to your wallet`);
 
-                // Refresh transactions immediately - removed limit to show all transactions
-                const txData = await walletService.getTransactionHistory(currentUser.uid);
-                setTransactions(txData || []);
+                // Force refresh transactions
+                fetchTransactions(true);
             } else {
                 setDepositError(result.error || 'Deposit failed. Please try again.');
             }
         } catch (error) {
-            console.error('Deposit error:', error);
+            console.error('[WalletPage] Deposit error:', error);
             setDepositError(error.message || 'An error occurred during deposit');
         } finally {
             setIsDepositing(false);
@@ -374,7 +351,6 @@ const WalletPage = () => {
 
     // Render roles badges 
     const renderRoleBadges = () => {
-        // If no roles are set, show default customer role
         if (!userRoles || userRoles.length === 0) {
             return (
                 <div className="roles-list">
@@ -383,7 +359,6 @@ const WalletPage = () => {
             );
         }
 
-        // Display all roles
         return (
             <div className="roles-list">
                 {userRoles.map((role, index) => (
@@ -506,7 +481,26 @@ const WalletPage = () => {
                                         Purchases
                                     </button>
                                 </div>
+                                {/* Add refresh button to manually reload transactions */}
+                                <div className="refresh-transactions">
+                                    <button
+                                        onClick={handleRefreshTransactions}
+                                        disabled={transactionLoading}
+                                        className="refresh-transactions-button"
+                                    >
+                                        {transactionLoading ? 'Loading...' : 'Refresh Transactions'}
+                                    </button>
+                                </div>
                             </div>
+
+                            {transactionError && (
+                                <div className="error-message transaction-error">
+                                    {transactionError}
+                                    <button onClick={handleRefreshTransactions} className="retry-button">
+                                        Retry
+                                    </button>
+                                </div>
+                            )}
 
                             {transactionLoading ? (
                                 <div className="loading-transactions">

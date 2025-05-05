@@ -1,7 +1,13 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, serverTimestamp } from "firebase/firestore";
+import {
+  getFirestore,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { getPerformance, trace } from "firebase/performance";
@@ -98,7 +104,7 @@ export const timestamp = serverTimestamp();
 const googleProvider = new GoogleAuthProvider();
 
 // Export Firebase services
-export { db, storage, auth, analytics, functions, perf };
+export { db, storage, auth, analytics, functions, perf, trace };
 
 // Export Firebase authentication functions
 export {
@@ -113,6 +119,9 @@ export {
   multiFactor,
   getMultiFactorResolver,
   serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove,
 };
 
 // Export the app as default

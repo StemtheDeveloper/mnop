@@ -354,64 +354,34 @@ class WalletService {
    * @param {number} limit - Maximum number of transactions to return
    * @returns {Promise<Array>} - Transaction history
    */
-  async getTransactionHistory(userId, limitCount = 1000) {
+  async getTransactionHistory(userId, limitCount = 50) {
     try {
       const transactionsRef = collection(db, "transactions");
 
-      // Try using a simpler query first, then sort client-side to avoid index issues
-      let q = query(
+      // Use a simple query without ordering to avoid index issues
+      const q = query(
         transactionsRef,
         where("userId", "==", userId),
         limit(limitCount)
       );
 
-      try {
-        const snapshot = await getDocs(q);
+      const snapshot = await getDocs(q);
 
-        // Sort on client side
-        const transactions = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+      // Sort on client side
+      const transactions = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-        // Sort by createdAt in descending order (newest first)
-        return transactions.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(0);
-          const dateB = b.createdAt?.toDate?.() || new Date(0);
-          return dateB - dateA;
-        });
-      } catch (error) {
-        // If there's an index error, log it and try without sorting
-        console.error(
-          "Index error for transactions. Falling back to unordered query:",
-          error
-        );
-
-        // Simpler query without ordering
-        q = query(
-          transactionsRef,
-          where("userId", "==", userId),
-          limit(limitCount)
-        );
-
-        const snapshot = await getDocs(q);
-
-        // Sort on client side
-        const transactions = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        // Sort by createdAt in descending order (newest first)
-        return transactions.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(0);
-          const dateB = b.createdAt?.toDate?.() || new Date(0);
-          return dateB - dateA;
-        });
-      }
+      // Sort by createdAt in descending order (newest first)
+      return transactions.sort((a, b) => {
+        const dateA = a.createdAt?.toDate?.() || new Date(0);
+        const dateB = b.createdAt?.toDate?.() || new Date(0);
+        return dateB - dateA;
+      });
     } catch (error) {
       console.error("Error getting transaction history:", error);
-      return [];
+      return []; // Return an empty array on error instead of retrying
     }
   }
 

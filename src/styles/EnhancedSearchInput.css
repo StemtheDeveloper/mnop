@@ -96,6 +96,16 @@
   margin: 0;
 }
 
+.popular-products ul {
+  display: flex;
+  flex-direction: column;
+}
+
+.popular-products li span {
+  display: flex;
+  flex-direction: row;
+}
+
 .suggestion-section li {
   padding: 8px 10px;
   cursor: pointer;

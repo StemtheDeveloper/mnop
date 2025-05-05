@@ -123,6 +123,39 @@
   cursor: not-allowed;
 }
 
+/* Visibility options */
+.feedback-visibility-options {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+  border-top: 1px solid #eee;
+  padding-top: 15px;
+}
+
+.hide-feedback-btn,
+.hide-feedback-permanently-btn {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 5px;
+  transition: color 0.2s;
+}
+
+.hide-feedback-btn:hover {
+  color: #333;
+}
+
+.hide-feedback-permanently-btn {
+  color: #999;
+}
+
+.hide-feedback-permanently-btn:hover {
+  color: #ff6b6b;
+}
+
 /* Accessibility */
 .sr-only {
   position: absolute;

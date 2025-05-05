@@ -6,13 +6,16 @@ import {
   FaTelegram,
   FaInstagram,
   FaWhatsapp,
-  FaLinkedinIn
+  FaLinkedinIn,
+  FaCommentAlt
 } from 'react-icons/fa';
 import './Footer.css';
 import DailyNop from './DailyNop';
+import { useFeedback } from '../contexts/FeedbackContext';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
+  const { isPermanentlyHidden, showFeedbackBar } = useFeedback();
 
   return (
     <footer className="footer">
@@ -58,9 +61,15 @@ const Footer = () => {
                 </a>
               </li>
               <li>
-                <a href="/feedback">
-                  <span>💬</span> Give Feedback
-                </a>
+                {isPermanentlyHidden ? (
+                  <button className="feedback-link-button" onClick={showFeedbackBar}>
+                    <span><FaCommentAlt /></span> Show Feedback Bar
+                  </button>
+                ) : (
+                  <a href="/feedback">
+                    <span>💬</span> Give Feedback
+                  </a>
+                )}
               </li>
               <li>
                 <a href="/report-bug">

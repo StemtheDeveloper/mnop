@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, useLocation } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import Nav from './components/Navbar';
 import Footer from './components/Footer';
@@ -22,6 +22,9 @@ import './styles/App.css';
 import './styles/Buttons.css'; // Importing common button styles
 
 function App() {
+  const location = useLocation();
+  const isCookiesPage = location.pathname === '/cookies';
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
@@ -33,6 +36,7 @@ function App() {
                   <CurrencyProvider>
                     <CartProvider>
                       <FeedbackProvider>
+
                         <div className="app">
                           <br /><br /><br /><br /><br />
                           <Nav />
@@ -40,7 +44,7 @@ function App() {
                           <NotificationRefresher />
                           <AdminProductNotifier />
                           <PolicyNotificationBanner />
-                          <CookieConsentBanner />
+                          {!isCookiesPage && <CookieConsentBanner />}
 
                           <FeedbackBar />
                           <main className="main-content">
@@ -50,6 +54,7 @@ function App() {
                           </main>
                           <Footer />
                         </div>
+
                       </FeedbackProvider>
                     </CartProvider>
                   </CurrencyProvider>

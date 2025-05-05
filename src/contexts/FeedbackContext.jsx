@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import { addFeedback } from '../firebase/feedbackService';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
@@ -12,8 +12,17 @@ export const FeedbackProvider = ({ children }) => {
     const [feedback, setFeedback] = useState('');
     const [rating, setRating] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [isPermanentlyHidden, setIsPermanentlyHidden] = useState(false);
     const { currentUser } = useAuth();
     const { showToast } = useToast();
+
+    // Check localStorage on first load
+    useEffect(() => {
+        const hideFeedbackBar = localStorage.getItem('hideFeedbackBar');
+        if (hideFeedbackBar === 'permanently') {
+            setIsPermanentlyHidden(true);
+        }
+    }, []);
 
     const toggleFeedbackBar = () => {
         setIsOpen(prev => !prev);
@@ -22,6 +31,26 @@ export const FeedbackProvider = ({ children }) => {
             setFeedback('');
             setRating(0);
         }
+    };
+
+    const hideFeedbackBarTemporarily = () => {
+        setIsOpen(false);
+        setFeedback('');
+        setRating(0);
+    };
+
+    const hideFeedbackBarPermanently = () => {
+        setIsOpen(false);
+        setIsPermanentlyHidden(true);
+        setFeedback('');
+        setRating(0);
+        localStorage.setItem('hideFeedbackBar', 'permanently');
+    };
+
+    const showFeedbackBar = () => {
+        setIsPermanentlyHidden(false);
+        setIsOpen(true);
+        localStorage.removeItem('hideFeedbackBar');
     };
 
     const submitFeedback = async () => {
@@ -59,9 +88,13 @@ export const FeedbackProvider = ({ children }) => {
         feedback,
         rating,
         loading,
+        isPermanentlyHidden,
         setFeedback,
         setRating,
         toggleFeedbackBar,
+        hideFeedbackBarTemporarily,
+        hideFeedbackBarPermanently,
+        showFeedbackBar,
         submitFeedback
     };
 

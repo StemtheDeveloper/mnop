@@ -122,20 +122,11 @@
   font-weight: 600;
   color: #777;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   position: relative;
   white-space: nowrap;
-}
-
-.tab-button:after {
-  content: "";
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 0;
-  height: 3px;
-  background-color: #ef3c23;
-  transition: width 0.2s ease;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent; /* Remove mobile tap highlight */
 }
 
 .tab-button.active {
@@ -143,11 +134,27 @@
 }
 
 .tab-button.active:after {
-  width: 100%;
+  transform: scaleX(1);
 }
 
 .tab-button:hover {
   color: #ef3c23;
+}
+
+.tab-button:focus {
+  outline: none;
+  color: #ef3c23;
+}
+
+/* Add a larger hit area for touch devices */
+.tab-button:before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  bottom: -10px;
+  z-index: -1;
 }
 
 /* Tab Content */

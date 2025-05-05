@@ -312,10 +312,7 @@ const MessagesPage = () => {
                     <div className="no-messages">
                         <h2>No messages yet</h2>
                         <p>Start a new conversation to message other users</p>
-                        <button className="new-message-button" onClick={handleNewMessage}>
-                            <FaPlus />
-                            <span>New Message</span>
-                        </button>
+
                     </div>
                 ) : (
                     <div className="conversations-list">
