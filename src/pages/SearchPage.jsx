@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EnhancedSearchInput from '../components/EnhancedSearchInput';
@@ -11,6 +11,7 @@ const SearchPage = () => {
     const [searchParams] = useSearchParams();
     const searchQuery = searchParams.get('query') || '';
     const categoryFilter = searchParams.get('category') || '';
+    const navigate = useNavigate();
 
     const [closeMatches, setCloseMatches] = useState([]);
     const [fuzzyMatches, setFuzzyMatches] = useState([]);
@@ -353,6 +354,11 @@ const SearchPage = () => {
         setSortOption(e.target.value);
     };
 
+    // Handle clicking on a product to navigate to its detail page
+    const handleProductClick = (productId) => {
+        navigate(`/product/${productId}`);
+    };
+
     const totalResults = closeMatches.length + fuzzyMatches.length + (categoryFilter && !searchQuery ? categoryMatches.length : 0);
 
     const displayedProducts = categoryFilter && !searchQuery ?
@@ -448,6 +454,7 @@ const SearchPage = () => {
                                 status={product.status}
                                 designerId={product.designerId}
                                 product={product}
+                                onClick={() => handleProductClick(product.id)}
                             />
                         ))}
                     </div>

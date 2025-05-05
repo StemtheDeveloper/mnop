@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { useUser } from '../context/UserContext';
 import { doc, updateDoc, arrayUnion, arrayRemove, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -7,6 +7,28 @@ import { useToast } from '../contexts/ToastContext';
 import { useCurrency } from '../context/CurrencyContext';
 import DOMPurify from 'dompurify'; // Import DOMPurify for HTML sanitization
 import '../styles/ProductCard.css';
+
+// Define a comparison function for React.memo
+const arePropsEqual = (prevProps, nextProps) => {
+  // Compare fundamental props that affect rendering
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.title === nextProps.title &&
+    prevProps.description === nextProps.description &&
+    prevProps.price === nextProps.price &&
+    prevProps.rating === nextProps.rating &&
+    prevProps.reviewCount === nextProps.reviewCount &&
+    prevProps.viewers === nextProps.viewers &&
+    prevProps.fundingProgress === nextProps.fundingProgress &&
+    prevProps.fundingGoal === nextProps.fundingGoal &&
+    prevProps.currentFunding === nextProps.currentFunding &&
+    prevProps.status === nextProps.status &&
+    prevProps.image === nextProps.image &&
+    // For arrays, we need to compare length as a basic check
+    (Array.isArray(prevProps.images) && Array.isArray(nextProps.images) &&
+      prevProps.images.length === nextProps.images.length)
+  );
+};
 
 const ProductCard = ({
   id,
@@ -420,4 +442,4 @@ const ProductCard = ({
   );
 };
 
-export default ProductCard;
+export default memo(ProductCard, arePropsEqual);

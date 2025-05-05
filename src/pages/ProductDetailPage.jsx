@@ -560,7 +560,7 @@ const ProductDetailPage = () => {
                                     : 'Out of Stock'}
                             </span>
                         </div>
-                    ) : product.trackInventory ? (
+                    ) : product.trackInventory && (isFullyFunded || !product.fundingGoal) ? (
                         <div className="inventory-status">
                             <span className={`inventory-badge ${(product.stockQuantity || 0) > 0 ? 'in-stock' : 'out-of-stock'}`}>
                                 {(product.stockQuantity || 0) > 0
@@ -991,10 +991,14 @@ const ProductDetailPage = () => {
                             </button>
                         </div>
 
-                        {/* Add to Cart Button - always shown for all users, but disabled if out of stock */}
+                        {/* Add to Cart Button - only enabled when product is fully funded */}
                         <button
                             className={`btn-primary add-to-cart-button ${buttonAnimation}`}
-                            disabled={isAddingToCart || (product.isComposite && maxAvailableQuantity <= 0) ||
+                            disabled={isAddingToCart ||
+                                // Disable if product is not fully funded and has a funding goal
+                                (product.fundingGoal > 0 && !isFullyFunded) ||
+                                // Also disable if out of stock
+                                (product.isComposite && maxAvailableQuantity <= 0) ||
                                 (!product.isComposite && product.trackInventory && (product.stockQuantity || 0) <= 0)}
                             onClick={handleAddToCart}
                         >

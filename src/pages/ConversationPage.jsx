@@ -59,13 +59,17 @@ const ConversationPage = () => {
         return groups;
     }, {});
 
-    // const scrollToBottom = () => {
-    //     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    // };
+    const scrollToBottom = () => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+    };
 
-    // useEffect(() => {
-    //     scrollToBottom();
-    // }, [messages]);
+    useEffect(() => {
+        if (messages.length > 0 && !loading) {
+            scrollToBottom();
+        }
+    }, [messages, loading]);
 
     useEffect(() => {
         if (userLoading) return;
@@ -144,11 +148,12 @@ const ConversationPage = () => {
 
             setTimeout(() => {
                 setSendProgress(0);
+                setSendingMessage(false);
+                scrollToBottom();
             }, 500);
         } catch (err) {
             console.error('Error sending message:', err);
             setError('Failed to send message. Please try again.');
-        } finally {
             setSendingMessage(false);
         }
     };

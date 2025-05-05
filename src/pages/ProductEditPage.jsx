@@ -597,6 +597,20 @@ const ProductEditPage = () => {
         }
     };
 
+    // Handle product deletion
+    const handleDeleteProduct = async () => {
+        try {
+            // Delete product document from Firestore
+            await updateDoc(doc(db, 'products', productId), { status: 'deleted' });
+            success("Product deleted successfully.");
+            navigate('/products'); // Redirect to products list or another appropriate page
+        } catch (error) {
+            console.error('Error deleting product:', error);
+            setErrorState(error.message || 'Failed to delete product. Please try again.');
+            error("Failed to delete product");
+        }
+    };
+
     // Redirect if user is not a designer or admin
     if (userRoles !== null && !isDesigner) {
         return (
@@ -649,6 +663,18 @@ const ProductEditPage = () => {
                 <h1>Edit Product</h1>
 
                 {errorState && <div className="error-message">{errorState}</div>}
+
+                {/* Display admin notification when editing another designer's product */}
+                {hasRole('admin') && product && product.designerId !== currentUser.uid && (
+                    <div className="admin-edit-banner">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span>You are editing this product as an administrator. The original designer is {product.designerName || 'Unknown'}.</span>
+                    </div>
+                )}
 
                 {/* Display changes indicator if there are unsaved changes */}
                 {hasChanges && (
@@ -1168,6 +1194,21 @@ const ProductEditPage = () => {
                         >
                             Cancel
                         </button>
+                        {/* Delete button only for admins */}
+                        {hasRole('admin') && (
+                            <button
+                                type="button"
+                                className="delete-button"
+                                onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete "${formData.name}"? This action cannot be undone.`)) {
+                                        handleDeleteProduct();
+                                    }
+                                }}
+                                disabled={saving}
+                            >
+                                Delete Product
+                            </button>
+                        )}
                         <button
                             type="submit"
                             className="submit-button"

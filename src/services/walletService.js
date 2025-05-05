@@ -569,8 +569,100 @@ class WalletService {
       const currentFunding = (productData.currentFunding || 0) + amount;
       const fundingGoal = productData.fundingGoal || 0;
 
-      // If funding goal is reached, check for auto-transfer
-      if (fundingGoal > 0 && currentFunding >= fundingGoal) {
+      // If funding goal is reached, send notifications and check for auto-transfer
+      if (
+        fundingGoal > 0 &&
+        currentFunding >= fundingGoal &&
+        (productData.currentFunding || 0) < fundingGoal
+      ) {
+        // Product just became fully funded - send notifications to all stakeholders
+
+        // 1. Send notification to designer that their product is fully funded
+        if (designerId) {
+          await notificationService.createNotification(
+            designerId,
+            "funding_complete",
+            "Product Fully Funded! 🎉",
+            `Congratulations! Your product ${
+              productData.name || "product"
+            } has reached its funding goal of $${fundingGoal}. You can now proceed with manufacturing.`,
+            `/product/${productId}`
+          );
+        }
+
+        // 2. Send notifications to all investors who contributed to this product
+        if (
+          Array.isArray(productData.funders) &&
+          productData.funders.length > 0
+        ) {
+          for (const funderId of productData.funders) {
+            if (funderId !== userId) {
+              // Skip the current investor as they'll get a special message
+              await notificationService.createNotification(
+                funderId,
+                "funding_complete",
+                "Product Fully Funded! 🎉",
+                `A product you invested in (${
+                  productData.name || "product"
+                }) has reached its funding goal of $${fundingGoal} and will now move to manufacturing.`,
+                `/product/${productId}`
+              );
+            }
+          }
+        }
+
+        // 3. Special notification for the investor who just completed the funding
+        await notificationService.createNotification(
+          userId,
+          "funding_complete",
+          "Product Fully Funded! 🎉",
+          `Your investment has fully funded ${
+            productData.name || "product"
+          }! The product has reached its goal of $${fundingGoal} and will now move to manufacturing.`,
+          `/product/${productId}`
+        );
+
+        // 4. If there's a pre-selected manufacturer, notify them as well
+        try {
+          const designerSettingsRef = doc(db, "designerSettings", designerId);
+          const designerSettingsDoc = await getDoc(designerSettingsRef);
+
+          if (designerSettingsDoc.exists()) {
+            const designerSettings = designerSettingsDoc.data();
+            const manufacturerSettings =
+              designerSettings.manufacturerSettings || {};
+            const preSelectedManufacturerId = manufacturerSettings[productId];
+
+            if (preSelectedManufacturerId) {
+              await notificationService.createNotification(
+                preSelectedManufacturerId,
+                "funding_complete",
+                "Product Ready for Manufacturing",
+                `A product assigned to you (${
+                  productData.name || "product"
+                }) has been fully funded with $${fundingGoal} and is now ready for manufacturing.`,
+                `/product/${productId}`
+              );
+            }
+          }
+        } catch (err) {
+          console.error(
+            "Error sending notification to pre-selected manufacturer:",
+            err
+          );
+          // Continue execution even if this notification fails
+        }
+
+        // Check for auto transfer settings
+        setTimeout(async () => {
+          try {
+            await this.checkAndAutoTransferFunds(productId);
+          } catch (error) {
+            console.error("Error in auto-transfer process:", error);
+          }
+        }, 1000); // Slight delay to ensure the batch commit is fully processed first
+      } else if (fundingGoal > 0 && currentFunding >= fundingGoal) {
+        // Product was already fully funded before this investment
         // Check for auto transfer settings
         setTimeout(async () => {
           try {

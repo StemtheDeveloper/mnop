@@ -7,6 +7,59 @@ import LoadingSpinner from './LoadingSpinner';
 import '../styles/ManufacturerSelectionModal.css';
 
 /**
+ * Custom confirmation modal component
+ */
+const ConfirmationModal = ({
+    isOpen,
+    onClose,
+    onConfirm,
+    title,
+    message,
+    amount,
+    showWarning,
+    warningMessage
+}) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="confirmation-overlay" onClick={onClose}>
+            <div className="confirmation-modal" onClick={e => e.stopPropagation()}>
+                <div className="confirmation-modal-header">
+                    <h3>{title}</h3>
+                </div>
+                <div className="confirmation-modal-body">
+                    {showWarning && (
+                        <div className="confirmation-modal-warning">
+                            <strong>Warning</strong>
+                            <p>{warningMessage}</p>
+                        </div>
+                    )}
+                    <div className="confirmation-modal-message">
+                        {message}
+                    </div>
+                    {amount && (
+                        <div className="confirmation-modal-amount">
+                            ${amount.toLocaleString()}
+                        </div>
+                    )}
+                </div>
+                <div className="confirmation-modal-footer">
+                    <button className="confirmation-modal-cancel" onClick={onClose}>
+                        Cancel
+                    </button>
+                    <button
+                        className={`confirmation-modal-confirm ${showWarning ? 'confirmation-modal-warning-confirm' : ''}`}
+                        onClick={onConfirm}
+                    >
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/**
  * Modal component for selecting a manufacturer and transferring funds
  * @param {Object} props
  * @param {boolean} props.isOpen - Whether the modal is open
@@ -25,6 +78,11 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
     const [loadingManufacturers, setLoadingManufacturers] = useState(false);
+
+    // For custom confirmation dialog
+    const [showConfirmation, setShowConfirmation] = useState(false);
+    const [confirmationType, setConfirmationType] = useState('');
+    const [confirmationDetails, setConfirmationDetails] = useState({});
 
     // Check if user is the designer of this product
     const isDesigner = currentUser && product && currentUser.uid === product.designerId;
@@ -74,29 +132,51 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
         }
     };
 
-    // Handle form submission for pre-selection (no fund transfer)
-    const handlePreSelect = async (e) => {
-        e.preventDefault();
-
-        // Reset status
-        setError('');
-        setSuccess('');
-
-        // Validate input
-        if (!selectedManufacturer) {
-            setError('Please select a manufacturer');
-            return;
-        }
-
-        // If the selected manufacturer is not verified, confirm with the user
+    // Show confirmation modal with appropriate message
+    const showConfirmationDialog = (type) => {
         const selectedMfr = manufacturers.find(m => m.id === selectedManufacturer);
-        if (selectedMfr && !selectedMfr.verified && !window.confirm(
-            'WARNING: You have selected an unverified manufacturer. This manufacturer has not been vetted by our team and may pose risks. Are you sure you want to continue?'
-        )) {
-            return;
+        if (type === 'unverified-preselection') {
+            setConfirmationDetails({
+                title: 'Confirm Unverified Manufacturer Selection',
+                message: 'You have selected an unverified manufacturer. This manufacturer has not been vetted by our team and may pose risks. Are you sure you want to continue?',
+                showWarning: true,
+                warningMessage: 'Unverified manufacturers have not been vetted by our team.'
+            });
+        } else if (type === 'unverified-transfer') {
+            setConfirmationDetails({
+                title: 'Confirm Funds Transfer to Unverified Manufacturer',
+                message: 'You have selected an unverified manufacturer. This manufacturer has not been vetted by our team and may pose risks. Funds will be transferred immediately and cannot be recovered.',
+                showWarning: true,
+                warningMessage: 'Transferring funds to unverified manufacturers carries additional risks.'
+            });
+        } else if (type === 'transfer-confirmation') {
+            setConfirmationDetails({
+                title: 'Confirm Funds Transfer',
+                message: `Are you sure you want to transfer the following amount to ${selectedMfr?.displayName || selectedMfr?.email || 'the selected manufacturer'}?`,
+                amount: product.businessHeldFunds,
+                showWarning: false
+            });
         }
+        setConfirmationType(type);
+        setShowConfirmation(true);
+    };
 
+    // Handle confirmation dialog result
+    const handleConfirmation = async () => {
+        setShowConfirmation(false);
+
+        // Process based on confirmation type
+        if (confirmationType === 'unverified-preselection' || confirmationType === 'preselection') {
+            await processPreselection();
+        } else if (confirmationType === 'unverified-transfer' || confirmationType === 'transfer-confirmation') {
+            await processFundsTransfer();
+        }
+    };
+
+    // Process manufacturer preselection
+    const processPreselection = async () => {
         setLoading(true);
+        setError('');
 
         try {
             // Update the product with the pre-selected manufacturer ID
@@ -141,34 +221,10 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
         }
     };
 
-    // Handle form submission for transferring funds
-    const handleTransferFunds = async (e) => {
-        e.preventDefault();
-
-        // Reset status
-        setError('');
-        setSuccess('');
-
-        // Validate input
-        if (!selectedManufacturer) {
-            setError('Please select a manufacturer');
-            return;
-        }
-
-        // If the selected manufacturer is not verified, confirm with the user
-        const selectedMfr = manufacturers.find(m => m.id === selectedManufacturer);
-        if (selectedMfr && !selectedMfr.verified && !window.confirm(
-            'WARNING: You have selected an unverified manufacturer. This manufacturer has not been vetted by our team and may pose risks. Funds will be transferred immediately and cannot be recovered. Are you sure you want to continue?'
-        )) {
-            return;
-        }
-
-        // Final confirmation for fund transfer
-        if (!window.confirm(`Are you sure you want to transfer ${product.businessHeldFunds?.toLocaleString()} credits to the selected manufacturer?`)) {
-            return;
-        }
-
+    // Process funds transfer to manufacturer
+    const processFundsTransfer = async () => {
         setLoading(true);
+        setError('');
 
         try {
             // Get the email of the selected manufacturer
@@ -208,6 +264,53 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
         }
     };
 
+    // Handle form submission for pre-selection (no fund transfer)
+    const handlePreSelect = (e) => {
+        e.preventDefault();
+
+        // Reset status
+        setError('');
+        setSuccess('');
+
+        // Validate input
+        if (!selectedManufacturer) {
+            setError('Please select a manufacturer');
+            return;
+        }
+
+        // If the selected manufacturer is not verified, show confirmation dialog
+        const selectedMfr = manufacturers.find(m => m.id === selectedManufacturer);
+        if (selectedMfr && !selectedMfr.verified) {
+            showConfirmationDialog('unverified-preselection');
+        } else {
+            showConfirmationDialog('preselection');
+        }
+    };
+
+    // Handle form submission for transferring funds
+    const handleTransferFunds = (e) => {
+        e.preventDefault();
+
+        // Reset status
+        setError('');
+        setSuccess('');
+
+        // Validate input
+        if (!selectedManufacturer) {
+            setError('Please select a manufacturer');
+            return;
+        }
+
+        // If the selected manufacturer is not verified, show confirmation dialog with warning
+        const selectedMfr = manufacturers.find(m => m.id === selectedManufacturer);
+        if (selectedMfr && !selectedMfr.verified) {
+            showConfirmationDialog('unverified-transfer');
+        } else {
+            // For verified manufacturers, still show confirmation dialog but without warning
+            showConfirmationDialog('transfer-confirmation');
+        }
+    };
+
     // If modal is not open, don't render anything
     if (!isOpen) return null;
 
@@ -235,105 +338,119 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
     }
 
     return (
-        <Modal title={preSelection ? "Pre-select Manufacturer" : "Select Manufacturer and Transfer Funds"} onClose={onClose}>
-            <div className="manufacturer-selection-container">
-                <div className="product-funding-info">
-                    <h3>{product.name}</h3>
-                    {!preSelection && (
-                        <p>Available Funds: <strong>${businessHeldFunds.toLocaleString()}</strong></p>
-                    )}
-                    {preSelection ? (
-                        <p>Pre-selecting a manufacturer allows you to prepare for production before your product is fully funded.</p>
+        <>
+            <Modal title={preSelection ? "Pre-select Manufacturer" : "Select Manufacturer and Transfer Funds"} onClose={onClose}>
+                <div className="manufacturer-selection-container">
+                    <div className="product-funding-info">
+                        <h3>{product.name}</h3>
+                        {!preSelection && (
+                            <p>Available Funds: <strong>${businessHeldFunds.toLocaleString()}</strong></p>
+                        )}
+                        {preSelection ? (
+                            <p>Pre-selecting a manufacturer allows you to prepare for production before your product is fully funded.</p>
+                        ) : (
+                            <p>Once you transfer funds to a manufacturer, the manufacturing process will begin.</p>
+                        )}
+                    </div>
+
+                    {error && <div className="error-message">{error}</div>}
+                    {success && <div className="success-message">{success}</div>}
+
+                    {loading ? (
+                        <div className="loading-container">
+                            <LoadingSpinner />
+                            <p>{preSelection ? 'Saving manufacturer selection...' : 'Processing fund transfer...'}</p>
+                        </div>
+                    ) : loadingManufacturers ? (
+                        <div className="loading-container">
+                            <LoadingSpinner />
+                            <p>Loading manufacturers...</p>
+                        </div>
                     ) : (
-                        <p>Once you transfer funds to a manufacturer, the manufacturing process will begin.</p>
+                        <form onSubmit={preSelection ? handlePreSelect : handleTransferFunds}>
+                            <div className="form-group">
+                                <label htmlFor="manufacturer-select">Select a Manufacturer:</label>
+                                <select
+                                    id="manufacturer-select"
+                                    value={selectedManufacturer}
+                                    onChange={(e) => setSelectedManufacturer(e.target.value)}
+                                    required
+                                    className={showWarning ? 'unverified-selection' : ''}
+                                >
+                                    <option value="">-- Select a manufacturer --</option>
+                                    {manufacturers.map(manufacturer => (
+                                        <option key={manufacturer.id} value={manufacturer.id}>
+                                            {manufacturer.displayName || manufacturer.email} {manufacturer.verified ? "✓" : "(Unverified)"}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="verification-note">
+                                    Manufacturers marked with ✓ have been verified by our team. Unverified manufacturers have not been vetted.
+                                </p>
+
+                                {showWarning && (
+                                    <div className="verification-warning">
+                                        <strong>Warning:</strong> You have selected an unverified manufacturer. Unverified manufacturers have not been vetted by our team.
+                                        {!preSelection && ' Transferring funds to unverified manufacturers carries additional risks.'}
+                                        <p>We recommend working with verified manufacturers for greater security.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="note-input">Note (Optional):</label>
+                                <textarea
+                                    id="note-input"
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    placeholder="Add a note for the manufacturer..."
+                                    rows={3}
+                                />
+                            </div>
+
+                            <div className="manufacturer-info">
+                                <h4>Important Information:</h4>
+                                <ul>
+                                    {preSelection ? (
+                                        <>
+                                            <li>Your preferred manufacturer will be notified of your interest.</li>
+                                            <li>No funds will be transferred until the product is fully funded.</li>
+                                            <li>You can change your preferred manufacturer at any time before funds are transferred.</li>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <li>Funds will be transferred immediately to the selected manufacturer.</li>
+                                            <li>All investors will be notified that manufacturing has begun.</li>
+                                            <li>You will be able to track the manufacturing progress in your dashboard.</li>
+                                        </>
+                                    )}
+                                </ul>
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="transfer-button"
+                                disabled={!selectedManufacturer || loading}
+                            >
+                                {preSelection ? 'Save Manufacturer Selection' : 'Transfer Funds to Manufacturer'}
+                            </button>
+                        </form>
                     )}
                 </div>
+            </Modal>
 
-                {error && <div className="error-message">{error}</div>}
-                {success && <div className="success-message">{success}</div>}
-
-                {loading ? (
-                    <div className="loading-container">
-                        <LoadingSpinner />
-                        <p>{preSelection ? 'Saving manufacturer selection...' : 'Processing fund transfer...'}</p>
-                    </div>
-                ) : loadingManufacturers ? (
-                    <div className="loading-container">
-                        <LoadingSpinner />
-                        <p>Loading manufacturers...</p>
-                    </div>
-                ) : (
-                    <form onSubmit={preSelection ? handlePreSelect : handleTransferFunds}>
-                        <div className="form-group">
-                            <label htmlFor="manufacturer-select">Select a Manufacturer:</label>
-                            <select
-                                id="manufacturer-select"
-                                value={selectedManufacturer}
-                                onChange={(e) => setSelectedManufacturer(e.target.value)}
-                                required
-                                className={showWarning ? 'unverified-selection' : ''}
-                            >
-                                <option value="">-- Select a manufacturer --</option>
-                                {manufacturers.map(manufacturer => (
-                                    <option key={manufacturer.id} value={manufacturer.id}>
-                                        {manufacturer.displayName || manufacturer.email} {manufacturer.verified ? "✓" : "(Unverified)"}
-                                    </option>
-                                ))}
-                            </select>
-                            <p className="verification-note">
-                                Manufacturers marked with ✓ have been verified by our team. Unverified manufacturers have not been vetted.
-                            </p>
-
-                            {showWarning && (
-                                <div className="verification-warning">
-                                    <strong>Warning:</strong> You have selected an unverified manufacturer. Unverified manufacturers have not been vetted by our team.
-                                    {!preSelection && ' Transferring funds to unverified manufacturers carries additional risks.'}
-                                    <p>We recommend working with verified manufacturers for greater security.</p>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="form-group">
-                            <label htmlFor="note-input">Note (Optional):</label>
-                            <textarea
-                                id="note-input"
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                placeholder="Add a note for the manufacturer..."
-                                rows={3}
-                            />
-                        </div>
-
-                        <div className="manufacturer-info">
-                            <h4>Important Information:</h4>
-                            <ul>
-                                {preSelection ? (
-                                    <>
-                                        <li>Your preferred manufacturer will be notified of your interest.</li>
-                                        <li>No funds will be transferred until the product is fully funded.</li>
-                                        <li>You can change your preferred manufacturer at any time before funds are transferred.</li>
-                                    </>
-                                ) : (
-                                    <>
-                                        <li>Funds will be transferred immediately to the selected manufacturer.</li>
-                                        <li>All investors will be notified that manufacturing has begun.</li>
-                                        <li>You will be able to track the manufacturing progress in your dashboard.</li>
-                                    </>
-                                )}
-                            </ul>
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="transfer-button"
-                            disabled={!selectedManufacturer || loading}
-                        >
-                            {preSelection ? 'Save Manufacturer Selection' : 'Transfer Funds to Manufacturer'}
-                        </button>
-                    </form>
-                )}
-            </div>
-        </Modal>
+            {/* Custom Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={showConfirmation}
+                onClose={() => setShowConfirmation(false)}
+                onConfirm={handleConfirmation}
+                title={confirmationDetails.title}
+                message={confirmationDetails.message}
+                amount={confirmationDetails.amount}
+                showWarning={confirmationDetails.showWarning}
+                warningMessage={confirmationDetails.warningMessage}
+            />
+        </>
     );
 };
 

@@ -6,10 +6,12 @@
 }
 
 .product-upload-container {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 30px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .product-upload-container h1 {
@@ -17,6 +19,28 @@
   margin-bottom: 30px;
   text-align: center;
   color: #333;
+}
+
+/* Admin edit banner */
+.admin-edit-banner {
+  display: flex;
+  align-items: center;
+  background-color: #f8f0f4;
+  border-left: 4px solid #e91e63;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+
+.admin-edit-banner svg {
+  color: #e91e63;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.admin-edit-banner span {
+  color: #333;
+  font-size: 14px;
 }
 
 /* Form layout */
@@ -193,7 +217,8 @@
 }
 
 .cancel-button,
-.submit-button {
+.submit-button,
+.delete-button {
   padding: 12px 24px;
   border-radius: 4px;
   font-size: 16px;
@@ -211,6 +236,15 @@
 
 .cancel-button:hover {
   background-color: #f5f5f5;
+}
+
+.delete-button {
+  background-color: #dc3545;
+  color: white;
+}
+
+.delete-button:hover {
+  background-color: #c82333;
 }
 
 .submit-button {

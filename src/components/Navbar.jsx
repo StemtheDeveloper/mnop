@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import "../styles/Navbar.css";
-import Logo from "../assets/logos/Logo full black_1.svg";
+import LogoBlack from "../assets/logos/Logo full black_1.svg";
+import LogoWhite from "../assets/logos/Logo full white.svg";
 import { auth } from "../config/firebase.js";
 import { useUser } from "../context/UserContext";
+import { useCart } from "../context/CartContext";
 import { useTheme } from "../context/ThemeContext";
 import Burger from "../assets/Burger 3@4x.png"
 import CloseBurger from "../assets/Close-Burger@4x.png"
@@ -25,6 +27,8 @@ const AdminEmails = [
 
 const Navbar = () => {
   const { user, userProfile, userRole, loading, signOut: userSignOut, getWalletBalance } = useUser();
+  const { cartCount } = useCart();
+  const { darkMode } = useTheme(); // Get darkMode state from ThemeContext
   const [isOpen, setIsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [walletBalance, setWalletBalance] = useState(null);
@@ -191,7 +195,7 @@ const Navbar = () => {
         <div className="navbar-container">
           <div className="logo">
             <Link to="/">
-              <img src={Logo} alt="Portable Home logo" />
+              <img src={darkMode ? LogoWhite : LogoBlack} alt="Portable Home logo" />
             </Link>
           </div>
 
@@ -240,8 +244,11 @@ const Navbar = () => {
                 </Link>
               </li>
               <li className="nav-item">
-                <Link to="/wallet" className={isActive('/wallet') ? 'active' : ''} onClick={() => setIsOpen(false)}>
-                  Wallet {walletBalance !== null && `($${walletBalance.toFixed(0)})`}
+                <Link to="/cart" className={isActive('/cart') ? 'active' : ''} onClick={() => setIsOpen(false)}>
+                  Cart
+                  {cartCount > 0 && (
+                    <span className="notification-badge cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+                  )}
                 </Link>
               </li>
               <li className="nav-item currency-selector-container">
@@ -277,6 +284,9 @@ const Navbar = () => {
             <li className="nav-item navbar-icons">
               <Link to="/cart">
                 <img src={CartIcon} alt="Cart icon" />
+                {cartCount > 0 && (
+                  <span className="notification-badge cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+                )}
               </Link>
             </li>
           </ul>
@@ -316,6 +326,9 @@ const Navbar = () => {
                 <li className="nav-item navbar-icons">
                   <Link to="/cart">
                     <img src={CartIcon} title="Cart" alt="Cart icon" />
+                    {cartCount > 0 && (
+                      <span className="notification-badge cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+                    )}
                   </Link>
                 </li>
                 <div className="c-h-r"></div>

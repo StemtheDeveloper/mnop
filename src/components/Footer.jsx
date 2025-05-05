@@ -1,5 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import {
+  FaFacebookF,
+  FaTwitter,
+  FaTelegram,
+  FaInstagram,
+  FaWhatsapp,
+  FaLinkedinIn
+} from 'react-icons/fa';
 import './Footer.css';
 import DailyNop from './DailyNop';
 
@@ -15,22 +23,22 @@ const Footer = () => {
             <h4>Socials</h4>
             <div className="social-links">
               <a href="https://facebook.com" className="social-icon" title="Facebook">
-                <span className="social-icon-text">FB</span>
+                <FaFacebookF />
               </a>
               <a href="https://twitter.com" className="social-icon" title="X/Twitter">
-                <span className="social-icon-text">X</span>
+                <FaTwitter />
               </a>
               <a href="https://telegram.org" className="social-icon" title="Telegram">
-                <span className="social-icon-text">TG</span>
+                <FaTelegram />
               </a>
               <a href="https://instagram.com" className="social-icon" title="Instagram">
-                <span className="social-icon-text">IG</span>
+                <FaInstagram />
               </a>
               <a href="https://whatsapp.com" className="social-icon" title="WhatsApp">
-                <span className="social-icon-text">WA</span>
+                <FaWhatsapp />
               </a>
               <a href="https://linkedin.com" className="social-icon" title="LinkedIn">
-                <span className="social-icon-text">LI</span>
+                <FaLinkedinIn />
               </a>
             </div>
           </div>

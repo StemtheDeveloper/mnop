@@ -16,16 +16,16 @@ export const ThemeProvider = ({ children }) => {
         setDarkMode(prevMode => !prevMode);
     };
 
-    // Apply dark mode class to body
+    // Apply dark mode theme via data attribute
     useEffect(() => {
         // Save preference to local storage
         localStorage.setItem('darkMode', JSON.stringify(darkMode));
 
-        // Apply/remove dark-mode class on body
+        // Apply theme using data-theme attribute
         if (darkMode) {
-            document.body.classList.add('dark-mode');
+            document.documentElement.setAttribute('data-theme', 'dark');
         } else {
-            document.body.classList.remove('dark-mode');
+            document.documentElement.setAttribute('data-theme', 'light');
         }
     }, [darkMode]);
 

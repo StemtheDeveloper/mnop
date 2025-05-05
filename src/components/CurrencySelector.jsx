@@ -1,5 +1,5 @@
 // src/components/CurrencySelector.jsx
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useCurrency } from '../context/CurrencyContext';
 import '../styles/CurrencySelector.css';
 
@@ -57,4 +57,10 @@ const CurrencySelector = ({ compact = false }) => {
     );
 };
 
-export default CurrencySelector;
+// Memoize the component with a comparison function
+const areEqual = (prevProps, nextProps) => {
+    // Only rerender if the compact prop changes
+    return prevProps.compact === nextProps.compact;
+};
+
+export default memo(CurrencySelector, areEqual);

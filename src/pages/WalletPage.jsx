@@ -70,7 +70,10 @@ const WalletPage = () => {
     // Function to determine if user has access to specific tabs
     const canAccessTab = (tabName) => {
         // All users can access these tabs
-        if (['summary', 'add'].includes(tabName)) return true;
+        if (['summary'].includes(tabName)) return true;
+
+        // Only admins can access the "add" tab
+        if (tabName === 'add') return userHasRole('admin');
 
         // Transfer funds require any role beyond customer
         if (tabName === 'transfer') return userRoles.length > 0;
@@ -181,7 +184,7 @@ const WalletPage = () => {
         const intervalId = setInterval(loadTransactions, 30000);
 
         return () => clearInterval(intervalId);
-    }, [currentUser, userRoles]);
+    }, [currentUser, userRoles, userHasRole]);
 
     // Handle wallet refresh button click
     const handleRefreshWallet = async () => {
@@ -416,6 +419,7 @@ const WalletPage = () => {
                         </button>
                         <div className="balance-header">Current Balance</div>
                         <div className="balance-amount">{formatCurrency(balance)}</div>
+                        <div className="balance-updated">Last updated: {formatDate(new Date())}</div>
                     </div>
                 </div>
 
@@ -432,12 +436,17 @@ const WalletPage = () => {
                     >
                         Transfer Funds
                     </button>
-                    <button
-                        className={`tab-button ${activeTab === 'add' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('add')}
-                    >
-                        Add Credits
-                    </button>
+
+                    {/* Only show Add Credits tab for admins */}
+                    {userHasRole('admin') && (
+                        <button
+                            className={`tab-button ${activeTab === 'add' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('add')}
+                        >
+                            Add Credits
+                        </button>
+                    )}
+
                     {userHasRole('investor') && (
                         <button
                             className={`tab-button ${activeTab === 'interest' ? 'active' : ''}`}
@@ -629,9 +638,12 @@ const WalletPage = () => {
                         </div>
                     )}
 
-                    {activeTab === 'add' && (
+                    {activeTab === 'add' && userHasRole('admin') && (
                         <div className="add-credits-tab">
                             <h3>Add Credits to Wallet</h3>
+                            <div className="admin-notice">
+                                You are adding credits as an administrator. This feature is only available to admin users.
+                            </div>
                             <form onSubmit={handleDeposit} className="deposit-form">
                                 <div className="form-group">
                                     <label htmlFor="depositAmount">Amount to Add</label>
@@ -664,11 +676,9 @@ const WalletPage = () => {
                                                 disabled={isDepositing}
                                             />
                                             <label htmlFor="creditCard">
-                                                Credit Card
-                                                <div className="card-icons">
-                                                    <span className="card-icon visa">Visa</span>
-                                                    <span className="card-icon mastercard">Mastercard</span>
-                                                    <span className="card-icon amex">Amex</span>
+                                                Admin Credit Addition
+                                                <div className="admin-note">
+                                                    <span>Credits are added directly to the wallet balance</span>
                                                 </div>
                                             </label>
                                         </div>
@@ -691,9 +701,9 @@ const WalletPage = () => {
                                     ) : 'Add Credits'}
                                 </button>
 
-                                <div className="security-note">
-                                    <p>💳 Your payment information is securely processed.</p>
-                                    <p>This is for demonstration purposes only. No actual charges will be made.</p>
+                                <div className="security-note admin-security-note">
+                                    <p>⚠️ This is an administrative action that will directly add credits to the wallet.</p>
+                                    <p>All transactions are recorded and audited.</p>
                                 </div>
                             </form>
                         </div>

@@ -110,8 +110,9 @@
 
 .suggestion-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   font-size: 14px;
   color: #333;
 }
@@ -120,6 +121,7 @@
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  width: 100%;
 }
 
 .suggestion-item mark {
@@ -131,12 +133,13 @@
 }
 
 .suggestion-category {
-  margin-left: auto;
+  margin-left: 0;
   font-size: 12px;
   color: #777;
   background-color: #f0f0f0;
   padding: 2px 6px;
   border-radius: 3px;
+  align-self: flex-start;
 }
 
 .search-loading {
@@ -155,14 +158,17 @@
 }
 
 .suggestion-thumbnail {
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   object-fit: cover;
   border-radius: 3px;
   border: 1px solid #eee;
+  margin-bottom: 4px;
 }
 
 .suggestion-item.category {
+  flex-direction: row;
+  align-items: center;
   color: #2c3e50;
   font-weight: 500;
 }

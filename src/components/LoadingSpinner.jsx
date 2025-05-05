@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import './LoadingSpinner.css';
 
 // Create a global tracking mechanism to prevent multiple spinners
@@ -60,4 +60,17 @@ const LoadingSpinner = ({
   );
 };
 
-export default LoadingSpinner;
+// Memoize the component with a custom comparison function
+const areEqual = (prevProps, nextProps) => {
+  return (
+    prevProps.size === nextProps.size &&
+    prevProps.text === nextProps.text &&
+    prevProps.showText === nextProps.showText &&
+    prevProps.overlay === nextProps.overlay &&
+    prevProps.fullPage === nextProps.fullPage &&
+    prevProps.inline === nextProps.inline &&
+    prevProps.componentId === nextProps.componentId
+  );
+};
+
+export default memo(LoadingSpinner, areEqual);

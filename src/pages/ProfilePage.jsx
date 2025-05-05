@@ -13,6 +13,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import NopCollection from '../components/NopCollection';
 import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal';
 import refundService from '../services/refundService'; // Import refundService
+import userDataExportService from '../services/userDataExportService'; // Import userDataExportService
 
 const ProfilePage = () => {
     const navigate = useNavigate();
@@ -20,6 +21,18 @@ const ProfilePage = () => {
     const [activeTab, setActiveTab] = useState('personal');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
+
+    // State for data export
+    const [exportFormat, setExportFormat] = useState('json');
+    const [exportOptions, setExportOptions] = useState({
+        includeOrders: true,
+        includeTransactions: true,
+        includeProducts: true,
+        includeInvestments: true,
+        includeMessages: true,
+        includeReviews: true
+    });
+    const [dataExportLoading, setDataExportLoading] = useState(false);
 
     // Add formatDate helper function
     const formatDate = (date) => {
@@ -1330,6 +1343,62 @@ const ProfilePage = () => {
         }
     };
 
+    // Handle data export
+    const handleDataExport = async () => {
+        if (!currentUser || !currentUser.uid) {
+            setMessage({ type: 'error', text: 'You must be logged in to export your data' });
+            return;
+        }
+
+        setDataExportLoading(true);
+        setMessage({ type: '', text: '' });
+
+        try {
+            let result;
+
+            if (exportFormat === 'json') {
+                result = await userDataExportService.exportDataAsJsonFile(currentUser.uid, exportOptions);
+            } else if (exportFormat === 'csv') {
+                result = await userDataExportService.exportDataAsCsvFiles(currentUser.uid, exportOptions);
+            } else {
+                throw new Error('Unsupported export format');
+            }
+
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to export data');
+            }
+
+            // Create download link
+            const url = URL.createObjectURL(result.data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = result.filename;
+            document.body.appendChild(a);
+            a.click();
+
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+
+            setMessage({ type: 'success', text: 'Data exported successfully. Your download should begin shortly.' });
+        } catch (error) {
+            console.error('Error exporting data:', error);
+            setMessage({ type: 'error', text: error.message || 'Failed to export data. Please try again.' });
+        } finally {
+            setDataExportLoading(false);
+        }
+    };
+
+    // Toggle export option
+    const toggleExportOption = (option) => {
+        setExportOptions(prev => ({
+            ...prev,
+            [option]: !prev[option]
+        }));
+    };
+
     return (
         <div className="profile-page">
             {showProfileCropper && (
@@ -1655,6 +1724,115 @@ const ProfilePage = () => {
                                     <div className="form-group">
                                         <label>Account Status</label>
                                         <p>Your account is <strong>Active</strong></p>
+                                    </div>
+
+                                    {/* Data Export Section */}
+                                    <div className="data-export-section">
+                                        <hr />
+                                        <h4>Data Export</h4>
+                                        <p>Download a copy of your personal data for backup or portability</p>
+
+                                        <div className="export-format-selector">
+                                            <label>Select Export Format:</label>
+                                            <div className="export-format-options">
+                                                <div className="export-format-option">
+                                                    <input
+                                                        type="radio"
+                                                        id="format-json"
+                                                        name="exportFormat"
+                                                        value="json"
+                                                        checked={exportFormat === 'json'}
+                                                        onChange={() => setExportFormat('json')}
+                                                    />
+                                                    <label htmlFor="format-json">JSON (single file)</label>
+                                                </div>
+                                                <div className="export-format-option">
+                                                    <input
+                                                        type="radio"
+                                                        id="format-csv"
+                                                        name="exportFormat"
+                                                        value="csv"
+                                                        checked={exportFormat === 'csv'}
+                                                        onChange={() => setExportFormat('csv')}
+                                                    />
+                                                    <label htmlFor="format-csv">CSV (zip archive with multiple files)</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="export-options">
+                                            <label>Select Data to Include:</label>
+                                            <div className="export-options-grid">
+                                                <div className="form-group checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeOrders"
+                                                        checked={exportOptions.includeOrders}
+                                                        onChange={() => toggleExportOption('includeOrders')}
+                                                    />
+                                                    <label htmlFor="includeOrders">Orders History</label>
+                                                </div>
+                                                <div className="form-group checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeTransactions"
+                                                        checked={exportOptions.includeTransactions}
+                                                        onChange={() => toggleExportOption('includeTransactions')}
+                                                    />
+                                                    <label htmlFor="includeTransactions">Transaction History</label>
+                                                </div>
+                                                <div className="form-group checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeProducts"
+                                                        checked={exportOptions.includeProducts}
+                                                        onChange={() => toggleExportOption('includeProducts')}
+                                                    />
+                                                    <label htmlFor="includeProducts">Products (for designers)</label>
+                                                </div>
+                                                <div className="form-group checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeInvestments"
+                                                        checked={exportOptions.includeInvestments}
+                                                        onChange={() => toggleExportOption('includeInvestments')}
+                                                    />
+                                                    <label htmlFor="includeInvestments">Investments (for investors)</label>
+                                                </div>
+                                                <div className="form-group checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeMessages"
+                                                        checked={exportOptions.includeMessages}
+                                                        onChange={() => toggleExportOption('includeMessages')}
+                                                    />
+                                                    <label htmlFor="includeMessages">Messages</label>
+                                                </div>
+                                                <div className="form-group checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="includeReviews"
+                                                        checked={exportOptions.includeReviews}
+                                                        onChange={() => toggleExportOption('includeReviews')}
+                                                    />
+                                                    <label htmlFor="includeReviews">Reviews</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="export-actions">
+                                            <button
+                                                type="button"
+                                                className="export-data-btn"
+                                                onClick={handleDataExport}
+                                                disabled={dataExportLoading}
+                                            >
+                                                {dataExportLoading ? 'Exporting...' : 'Download My Data'}
+                                            </button>
+                                            <p className="export-note">
+                                                This may take a few moments depending on the amount of data.
+                                            </p>
+                                        </div>
                                     </div>
 
                                     {/* Security Settings Section */}

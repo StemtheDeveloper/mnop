@@ -4,6 +4,7 @@ import { getAnalytics } from "firebase/analytics";
 import { getFirestore, serverTimestamp } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
+import { getPerformance, trace } from "firebase/performance";
 import {
   getAuth,
   onAuthStateChanged,
@@ -66,6 +67,7 @@ let storage = null;
 let db = null;
 let auth = null;
 let functions = null;
+let perf = null;
 
 try {
   app = initializeApp(firebaseConfig);
@@ -73,6 +75,9 @@ try {
   // Initialize Analytics in production only
   analytics =
     import.meta.env.VITE_APP_ENV === "production" ? getAnalytics(app) : null;
+
+  // Initialize Performance Monitoring (in all environments for testing)
+  perf = getPerformance(app);
 
   // Initialize Firebase services
   storage = getStorage(app);
@@ -93,7 +98,7 @@ export const timestamp = serverTimestamp();
 const googleProvider = new GoogleAuthProvider();
 
 // Export Firebase services
-export { db, storage, auth, analytics, functions };
+export { db, storage, auth, analytics, functions, perf };
 
 // Export Firebase authentication functions
 export {

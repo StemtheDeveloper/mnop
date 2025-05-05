@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, where, writeBatch } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import ProductsExcelView from './ProductsExcelView';
+import usePerformanceMonitoring from '../../hooks/usePerformanceMonitoring';
 import '../../styles/AdminTools.css';
 
 // Split into smaller components
@@ -509,6 +510,13 @@ const ValidationResults = ({
 };
 
 const DataFixerTool = () => {
+    // Initialize performance monitoring
+    const performance = usePerformanceMonitoring('DataFixerTool', {
+        customMetrics: {
+            component_type: 'admin_tool'
+        }
+    });
+
     const [dataType, setDataType] = useState('products');
     const [viewMode, setViewMode] = useState('standard'); // 'standard' or 'excel' view
     const [data, setData] = useState([]);
@@ -626,43 +634,57 @@ const DataFixerTool = () => {
         setValidationComplete(false);
 
         try {
-            const collectionName = collectionMapping[dataType];
-            let dataQuery;
+            // Use performance monitoring to track data fetch time
+            return await performance.measureUserAction('fetch_data', async () => {
+                const collectionName = collectionMapping[dataType];
+                let dataQuery;
 
-            if (queryField && queryValue) {
-                dataQuery = query(
-                    collection(db, collectionName),
-                    where(queryField, '==', queryValue),
-                );
-            } else {
-                dataQuery = collection(db, collectionName);
-            }
+                performance.recordMetric('collection_type', 1);
+                performance.setAttribute('collection_name', collectionName);
 
-            const snapshot = await getDocs(dataQuery);
+                if (queryField && queryValue) {
+                    dataQuery = query(
+                        collection(db, collectionName),
+                        where(queryField, '==', queryValue),
+                    );
+                    performance.setAttribute('query_filter', `${queryField}=${queryValue}`);
+                } else {
+                    dataQuery = collection(db, collectionName);
+                }
 
-            if (snapshot.empty) {
-                setError(`No ${dataType} found with the specified criteria`);
-                setLoading(false);
-                return;
-            }
+                const startTime = performance.now();
+                const snapshot = await getDocs(dataQuery);
+                const queryTime = performance.now() - startTime;
+                performance.recordMetric('query_execution_ms', queryTime);
 
-            // Get all documents and limit to queryLimit
-            const fetchedData = snapshot.docs
-                .map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }))
-                .slice(0, queryLimit);
+                if (snapshot.empty) {
+                    setError(`No ${dataType} found with the specified criteria`);
+                    performance.setAttribute('query_result', 'empty');
+                    setLoading(false);
+                    return;
+                }
 
-            setData(fetchedData);
-            setSuccess(`Successfully loaded ${fetchedData.length} ${dataType}`);
+                // Get all documents and limit to queryLimit
+                const fetchedData = snapshot.docs
+                    .map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }))
+                    .slice(0, queryLimit);
+
+                performance.recordMetric('items_fetched', fetchedData.length);
+
+                setData(fetchedData);
+                setSuccess(`Successfully loaded ${fetchedData.length} ${dataType}`);
+            });
         } catch (err) {
             console.error(`Error fetching ${dataType}:`, err);
             setError(`Failed to load ${dataType}: ${err.message}`);
+            performance.setAttribute('error', err.message);
         } finally {
             setLoading(false);
         }
-    }, [collectionMapping, dataType, queryField, queryValue, queryLimit]);
+    }, [collectionMapping, dataType, queryField, queryValue, queryLimit, performance]);
 
     // Update document in Firestore
     const updateDocument = useCallback(async () => {
@@ -748,10 +770,16 @@ const DataFixerTool = () => {
             return;
         }
 
-        const schema = schemas[dataType].schema;
-        const validation = data
-            .filter(item => selectedItems.includes(item.id))
-            .map(item => {
+        return performance.measureUserAction('validate_schema', () => {
+            const schema = schemas[dataType].schema;
+            const itemsToValidate = data.filter(item => selectedItems.includes(item.id));
+
+            performance.recordMetric('items_to_validate', itemsToValidate.length);
+            performance.setAttribute('validation_data_type', dataType);
+
+            const startTime = performance.now();
+
+            const validation = itemsToValidate.map(item => {
                 const issues = [];
                 let needsFix = false;
 
@@ -779,22 +807,25 @@ const DataFixerTool = () => {
                     }
                 }
 
-                // Check other fields against schema
+                // Check all schema fields to ensure they exist in the data
                 Object.entries(schema).forEach(([field, type]) => {
                     if (field === 'categories' && dataType === 'products') {
                         // Already handled in special case
                         return;
                     }
 
+                    // Handle missing or null/undefined fields
                     if (item[field] === undefined || item[field] === null) {
                         issues.push({
                             field,
-                            issue: 'Missing field',
+                            issue: item[field] === undefined ? 'Field is undefined' : 'Field is null',
                             expectedType: type,
-                            fix: `Create ${field} as ${type === 'array' ? '[]' : type === 'object' ? '{}' : 'default value'}`
+                            fix: `Create ${field} as ${type === 'array' ? '[]' : type === 'object' ? '{}' : type === 'string' ? '""' : type === 'number' ? '0' : type === 'boolean' ? 'false' : 'default value'}`
                         });
                         needsFix = true;
-                    } else if (
+                    }
+                    // Handle type mismatches
+                    else if (
                         (type === 'array' && !Array.isArray(item[field])) ||
                         (type !== 'array' && typeof item[field] !== type)
                     ) {
@@ -816,9 +847,18 @@ const DataFixerTool = () => {
                 };
             });
 
-        setSchemaValidation(validation);
-        setValidationComplete(true);
-    }, [schemas, dataType, data, selectedItems]);
+            const validationTime = performance.now() - startTime;
+            performance.recordMetric('validation_time_ms', validationTime);
+
+            // Count items with issues
+            const itemsWithIssues = validation.filter(item => item.issues.length > 0).length;
+            performance.recordMetric('items_with_issues', itemsWithIssues);
+            performance.setAttribute('validation_success', itemsWithIssues === 0 ? 'true' : 'false');
+
+            setSchemaValidation(validation);
+            setValidationComplete(true);
+        });
+    }, [schemas, dataType, data, selectedItems, performance]);
 
     // Apply schema fixes to selected items
     const applySchemaFixes = useCallback(async () => {
@@ -839,89 +879,105 @@ const DataFixerTool = () => {
         setSuccess(null);
 
         try {
-            const collectionName = collectionMapping[dataType];
-            const batch = writeBatch(db);
-            let fixedCount = 0;
+            return await performance.measureUserAction('apply_schema_fixes', async () => {
+                performance.recordMetric('items_to_fix', itemsToFix.length);
+                performance.setAttribute('collection_type', dataType);
 
-            // Get all the items that need fixing
-            for (const item of itemsToFix) {
-                const itemData = data.find(d => d.id === item.id);
-                if (!itemData) continue;
+                const collectionName = collectionMapping[dataType];
+                const batch = writeBatch(db);
+                let fixedCount = 0;
 
-                const docRef = doc(db, collectionName, item.id);
-                const updates = {};
+                // Start timing the batch preparation
+                const batchPrepStart = performance.now();
 
-                // Process issues and apply fixes
-                if (dataType === 'products') {
-                    // Handle category/categories inconsistency
-                    if (!Array.isArray(itemData.categories)) {
-                        if (itemData.category) {
-                            // Create categories array from category field
-                            updates.categories = [itemData.category];
-                        } else {
-                            // Create empty categories array
-                            updates.categories = [];
+                // Get all the items that need fixing
+                for (const item of itemsToFix) {
+                    const itemData = data.find(d => d.id === item.id);
+                    if (!itemData) continue;
+
+                    const docRef = doc(db, collectionName, item.id);
+                    const updates = {};
+
+                    // Process issues and apply fixes
+                    if (dataType === 'products') {
+                        // Handle category/categories inconsistency
+                        if (!Array.isArray(itemData.categories)) {
+                            if (itemData.category) {
+                                // Create categories array from category field
+                                updates.categories = [itemData.category];
+                            } else {
+                                // Create empty categories array
+                                updates.categories = [];
+                            }
                         }
+                    }
+
+                    // Apply other schema-based fixes here
+                    const schema = schemas[dataType].schema;
+                    Object.entries(schema).forEach(([field, type]) => {
+                        if (field in updates) return; // Skip if already handled
+
+                        if (itemData[field] === undefined || itemData[field] === null) {
+                            // Create missing field with default value
+                            if (type === 'array') updates[field] = [];
+                            else if (type === 'object') updates[field] = {};
+                            else if (type === 'string') updates[field] = '';
+                            else if (type === 'number') updates[field] = 0;
+                            else if (type === 'boolean') updates[field] = false;
+                        } else if (
+                            (type === 'array' && !Array.isArray(itemData[field])) ||
+                            (type !== 'array' && typeof itemData[field] !== type)
+                        ) {
+                            // Convert field to correct type
+                            if (type === 'array') {
+                                updates[field] = typeof itemData[field] === 'string'
+                                    ? [itemData[field]]
+                                    : [];
+                            } else if (type === 'string') {
+                                updates[field] = String(itemData[field]);
+                            } else if (type === 'number') {
+                                updates[field] = Number(itemData[field]) || 0;
+                            } else if (type === 'boolean') {
+                                updates[field] = Boolean(itemData[field]);
+                            } else if (type === 'object') {
+                                updates[field] = {};
+                            }
+                        }
+                    });
+
+                    if (Object.keys(updates).length > 0) {
+                        batch.update(docRef, updates);
+                        fixedCount++;
                     }
                 }
 
-                // Apply other schema-based fixes here
-                const schema = schemas[dataType].schema;
-                Object.entries(schema).forEach(([field, type]) => {
-                    if (field in updates) return; // Skip if already handled
+                const batchPrepTime = performance.now() - batchPrepStart;
+                performance.recordMetric('batch_preparation_ms', batchPrepTime);
+                performance.recordMetric('items_fixed', fixedCount);
 
-                    if (itemData[field] === undefined || itemData[field] === null) {
-                        // Create missing field with default value
-                        if (type === 'array') updates[field] = [];
-                        else if (type === 'object') updates[field] = {};
-                        else if (type === 'string') updates[field] = '';
-                        else if (type === 'number') updates[field] = 0;
-                        else if (type === 'boolean') updates[field] = false;
-                    } else if (
-                        (type === 'array' && !Array.isArray(itemData[field])) ||
-                        (type !== 'array' && typeof itemData[field] !== type)
-                    ) {
-                        // Convert field to correct type
-                        if (type === 'array') {
-                            updates[field] = typeof itemData[field] === 'string'
-                                ? [itemData[field]]
-                                : [];
-                        } else if (type === 'string') {
-                            updates[field] = String(itemData[field]);
-                        } else if (type === 'number') {
-                            updates[field] = Number(itemData[field]) || 0;
-                        } else if (type === 'boolean') {
-                            updates[field] = Boolean(itemData[field]);
-                        } else if (type === 'object') {
-                            updates[field] = {};
-                        }
-                    }
-                });
+                // Measure the time it takes to commit the batch
+                const commitStart = performance.now();
+                await batch.commit();
+                const commitTime = performance.now() - commitStart;
+                performance.recordMetric('batch_commit_ms', commitTime);
 
-                if (Object.keys(updates).length > 0) {
-                    batch.update(docRef, updates);
-                    fixedCount++;
-                }
-            }
+                // Reload data to reflect changes
+                await fetchData();
 
-            // Commit all updates
-            await batch.commit();
-
-            // Reload data to reflect changes
-            await fetchData();
-
-            setSuccess(`Successfully fixed ${fixedCount} ${dataType} documents according to schema`);
-            setValidationComplete(false);
-            setSelectedItems([]);
-            setSchemaValidation([]);
-            setBatchMode(false);
+                setSuccess(`Successfully fixed ${fixedCount} ${dataType} documents according to schema`);
+                setValidationComplete(false);
+                setSelectedItems([]);
+                setSchemaValidation([]);
+                setBatchMode(false);
+            });
         } catch (err) {
             console.error(`Error fixing ${dataType}:`, err);
             setError(`Failed to apply fixes: ${err.message}`);
+            performance.setAttribute('error', err.message);
         } finally {
             setLoading(false);
         }
-    }, [validationComplete, schemaValidation, collectionMapping, dataType, data, schemas, fetchData]);
+    }, [validationComplete, schemaValidation, collectionMapping, dataType, data, schemas, fetchData, performance]);
 
     // Helper functions for multi-collection batch mode
     const fetchMultiCollectionData = useCallback(async () => {
@@ -1074,15 +1130,18 @@ const DataFixerTool = () => {
                         return;
                     }
 
+                    // Handle missing or null/undefined fields
                     if (item[field] === undefined || item[field] === null) {
                         issues.push({
                             field,
-                            issue: 'Missing field',
+                            issue: item[field] === undefined ? 'Field is undefined' : 'Field is null',
                             expectedType: type,
-                            fix: `Create ${field} as ${type === 'array' ? '[]' : type === 'object' ? '{}' : 'default value'}`
+                            fix: `Create ${field} as ${type === 'array' ? '[]' : type === 'object' ? '{}' : type === 'string' ? '""' : type === 'number' ? '0' : type === 'boolean' ? 'false' : 'default value'}`
                         });
                         needsFix = true;
-                    } else if (
+                    }
+                    // Handle type mismatches
+                    else if (
                         (type === 'array' && !Array.isArray(item[field])) ||
                         (type !== 'array' && typeof item[field] !== type)
                     ) {

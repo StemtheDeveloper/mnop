@@ -2177,3 +2177,92 @@
   color: #666;
   margin-top: 4px;
 }
+
+/* Data Export Section Styles */
+.data-export-section {
+  margin: 25px 0;
+  padding-top: 15px;
+}
+
+.export-format-selector {
+  margin-bottom: 20px;
+}
+
+.export-format-selector label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.export-format-options {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.export-format-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-options label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.export-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.export-actions {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.export-data-btn {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.export-data-btn:hover {
+  background-color: #2980b9;
+}
+
+.export-data-btn:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.export-note {
+  color: #7f8c8d;
+  font-size: 13px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .export-format-options,
+  .export-options-grid {
+    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+}

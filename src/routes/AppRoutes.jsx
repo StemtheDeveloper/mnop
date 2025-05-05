@@ -51,6 +51,7 @@ const ProductsCsvImportPage = lazy(() => import('../pages/ProductsCsvImportPage'
 const TermsAndConditionsPage = lazy(() => import('../pages/TermsAndConditionsPage'));
 const PrivacyPolicyPage = lazy(() => import('../pages/PrivacyPolicyPage'));
 const ContentPolicyPage = lazy(() => import('../pages/ContentPolicyPage'));
+const CookieManagementPage = lazy(() => import('../pages/CookieManagementPage')); // Import CookieManagementPage
 const WishlistPage = lazy(() => import('../pages/WishlistPage')); // Import WishlistPage
 const MfaSetupPage = lazy(() => import('../pages/MfaSetupPage')); // Import MFA Setup Page
 const RegisterInvestorPage = lazy(() => import('../pages/RegisterInvestorPage')); // Import RegisterInvestorPage
@@ -86,6 +87,7 @@ const AppRoutes = () => {
                 <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                 <Route path="/content-policy" element={<ContentPolicyPage />} />
+                <Route path="/cookies" element={<CookieManagementPage />} />
 
                 {/* Protected Routes */}
                 <Route path="/home" element={
@@ -122,17 +124,17 @@ const AppRoutes = () => {
                 } />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/product-upload" element={
-                    <AuthGuard allowedRoles={["designer"]}>
+                    <AuthGuard allowedRoles={["designer", "admin"]}>
                         <ProductUploadPage />
                     </AuthGuard>
                 } />
                 <Route path="/bulk-product-upload" element={
-                    <AuthGuard allowedRoles={["designer"]}>
+                    <AuthGuard allowedRoles={["designer", "admin"]}>
                         <BulkProductUploaderPage />
                     </AuthGuard>
                 } />
                 <Route path="/product-edit/:productId" element={
-                    <AuthGuard allowedRoles={["designer"]}>
+                    <AuthGuard allowedRoles={["designer", "admin"]}>
                         <ProductEditPage />
                     </AuthGuard>
                 } />
