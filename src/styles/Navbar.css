@@ -46,7 +46,7 @@ ul {
 #quick-links-notifications-badge {
   position: absolute;
   top: 15px;
-  right: 50%;
+  right: 45%;
 }
 
 .logo {
@@ -255,6 +255,12 @@ li {
 @media (min-width: 768px) {
   .c-h-r {
     display: block; /* Show dividers on larger screens */
+  }
+
+  #quick-links-notifications-badge {
+    position: absolute;
+    top: 15px;
+    right: 46%;
   }
 }
 
@@ -542,6 +548,12 @@ li {
 @media (max-width: 480px) {
   .navbar {
     min-height: auto;
+  }
+
+  #quick-links-notifications-badge {
+    position: absolute;
+    top: 15px;
+    right: 40%;
   }
 
   .logo {

@@ -35,7 +35,7 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, refresh: refreshNotifications } = useNotifications();
 
   // Handle window resize
   useEffect(() => {
@@ -60,6 +60,13 @@ const Navbar = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
+
+  // Refresh notifications when component mounts
+  useEffect(() => {
+    if (user) {
+      refreshNotifications();
+    }
+  }, [user, refreshNotifications]);
 
   // Load wallet balance when user changes
   useEffect(() => {
@@ -342,6 +349,7 @@ const Navbar = () => {
       {notificationsOpen && (
         <NotificationDrawer isOpen={notificationsOpen} onClose={closeNotifications} />
       )}
+
     </>
   );
 };

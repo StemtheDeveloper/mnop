@@ -22,6 +22,42 @@
   z-index: 1001;
 }
 
+.notification-function-btns {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  border-top: 1px solid #eee;
+}
+
+.notification-function-btns button {
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  border: 1px solid #ddd;
+  background-color: white;
+  color: black;
+  transition: all 0.2s;
+}
+
+.notification-function-btns button:hover:not(:disabled) {
+  background-color: #f0f0f0;
+}
+
+.notification-function-btns button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.notification-function-btns .delete-all-btn {
+  color: #f44336;
+  border-color: #f44336;
+}
+
+.notification-function-btns .delete-all-btn:hover:not(:disabled) {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
 @keyframes slide-in {
   0% {
     transform: translateX(100%);
@@ -46,6 +82,7 @@
 
 .notification-drawer-header {
   display: flex;
+  flex-direction: row;
   justify-content: space-between;
   align-items: center;
   padding: 15px;
@@ -70,12 +107,32 @@
   cursor: pointer;
   font-size: 14px;
   padding: 5px;
-  color: #2196f3;
+  color: black;
 }
 
-.notification-drawer-actions .close-btn {
-  font-size: 18px;
+.notification-drawer-header .close-btn {
+  font-size: 21px;
   color: #666;
+  border: none;
+  background: none;
+}
+
+.notification-drawer-actions .delete-all-btn {
+  color: #f44336;
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  transition: background-color 0.2s;
+}
+
+.notification-function-btns {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .notification-drawer-content {

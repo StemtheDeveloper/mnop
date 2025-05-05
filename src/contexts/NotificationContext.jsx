@@ -20,11 +20,50 @@ export const NotificationProvider = ({ children }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
     const [lastRefresh, setLastRefresh] = useState(Date.now());
+    const [isInitialized, setIsInitialized] = useState(false);
 
-    // Add refs to prevent infinite loops
+    // Add refs to prevent infinite loops and track init status
     const isErrorFallbackActive = useRef(false);
     const unsubscribeRef = useRef(null);
     const isMounted = useRef(true);
+    const initialFetchAttempted = useRef(false);
+
+    // Immediate fetch on mount - highest priority
+    useEffect(() => {
+        // Immediate fetch as soon as the provider mounts and we have a user
+        const immediateLoad = async () => {
+            if (currentUser?.uid && !initialFetchAttempted.current) {
+                initialFetchAttempted.current = true;
+                setLoading(true);
+
+                try {
+                    console.log('Immediate notification fetch on context initialization');
+                    const result = await notificationService.getUserNotifications(currentUser.uid);
+
+                    if (result.success && isMounted.current) {
+                        const sortedNotifications = result.data.sort((a, b) => {
+                            const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+                            const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+                            return dateB - dateA;
+                        });
+
+                        setNotifications(sortedNotifications);
+                        setUnreadCount(sortedNotifications.filter(n => !n.read).length);
+                        setIsInitialized(true);
+                        console.log('Initial notifications loaded successfully');
+                    }
+                } catch (error) {
+                    console.error('Error in immediate notification fetch:', error);
+                } finally {
+                    if (isMounted.current) {
+                        setLoading(false);
+                    }
+                }
+            }
+        };
+
+        immediateLoad();
+    }, [currentUser?.uid]);
 
     // Use cleanUp function to properly clean up resources when unmounting
     useEffect(() => {
@@ -54,6 +93,7 @@ export const NotificationProvider = ({ children }) => {
 
                 setNotifications(sortedNotifications);
                 setUnreadCount(sortedNotifications.filter(n => !n.read).length);
+                setIsInitialized(true);
             }
         } catch (error) {
             console.error('Error in fetchNotifications:', error);
@@ -103,8 +143,10 @@ export const NotificationProvider = ({ children }) => {
 
                 setNotifications(notificationsList);
                 setUnreadCount(notificationsList.filter(n => !n.read).length);
+                setIsInitialized(true);
+                console.log('Notifications updated via real-time listener');
             }, (error) => {
-                console.error('Error fetching notifications:', error);
+                console.error('Error in notification listener:', error);
                 if (!isMounted.current) return;
 
                 setLoading(false);
@@ -123,6 +165,8 @@ export const NotificationProvider = ({ children }) => {
             console.error('Error setting up notifications listener:', error);
             if (isMounted.current) {
                 setLoading(false);
+                // Attempt regular fetch as fallback
+                fetchNotifications();
             }
         }
 
@@ -139,6 +183,7 @@ export const NotificationProvider = ({ children }) => {
     const refresh = useCallback(async () => {
         // Set the refresh timestamp first
         setLastRefresh(Date.now());
+        console.log('Manual notification refresh triggered');
 
         // Then return a promise that resolves after fetching
         if (!currentUser?.uid) {
@@ -152,8 +197,6 @@ export const NotificationProvider = ({ children }) => {
         try {
             const result = await notificationService.markAsRead(notificationId);
             if (result.success && isMounted.current) {
-                // Note: We don't need to update state here if we're using onSnapshot
-                // The Firestore listener will automatically update the state
                 return true;
             }
             return false;
@@ -168,7 +211,6 @@ export const NotificationProvider = ({ children }) => {
 
         try {
             const result = await notificationService.markAllAsRead(currentUser.uid);
-            // No need to update state here, onSnapshot will handle it
             return result.success;
         } catch (error) {
             console.error('Error marking all notifications as read:', error);
@@ -179,7 +221,6 @@ export const NotificationProvider = ({ children }) => {
     const deleteNotification = useCallback(async (notificationId) => {
         try {
             const result = await notificationService.deleteNotification(notificationId);
-            // No need to update state here, onSnapshot will handle it
             return result.success;
         } catch (error) {
             console.error('Error deleting notification:', error);
@@ -192,7 +233,6 @@ export const NotificationProvider = ({ children }) => {
 
         try {
             const result = await notificationService.deleteAllNotifications(currentUser.uid);
-            // No need to update state here, onSnapshot will handle it
             return result.success;
         } catch (error) {
             console.error('Error deleting all notifications:', error);
@@ -209,7 +249,8 @@ export const NotificationProvider = ({ children }) => {
         markAllAsRead,
         deleteNotification,
         deleteAllNotifications,
-        lastRefresh, // Make lastRefresh available to consumers
+        lastRefresh,
+        isInitialized,
     };
 
     return (

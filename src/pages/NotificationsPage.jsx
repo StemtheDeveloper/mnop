@@ -15,15 +15,34 @@ const NotificationsPage = () => {
         markAsRead,
         markAllAsRead,
         deleteNotification,
-        deleteAllNotifications
+        deleteAllNotifications,
+        isInitialized
     } = useNotifications();
-    const toast = useToast();
+    const { showSuccess, showError } = useToast();
     const [filter, setFilter] = useState('all');
     const [displayedNotifications, setDisplayedNotifications] = useState([]);
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+    const [autoRefreshAttempted, setAutoRefreshAttempted] = useState(false);
 
+    // Auto refresh when the page first loads if needed
     useEffect(() => {
-        // Apply filters to notifications
+        const autoRefresh = async () => {
+            if (currentUser && !autoRefreshAttempted) {
+                setAutoRefreshAttempted(true);
+
+                try {
+                    await refresh();
+                } catch (error) {
+                    console.error('Error auto-refreshing notifications:', error);
+                }
+            }
+        };
+
+        autoRefresh();
+    }, [currentUser, refresh, autoRefreshAttempted]);
+
+    // Apply filters to notifications when they change
+    useEffect(() => {
         let filtered = [...notifications];
 
         if (filter === 'unread') {
@@ -34,23 +53,35 @@ const NotificationsPage = () => {
     }, [notifications, filter]);
 
     const handleMarkAsRead = async (id) => {
-        const success = await markAsRead(id);
-        if (success) {
-            toast.success('Notification marked as read');
+        try {
+            const success = await markAsRead(id);
+            if (success) {
+                showSuccess('Notification marked as read');
+            }
+        } catch (error) {
+            showError('Failed to mark notification as read');
         }
     };
 
     const handleMarkAllAsRead = async () => {
-        const success = await markAllAsRead();
-        if (success) {
-            toast.success('All notifications marked as read');
+        try {
+            const success = await markAllAsRead();
+            if (success) {
+                showSuccess('All notifications marked as read');
+            }
+        } catch (error) {
+            showError('Failed to mark all notifications as read');
         }
     };
 
     const handleDeleteNotification = async (id) => {
-        const success = await deleteNotification(id);
-        if (success) {
-            toast.success('Notification deleted');
+        try {
+            const success = await deleteNotification(id);
+            if (success) {
+                showSuccess('Notification deleted');
+            }
+        } catch (error) {
+            showError('Failed to delete notification');
         }
     };
 
@@ -65,9 +96,13 @@ const NotificationsPage = () => {
         // Close the confirmation dialog
         setShowDeleteConfirmation(false);
 
-        const success = await deleteAllNotifications();
-        if (success) {
-            toast.success('All notifications deleted');
+        try {
+            const success = await deleteAllNotifications();
+            if (success) {
+                showSuccess('All notifications deleted');
+            }
+        } catch (error) {
+            showError('Failed to delete all notifications');
         }
     };
 
@@ -134,7 +169,7 @@ const NotificationsPage = () => {
                             onClick={refresh}
                             disabled={loading}
                         >
-                            Refresh
+                            {loading ? 'Loading...' : 'Refresh'}
                         </button>
                         <button
                             className="mark-all-btn"

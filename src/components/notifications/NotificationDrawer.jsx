@@ -27,7 +27,9 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
     const [notificationsList, setNotificationsList] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-    const refreshAttemptedRef = useRef(false);
+
+
+
 
     // Handle smooth closing animation
     const handleClose = () => {
@@ -45,16 +47,10 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
 
     // Load notifications only when drawer is first opened
     useEffect(() => {
-        if (isOpen && currentUser && !refreshAttemptedRef.current) {
-            refreshAttemptedRef.current = true;
+        if (isOpen && currentUser) {
             refresh().catch(error => {
                 console.error("Error refreshing notifications:", error);
             });
-        }
-
-        // Reset the flag when the inbox is closed
-        if (!isOpen) {
-            refreshAttemptedRef.current = false;
         }
     }, [isOpen, currentUser, refresh]);
 
@@ -213,41 +209,42 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
             <div className={`notification-drawer ${isClosing ? 'closing' : ''}`} ref={drawerRef}>
                 <div className="notification-drawer-header">
                     <h3>Notifications</h3>
-                    <div className="notification-drawer-actions">
+                    <button
+                        className="close-btn"
+                        onClick={handleClose}
+                        aria-label="Close notifications"
+                    >
+                        X
+                    </button>
+
+                </div>
+                <div className="notification-function-btns">
+                    <button
+                        className="refresh-btn"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        title="Refresh notifications"
+                    >
+                        {loading ? 'Loading...' : 'Refresh'}
+                    </button>
+                    {unreadCount > 0 && (
                         <button
-                            className="refresh-btn"
-                            onClick={handleRefresh}
-                            disabled={loading}
-                            title="Refresh notifications"
+                            className="mark-all-read-btn"
+                            onClick={handleMarkAllAsRead}
+                            title="Mark all as read"
                         >
-                            {loading ? 'Loading...' : 'Refresh'}
+                            Mark all as read
                         </button>
-                        {unreadCount > 0 && (
-                            <button
-                                className="mark-all-read-btn"
-                                onClick={handleMarkAllAsRead}
-                                title="Mark all as read"
-                            >
-                                Mark all as read
-                            </button>
-                        )}
-                        {notificationsList.length > 0 && (
-                            <button
-                                className="delete-all-btn"
-                                onClick={promptDeleteAll}
-                                title="Delete all notifications"
-                            >
-                                Delete all
-                            </button>
-                        )}
+                    )}
+                    {notificationsList.length > 0 && (
                         <button
-                            className="close-btn"
-                            onClick={handleClose}
-                            aria-label="Close notifications"
+                            className="delete-all-btn"
+                            onClick={promptDeleteAll}
+                            title="Delete all notifications"
                         >
-                            Close
+                            Delete all
                         </button>
-                    </div>
+                    )}
                 </div>
 
                 <div className="notification-drawer-content">
