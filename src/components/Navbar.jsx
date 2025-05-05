@@ -17,8 +17,7 @@ import ThemeToggle from './ThemeToggle';
 import CurrencySelector from './CurrencySelector';
 import EnhancedSearchInput from './EnhancedSearchInput';
 import { useToast } from '../contexts/ToastContext';
-import { useNotifications } from './notifications/NotificationSystem';
-import { NotificationDrawer } from './notifications';
+import { useNotifications, NotificationDrawer } from './notifications';
 
 const AdminEmails = [
   "stiaan44@gmail.com",

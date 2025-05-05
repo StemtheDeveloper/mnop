@@ -21,7 +21,7 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
         deleteAllNotifications,
         unreadCount
     } = useNotifications();
-    
+
     const drawerRef = useRef(null);
     const [isClosing, setIsClosing] = useState(false);
     const [notificationsList, setNotificationsList] = useState([]);
@@ -106,7 +106,7 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
             case 'pending_review': return '⏳';
             case 'revenue_share': return '💵';
             case 'expiring': return '⏰';
-            case 'product_stock': 
+            case 'product_stock':
             case 'PRODUCT_BACK_IN_STOCK': return '🔄';
             case 'LOW_STOCK_ALERT': return '⚠️';
             case 'cart_reminder': return '🛒';
@@ -134,7 +134,7 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
         if (event) {
             event.stopPropagation(); // Prevent event bubbling
         }
-        
+
         // Optimistically update UI first
         setNotificationsList(prev => prev.filter(n => n.id !== id));
 
@@ -169,7 +169,7 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
         if (event) {
             event.stopPropagation(); // Prevent event bubbling
         }
-        
+
         // Optimistically update UI first
         setNotificationsList(prev =>
             prev.map(n => n.id === id ? { ...n, read: true } : n)
@@ -223,8 +223,8 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
                             {loading ? 'Loading...' : 'Refresh'}
                         </button>
                         {unreadCount > 0 && (
-                            <button 
-                                className="mark-all-read-btn" 
+                            <button
+                                className="mark-all-read-btn"
                                 onClick={handleMarkAllAsRead}
                                 title="Mark all as read"
                             >
@@ -232,16 +232,16 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
                             </button>
                         )}
                         {notificationsList.length > 0 && (
-                            <button 
-                                className="delete-all-btn" 
+                            <button
+                                className="delete-all-btn"
                                 onClick={promptDeleteAll}
                                 title="Delete all notifications"
                             >
                                 Delete all
                             </button>
                         )}
-                        <button 
-                            className="close-btn" 
+                        <button
+                            className="close-btn"
                             onClick={handleClose}
                             aria-label="Close notifications"
                         >
@@ -273,9 +273,9 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
                                             {formatNotificationTime(notification.createdAt)}
                                         </div>
                                         {notification.link && (
-                                            <Link 
-                                                to={notification.link} 
-                                                className="notification-link" 
+                                            <Link
+                                                to={notification.link}
+                                                className="notification-link"
                                                 onClick={handleClose}
                                             >
                                                 View details

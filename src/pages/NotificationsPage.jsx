@@ -93,7 +93,7 @@ const NotificationsPage = () => {
             case 'pending_review': return '⏳';
             case 'revenue_share': return '💵';
             case 'expiring': return '⏰';
-            case 'product_stock': 
+            case 'product_stock':
             case 'PRODUCT_BACK_IN_STOCK': return '🔄';
             case 'LOW_STOCK_ALERT': return '⚠️';
             case 'cart_reminder': return '🛒';
