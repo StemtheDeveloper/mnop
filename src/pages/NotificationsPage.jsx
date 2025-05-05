@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
-import { useNotifications } from '../contexts/NotificationContext';
+import { useNotifications } from '../components/notifications';
 import { useToast } from '../contexts/ToastContext';
 import './NotificationsPage.css';
 
@@ -78,29 +78,27 @@ const NotificationsPage = () => {
 
     const getNotificationIcon = (type) => {
         switch (type) {
-            case 'message':
-                return '✉️';
-            case 'quote_request':
-                return '📝';
-            case 'product_approved':
-                return '✅';
-            case 'product_rejected':
-                return '❌';
+            case 'message': return '✉️';
+            case 'quote_request': return '📝';
+            case 'product_approved': return '✅';
+            case 'product_rejected': return '❌';
             case 'investment':
-            case 'investment_confirmation':
-                return '💰';
-            case 'trending':
-                return '🔥';
+            case 'investment_confirmation': return '💰';
+            case 'trending': return '🔥';
             case 'role_change':
-            case 'role_request_approved':
-                return '👤';
+            case 'role_request_approved': return '👤';
             case 'transfer':
-            case 'interest':
-                return '💳';
-            case 'pending_review':
-                return '⏳';
-            default:
-                return '🔔';
+            case 'interest': return '💳';
+            case 'order_received': return '📦';
+            case 'pending_review': return '⏳';
+            case 'revenue_share': return '💵';
+            case 'expiring': return '⏰';
+            case 'product_stock': 
+            case 'PRODUCT_BACK_IN_STOCK': return '🔄';
+            case 'LOW_STOCK_ALERT': return '⚠️';
+            case 'cart_reminder': return '🛒';
+            case 'product_archived': return '🗄️';
+            default: return '🔔';
         }
     };
 

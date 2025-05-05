@@ -11,7 +11,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { FeedbackProvider } from './contexts/FeedbackContext.jsx';
 import { CurrencyProvider } from './context/CurrencyContext';
 import NotificationToastContainer from './components/NotificationToastContainer';
-import NotificationRefresher from './components/NotificationRefresher';
+import { NotificationRefresher } from './components/notifications';
 import AdminProductNotifier from './components/admin/AdminProductNotifier';
 import PolicyNotificationBanner from './components/PolicyNotificationBanner';
 import FeedbackBar from './components/FeedbackBar';

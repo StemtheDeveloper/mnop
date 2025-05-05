@@ -12,15 +12,13 @@ import NotificationsIcon from "../assets/Bell@4x.png";
 import CartIcon from "../assets/Shopping trolly drag edition@4x.png";
 import WishlistIcon from "../assets/Heart mini.png";
 import WalletIcon from "../assets/Wally no legs big eyes@4x.webp";
-import NotificationCenter from "./NotificationCenter";
-import notificationService from "../services/notificationService";
 import AchievementBadgeDisplay from './AchievementBadgeDisplay';
-import NotificationInbox from './NotificationInbox';
 import ThemeToggle from './ThemeToggle';
 import CurrencySelector from './CurrencySelector';
 import EnhancedSearchInput from './EnhancedSearchInput';
 import { useToast } from '../contexts/ToastContext';
 import { useNotifications } from './notifications/NotificationSystem';
+import { NotificationDrawer } from './notifications';
 
 const AdminEmails = [
   "stiaan44@gmail.com",
@@ -343,12 +341,8 @@ const Navbar = () => {
         <div className="overlay" onClick={() => setIsOpen(false)}></div>
       )}
       {notificationsOpen && (
-        <NotificationCenter isOpen={notificationsOpen} onClose={closeNotifications} />
+        <NotificationDrawer isOpen={notificationsOpen} onClose={closeNotifications} />
       )}
-      <NotificationInbox
-        isOpen={notificationsOpen}
-        onClose={closeNotifications}
-      />
     </>
   );
 };
