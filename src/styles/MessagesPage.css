@@ -146,6 +146,8 @@
 .conversation-content {
   flex: 1;
   min-width: 0; /* for text-overflow to work */
+  display: flex;
+  flex-direction: column;
 }
 
 .conversation-header {
@@ -708,6 +710,8 @@
   padding: 10px 15px;
   border-radius: 18px;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .message.sent .message-content {
@@ -938,6 +942,7 @@
   border-radius: 8px;
   overflow: hidden;
   position: relative;
+  cursor: pointer;
 }
 
 .image-attachment img {
@@ -1074,6 +1079,212 @@
   gap: 8px;
 }
 
+/* Improved Attachment Styles */
+.image-preview-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.image-preview-wrapper img {
+  max-width: 100%;
+  max-height: 200px;
+  display: block;
+  border-radius: 8px;
+  transition: filter 0.2s;
+}
+
+.attachment-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.image-preview-wrapper:hover .attachment-overlay {
+  opacity: 1;
+}
+
+.image-preview-wrapper:hover img {
+  filter: brightness(0.9);
+}
+
+.attachment-action-btn {
+  width: 40px;
+  height: 40px;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #333;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+  text-decoration: none;
+}
+
+.attachment-action-btn:hover {
+  transform: scale(1.1);
+}
+
+.video-preview-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.video-thumbnail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #000;
+  z-index: 1;
+}
+
+.play-button-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.play-button-overlay svg {
+  width: 40px;
+  height: 40px;
+  color: white;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.video-preview-wrapper video {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+}
+
+.file-preview-card {
+  display: flex;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+}
+
+.file-preview-icon {
+  width: 40px;
+  height: 40px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  color: #666;
+  font-size: 20px;
+}
+
+.file-preview-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-name {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 2px;
+  word-break: break-word;
+}
+
+.file-size {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.file-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: #f5f5f5;
+  color: #555;
+  border-radius: 4px;
+  font-size: 12px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.file-action-button:hover {
+  background-color: #e0e0e0;
+}
+
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  background-color: #f5f5f5;
+  color: #666;
+  gap: 8px;
+}
+
+.placeholder-content svg {
+  opacity: 0.7;
+}
+
+.attachment-container.is-decrypting {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.attachment-container.error {
+  background-color: #ffebee;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.decryption-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .file-actions {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .file-action-button {
+    width: 100%;
+  }
+}
+
 /* Responsive styles */
 @media (max-width: 768px) {
   .conversation-page {
@@ -1107,7 +1318,6 @@
 .message-options {
   position: relative;
   margin-left: 8px;
-  z-index: 9999;
 }
 
 .message-options-btn {
@@ -1141,7 +1351,7 @@
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+
   overflow: hidden;
   min-width: 120px;
 }
@@ -1331,4 +1541,308 @@
 
 .view-profile-link:hover {
   text-decoration: underline;
+}
+
+/* File Gallery Preview */
+.file-gallery-preview {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #f5f8fa;
+  border-radius: 8px;
+  border: 1px solid #e1e8ed;
+}
+
+.gallery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.gallery-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gallery-tabs {
+  display: flex;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e1e8ed;
+  margin-bottom: 15px;
+}
+
+.gallery-tab {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: none;
+  border: none;
+  color: #657786;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gallery-tab.active {
+  color: #1da1f2;
+  background-color: rgba(29, 161, 242, 0.1);
+}
+
+.gallery-tab:hover:not(.active) {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+}
+
+.gallery-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.gallery-item.image {
+  background-color: #f0f0f0;
+}
+
+.gallery-item.file {
+  background-color: #f8f8f8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+}
+
+.gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-item .file-icon {
+  font-size: 24px;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.gallery-item .file-name {
+  font-size: 9px;
+  text-align: center;
+  max-width: 90%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-item .loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gallery-item .error-indicator {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  color: #e0245e;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Settings dropdown styles */
+.settings-dropdown {
+  position: relative;
+}
+
+.settings-button {
+  background: none;
+  border: none;
+  color: #666;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.settings-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.settings-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  overflow: hidden;
+  min-width: 220px;
+  margin-top: 8px;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  color: #333;
+}
+
+.settings-item:hover {
+  background-color: #f5f5f5;
+}
+
+/* Enhanced file preview styles */
+.message .image-attachment {
+  max-width: 240px;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.message .image-attachment img {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  display: block;
+  border-radius: 8px;
+}
+
+.message .video-attachment {
+  max-width: 240px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.message .video-attachment video {
+  width: 100%;
+  max-height: 240px;
+  border-radius: 8px;
+}
+
+/* Message gif styles */
+.message .gif-attachment {
+  max-width: 240px;
+  position: relative;
+}
+
+.message .gif-attachment img {
+  width: 100%;
+  border-radius: 8px;
+  display: block;
+}
+
+.gif-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Enhanced file attachment appearance */
+.file-attachment {
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.message.sent .file-attachment {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Image preview above message */
+.image-preview-above-message {
+  margin-bottom: 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-image-preview {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.preview-loading {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.preview-loading span {
+  margin-top: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .settings-menu {
+    right: -8px;
+    min-width: 180px;
+  }
+
+  .settings-item {
+    padding: 10px 12px;
+  }
+
+  .message .image-attachment,
+  .message .video-attachment,
+  .message .gif-attachment {
+    max-width: 200px;
+  }
 }

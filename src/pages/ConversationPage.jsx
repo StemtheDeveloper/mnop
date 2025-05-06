@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
     FaArrowLeft,
@@ -16,7 +16,12 @@ import {
     FaTrash,
     FaTrashAlt,
     FaUser,
-    FaShieldAlt
+    FaShieldAlt,
+    FaImages,
+    FaTh,
+    FaCog,
+    FaPlay,
+    FaEye
 } from 'react-icons/fa';
 import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
@@ -24,6 +29,241 @@ import messagingService from '../services/messagingService';
 import encryptionService from '../services/encryptionService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format } from 'date-fns';
+
+const FileGalleryPreview = ({ messages, isDecrypting, decryptedUrls, decryptErrors }) => {
+    const [activeTab, setActiveTab] = useState('images');
+    const [fileItems, setFileItems] = useState([]);
+    const observerRef = useRef({});
+    const itemRefs = useRef({});
+
+    // Process messages to extract all file attachments
+    useEffect(() => {
+        const extractFiles = () => {
+            const files = [];
+            messages.forEach(message => {
+                if (message.hasAttachment && (message.attachmentData || message.fileData)) {
+                    const fileData = message.attachmentData || message.fileData;
+                    const fileType = fileData.type ?
+                        messagingService.getFileTypeCategory(fileData.type) : 'other';
+
+                    files.push({
+                        id: message.id,
+                        url: fileData.url || fileData.downloadURL,
+                        name: fileData.name || fileData.fileName || "File",
+                        type: fileType,
+                        fileData: fileData,
+                        timestamp: message.createdAt?.toDate ? message.createdAt.toDate() : new Date()
+                    });
+                }
+            });
+            setFileItems(files);
+        };
+
+        extractFiles();
+    }, [messages]);
+
+    // Create and clean up IntersectionObserver instances
+    useEffect(() => {
+        // Cleanup function
+        return () => {
+            // Clean up all observers when component unmounts
+            Object.values(observerRef.current).forEach(observer => {
+                if (observer) {
+                    observer.disconnect();
+                }
+            });
+        };
+    }, []);
+
+    // Setup observers when fileItems change
+    useEffect(() => {
+        fileItems.forEach(file => {
+            // Skip if there's already an observer for this file
+            if (observerRef.current[file.id]) return;
+
+            const observer = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            // File is visible, prepare it for decryption if needed
+                            const fileData = file.fileData;
+                            const isEncrypted = fileData.isEncrypted ||
+                                (fileData.encryptionMetadata && fileData.encryptionMetadata.encrypted);
+
+                            if (isEncrypted && !decryptedUrls[file.url] && !decryptErrors[file.url] && !isDecrypting[file.url]) {
+                                // Request decryption by adding to pendingDecryption
+                                setPendingDecryption(prev => ({
+                                    ...prev,
+                                    [file.url]: fileData
+                                }));
+                            }
+                        }
+                    });
+                },
+                { threshold: 0.1 } // Trigger when at least 10% of the item is visible
+            );
+
+            // Store the observer
+            observerRef.current[file.id] = observer;
+
+            // Start observing when the ref is available
+            if (itemRefs.current[file.id]) {
+                observer.observe(itemRefs.current[file.id]);
+            }
+        });
+    }, [fileItems, decryptedUrls, decryptErrors, isDecrypting]);
+
+    // Filter files based on active tab
+    const filteredFiles = fileItems.filter(file => {
+        if (activeTab === 'all') return true;
+        if (activeTab === 'images') return file.type === 'image';
+        if (activeTab === 'documents') return file.type === 'document';
+        if (activeTab === 'other') return file.type !== 'image' && file.type !== 'document';
+        return true;
+    });
+
+    if (fileItems.length === 0) return null;
+
+    // Function to determine if a file is a GIF
+    const isGifFile = (file) => {
+        return file.fileData.type === 'image/gif' ||
+            (file.name && file.name.toLowerCase().endsWith('.gif'));
+    };
+
+    const renderFileItem = (file) => {
+        const isEncrypted = file.fileData.isEncrypted ||
+            (file.fileData.encryptionMetadata && file.fileData.encryptionMetadata.encrypted);
+
+        // Set up the ref callback
+        const setItemRef = (element) => {
+            itemRefs.current[file.id] = element;
+
+            // If we have an element and an observer, start observing
+            if (element && observerRef.current[file.id]) {
+                observerRef.current[file.id].observe(element);
+            }
+        };
+
+        if (file.type === 'image') {
+            let content;
+            const isGif = isGifFile(file);
+
+            if (isEncrypted) {
+                if (isDecrypting[file.url]) {
+                    content = (
+                        <>
+                            <div className="loading-overlay">
+                                <LoadingSpinner size="small" />
+                            </div>
+                        </>
+                    );
+                } else if (decryptErrors[file.url]) {
+                    content = (
+                        <>
+                            <div className="error-indicator">
+                                <FaExclamationTriangle size={10} />
+                            </div>
+                        </>
+                    );
+                } else if (decryptedUrls[file.url]) {
+                    content = (
+                        <>
+                            <img src={decryptedUrls[file.url]} alt={file.name} />
+                            {isGif && <span className="gif-badge">GIF</span>}
+                        </>
+                    );
+                } else {
+                    // Placeholder or loading indicator
+                    content = <FaImage size={24} color="#cccccc" />;
+                }
+            } else {
+                content = (
+                    <>
+                        <img src={file.url} alt={file.name} />
+                        {isGif && <span className="gif-badge">GIF</span>}
+                    </>
+                );
+            }
+
+            return (
+                <div
+                    className={`gallery-item image`}
+                    ref={setItemRef}
+                    key={file.id}
+                >
+                    {content}
+                </div>
+            );
+        } else {
+            // File icon based on type
+            let icon = <FaFile />;
+            if (file.type === 'document') icon = <FaFileAlt />;
+            if (file.type === 'video') icon = <FaVideo />;
+
+            return (
+                <div
+                    className="gallery-item file"
+                    ref={setItemRef}
+                    key={file.id}
+                >
+                    <div className="file-icon">{icon}</div>
+                    <div className="file-name">{file.name}</div>
+                    {isEncrypted && isDecrypting[file.url] && (
+                        <div className="loading-overlay">
+                            <LoadingSpinner size="small" />
+                        </div>
+                    )}
+                    {isEncrypted && decryptErrors[file.url] && (
+                        <div className="error-indicator">
+                            <FaExclamationTriangle size={10} />
+                        </div>
+                    )}
+                </div>
+            );
+        }
+    };
+
+    return (
+        <div className="file-gallery-preview">
+            <div className="gallery-header">
+                <h3>
+                    <FaImages /> Attachments
+                </h3>
+            </div>
+
+            <div className="gallery-tabs">
+                <button
+                    className={`gallery-tab ${activeTab === 'all' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('all')}
+                >
+                    <FaTh /> All ({fileItems.length})
+                </button>
+                <button
+                    className={`gallery-tab ${activeTab === 'images' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('images')}
+                >
+                    <FaImage /> Images ({fileItems.filter(f => f.type === 'image').length})
+                </button>
+                <button
+                    className={`gallery-tab ${activeTab === 'documents' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('documents')}
+                >
+                    <FaFileAlt /> Documents ({fileItems.filter(f => f.type === 'document').length})
+                </button>
+                <button
+                    className={`gallery-tab ${activeTab === 'other' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('other')}
+                >
+                    <FaFile /> Other ({fileItems.filter(f => f.type !== 'image' && f.type !== 'document').length})
+                </button>
+            </div>
+
+            <div className="gallery-grid">
+                {filteredFiles.map(file => renderFileItem(file))}
+            </div>
+        </div>
+    );
+};
 
 const ConversationPage = () => {
     const { conversationId } = useParams();
@@ -42,6 +282,8 @@ const ConversationPage = () => {
     const [editingContent, setEditingContent] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+    const [showGallery, setShowGallery] = useState(false);
     // State variables for file attachments
     const [decryptedUrls, setDecryptedUrls] = useState({});
     const [decryptErrors, setDecryptErrors] = useState({});
@@ -54,6 +296,61 @@ const ConversationPage = () => {
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
     const optionsMenuRef = useRef(null);
+    const settingsMenuRef = useRef(null);
+
+    // Setup an attachment ref map to store references to attachment elements
+    const attachmentRefs = useRef(new Map());
+
+    // Create a single useCallback for attachment ref handling outside of the renderFileAttachment function
+    const attachmentRefCallback = useCallback((node, fileUrl, isEncrypted, decryptedUrl, decrypting, decryptError, fileData) => {
+        if (!node || !isEncrypted) return;
+
+        // Remove any existing observer
+        const existingObserver = attachmentRefs.current.get(fileUrl)?.observer;
+        if (existingObserver) {
+            existingObserver.disconnect();
+        }
+
+        // Create an intersection observer
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !decryptedUrl && !decrypting && !decryptError) {
+                    // This attachment is now visible in the viewport, decrypt it
+                    setPendingDecryption(prev => ({
+                        ...prev,
+                        [fileUrl]: fileData
+                    }));
+                    // Unobserve once we've triggered decryption
+                    observer.unobserve(node);
+                }
+            });
+        }, { threshold: 0.1 }); // Trigger when at least 10% is visible
+
+        // Store the observer and node
+        attachmentRefs.current.set(fileUrl, { observer, node });
+
+        // Start observing
+        observer.observe(node);
+
+        // Return cleanup function
+        return () => {
+            observer.disconnect();
+            attachmentRefs.current.delete(fileUrl);
+        };
+    }, []);
+
+    // Effect to clean up all observers on unmount
+    useEffect(() => {
+        return () => {
+            // Clean up all observers when component unmounts
+            attachmentRefs.current.forEach(({ observer }) => {
+                if (observer) {
+                    observer.disconnect();
+                }
+            });
+            attachmentRefs.current.clear();
+        };
+    }, []);
 
     const groupedMessages = messages.reduce((groups, message) => {
         const date = message.createdAt?.toDate ?
@@ -312,7 +609,8 @@ const ConversationPage = () => {
         );
     };
 
-    const renderFileAttachment = (fileData) => {
+    // Update this function to add intersection observer for file decryption
+    const renderFileAttachment = useCallback((fileData, messageId) => {
         if (!fileData) return null;
 
         const fileType = fileData.type ? messagingService.getFileTypeCategory(fileData.type) : 'other';
@@ -322,13 +620,19 @@ const ConversationPage = () => {
         const decryptError = decryptErrors[fileUrl];
         const decrypting = isDecrypting[fileUrl];
 
-        // We no longer set pendingDecryption here - this avoids the infinite loop
+        // Check if the file is a GIF
+        const isGif = fileData.type === 'image/gif' ||
+            (fileData.name && fileData.name.toLowerCase().endsWith('.gif')) ||
+            (fileData.fileName && fileData.fileName.toLowerCase().endsWith('.gif'));
+
+        // Reference callback function for intersection observer
+        const attachmentRef = (node) => attachmentRefCallback(node, fileUrl, isEncrypted, decryptedUrl, decrypting, decryptError, fileData);
 
         if (fileType === 'image') {
             if (isEncrypted) {
                 if (decrypting) {
                     return (
-                        <div className="attachment-container image-attachment is-decrypting">
+                        <div className="attachment-container image-attachment is-decrypting" ref={attachmentRef}>
                             <div className="decryption-loader">
                                 <LoadingSpinner />
                                 <span>Decrypting image...</span>
@@ -337,7 +641,7 @@ const ConversationPage = () => {
                     );
                 } else if (decryptError) {
                     return (
-                        <div className="attachment-container image-attachment error">
+                        <div className="attachment-container image-attachment error" ref={attachmentRef}>
                             <div className="error-message">
                                 <FaExclamationTriangle />
                                 <span>{decryptError}</span>
@@ -346,22 +650,30 @@ const ConversationPage = () => {
                     );
                 } else if (decryptedUrl) {
                     return (
-                        <div className="attachment-container image-attachment">
+                        <div className={`attachment-container ${isGif ? 'gif-attachment' : 'image-attachment'}`}>
                             <a href={decryptedUrl} target="_blank" rel="noopener noreferrer">
                                 <img src={decryptedUrl} alt={fileData.name || fileData.fileName || "Decrypted image"} />
+                                {isGif && <span className="gif-badge">GIF</span>}
                             </a>
-                            {/* <div className="encryption-badge file-badge">
-                                <FaShieldAlt />
-                                <span>End-to-end encrypted</span>
-                            </div> */}
                         </div>
                     );
                 }
-            } else {
+
+                // Placeholder while waiting for decryption to be triggered by visibility
                 return (
-                    <div className="attachment-container image-attachment">
+                    <div className="attachment-container image-attachment" ref={attachmentRef}>
+                        <div className="image-placeholder" style={{ width: '200px', height: '150px', backgroundColor: '#f0f0f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <FaImage size={40} color="#cccccc" />
+                        </div>
+                    </div>
+                );
+            } else {
+                // Regular image handling (including GIFs)
+                return (
+                    <div className={`attachment-container ${isGif ? 'gif-attachment' : 'image-attachment'}`}>
                         <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer">
                             <img src={fileData.url || fileData.downloadURL} alt={fileData.name || fileData.fileName || "Image attachment"} />
+                            {isGif && <span className="gif-badge">GIF</span>}
                         </a>
                     </div>
                 );
@@ -372,7 +684,7 @@ const ConversationPage = () => {
             if (isEncrypted) {
                 if (decrypting) {
                     return (
-                        <div className="attachment-container video-attachment is-decrypting">
+                        <div className="attachment-container video-attachment is-decrypting" ref={attachmentRef}>
                             <div className="decryption-loader">
                                 <LoadingSpinner />
                                 <span>Decrypting video...</span>
@@ -381,7 +693,7 @@ const ConversationPage = () => {
                     );
                 } else if (decryptError) {
                     return (
-                        <div className="attachment-container video-attachment error">
+                        <div className="attachment-container video-attachment error" ref={attachmentRef}>
                             <div className="error-message">
                                 <FaExclamationTriangle />
                                 <span>{decryptError}</span>
@@ -391,29 +703,45 @@ const ConversationPage = () => {
                 } else if (decryptedUrl) {
                     return (
                         <div className="attachment-container video-attachment">
-                            <video controls>
-                                <source src={decryptedUrl} type={fileData.type || fileData.fileType} />
-                                Your browser does not support the video tag.
-                            </video>
-                            {/* <div className="encryption-badge file-badge">
-                                <FaShieldAlt />
-                                <span>End-to-end encrypted</span>
-                            </div> */}
+                            <div className="video-preview-wrapper">
+                                <video controls>
+                                    <source src={decryptedUrl} type={fileData.type || fileData.fileType} />
+                                    Your browser does not support the video tag.
+                                </video>
+                                <div className="play-button-overlay">
+                                    <FaPlay />
+                                </div>
+                            </div>
                         </div>
                     );
                 }
+
+                // Placeholder while waiting for decryption
+                return (
+                    <div className="attachment-container video-attachment" ref={attachmentRef}>
+                        <div className="video-placeholder" style={{ width: '200px', height: '150px', backgroundColor: '#f0f0f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <FaVideo size={40} color="#cccccc" />
+                        </div>
+                    </div>
+                );
             } else {
                 return (
                     <div className="attachment-container video-attachment">
-                        <video controls>
-                            <source src={fileData.url || fileData.downloadURL} type={fileData.type || fileData.fileType} />
-                            Your browser does not support the video tag.
-                        </video>
+                        <div className="video-preview-wrapper">
+                            <video controls>
+                                <source src={fileData.url || fileData.downloadURL} type={fileData.type || fileData.fileType} />
+                                Your browser does not support the video tag.
+                            </video>
+                            <div className="play-button-overlay">
+                                <FaPlay />
+                            </div>
+                        </div>
                     </div>
                 );
             }
         }
 
+        // Handle other file types
         let icon = <FaFile />;
         if (fileType === 'document') icon = <FaFileAlt />;
         if (fileType === 'image') icon = <FaImage />;
@@ -422,7 +750,7 @@ const ConversationPage = () => {
         if (isEncrypted) {
             if (decrypting) {
                 return (
-                    <div className="attachment-container file-attachment is-decrypting">
+                    <div className="attachment-container file-attachment is-decrypting" ref={attachmentRef}>
                         <div className="decryption-loader">
                             <LoadingSpinner />
                             <span>Decrypting file...</span>
@@ -431,7 +759,7 @@ const ConversationPage = () => {
                 );
             } else if (decryptError) {
                 return (
-                    <div className="attachment-container file-attachment error">
+                    <div className="attachment-container file-attachment error" ref={attachmentRef}>
                         <div className="error-message">
                             <FaExclamationTriangle />
                             <span>{decryptError}</span>
@@ -448,13 +776,22 @@ const ConversationPage = () => {
                                 <span className="file-size">{fileData.size || fileData.fileSize ? `${((fileData.size || fileData.fileSize) / 1024).toFixed(2)} KB` : ''}</span>
                             </div>
                         </a>
-                        {/* <div className="encryption-badge file-badge">
-                            <FaShieldAlt />
-                            <span>End-to-end encrypted</span>
-                        </div> */}
                     </div>
                 );
             }
+
+            // Placeholder while waiting for decryption
+            return (
+                <div className="attachment-container file-attachment" ref={attachmentRef}>
+                    <div className="file-placeholder" style={{ display: 'flex', alignItems: 'center' }}>
+                        <div className="file-icon">{icon}</div>
+                        <div className="file-info">
+                            <span className="file-name">{fileData.name || fileData.fileName || "File attachment"}</span>
+                            <span className="file-size">{fileData.size || fileData.fileSize ? `${((fileData.size || fileData.fileSize) / 1024).toFixed(2)} KB` : ''}</span>
+                        </div>
+                    </div>
+                </div>
+            );
         }
 
         return (
@@ -468,12 +805,15 @@ const ConversationPage = () => {
                 </a>
             </div>
         );
-    };
+    }, [decryptedUrls, decryptErrors, isDecrypting, attachmentRefCallback]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (optionsMenuRef.current && !optionsMenuRef.current.contains(event.target)) {
                 setActiveMessageOptions(null);
+            }
+            if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+                setShowSettings(false);
             }
         };
 
@@ -676,13 +1016,37 @@ const ConversationPage = () => {
                             <FaLock />
                             <span>End-to-end encrypted</span>
                         </div>
-                        <button
-                            className="delete-conversation-btn"
-                            onClick={() => setShowDeleteConfirm(true)}
-                            aria-label="Delete conversation"
-                        >
-                            <FaTrashAlt />
-                        </button>
+                        <div className="settings-dropdown">
+                            <button
+                                className="settings-button"
+                                onClick={() => setShowSettings(!showSettings)}
+                                aria-label="Conversation settings"
+                            >
+                                <FaCog />
+                            </button>
+                            {showSettings && (
+                                <div className="settings-menu" ref={settingsMenuRef}>
+                                    <button
+                                        className="settings-item"
+                                        onClick={() => {
+                                            setShowGallery(!showGallery);
+                                            setShowSettings(false);
+                                        }}
+                                    >
+                                        <FaImages /> {showGallery ? "Hide Attachments Gallery" : "Show Attachments Gallery"}
+                                    </button>
+                                    <button
+                                        className="settings-item"
+                                        onClick={() => {
+                                            setShowDeleteConfirm(true);
+                                            setShowSettings(false);
+                                        }}
+                                    >
+                                        <FaTrashAlt /> Delete Conversation
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -743,6 +1107,32 @@ const ConversationPage = () => {
                                                 </div>
                                             ) : (
                                                 <>
+                                                    {/* Image preview above message if it's an image attachment */}
+                                                    {message.hasAttachment && (message.attachmentData || message.fileData) && 
+                                                    (message.attachmentData?.type?.startsWith('image/') || 
+                                                     message.fileData?.type?.startsWith('image/')) && (
+                                                        <div className="image-preview-above-message">
+                                                            {isDecrypting[message.attachmentData?.url || message.fileData?.url || message.fileData?.downloadURL] ? (
+                                                                <div className="preview-loading">
+                                                                    <LoadingSpinner />
+                                                                    <span>Loading image preview...</span>
+                                                                </div>
+                                                            ) : decryptedUrls[message.attachmentData?.url || message.fileData?.url || message.fileData?.downloadURL] ? (
+                                                                <img 
+                                                                    src={decryptedUrls[message.attachmentData?.url || message.fileData?.url || message.fileData?.downloadURL]} 
+                                                                    alt="Image preview" 
+                                                                    className="message-image-preview" 
+                                                                />
+                                                            ) : message.attachmentData?.url || message.fileData?.url || message.fileData?.downloadURL ? (
+                                                                <img 
+                                                                    src={message.attachmentData?.url || message.fileData?.url || message.fileData?.downloadURL} 
+                                                                    alt="Image preview" 
+                                                                    className="message-image-preview" 
+                                                                />
+                                                            ) : null}
+                                                        </div>
+                                                    )}
+
                                                     {message.decryptedContent && (
                                                         <div className="message-text">
                                                             {message.decryptedContent}
@@ -778,6 +1168,16 @@ const ConversationPage = () => {
                     )}
                     <div ref={messagesEndRef} />
                 </div>
+
+                {/* Display file gallery preview only when there are messages with attachments */}
+                {showGallery && messages.some(message => message.hasAttachment) && (
+                    <FileGalleryPreview
+                        messages={messages}
+                        isDecrypting={isDecrypting}
+                        decryptedUrls={decryptedUrls}
+                        decryptErrors={decryptErrors}
+                    />
+                )}
 
                 {attachment && renderAttachmentPreview()}
 
