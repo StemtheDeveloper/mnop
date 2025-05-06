@@ -234,6 +234,11 @@ const Navbar = () => {
                 <Link to="/messages" className={isActive('/messages') ? 'active' : ''} onClick={() => setIsOpen(false)}>Messages</Link>
               </li>
               <li className="nav-item">
+                <Link to="/wallet">
+                  <img src={WalletIcon} alt="Wallet icon" title="Wallet" style={{ width: 40 }} />
+                </Link>
+              </li>
+              <li className="nav-item">
                 <Link to="/wishlist" className={isActive('/wishlist') ? 'active' : ''} onClick={() => setIsOpen(false)}>Wishlist</Link>
               </li>
               <li className="nav-item">
