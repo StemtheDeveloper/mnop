@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../components/notifications';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../context/ToastContext';
 import './NotificationsPage.css';
 
 const NotificationsPage = () => {

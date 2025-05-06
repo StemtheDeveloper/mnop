@@ -640,83 +640,136 @@
 /* Cross-selling suggestions styles */
 .cross-selling-suggestions {
   margin-top: 30px;
-  background-color: #f8f9fa;
+  margin-bottom: 20px;
+  background-color: #f9f9fa;
   border-radius: 8px;
-  padding: 20px;
+  padding: 25px;
+  grid-column: 1 / -1;
+  border: 1px solid #e8e9eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
 .cross-selling-suggestions h3 {
   font-size: 18px;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
   color: #333;
+  font-weight: 600;
+  text-align: center;
+  position: relative;
+}
+
+.cross-selling-suggestions h3::after {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 3px;
+  background-color: #ef3c23;
+  margin: 10px auto 0;
+  border-radius: 2px;
 }
 
 .suggestions-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
 }
 
 .suggestion-item {
   background-color: white;
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.3s, box-shadow 0.3s;
   overflow: hidden;
+  height: 100%;
 }
 
 .suggestion-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .suggestion-item a {
   text-decoration: none;
   color: inherit;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .suggestion-image {
   width: 100%;
-  height: 120px;
+  height: 160px;
   overflow: hidden;
+  position: relative;
 }
 
 .suggestion-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.suggestion-item:hover .suggestion-image img {
+  transform: scale(1.05);
 }
 
 .suggestion-details {
-  padding: 12px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
 }
 
 .suggestion-details h4 {
-  font-size: 14px;
-  margin: 0 0 6px;
+  font-size: 15px;
+  margin: 0 0 8px;
   color: #333;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
+  height: 2.6em;
 }
 
 .suggestion-price {
   font-weight: 600;
   color: #ef3c23;
-  font-size: 14px;
+  font-size: 15px;
+  margin-top: auto;
 }
 
 /* Responsive adjustments */
+@media (max-width: 992px) {
+  .suggestions-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .suggestions-container {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cross-selling-suggestions {
+    padding: 20px 15px;
+  }
+
+  .suggestion-image {
+    height: 140px;
   }
 }
 
 @media (max-width: 480px) {
   .suggestions-container {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(1, 1fr);
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  .suggestion-image {
+    height: 180px;
   }
 }
 

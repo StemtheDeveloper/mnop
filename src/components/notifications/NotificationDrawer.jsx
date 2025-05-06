@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { useAuth } from '../../contexts/AuthContext';
-import { useNotifications } from '../../contexts/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import './NotificationDrawer.css'; // Will be created next
 
 /**
@@ -10,6 +10,8 @@ import './NotificationDrawer.css'; // Will be created next
  * Replaces both NotificationCenter and NotificationInbox components
  */
 const NotificationDrawer = ({ isOpen, onClose }) => {
+    console.log("NotificationDrawer rendering with isOpen:", isOpen); // Debug logging
+
     const { currentUser } = useAuth();
     const {
         notifications,
@@ -27,9 +29,6 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
     const [notificationsList, setNotificationsList] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-
-
-
 
     // Handle smooth closing animation
     const handleClose = () => {

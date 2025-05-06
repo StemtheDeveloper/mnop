@@ -6,7 +6,7 @@
 
 // Export the main components
 export { default as NotificationDrawer } from "./NotificationDrawer";
-export { useNotifications } from "../../contexts/NotificationContext";
+export { useNotifications } from "../../context/NotificationContext";
 
 // Re-export the notification refresher component
 export { default as NotificationRefresher } from "../../components/NotificationRefresher";

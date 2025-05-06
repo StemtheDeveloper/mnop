@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
+import { useToast } from '../context/ToastContext'; // Updated import path
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import interestService from '../services/interestService';

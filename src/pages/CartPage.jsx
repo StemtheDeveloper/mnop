@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { collection, doc, updateDoc, deleteDoc, onSnapshot, query, where, addDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import cartRecoveryService from '../services/cartRecoveryService';
 import '../styles/CartPage.css';

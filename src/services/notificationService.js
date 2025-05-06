@@ -473,7 +473,7 @@ class NotificationService {
       type: "order_received",
       title: "New Order Received",
       message: `Your product "${productName}" has been ordered and is awaiting delivery.`,
-      link: `/orders/designer/${orderId}`,
+      link: `/orders/${orderId}`,
       productId,
       orderId,
       read: false,

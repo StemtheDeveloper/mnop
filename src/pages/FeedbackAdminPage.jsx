@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import '../styles/FeedbackAdmin.css';
 import LoadingSpinner from '../components/LoadingSpinner';
 

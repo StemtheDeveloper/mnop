@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp, getDoc, getDocs, limit } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import notificationService from '../services/notificationService';
@@ -17,6 +17,7 @@ const CrossSellingSuggestions = ({ cartItems }) => {
     const [suggestions, setSuggestions] = useState([]);
     const [loading, setLoading] = useState(true);
     const { showError } = useToast();
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchSuggestions = async () => {
@@ -76,7 +77,7 @@ const CrossSellingSuggestions = ({ cartItems }) => {
                         productsRef,
                         where('status', '==', 'active'),
                         where('categories', 'array-contains-any', categoriesArray),
-                        limit(6)
+                        limit(8)
                     );
                 } else {
                     // Fallback to designer's other products
@@ -85,7 +86,7 @@ const CrossSellingSuggestions = ({ cartItems }) => {
                         productsRef,
                         where('status', '==', 'active'),
                         where('designerId', 'in', designersArray),
-                        limit(6)
+                        limit(8)
                     );
                 }
 
@@ -113,6 +114,19 @@ const CrossSellingSuggestions = ({ cartItems }) => {
         fetchSuggestions();
     }, [cartItems, showError]);
 
+    // Format price as currency
+    const formatPrice = (price) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(price || 0);
+    };
+
+    // Handle click on a suggestion
+    const handleSuggestionClick = (productId) => {
+        navigate(`/product/${productId}`);
+    };
+
     // Don't show component if no suggestions or still loading
     if (loading || suggestions.length === 0) {
         return null;
@@ -127,17 +141,14 @@ const CrossSellingSuggestions = ({ cartItems }) => {
                         <Link to={`/product/${product.id}`}>
                             <div className="suggestion-image">
                                 <img
-                                    src={product.imageUrl || product.imageUrls?.[0] || 'https://via.placeholder.com/120?text=Product'}
+                                    src={product.imageUrl || (product.imageUrls && product.imageUrls[0]) || 'https://via.placeholder.com/160?text=Product'}
                                     alt={product.name}
                                 />
                             </div>
                             <div className="suggestion-details">
-                                <h4>{product.name}</h4>
+                                <h4>{product.name || 'Product'}</h4>
                                 <div className="suggestion-price">
-                                    {new Intl.NumberFormat('en-US', {
-                                        style: 'currency',
-                                        currency: 'USD'
-                                    }).format(product.price || 0)}
+                                    {formatPrice(product.price)}
                                 </div>
                             </div>
                         </Link>
@@ -524,7 +535,7 @@ const CheckoutPage = () => {
                     setShipping(0);
                     setTotal(subtotal);
                 } else {
-                    setShipping(shippingCost);
+                    setShippingCost(shippingCost);
                     setTotal(subtotal + shippingCost);
                 }
             } catch (error) {

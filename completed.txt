@@ -1,5 +1,9 @@
 # Completed Improvements for mnop-app
 
+- Resolve customer orders link from notifications drawer
+- Commission needs to be taken from direct sell products
+- Fix the display of cross sell items
+- Add file attachment encryption to messages
 - Standardize button styles across the application to use consistent CSS classes
 - Create automated testing suite with Jest and React Testing Library
 - Update React components to use React.memo for performance optimization
@@ -48,4 +52,6 @@
 - Clicking products on the search page should link to the product details
 - Add dark mode support across the application
 - Implement a11y improvements for better accessibility (ARIA labels, keyboard navigation)
+- Add sales history to the 'my sales' tab on the profile
+- Merge context and contexts folders
 

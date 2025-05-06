@@ -18,8 +18,9 @@ import AchievementBadgeDisplay from './AchievementBadgeDisplay';
 import ThemeToggle from './ThemeToggle';
 import CurrencySelector from './CurrencySelector';
 import EnhancedSearchInput from './EnhancedSearchInput';
-import { useToast } from '../contexts/ToastContext';
-import { useNotifications, NotificationDrawer } from './notifications';
+import { useToast } from '../context/ToastContext';
+import { useNotifications } from '../context/NotificationContext';
+import { NotificationDrawer } from './notifications';
 
 const AdminEmails = [
   "stiaan44@gmail.com",
@@ -274,12 +275,12 @@ const Navbar = () => {
               </Link>
             </li>
             <li className="nav-item navbar-icons">
-              <Link to="/notifications">
+              <div className="icon-container" onClick={handleNotificationClick}>
                 <img src={NotificationsIcon} alt="Notifications icon" />
                 {user && unreadCount > 0 && (
                   <span className="notification-badge" id="quick-links-notifications-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                 )}
-              </Link>
+              </div>
             </li>
             <li className="nav-item navbar-icons">
               <Link to="/cart">

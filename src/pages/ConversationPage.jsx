@@ -15,11 +15,13 @@ import {
     FaPen,
     FaTrash,
     FaTrashAlt,
-    FaUser
+    FaUser,
+    FaShieldAlt
 } from 'react-icons/fa';
 import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
+import encryptionService from '../services/encryptionService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format } from 'date-fns';
 
@@ -40,6 +42,13 @@ const ConversationPage = () => {
     const [editingContent, setEditingContent] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    // State variables for file attachments
+    const [decryptedUrls, setDecryptedUrls] = useState({});
+    const [decryptErrors, setDecryptErrors] = useState({});
+    const [isDecrypting, setIsDecrypting] = useState({});
+    // Track which attachments need decryption
+    const [pendingDecryption, setPendingDecryption] = useState({});
+
     const messagesEndRef = useRef(null);
     const messageListRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -111,6 +120,95 @@ const ConversationPage = () => {
 
         loadConversation();
     }, [user, userLoading, conversationId]);
+
+    // Decrypt file utility function (updated error handling for CORS errors)
+    const decryptFile = async (fileData) => {
+        if (!fileData || !conversation) return;
+
+        const fileUrl = fileData.url || fileData.downloadURL;
+        if (!fileUrl) return;
+
+        setIsDecrypting(prev => ({ ...prev, [fileUrl]: true }));
+        setDecryptErrors(prev => ({ ...prev, [fileUrl]: null }));
+
+        try {
+            const encryptionKey = encryptionService.generateConversationKey(
+                user.uid,
+                conversation.otherParticipant.id
+            );
+
+            const objectUrl = await encryptionService.createDecryptedObjectURL(
+                fileUrl,
+                encryptionKey,
+                fileData.encryptionMetadata || {
+                    originalType: fileData.fileType || fileData.type,
+                    originalSize: fileData.fileSize || fileData.size,
+                    originalName: fileData.fileName || fileData.name
+                }
+            );
+
+            setDecryptedUrls(prev => ({ ...prev, [fileUrl]: objectUrl }));
+        } catch (error) {
+            console.error('Error decrypting file:', error);
+            // Check if error is CORS-related
+            const isCorsError = error.message?.includes('CORS') ||
+                error.message?.includes('cross-origin') ||
+                error.message?.includes('Access-Control-Allow-Origin');
+
+            if (isCorsError && process.env.NODE_ENV === 'development') {
+                // In development, show a more helpful error about CORS
+                setDecryptErrors(prev => ({ ...prev, [fileUrl]: 'CORS restrictions in development environment. Showing placeholder.' }));
+            } else {
+                setDecryptErrors(prev => ({ ...prev, [fileUrl]: 'Failed to decrypt file. It may be corrupted or from a different conversation.' }));
+            }
+        } finally {
+            setIsDecrypting(prev => ({ ...prev, [fileUrl]: false }));
+            setPendingDecryption(prev => {
+                const newState = { ...prev };
+                delete newState[fileUrl];
+                return newState;
+            });
+        }
+    };
+
+    // Effect for handling decryption requests - replaces the effect inside renderFileAttachment
+    useEffect(() => {
+        Object.entries(pendingDecryption).forEach(([url, fileData]) => {
+            if (!isDecrypting[url] && !decryptedUrls[url] && !decryptErrors[url]) {
+                decryptFile(fileData);
+            }
+        });
+
+        // Cleanup function for object URLs
+        return () => {
+            Object.values(decryptedUrls).forEach(url => {
+                URL.revokeObjectURL(url);
+            });
+        };
+    }, [pendingDecryption, conversation, user]);
+
+    // Add a new useEffect to track files that need decryption
+    useEffect(() => {
+        // Process messages to find encrypted files that need decryption
+        messages.forEach(message => {
+            if (message.hasAttachment && (message.attachmentData || message.fileData)) {
+                const fileData = message.attachmentData || message.fileData;
+                const isEncrypted = fileData.isEncrypted || (fileData.encryptionMetadata && fileData.encryptionMetadata.encrypted);
+                const fileUrl = fileData.url || fileData.downloadURL;
+
+                if (isEncrypted && fileUrl &&
+                    !decryptedUrls[fileUrl] &&
+                    !decryptErrors[fileUrl] &&
+                    !isDecrypting[fileUrl] &&
+                    !pendingDecryption[fileUrl]) {
+                    setPendingDecryption(prev => ({
+                        ...prev,
+                        [fileUrl]: fileData
+                    }));
+                }
+            }
+        });
+    }, [messages, decryptedUrls, decryptErrors, isDecrypting, pendingDecryption]);
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -218,32 +316,146 @@ const ConversationPage = () => {
         if (!fileData) return null;
 
         const fileType = fileData.type ? messagingService.getFileTypeCategory(fileData.type) : 'other';
+        const isEncrypted = fileData.isEncrypted || (fileData.encryptionMetadata && fileData.encryptionMetadata.encrypted);
+        const fileUrl = fileData.url || fileData.downloadURL;
+        const decryptedUrl = decryptedUrls[fileUrl];
+        const decryptError = decryptErrors[fileUrl];
+        const decrypting = isDecrypting[fileUrl];
+
+        // We no longer set pendingDecryption here - this avoids the infinite loop
 
         if (fileType === 'image') {
-            return (
-                <div className="attachment-container image-attachment">
-                    <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer">
-                        <img src={fileData.url || fileData.downloadURL} alt={fileData.name || fileData.fileName || "Image attachment"} />
-                    </a>
-                </div>
-            );
+            if (isEncrypted) {
+                if (decrypting) {
+                    return (
+                        <div className="attachment-container image-attachment is-decrypting">
+                            <div className="decryption-loader">
+                                <LoadingSpinner />
+                                <span>Decrypting image...</span>
+                            </div>
+                        </div>
+                    );
+                } else if (decryptError) {
+                    return (
+                        <div className="attachment-container image-attachment error">
+                            <div className="error-message">
+                                <FaExclamationTriangle />
+                                <span>{decryptError}</span>
+                            </div>
+                        </div>
+                    );
+                } else if (decryptedUrl) {
+                    return (
+                        <div className="attachment-container image-attachment">
+                            <a href={decryptedUrl} target="_blank" rel="noopener noreferrer">
+                                <img src={decryptedUrl} alt={fileData.name || fileData.fileName || "Decrypted image"} />
+                            </a>
+                            {/* <div className="encryption-badge file-badge">
+                                <FaShieldAlt />
+                                <span>End-to-end encrypted</span>
+                            </div> */}
+                        </div>
+                    );
+                }
+            } else {
+                return (
+                    <div className="attachment-container image-attachment">
+                        <a href={fileData.url || fileData.downloadURL} target="_blank" rel="noopener noreferrer">
+                            <img src={fileData.url || fileData.downloadURL} alt={fileData.name || fileData.fileName || "Image attachment"} />
+                        </a>
+                    </div>
+                );
+            }
         }
 
         if (fileType === 'video') {
-            return (
-                <div className="attachment-container video-attachment">
-                    <video controls>
-                        <source src={fileData.url || fileData.downloadURL} type={fileData.type || fileData.fileType} />
-                        Your browser does not support the video tag.
-                    </video>
-                </div>
-            );
+            if (isEncrypted) {
+                if (decrypting) {
+                    return (
+                        <div className="attachment-container video-attachment is-decrypting">
+                            <div className="decryption-loader">
+                                <LoadingSpinner />
+                                <span>Decrypting video...</span>
+                            </div>
+                        </div>
+                    );
+                } else if (decryptError) {
+                    return (
+                        <div className="attachment-container video-attachment error">
+                            <div className="error-message">
+                                <FaExclamationTriangle />
+                                <span>{decryptError}</span>
+                            </div>
+                        </div>
+                    );
+                } else if (decryptedUrl) {
+                    return (
+                        <div className="attachment-container video-attachment">
+                            <video controls>
+                                <source src={decryptedUrl} type={fileData.type || fileData.fileType} />
+                                Your browser does not support the video tag.
+                            </video>
+                            {/* <div className="encryption-badge file-badge">
+                                <FaShieldAlt />
+                                <span>End-to-end encrypted</span>
+                            </div> */}
+                        </div>
+                    );
+                }
+            } else {
+                return (
+                    <div className="attachment-container video-attachment">
+                        <video controls>
+                            <source src={fileData.url || fileData.downloadURL} type={fileData.type || fileData.fileType} />
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                );
+            }
         }
 
         let icon = <FaFile />;
         if (fileType === 'document') icon = <FaFileAlt />;
         if (fileType === 'image') icon = <FaImage />;
         if (fileType === 'video') icon = <FaVideo />;
+
+        if (isEncrypted) {
+            if (decrypting) {
+                return (
+                    <div className="attachment-container file-attachment is-decrypting">
+                        <div className="decryption-loader">
+                            <LoadingSpinner />
+                            <span>Decrypting file...</span>
+                        </div>
+                    </div>
+                );
+            } else if (decryptError) {
+                return (
+                    <div className="attachment-container file-attachment error">
+                        <div className="error-message">
+                            <FaExclamationTriangle />
+                            <span>{decryptError}</span>
+                        </div>
+                    </div>
+                );
+            } else if (decryptedUrl) {
+                return (
+                    <div className="attachment-container file-attachment">
+                        <a href={decryptedUrl} target="_blank" rel="noopener noreferrer" download={fileData.name || fileData.fileName} className="file-download-link">
+                            <div className="file-icon">{icon}</div>
+                            <div className="file-info">
+                                <span className="file-name">{fileData.name || fileData.fileName || "File attachment"}</span>
+                                <span className="file-size">{fileData.size || fileData.fileSize ? `${((fileData.size || fileData.fileSize) / 1024).toFixed(2)} KB` : ''}</span>
+                            </div>
+                        </a>
+                        {/* <div className="encryption-badge file-badge">
+                            <FaShieldAlt />
+                            <span>End-to-end encrypted</span>
+                        </div> */}
+                    </div>
+                );
+            }
+        }
 
         return (
             <div className="attachment-container file-attachment">
@@ -612,13 +824,7 @@ const ConversationPage = () => {
                     />
                     <div className="encryption-notice">
                         <FaLock size={12} />
-                        <span>End-to-end encrypted messages</span>
-                        {attachment && (
-                            <div className="file-encryption-warning">
-                                <FaExclamationTriangle size={12} />
-                                <span>Note: Files are not encrypted</span>
-                            </div>
-                        )}
+                        <span>End-to-end encrypted messages and files</span>
                     </div>
                 </div>
             </div>

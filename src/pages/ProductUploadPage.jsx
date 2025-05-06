@@ -6,7 +6,7 @@ import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../context/ToastContext';
 import { sanitizeString } from '../utils/sanitizer';
 import '../styles/ProductUpload.css';
 

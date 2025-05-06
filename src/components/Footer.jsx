@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fa';
 import './Footer.css';
 import DailyNop from './DailyNop';
-import { useFeedback } from '../contexts/FeedbackContext';
+import { useFeedback } from '../context/FeedbackContext';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();

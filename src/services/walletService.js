@@ -842,6 +842,7 @@ class WalletService {
 
       const productData = productDoc.data();
       const designerId = productData.designerId;
+      const isDirectSell = productData.isDirectSell || false;
 
       if (!designerId) {
         return {
@@ -854,6 +855,7 @@ class WalletService {
       const productSaleAmount = saleAmount - shippingCost;
 
       // First, process business commission on the product amount only (not shipping)
+      // Always process commission for all products, including direct sell products
       const commissionResult = await this.processBusinessCommission(
         productSaleAmount,
         manufacturingCost,
@@ -868,13 +870,20 @@ class WalletService {
         : 0;
 
       // Next, distribute revenue to investors (exclude shipping from this calculation)
-      const distributionResult = await this.distributeInvestorRevenue(
-        productId,
-        productSaleAmount,
-        manufacturingCost,
-        quantity,
-        orderId
-      );
+      // Only for crowdfunded products (not direct sell)
+      let distributionResult = {
+        success: true,
+        data: { distributedAmount: 0 },
+      };
+      if (!isDirectSell) {
+        distributionResult = await this.distributeInvestorRevenue(
+          productId,
+          productSaleAmount,
+          manufacturingCost,
+          quantity,
+          orderId
+        );
+      }
 
       // Get total distributed to investors (default to 0 if there was an error)
       const investorDistribution = distributionResult.success
@@ -908,6 +917,7 @@ class WalletService {
           : null,
         designerPaymentResult: designerPaymentResult,
         message: "Sale processed successfully",
+        isDirectSell: isDirectSell,
       };
     } catch (error) {
       console.error("Error processing product sale:", error);

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion, collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
+import { useToast } from '../context/ToastContext'; // Updated import path
 import LoadingSpinner from '../components/LoadingSpinner';
 import InvestmentModal from '../components/InvestmentModal';
 import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal'; // Add import for new component

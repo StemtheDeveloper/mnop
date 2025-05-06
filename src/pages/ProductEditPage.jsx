@@ -6,7 +6,7 @@ import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../context/ToastContext';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import useLocalStorageForm from '../hooks/useLocalStorageForm'; // Import the new hook
 import '../styles/ProductUpload.css';
