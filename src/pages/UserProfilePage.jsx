@@ -137,9 +137,9 @@ const UserProfilePage = () => {
                 {role === 'manufacturer' && userProfile.manufacturerVerified && (
                     <span className="verification-badge" title="Verified Manufacturer">✓</span>
                 )}
-                {role === 'designer' && userProfile.designerVerified && (
+                {/* {role === 'designer' && userProfile.designerVerified && (
                     <span className="verification-badge" title="Verified Designer">✓</span>
-                )}
+                )} */}
             </div>
         ));
     };

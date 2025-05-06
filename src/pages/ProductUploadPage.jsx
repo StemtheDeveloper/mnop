@@ -37,7 +37,7 @@ const MAX_IMAGES = 5; // Maximum number of images allowed
 
 const ProductUploadPage = () => {
     const navigate = useNavigate();
-    const { currentUser, userRole, userProfile } = useUser();
+    const { currentUser, userRole, userProfile, hasRole } = useUser();
     const { success: showSuccess, error: showError } = useToast();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -96,11 +96,7 @@ const ProductUploadPage = () => {
     const [useCustomCategory, setUseCustomCategory] = useState(false);
 
     // Check if user has designer role
-    const isDesigner = userRole && (
-        typeof userRole === 'string' ?
-            userRole === 'designer' :
-            Array.isArray(userRole) && userRole.includes('designer')
-    );
+    const isDesigner = hasRole('designer');
 
     // Fetch categories on component mount
     useEffect(() => {

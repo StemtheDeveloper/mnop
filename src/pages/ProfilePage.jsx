@@ -1413,6 +1413,11 @@ const ProfilePage = () => {
         }
     };
 
+    // Handle navigation to edit product page
+    const handleEditProduct = (productId) => {
+        navigate(`/product-edit/${productId}`);
+    };
+
     const handleSaveShippingSettings = async () => {
         if (!userId || !hasRole('designer')) {
             setMessage({ type: 'error', text: 'You need to have designer role to save shipping settings.' });
