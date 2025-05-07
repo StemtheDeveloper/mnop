@@ -113,7 +113,7 @@
 .wallet-tabs::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
 }
-
+/*
 .tab-button {
   background: none;
   border: none;
@@ -126,7 +126,7 @@
   position: relative;
   white-space: nowrap;
   z-index: 1;
-  -webkit-tap-highlight-color: transparent; /* Remove mobile tap highlight */
+  -webkit-tap-highlight-color: transparent; 
 }
 
 .tab-button.active {
@@ -140,7 +140,7 @@
 .tab-button:hover {
   color: #ef3c23;
 }
-
+*/
 .tab-button:focus {
   outline: none;
   color: #ef3c23;
