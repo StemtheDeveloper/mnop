@@ -621,16 +621,35 @@ const CheckoutPage = () => {
             // Process payment based on selected method
             let paymentStatus = 'pending';
             let paymentMethod = selectedPaymentMethod;
+            let paymentTransactionId = null;
+            let paymentDetails = null;
 
             if (selectedPaymentMethod === 'wallet') {
                 // Deduct from wallet
                 try {
-                    await walletService.deductFunds(
+                    const deductResult = await walletService.deductFunds(
                         currentUser.uid,
                         total,
                         `Payment for order - ${cartItems.length} items`
                     );
-                    paymentStatus = 'paid';
+
+                    if (deductResult.success) {
+                        paymentStatus = 'paid';
+                        // Store transaction info for reference
+                        paymentTransactionId = deductResult.transactionId;
+
+                        // Add transaction information to the order data
+                        paymentDetails = {
+                            method: 'wallet',
+                            transactionId: deductResult.transactionId,
+                            cancellationExpiryTime: deductResult.cancellationExpiryTime,
+                            amount: total
+                        };
+                    } else {
+                        setError(deductResult.error || "Wallet payment failed. Please try again.");
+                        setProcessing(false);
+                        return;
+                    }
                 } catch (error) {
                     console.error("Wallet payment failed:", error);
                     setError("Wallet payment failed. Please try again or use a different payment method.");
@@ -667,6 +686,8 @@ const CheckoutPage = () => {
                 createdAt: serverTimestamp(),
                 paymentMethod: paymentMethod,
                 paymentStatus: paymentStatus,
+                paymentTransactionId: paymentTransactionId,
+                paymentDetails: paymentDetails,
                 estimatedDelivery: calculateEstimatedDelivery(formData.shippingMethod)
             };
 

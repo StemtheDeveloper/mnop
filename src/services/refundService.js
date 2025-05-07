@@ -525,12 +525,20 @@ class RefundService {
         const investorId = transaction.userId;
         const amount = transaction.amount;
 
-        // 1. Deduct from investor's wallet
-        await walletService.deductFunds(
+        // 1. Deduct from investor's wallet - specify that this is a direct deduction without cancellation period
+        const deductionResult = await walletService.deductFunds(
           investorId,
           amount,
           `Reversal of revenue share for refunded order #${orderId.slice(-6)}`
         );
+
+        if (!deductionResult.success) {
+          console.error(
+            `Failed to deduct funds from investor ${investorId}:`,
+            deductionResult.error
+          );
+          continue; // Skip to next investor if this one fails
+        }
 
         // 2. Record the reversal transaction
         await addDoc(collection(db, "transactions"), {
@@ -544,7 +552,7 @@ class RefundService {
           orderId,
           referencedTransactionId: doc.id,
           createdAt: serverTimestamp(),
-          status: "completed",
+          status: "completed", // Mark as completed immediately, no cancellation period
         });
 
         // 3. Notify the investor
@@ -602,7 +610,7 @@ class RefundService {
       const transactionsRef = collection(db, "transactions");
       const q = query(
         transactionsRef,
-        where("type", "==", "designer_commission"),
+        where("type", "==", "sales_payment"),
         where("productId", "==", productId),
         where("orderId", "==", orderId)
       );
@@ -610,8 +618,8 @@ class RefundService {
       const snapshot = await getDocs(q);
 
       if (snapshot.empty) {
-        // No designer commission to reverse
-        return { success: true, message: "No designer commission to reverse" };
+        // No designer payment to reverse
+        return { success: true, message: "No designer payment to reverse" };
       }
 
       // For each designer transaction, create a reversal
@@ -620,35 +628,43 @@ class RefundService {
         const amount = transaction.amount;
 
         // 1. Deduct from designer's wallet
-        await walletService.deductFunds(
+        const deductionResult = await walletService.deductFunds(
           designerId,
           amount,
-          `Reversal of commission for refunded order #${orderId.slice(-6)}`
+          `Reversal of payment for refunded order #${orderId.slice(-6)}`
         );
+
+        if (!deductionResult.success) {
+          console.error(
+            `Failed to deduct funds from designer ${designerId}:`,
+            deductionResult.error
+          );
+          continue; // Skip if deduction fails
+        }
 
         // 2. Record the reversal transaction
         await addDoc(collection(db, "transactions"), {
           userId: designerId,
-          type: "commission_reversal",
+          type: "payment_reversal",
           amount: -amount,
-          description: `Reversal of commission for refunded product (Order #${orderId.slice(
+          description: `Reversal of payment for refunded product (Order #${orderId.slice(
             -6
           )})`,
           productId,
           orderId,
           referencedTransactionId: doc.id,
           createdAt: serverTimestamp(),
-          status: "completed",
+          status: "completed", // Mark as completed immediately
         });
 
         // 3. Notify the designer
         await notificationService.createNotification(
           designerId,
-          "commission_reversal",
-          "Commission Reversed",
+          "payment_reversal",
+          "Product Payment Reversed",
           `Due to a refund, ${amount.toFixed(
             2
-          )} credits of commission from order #${orderId.slice(
+          )} credits of payment from order #${orderId.slice(
             -6
           )} has been reversed.`,
           `/dashboard`

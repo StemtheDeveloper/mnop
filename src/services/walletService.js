@@ -327,12 +327,48 @@ class WalletService {
         updatedAt: serverTimestamp(),
       });
 
-      // Record the transaction
-      await this.recordTransaction(userId, {
+      // Check if cancellation period testing is enabled and get the custom duration
+      let cancellationPeriodInMinutes = 60; // Default is 1 hour (60 minutes)
+
+      try {
+        const settingsRef = doc(db, "settings", "paymentSettings");
+        const settingsDoc = await getDoc(settingsRef);
+
+        if (settingsDoc.exists()) {
+          const settings = settingsDoc.data();
+
+          if (settings.enableCancellationPeriodTesting) {
+            cancellationPeriodInMinutes =
+              settings.cancellationPeriodMinutes || 60;
+            console.log(
+              `[WalletService] Using test cancellation period: ${cancellationPeriodInMinutes} minutes`
+            );
+          }
+        }
+      } catch (settingsError) {
+        console.error(
+          "Error reading cancellation period settings:",
+          settingsError
+        );
+        // Fallback to default value if there's an error
+      }
+
+      // Calculate cancellation period expiry
+      const cancellationExpiryTime = new Date();
+      cancellationExpiryTime.setMinutes(
+        cancellationExpiryTime.getMinutes() + cancellationPeriodInMinutes
+      );
+
+      // Record the transaction with cancellation period info
+      const transactionRef = await this.recordTransaction(userId, {
         type: "purchase",
         amount: -amount,
         description,
-        status: "completed",
+        status: "pending_confirmation",
+        cancellationPeriod: true,
+        cancellationExpiryTime: Timestamp.fromDate(cancellationExpiryTime),
+        statusMessage: `Transaction is within ${cancellationPeriodInMinutes}-minute cancellation period. You may be eligible to cancel your order.`,
+        createdAt: serverTimestamp(),
       });
 
       // Send notification for withdrawal
@@ -341,10 +377,172 @@ class WalletService {
       );
       await notificationService.sendTransferNotification(userId, amount, false); // false for withdrawal
 
-      return { success: true };
+      return {
+        success: true,
+        transactionId: transactionRef.id,
+        cancellationExpiryTime,
+      };
     } catch (error) {
       console.error("Error deducting funds:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Check and update transactions that have passed their cancellation period
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Result with success status and updated transactions
+   */
+  async updateTransactionCancellationStatus(userId) {
+    try {
+      const transactionsRef = collection(db, "transactions");
+      // Query transactions that are still in cancellation period
+      const q = query(
+        transactionsRef,
+        where("userId", "==", userId),
+        where("cancellationPeriod", "==", true),
+        where("status", "==", "pending_confirmation")
+      );
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        return {
+          success: true,
+          message: "No transactions in cancellation period found",
+          updated: 0,
+        };
+      }
+
+      const batch = writeBatch(db);
+      const now = new Date();
+      let updatedCount = 0;
+      const updatedTransactions = [];
+
+      for (const doc of snapshot.docs) {
+        const transaction = doc.data();
+        const transactionId = doc.id;
+        const cancellationExpiryTime =
+          transaction.cancellationExpiryTime?.toDate?.() ||
+          new Date(transaction.cancellationExpiryTime);
+
+        // If the cancellation period has expired
+        if (now > cancellationExpiryTime) {
+          batch.update(doc.ref, {
+            status: "completed",
+            cancellationPeriod: false,
+            confirmedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            statusMessage: "Transaction confirmed after cancellation period",
+          });
+
+          updatedCount++;
+          updatedTransactions.push({
+            id: transactionId,
+            ...transaction,
+            status: "completed",
+          });
+
+          // Send notification to user that transaction is now confirmed
+          try {
+            const notificationService = await import(
+              "./notificationService"
+            ).then((module) => module.default);
+
+            await notificationService.createNotification(
+              userId,
+              "transaction_confirmed",
+              "Transaction Confirmed",
+              `Your payment transaction of ${Math.abs(
+                transaction.amount
+              ).toFixed(2)} has been confirmed and is now final.`,
+              "/wallet"
+            );
+          } catch (notifError) {
+            console.error(
+              "Error sending transaction confirmation notification:",
+              notifError
+            );
+            // Continue execution even if notification fails
+          }
+        }
+      }
+
+      if (updatedCount > 0) {
+        await batch.commit();
+      }
+
+      return {
+        success: true,
+        updated: updatedCount,
+        updatedTransactions,
+      };
+    } catch (error) {
+      console.error("Error updating transaction cancellation status:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to update transaction status",
+      };
+    }
+  }
+
+  /**
+   * Add a method to add funds for refunds
+   * @param {string} userId - User ID
+   * @param {number} amount - Amount to add
+   * @param {string} description - Transaction description
+   * @returns {Promise<Object>} Result with success status
+   */
+  async addToWallet(userId, amount, description = "Refund") {
+    try {
+      if (!userId || !amount) {
+        return {
+          success: false,
+          error: "Missing required fields",
+        };
+      }
+
+      if (amount <= 0) {
+        return {
+          success: false,
+          error: "Amount must be greater than 0",
+        };
+      }
+
+      // Update the wallet balance
+      const walletRef = doc(db, "wallets", userId);
+      const walletDoc = await getDoc(walletRef);
+
+      if (walletDoc.exists()) {
+        // Update existing wallet
+        await updateDoc(walletRef, {
+          balance: increment(amount),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create wallet if it doesn't exist
+        await setDoc(walletRef, {
+          balance: amount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // Record the transaction
+      await this.recordTransaction(userId, {
+        type: "refund",
+        amount: amount,
+        description,
+        status: "completed",
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error adding funds to wallet:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to add funds to wallet",
+      };
     }
   }
 
@@ -1116,29 +1314,31 @@ class WalletService {
       ) {
         return {
           success: false,
-          error: "Insufficient funds in business account",
+          error: "Business account has insufficient funds for this transfer",
         };
       }
 
-      // 8. Begin transaction to transfer funds
+      // 8. Create batch for the transfer
       const batch = writeBatch(db);
 
-      // 8.1 Update business wallet
+      // 9. Deduct from business wallet
       batch.update(businessWalletRef, {
         balance: increment(-businessHeldFunds),
         updatedAt: serverTimestamp(),
       });
 
-      // 8.2 Update or create manufacturer wallet
+      // 10. Update manufacturer's wallet
       const manufacturerWalletRef = doc(db, "wallets", manufacturerId);
       const manufacturerWalletDoc = await getDoc(manufacturerWalletRef);
 
       if (manufacturerWalletDoc.exists()) {
+        // Update existing wallet
         batch.update(manufacturerWalletRef, {
           balance: increment(businessHeldFunds),
           updatedAt: serverTimestamp(),
         });
       } else {
+        // Create new wallet if needed
         batch.set(manufacturerWalletRef, {
           balance: businessHeldFunds,
           createdAt: serverTimestamp(),
@@ -1146,100 +1346,93 @@ class WalletService {
         });
       }
 
-      // 8.3 Update product status
+      // 11. Update product record to mark funds as transferred
       batch.update(productRef, {
-        manufacturerId,
-        manufacturerEmail,
-        businessHeldFunds: 0, // Reset held funds to 0
-        manufacturingStatus: "funded",
-        fundsSentToManufacturer: true,
-        manufacturingStartDate: serverTimestamp(),
+        businessHeldFunds: 0,
+        manufacturerFunded: true,
+        manufacturerFundedAt: serverTimestamp(),
+        manufacturerId: manufacturerId,
+        manufacturerEmail: manufacturerEmail,
+        manufacturerTransferAmount: businessHeldFunds,
       });
 
-      // 8.4 Create transaction records
-      // Business debit transaction
+      // 12. Record transaction for the business account (outgoing)
       const businessTransactionRef = doc(collection(db, "transactions"));
       batch.set(businessTransactionRef, {
         userId: "business",
         amount: -businessHeldFunds,
-        type: "manufacturing_transfer",
-        description: `Transferred funds to manufacturer for ${
+        type: "manufacturer_transfer",
+        description: `Funds transfer to manufacturer for ${
           productData.name || "product"
-        }`,
+        }${note ? ": " + note : ""}`,
         productId,
-        manufacturerId,
         designerId,
+        manufacturerId,
         createdAt: serverTimestamp(),
         status: "completed",
-        note: note || "Manufacturing funds transfer",
       });
 
-      // Manufacturer credit transaction
+      // 13. Record transaction for the manufacturer (incoming)
       const manufacturerTransactionRef = doc(collection(db, "transactions"));
       batch.set(manufacturerTransactionRef, {
         userId: manufacturerId,
         amount: businessHeldFunds,
-        type: "manufacturing_funds",
-        description: `Received manufacturing funds for ${
+        type: "manufacturer_funding",
+        description: `Funds received for manufacturing ${
           productData.name || "product"
-        }`,
+        }${note ? ": " + note : ""}`,
         productId,
         designerId,
         createdAt: serverTimestamp(),
         status: "completed",
-        note: note || "Manufacturing funds transfer",
       });
 
-      // Commit all changes
+      // 14. Commit all changes
       await batch.commit();
 
-      // 9. Send notifications to relevant parties
+      // 15. Send notifications to all parties
       const notificationService = await import("./notificationService").then(
         (module) => module.default
-      );
-
-      // Notify the designer
-      await notificationService.createNotification(
-        designerId,
-        "manufacturing",
-        "Funds Transferred to Manufacturer",
-        `$${businessHeldFunds.toFixed(
-          2
-        )} has been transferred to ${manufacturerEmail} for manufacturing ${
-          productData.name || "product"
-        }.`,
-        `/product/${productId}`
       );
 
       // Notify the manufacturer
       await notificationService.createNotification(
         manufacturerId,
-        "manufacturing",
+        "manufacturer_funding",
         "Manufacturing Funds Received",
-        `You've received $${businessHeldFunds.toFixed(2)} to manufacture ${
+        `You have received $${businessHeldFunds.toFixed(2)} to manufacture ${
           productData.name || "product"
         }.`,
+        `/manufacturer/dashboard`
+      );
+
+      // Notify the designer
+      await notificationService.createNotification(
+        designerId,
+        "funds_transferred",
+        "Funds Transferred to Manufacturer",
+        `$${businessHeldFunds.toFixed(2)} has been transferred to ${
+          manufacturerData.displayName || manufacturerEmail
+        } for manufacturing ${productData.name || "product"}.`,
         `/product/${productId}`
       );
 
-      // 10. Notify funders that manufacturing has begun
+      // Notify all investors about the manufacturing progress
       if (
         Array.isArray(productData.funders) &&
         productData.funders.length > 0
       ) {
-        for (const funderId of productData.funders) {
-          if (funderId !== designerId) {
-            // Don't notify the designer twice
-            await notificationService.createNotification(
-              funderId,
-              "manufacturing",
-              "Manufacturing Started",
-              `Manufacturing has begun for ${
-                productData.name || "product"
-              } that you funded.`,
-              `/product/${productId}`
-            );
-          }
+        for (const investorId of productData.funders) {
+          await notificationService.createNotification(
+            investorId,
+            "manufacturing_started",
+            "Manufacturing Started",
+            `A product you invested in (${productData.name || "product"}) 
+            is now moving to manufacturing with ${
+              manufacturerData.displayName || "the manufacturer"
+            }.`,
+            `/product/${productId}`
+          );
         }
       }
 
@@ -1248,7 +1441,7 @@ class WalletService {
         amount: businessHeldFunds,
         message: `Successfully transferred $${businessHeldFunds.toFixed(
           2
-        )} to manufacturer ${manufacturerEmail}`,
+        )} to manufacturer for ${productData.name || "product"}`,
       };
     } catch (error) {
       console.error("Error transferring funds to manufacturer:", error);
@@ -1260,13 +1453,13 @@ class WalletService {
   }
 
   /**
-   * Check and auto-transfer funds to pre-selected manufacturer if enabled
-   * @param {string} productId - Product ID that just got funded
-   * @returns {Promise<Object>} Result with success status
+   * Check and auto-transfer funds to pre-selected manufacturer when a product is fully funded
+   * @param {string} productId - Product ID to check
+   * @returns {Promise<Object>} Result of auto-transfer
    */
   async checkAndAutoTransferFunds(productId) {
     try {
-      // 1. Verify the product exists and is fully funded
+      // 1. Get the product data
       const productRef = doc(db, "products", productId);
       const productDoc = await getDoc(productRef);
 
@@ -1287,58 +1480,45 @@ class WalletService {
         };
       }
 
-      // 2. Check if product is fully funded
+      // 2. Check if product is fully funded and has business held funds
       const currentFunding = productData.currentFunding || 0;
       const fundingGoal = productData.fundingGoal || 0;
+      const businessHeldFunds = productData.businessHeldFunds || 0;
 
-      if (currentFunding < fundingGoal) {
+      if (currentFunding < fundingGoal || businessHeldFunds <= 0) {
         return {
           success: false,
-          error: "Product is not fully funded yet",
+          error: "Product is not fully funded or has no business-held funds",
         };
       }
 
-      // 3. Check if funds were already sent to manufacturer
-      if (productData.fundsSentToManufacturer || productData.manufacturerId) {
-        return {
-          success: false,
-          error: "Funds have already been transferred to a manufacturer",
-        };
-      }
-
-      // 4. Check designer settings for auto-transfer preference
+      // 3. Check designer settings for auto-transfer configuration
       const designerSettingsRef = doc(db, "designerSettings", designerId);
       const designerSettingsDoc = await getDoc(designerSettingsRef);
 
       if (!designerSettingsDoc.exists()) {
         return {
           success: false,
-          error: "No designer settings found",
+          error: "Designer settings not found",
         };
       }
 
       const designerSettings = designerSettingsDoc.data();
 
-      // Check if auto-transfer is enabled and if there's a pre-selected manufacturer
-      if (!designerSettings.autoTransferFunds) {
-        return {
-          success: false,
-          error: "Auto-transfer is not enabled for this designer",
-        };
-      }
-
-      // Check if there's a pre-selected manufacturer for this product
+      // 4. Check if auto-transfer is enabled and there's a pre-selected manufacturer
       const manufacturerSettings = designerSettings.manufacturerSettings || {};
+      const autoTransferEnabled =
+        manufacturerSettings.autoTransferEnabled || false;
       const preSelectedManufacturerId = manufacturerSettings[productId];
 
-      if (!preSelectedManufacturerId) {
+      if (!autoTransferEnabled || !preSelectedManufacturerId) {
         return {
           success: false,
-          error: "No pre-selected manufacturer found for this product",
+          error: "Auto-transfer not enabled or no pre-selected manufacturer",
         };
       }
 
-      // 5. Get manufacturer email (required for transferProductFundsToManufacturer)
+      // 5. Get manufacturer email
       const manufacturerRef = doc(db, "users", preSelectedManufacturerId);
       const manufacturerDoc = await getDoc(manufacturerRef);
 
@@ -1349,59 +1529,23 @@ class WalletService {
         };
       }
 
-      const manufacturerData = manufacturerDoc.data();
-      const manufacturerEmail = manufacturerData.email;
+      const manufacturerEmail = manufacturerDoc.data().email;
 
-      if (!manufacturerEmail) {
-        return {
-          success: false,
-          error: "Manufacturer email not found",
-        };
-      }
-
-      // 6. Transfer funds to the pre-selected manufacturer
-      const transferResult = await this.transferProductFundsToManufacturer(
+      // 6. Transfer funds to manufacturer
+      return await this.transferProductFundsToManufacturer(
         designerId,
         productId,
         manufacturerEmail,
-        "Auto-transferred funds for fully funded product"
+        "Auto-transferred funds for manufacturing"
       );
-
-      // 7. If successful, update product with information
-      if (transferResult.success) {
-        await updateDoc(productRef, {
-          autoTransferred: true,
-          autoTransferredAt: serverTimestamp(),
-        });
-
-        // Send an additional notification to the designer about the auto-transfer
-        const notificationService = await import("./notificationService").then(
-          (module) => module.default
-        );
-
-        await notificationService.createNotification(
-          designerId,
-          "manufacturing",
-          "Automatic Funds Transfer",
-          `Your product ${
-            productData.name || "product"
-          } was fully funded and funds ($${transferResult.amount.toFixed(
-            2
-          )}) were automatically transferred to your pre-selected manufacturer.`,
-          `/product/${productId}`
-        );
-      }
-
-      return transferResult;
     } catch (error) {
-      console.error("Error in auto-transfer process:", error);
+      console.error("Error in auto-transfer funds process:", error);
       return {
         success: false,
-        error: error.message || "Failed to auto-transfer funds to manufacturer",
+        error: error.message || "Failed to auto-transfer funds",
       };
     }
   }
 }
 
-const walletService = new WalletService();
-export default walletService;
+export default new WalletService();

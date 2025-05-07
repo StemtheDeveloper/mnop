@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext'; // Updated import path
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -27,6 +27,12 @@ const WalletPage = () => {
     const [activeTransactionType, setActiveTransactionType] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedMonths, setExpandedMonths] = useState({});
+    const [showCancellationModal, setShowCancellationModal] = useState(false);
+
+    // Interval reference for updating countdowns
+    const countdownInterval = useRef(null);
+    // Track whether any transactions are in the cancellation period
+    const [hasPendingTransactions, setHasPendingTransactions] = useState(false);
 
     // Cache manager - for tracking transaction fetch times
     const [lastFetchTime, setLastFetchTime] = useState(0);
@@ -128,6 +134,33 @@ const WalletPage = () => {
         return () => unsubscribe();
     }, [currentUser, loadWalletData]);
 
+    // Update transactions when they fall outside the cancellation period
+    const updateTransactionStatuses = useCallback(async () => {
+        if (!currentUser) return;
+
+        try {
+            const result = await walletService.updateTransactionCancellationStatus(currentUser.uid);
+            if (result.success && result.updated > 0) {
+                // If transactions were updated, refresh the transaction list
+                fetchTransactions(true);
+                showSuccess(`${result.updated} transaction(s) have been confirmed`);
+            }
+        } catch (error) {
+            console.error('[WalletPage] Error updating transaction statuses:', error);
+        }
+    }, [currentUser]);
+
+    // Set up interval to check for transactions that have fallen outside the cancellation period
+    useEffect(() => {
+        // Check on component mount
+        updateTransactionStatuses();
+
+        // Set up interval to check every minute
+        const intervalId = setInterval(updateTransactionStatuses, 60000);
+
+        return () => clearInterval(intervalId);
+    }, [updateTransactionStatuses]);
+
     // Function to load transactions - extracted so it can be called manually and for refreshing
     const fetchTransactions = useCallback(async (force = false) => {
         if (!currentUser) return;
@@ -147,6 +180,13 @@ const WalletPage = () => {
             setTransactions(txData || []);
             setLastFetchTime(now);
 
+            // Check if any transactions are in the cancellation period
+            const hasPending = (txData || []).some(tx =>
+                tx.cancellationPeriod === true &&
+                tx.status === 'pending_confirmation'
+            );
+            setHasPendingTransactions(hasPending);
+
             if (userHasRole('investor')) {
                 const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 50);
                 setInterestTransactions(interestTxData || []);
@@ -165,6 +205,30 @@ const WalletPage = () => {
             fetchTransactions(true);
         }
     }, [currentUser]); // Only depend on currentUser, not on fetchTransactions
+
+    // Update countdown timers for transactions in cancellation period
+    useEffect(() => {
+        // Cancel existing interval if any
+        if (countdownInterval.current) {
+            clearInterval(countdownInterval.current);
+        }
+
+        // If there are pending transactions, update their countdowns every second
+        if (hasPendingTransactions) {
+            countdownInterval.current = setInterval(() => {
+                setTransactions(prevTransactions => {
+                    // Force re-render by creating a new array
+                    return [...prevTransactions];
+                });
+            }, 1000);
+        }
+
+        return () => {
+            if (countdownInterval.current) {
+                clearInterval(countdownInterval.current);
+            }
+        };
+    }, [hasPendingTransactions]);
 
     // Refresh button handler
     const handleRefreshTransactions = () => {
@@ -349,6 +413,58 @@ const WalletPage = () => {
             : monthId === Object.keys(groupTransactionsByMonth(filteredAndSearchedTransactions()))[0];
     };
 
+    // Calculate time remaining in the cancellation period
+    const getTimeRemaining = (expiryTime) => {
+        const expiry = expiryTime instanceof Date ? expiryTime :
+            expiryTime?.toDate?.() ? expiryTime.toDate() :
+                new Date(expiryTime);
+
+        const now = new Date();
+        const diffMs = expiry - now;
+
+        if (diffMs <= 0) return { expired: true, display: "Expired" };
+
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffSecs = Math.floor((diffMs % 60000) / 1000);
+
+        return {
+            expired: false,
+            minutes: diffMins,
+            seconds: diffSecs,
+            display: `${diffMins}:${diffSecs.toString().padStart(2, '0')}`
+        };
+    };
+
+    // Transaction Status Indicator component
+    const TransactionStatusIndicator = ({ transaction }) => {
+        if (!transaction) return null;
+
+        if (transaction.cancellationPeriod && transaction.status === 'pending_confirmation') {
+            const timeRemaining = getTimeRemaining(transaction.cancellationExpiryTime);
+
+            return (
+                <>
+                    <span className="transaction-status-indicator cancellation-period"
+                        onClick={() => setShowCancellationModal(true)}>
+                        Within cancellation period
+                    </span>
+                    <div className="transaction-timer">
+                        <span className="timer-icon">⏱</span>
+                        <span className="countdown">Time remaining: {timeRemaining.display}</span>
+                    </div>
+                </>
+            );
+        } else if (transaction.status === 'confirmed') {
+            return (
+                <span className="transaction-status-indicator confirmed-transaction">
+                    Confirmed
+                </span>
+            );
+        }
+
+        return null;
+    };
+
     // Render roles badges 
     const renderRoleBadges = () => {
         if (!userRoles || userRoles.length === 0) {
@@ -366,6 +482,40 @@ const WalletPage = () => {
                         {role.charAt(0).toUpperCase() + role.slice(1)}
                     </div>
                 ))}
+            </div>
+        );
+    };
+
+    // Render cancellation period explanation modal
+    const renderCancellationModal = () => {
+        if (!showCancellationModal) return null;
+
+        return (
+            <div className="cancellation-explanation-modal">
+                <div className="cancellation-explanation-content">
+                    <div className="cancellation-explanation-header">
+                        <h3>Transaction Cancellation Period</h3>
+                        <button className="close-modal-button" onClick={() => setShowCancellationModal(false)}>×</button>
+                    </div>
+                    <div className="cancellation-explanation-body">
+                        <p>When you make a payment, the transaction enters a <strong>1-hour cancellation period</strong>. During this time:</p>
+                        <ul>
+                            <li>The funds are deducted from your wallet</li>
+                            <li>If you cancel your order within this period, you'll receive a full refund</li>
+                            <li>After the cancellation period ends, the transaction is confirmed</li>
+                        </ul>
+                        <p>This gives you time to change your mind about purchases while ensuring timely processing of your orders.</p>
+                    </div>
+                    <div className="cancellation-explanation-actions">
+                        <button
+                            className="close-modal-button"
+                            style={{ color: '#fff', background: '#ef3c23', padding: '8px 16px', borderRadius: '4px' }}
+                            onClick={() => setShowCancellationModal(false)}
+                        >
+                            Got it
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     };
@@ -536,17 +686,19 @@ const WalletPage = () => {
                                                     {month.transactions.map(transaction => (
                                                         <div key={transaction.id} className="transaction-item">
                                                             <div className="transaction-icon">
-                                                                {transaction.type === 'deposit' && <span className="icon deposit">+</span>}
-                                                                {transaction.type === 'transfer' && <span className="icon transfer">↑</span>}
-                                                                {transaction.type === 'purchase' && <span className="icon purchase">-</span>}
-                                                                {transaction.type === 'investment' && <span className="icon investment">↗</span>}
-                                                                {transaction.type === 'interest' && <span className="icon interest">%</span>}
-                                                                {!['deposit', 'transfer', 'purchase', 'investment', 'interest'].includes(transaction.type) &&
+                                                                {transaction.status === 'pending_confirmation' && <span className="icon pending_confirmation">⏱</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'deposit' && <span className="icon deposit">+</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'transfer' && <span className="icon transfer">↑</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'purchase' && <span className="icon purchase">-</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'investment' && <span className="icon investment">↗</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'interest' && <span className="icon interest">%</span>}
+                                                                {transaction.status !== 'pending_confirmation' && !['deposit', 'transfer', 'purchase', 'investment', 'interest'].includes(transaction.type) &&
                                                                     <span className="icon other">•</span>}
                                                             </div>
                                                             <div className="transaction-details">
                                                                 <div className="transaction-description">
                                                                     {transaction.description || 'Transaction'}
+                                                                    <TransactionStatusIndicator transaction={transaction} />
                                                                 </div>
                                                                 <div className="transaction-date">
                                                                     {formatDate(transaction.createdAt)}
@@ -711,6 +863,7 @@ const WalletPage = () => {
                     )}
                 </div>
             </div>
+            {renderCancellationModal()}
         </div>
     );
 };
