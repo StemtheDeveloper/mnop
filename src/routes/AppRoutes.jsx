@@ -55,6 +55,7 @@ const CookieManagementPage = lazy(() => import('../pages/CookieManagementPage'))
 const WishlistPage = lazy(() => import('../pages/WishlistPage')); // Import WishlistPage
 const MfaSetupPage = lazy(() => import('../pages/MfaSetupPage')); // Import MFA Setup Page
 const RegisterInvestorPage = lazy(() => import('../pages/RegisterInvestorPage')); // Import RegisterInvestorPage
+const VerificationRequestPage = lazy(() => import('../pages/VerificationRequestPage')); // Import VerificationRequestPage
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -184,6 +185,11 @@ const AppRoutes = () => {
                         <RegisterInvestorPage />
                     </AuthGuard>
                 } />
+                <Route path="/verification-request/:role" element={
+                    <AuthGuard>
+                        <VerificationRequestPage />
+                    </AuthGuard>
+                } />
 
                 {/* Role-specific Routes */}
                 <Route path="/designer/quotes" element={
@@ -259,6 +265,11 @@ const AppRoutes = () => {
                 <Route path="/admin/feedback" element={
                     <AuthGuard allowedRoles="admin">
                         <FeedbackAdminPage />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/verification-requests" element={
+                    <AuthGuard allowedRoles="admin">
+                        <VerificationRequestPage />
                     </AuthGuard>
                 } />
 
