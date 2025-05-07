@@ -957,6 +957,25 @@ class WalletService {
         };
       }
 
+      // Update business wallet balance
+      const businessWalletRef = doc(db, "wallets", "business");
+      const businessWalletDoc = await getDoc(businessWalletRef);
+
+      if (businessWalletDoc.exists()) {
+        // Update existing wallet
+        await updateDoc(businessWalletRef, {
+          balance: increment(roundedCommission),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create business wallet if it doesn't exist
+        await setDoc(businessWalletRef, {
+          balance: roundedCommission,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
       // Record transaction for business account
       await this.recordTransaction("business", {
         amount: roundedCommission,

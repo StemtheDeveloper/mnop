@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   increment,
   Timestamp,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
 import walletService from "./walletService";
@@ -719,23 +720,25 @@ class RefundService {
 
         if (!businessWalletDoc.exists()) {
           console.error("Business wallet not found");
-          continue;
-        }
+          // Create it instead of skipping
+          await setDoc(businessWalletRef, {
+            balance: -amount, // Start with negative balance to reflect the reversal
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          // Ensure business has sufficient funds
+          const businessWallet = businessWalletDoc.data();
 
-        // Ensure business has sufficient funds
-        const businessWallet = businessWalletDoc.data();
-        if (businessWallet.balance < amount) {
-          console.error(
-            "Business wallet has insufficient funds for commission reversal"
-          );
-          continue;
-        }
+          // Skip the sufficient funds check - we want to process the refund
+          // even if the business account has insufficient funds
 
-        // Update business wallet by deducting the commission amount
-        await updateDoc(businessWalletRef, {
-          balance: increment(-amount),
-          updatedAt: serverTimestamp(),
-        });
+          // Update business wallet by deducting the commission amount
+          await updateDoc(businessWalletRef, {
+            balance: increment(-amount),
+            updatedAt: serverTimestamp(),
+          });
+        }
 
         // Record the commission reversal transaction
         await walletService.recordTransaction("business", {
