@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import './ToastNotification.css';
+import '../styles/ToastNotification.css';
 
 const ToastNotification = ({ message, type, onClose, duration = 5000 }) => {
   useEffect(() => {

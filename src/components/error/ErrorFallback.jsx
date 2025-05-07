@@ -1,5 +1,5 @@
 import React from 'react';
-import './ErrorBoundary.css';
+import '../../styles/ErrorBoundary.css';
 
 /**
  * A fallback component to display when an error occurs

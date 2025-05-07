@@ -113,7 +113,8 @@
 .wallet-tabs::-webkit-scrollbar {
   display: none; /* Chrome, Safari, Opera */
 }
-/*
+
+/* Tab button styles - commented out for maintenance
 .tab-button {
   background: none;
   border: none;
@@ -141,6 +142,7 @@
   color: #ef3c23;
 }
 */
+
 .tab-button:focus {
   outline: none;
   color: #ef3c23;

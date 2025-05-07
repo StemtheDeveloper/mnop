@@ -165,3 +165,90 @@ table {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Standardized alert/message styles to replace duplicates throughout app */
+.message,
+.error-message,
+.success-message,
+.info-message,
+.warning-message {
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Error messages */
+.error-message {
+  background-color: #ffebee;
+  color: #c62828;
+  border-left: 4px solid #f44336;
+}
+
+/* Success messages */
+.success-message {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-left: 4px solid #4caf50;
+}
+
+/* Info messages */
+.info-message {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  border-left: 4px solid #2196f3;
+}
+
+/* Warning messages */
+.warning-message {
+  background-color: #fff8e1;
+  color: #f57f17;
+  border-left: 4px solid #ffeb3b;
+}
+
+/* Standardized button styles */
+.btn {
+  display: inline-block;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid transparent;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: #ef3c23;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #d43418;
+}
+
+.btn-secondary {
+  background-color: #3949ab;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #303f9f;
+}
+
+.btn-success {
+  background-color: #4caf50;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #388e3c;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
