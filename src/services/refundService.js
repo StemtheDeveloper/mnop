@@ -709,8 +709,8 @@ class RefundService {
       }
 
       // For each commission transaction, create a reversal
-      for (const doc of snapshot.docs) {
-        const transaction = doc.data();
+      for (const transaction_doc of snapshot.docs) {
+        const transaction = transaction_doc.data();
         const amount = transaction.amount;
 
         // Get business wallet
@@ -746,7 +746,7 @@ class RefundService {
           )})`,
           productId,
           orderId,
-          referencedTransactionId: doc.id,
+          referencedTransactionId: transaction_doc.id,
           status: "completed",
         });
       }
