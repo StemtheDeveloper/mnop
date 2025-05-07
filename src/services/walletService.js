@@ -563,37 +563,80 @@ class WalletService {
   /**
    * Get transaction history for a user
    * @param {string} userId - User ID
-   * @param {number} limit - Maximum number of transactions to return
+   * @param {number} limitCount - Maximum number of transactions to return
    * @returns {Promise<Array>} - Transaction history
    */
-  async getTransactionHistory(userId, limitCount = 50) {
+  async getTransactionHistory(userId, limitCount = 200) {
     try {
+      console.log(
+        `[WalletService] Getting transaction history for ${userId}, limit: ${limitCount}`
+      );
       const transactionsRef = collection(db, "transactions");
 
-      // Use a simple query without ordering to avoid index issues
+      // Use a compound query with ordering for better results
+      // This query pattern requires an index on userId + createdAt (desc)
       const q = query(
         transactionsRef,
         where("userId", "==", userId),
+        orderBy("createdAt", "desc"), // Sort by createdAt in descending order
         limit(limitCount)
       );
 
+      console.log("[WalletService] Executing transactions query");
       const snapshot = await getDocs(q);
+      console.log(`[WalletService] Found ${snapshot.size} transactions`);
 
-      // Sort on client side
+      // Map to proper transaction objects
       const transactions = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
 
-      // Sort by createdAt in descending order (newest first)
-      return transactions.sort((a, b) => {
-        const dateA = a.createdAt?.toDate?.() || new Date(0);
-        const dateB = b.createdAt?.toDate?.() || new Date(0);
-        return dateB - dateA;
-      });
+      // Return transactions already sorted by createdAt in descending order
+      return transactions;
     } catch (error) {
       console.error("Error getting transaction history:", error);
-      return []; // Return an empty array on error instead of retrying
+
+      // If there's an index error, try again with the old query method
+      if (error.message && error.message.includes("index")) {
+        console.log(
+          "[WalletService] Index error, falling back to simpler query"
+        );
+        try {
+          // Fallback to simpler query without ordering
+          const fallbackQuery = query(
+            collection(db, "transactions"),
+            where("userId", "==", userId),
+            limit(limitCount)
+          );
+
+          const snapshot = await getDocs(fallbackQuery);
+          console.log(
+            `[WalletService] Fallback query found ${snapshot.size} transactions`
+          );
+
+          // Sort on client side
+          const transactions = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+
+          // Sort by createdAt in descending order (newest first)
+          return transactions.sort((a, b) => {
+            const dateA = a.createdAt?.toDate?.() || new Date(0);
+            const dateB = b.createdAt?.toDate?.() || new Date(0);
+            return dateB - dateA;
+          });
+        } catch (fallbackError) {
+          console.error(
+            "[WalletService] Even fallback query failed:",
+            fallbackError
+          );
+          return []; // Return empty array if both approaches fail
+        }
+      }
+
+      return []; // Return an empty array on error
     }
   }
 

@@ -6,7 +6,7 @@ import walletService from '../services/walletService';
 import interestService from '../services/interestService';
 import InterestRatesPanel from '../components/InterestRatesPanel'; // Import InterestRatesPanel
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { doc, onSnapshot } from 'firebase/firestore';  // Import for real-time updates
+import { doc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';  // Import for real-time updates
 import { db } from '../config/firebase';  // Import Firestore db
 import '../styles/WalletPage.css';
 
@@ -36,7 +36,7 @@ const WalletPage = () => {
 
     // Cache manager - for tracking transaction fetch times
     const [lastFetchTime, setLastFetchTime] = useState(0);
-    const CACHE_TIMEOUT = 60000; // 1 minute cache timeout
+    const CACHE_TIMEOUT = 30000; // 30 second cache timeout (reduced from 60s)
 
     // Transfer state
     const [transferTo, setTransferTo] = useState('');
@@ -106,7 +106,7 @@ const WalletPage = () => {
         }
     }, [currentUser, showError]);
 
-    // Set up real-time listener for just the wallet balance
+    // Set up real-time listener for wallet balance
     useEffect(() => {
         let unsubscribe = () => { };
 
@@ -122,17 +122,70 @@ const WalletPage = () => {
                 },
                 (error) => {
                     console.error("[WalletPage] Error in wallet listener:", error);
-                    // Only do a manual fetch if the listener fails
                     loadWalletData();
                 }
             );
         }
 
-        // Run initial load
         loadWalletData();
-
         return () => unsubscribe();
     }, [currentUser, loadWalletData]);
+
+    // NEW: Set up real-time listener for transactions
+    useEffect(() => {
+        let unsubscribe = () => { };
+
+        if (currentUser) {
+            try {
+                console.log('[WalletPage] Setting up real-time transaction listener');
+                const transactionsRef = collection(db, "transactions");
+                const q = query(
+                    transactionsRef,
+                    where("userId", "==", currentUser.uid),
+                    orderBy("createdAt", "desc"),
+                    limit(100)
+                );
+
+                unsubscribe = onSnapshot(
+                    q,
+                    (snapshot) => {
+                        console.log(`[WalletPage] Real-time update received - ${snapshot.size} transactions`);
+                        const updatedTransactions = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data(),
+                        }));
+
+                        // Check if we actually have new data
+                        if (updatedTransactions.length !== transactions.length) {
+                            console.log('[WalletPage] Transaction count changed, updating state');
+                            setTransactions(updatedTransactions);
+                            setLastFetchTime(Date.now());
+
+                            // Check for pending transactions
+                            const hasPending = updatedTransactions.some(tx =>
+                                tx.cancellationPeriod === true &&
+                                tx.status === 'pending_confirmation'
+                            );
+                            setHasPendingTransactions(hasPending);
+                        } else {
+                            console.log('[WalletPage] No change in transaction count');
+                        }
+                    },
+                    (error) => {
+                        console.error("[WalletPage] Error in transaction listener:", error);
+                        // Fall back to manual fetch on error
+                        fetchTransactions(true);
+                    }
+                );
+            } catch (error) {
+                console.error("[WalletPage] Failed to set up transaction listener:", error);
+                // If listener setup fails, fall back to manual fetch
+                fetchTransactions(true);
+            }
+        }
+
+        return () => unsubscribe();
+    }, [currentUser]);
 
     // Update transactions when they fall outside the cancellation period
     const updateTransactionStatuses = useCallback(async () => {
@@ -161,7 +214,7 @@ const WalletPage = () => {
         return () => clearInterval(intervalId);
     }, [updateTransactionStatuses]);
 
-    // Function to load transactions - extracted so it can be called manually and for refreshing
+    // Modified transaction fetch function - now a fallback for when listeners fail
     const fetchTransactions = useCallback(async (force = false) => {
         if (!currentUser) return;
 
@@ -175,36 +228,41 @@ const WalletPage = () => {
         setTransactionError(null);
 
         try {
-            console.log('[WalletPage] Fetching transactions...');
-            const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
-            setTransactions(txData || []);
-            setLastFetchTime(now);
+            console.log('[WalletPage] Manual fetching of transactions...');
+            const txData = await walletService.getTransactionHistory(currentUser.uid, 200); // Increased limit to 200
+            console.log(`[WalletPage] Manually fetched ${txData.length} transactions`);
 
-            // Check if any transactions are in the cancellation period
-            const hasPending = (txData || []).some(tx =>
-                tx.cancellationPeriod === true &&
-                tx.status === 'pending_confirmation'
-            );
-            setHasPendingTransactions(hasPending);
+            if (txData.length > 0) {
+                setTransactions(txData);
+                setLastFetchTime(now);
+
+                // Check if any transactions are in the cancellation period
+                const hasPending = txData.some(tx =>
+                    tx.cancellationPeriod === true &&
+                    tx.status === 'pending_confirmation'
+                );
+                setHasPendingTransactions(hasPending);
+            }
 
             if (userHasRole('investor')) {
-                const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 50);
+                const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 100);
+                console.log(`[WalletPage] Fetched ${interestTxData.length} interest transactions`);
                 setInterestTransactions(interestTxData || []);
             }
         } catch (error) {
-            console.error('[WalletPage] Error fetching transactions:', error);
+            console.error('[WalletPage] Error manually fetching transactions:', error);
             setTransactionError('Failed to load transaction history');
         } finally {
             setTransactionLoading(false);
         }
-    }, [currentUser, userHasRole, transactions.length, lastFetchTime, CACHE_TIMEOUT]);
+    }, [currentUser, userHasRole]);
 
-    // Load transactions only once when component mounts
+    // Only run initial transaction fetch when needed (fallback or when real-time listener isn't available)
     useEffect(() => {
-        if (currentUser) {
+        if (currentUser && transactions.length === 0) {
             fetchTransactions(true);
         }
-    }, [currentUser]); // Only depend on currentUser, not on fetchTransactions
+    }, [currentUser, fetchTransactions, transactions.length]);
 
     // Update countdown timers for transactions in cancellation period
     useEffect(() => {
@@ -250,7 +308,7 @@ const WalletPage = () => {
         }
     };
 
-    // Handle transfer submission
+    // Modified transfer submission to handle immediate updates better
     const handleTransfer = async (e) => {
         e.preventDefault();
 
@@ -293,8 +351,8 @@ const WalletPage = () => {
                 setTransferNote('');
                 showSuccess(`Successfully transferred ${formatCurrency(amount)} to ${transferTo}`);
 
-                // Force refresh transactions
-                fetchTransactions(true);
+                // Force refresh transactions only if real-time listener might not catch it
+                setTimeout(() => fetchTransactions(true), 500);
             } else {
                 setTransferError(result.error || 'Transfer failed. Please try again.');
             }
@@ -306,7 +364,7 @@ const WalletPage = () => {
         }
     };
 
-    // Handle deposit submission
+    // Modified deposit submission to handle immediate updates better
     const handleDeposit = async (e) => {
         e.preventDefault();
 
@@ -335,8 +393,8 @@ const WalletPage = () => {
                 setDepositSuccess(`Successfully added ${formatCurrency(amount)} to your wallet`);
                 showSuccess(`Added ${formatCurrency(amount)} to your wallet`);
 
-                // Force refresh transactions
-                fetchTransactions(true);
+                // Force refresh transactions only if real-time listener might not catch it
+                setTimeout(() => fetchTransactions(true), 500);
             } else {
                 setDepositError(result.error || 'Deposit failed. Please try again.');
             }
@@ -705,7 +763,7 @@ const WalletPage = () => {
                                                                 </div>
                                                                 {transaction.balanceSnapshot !== undefined && (
                                                                     <div className="balance-snapshot">
-                                                                        Balance before: {formatCurrency(transaction.balanceSnapshot)}
+                                                                        Balance: {formatCurrency(transaction.balanceSnapshot)}
                                                                     </div>
                                                                 )}
                                                             </div>
