@@ -419,8 +419,7 @@ class RefundService {
       }
 
       // 2. Record the refund transaction
-      await addDoc(collection(db, "transactions"), {
-        userId,
+      await walletService.recordTransaction(userId, {
         type: "refund",
         amount: refundAmount,
         description: `Refund for order #${orderId.slice(-6)}${
@@ -428,20 +427,27 @@ class RefundService {
         }`,
         orderId,
         status: "completed",
-        createdAt: serverTimestamp(),
         processedBy: adminId,
       });
 
-      // 3. For each product in the refunded items, process investor revenue reversal
+      // 3. Process refunds for all stakeholders
       for (const item of itemsToRefund) {
+        // Reverse investor revenue if applicable
         await this.reverseInvestorRevenue(
           item.id,
           item.price * item.quantity,
           orderId
         );
 
-        // If the product has a designer, retrieve business commission from the designer
+        // Reverse designer payment if applicable
         await this.reverseDesignerRevenue(
+          item.id,
+          item.price * item.quantity,
+          orderId
+        );
+
+        // Reverse business commission for direct sell and crowdfunded products
+        await this.reverseBusinessCommission(
           item.id,
           item.price * item.quantity,
           orderId
@@ -541,8 +547,7 @@ class RefundService {
         }
 
         // 2. Record the reversal transaction
-        await addDoc(collection(db, "transactions"), {
-          userId: investorId,
+        await walletService.recordTransaction(investorId, {
           type: "revenue_reversal",
           amount: -amount,
           description: `Reversal of revenue share for refunded product (Order #${orderId.slice(
@@ -551,7 +556,6 @@ class RefundService {
           productId,
           orderId,
           referencedTransactionId: doc.id,
-          createdAt: serverTimestamp(),
           status: "completed", // Mark as completed immediately, no cancellation period
         });
 
@@ -643,8 +647,7 @@ class RefundService {
         }
 
         // 2. Record the reversal transaction
-        await addDoc(collection(db, "transactions"), {
-          userId: designerId,
+        await walletService.recordTransaction(designerId, {
           type: "payment_reversal",
           amount: -amount,
           description: `Reversal of payment for refunded product (Order #${orderId.slice(
@@ -653,7 +656,6 @@ class RefundService {
           productId,
           orderId,
           referencedTransactionId: doc.id,
-          createdAt: serverTimestamp(),
           status: "completed", // Mark as completed immediately
         });
 
@@ -677,6 +679,87 @@ class RefundService {
       return {
         success: false,
         error: error.message || "Failed to reverse designer revenue",
+      };
+    }
+  }
+
+  /**
+   * Reverse business commission for a refunded product
+   * @param {string} productId - Product ID
+   * @param {number} saleAmount - Sale amount to reverse
+   * @param {string} orderId - Order ID for reference
+   * @returns {Promise<Object>} Result of commission reversal
+   */
+  async reverseBusinessCommission(productId, saleAmount, orderId) {
+    try {
+      // Check if there was a business commission transaction for this order
+      const transactionsRef = collection(db, "transactions");
+      const q = query(
+        transactionsRef,
+        where("type", "==", "commission"),
+        where("productId", "==", productId),
+        where("orderId", "==", orderId)
+      );
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        // No commission to reverse
+        return { success: true, message: "No business commission to reverse" };
+      }
+
+      // For each commission transaction, create a reversal
+      for (const doc of snapshot.docs) {
+        const transaction = doc.data();
+        const amount = transaction.amount;
+
+        // Get business wallet
+        const businessWalletRef = doc(db, "wallets", "business");
+        const businessWalletDoc = await getDoc(businessWalletRef);
+
+        if (!businessWalletDoc.exists()) {
+          console.error("Business wallet not found");
+          continue;
+        }
+
+        // Ensure business has sufficient funds
+        const businessWallet = businessWalletDoc.data();
+        if (businessWallet.balance < amount) {
+          console.error(
+            "Business wallet has insufficient funds for commission reversal"
+          );
+          continue;
+        }
+
+        // Update business wallet by deducting the commission amount
+        await updateDoc(businessWalletRef, {
+          balance: increment(-amount),
+          updatedAt: serverTimestamp(),
+        });
+
+        // Record the commission reversal transaction
+        await walletService.recordTransaction("business", {
+          type: "commission_reversal",
+          amount: -amount,
+          description: `Reversal of commission for refunded product (Order #${orderId.slice(
+            -6
+          )})`,
+          productId,
+          orderId,
+          referencedTransactionId: doc.id,
+          status: "completed",
+        });
+      }
+
+      return {
+        success: true,
+        message: "Business commission successfully reversed",
+      };
+    } catch (error) {
+      console.error("Error reversing business commission:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to reverse business commission",
       };
     }
   }

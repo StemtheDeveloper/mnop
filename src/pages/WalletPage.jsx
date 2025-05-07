@@ -703,6 +703,11 @@ const WalletPage = () => {
                                                                 <div className="transaction-date">
                                                                     {formatDate(transaction.createdAt)}
                                                                 </div>
+                                                                {transaction.balanceSnapshot !== undefined && (
+                                                                    <div className="balance-snapshot">
+                                                                        Balance before: {formatCurrency(transaction.balanceSnapshot)}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             <div className={`transaction-amount ${transaction.amount < 0 ? 'negative' : 'positive'}`}>
                                                                 {transaction.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(transaction.amount))}

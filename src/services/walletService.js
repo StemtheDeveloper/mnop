@@ -98,9 +98,23 @@ class WalletService {
     try {
       const transactionRef = collection(db, "transactions");
 
+      // Get current wallet balance to include with the transaction record
+      let balanceSnapshot = 0;
+      try {
+        const walletRef = doc(db, "wallets", userId);
+        const walletDoc = await getDoc(walletRef);
+        if (walletDoc.exists()) {
+          balanceSnapshot = walletDoc.data().balance || 0;
+        }
+      } catch (error) {
+        console.error("Error getting balance snapshot:", error);
+        // Continue with transaction creation even if balance fetch fails
+      }
+
       const transaction = {
         userId,
         ...transactionData,
+        balanceSnapshot, // Include the wallet balance at transaction time
         createdAt: serverTimestamp(),
       };
 
@@ -676,26 +690,20 @@ class WalletService {
 
       // 5. Add transaction records
       // 5.1 Record the investment for the user
-      const userTransactionRef = doc(collection(db, "transactions"));
-      batch.set(userTransactionRef, {
-        userId,
+      await this.recordTransaction(userId, {
         amount: -amount,
         type: "investment",
         description: `Investment in ${productData.name || "product"}`,
         productId,
-        createdAt: serverTimestamp(),
         status: "completed",
       });
 
       // 5.2 Record the deposit to the business account
-      const businessTransactionRef = doc(collection(db, "transactions"));
-      batch.set(businessTransactionRef, {
-        userId: "business",
+      await this.recordTransaction("business", {
         amount: amount,
         type: "funding_hold",
         description: `Holding funds for ${productData.name || "product"}`,
         productId,
-        createdAt: serverTimestamp(),
         status: "pending", // Funds are pending until they can be sent to the manufacturer
         investmentId: investmentRef.id,
         investorId: userId,
@@ -863,6 +871,7 @@ class WalletService {
    * @param {number} quantity - The quantity of items sold
    * @param {string} productId - The product ID
    * @param {string} productName - The product name
+   * @param {string} orderId - The order ID reference
    * @returns {Promise<Object>} Result with success status and commission amount
    */
   async processBusinessCommission(
@@ -870,7 +879,8 @@ class WalletService {
     manufacturingCost,
     quantity = 1,
     productId,
-    productName
+    productName,
+    orderId
   ) {
     try {
       // Get business account settings
@@ -904,44 +914,17 @@ class WalletService {
         };
       }
 
-      // Get business wallet reference
-      const businessWalletRef = doc(db, "wallets", "business");
-      const businessWalletDoc = await getDoc(businessWalletRef);
-
-      // Create batch for transaction
-      const batch = writeBatch(db);
-
-      if (businessWalletDoc.exists()) {
-        // Update existing wallet
-        batch.update(businessWalletRef, {
-          balance: increment(roundedCommission),
-          updatedAt: serverTimestamp(),
-        });
-      } else {
-        // Create business wallet if it doesn't exist
-        batch.set(businessWalletRef, {
-          balance: roundedCommission,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }
-
       // Record transaction for business account
-      const transactionRef = doc(collection(db, "transactions"));
-      batch.set(transactionRef, {
-        userId: "business", // Special ID for business account
+      await this.recordTransaction("business", {
         amount: roundedCommission,
         type: "commission",
         description: `Commission from sale of ${productName || "product"}`,
         productId,
+        orderId, // Add orderId reference for refund tracking
         commissionRate: settings.commissionRate,
         saleAmount,
-        createdAt: serverTimestamp(),
         status: "completed",
       });
-
-      // Commit the batch
-      await batch.commit();
 
       return {
         success: true,
@@ -978,6 +961,60 @@ class WalletService {
     orderId
   ) {
     try {
+      // Add detailed logging to identify which parameter is invalid
+      console.log("Revenue distribution parameters:", {
+        productId,
+        saleAmount,
+        manufacturingCost,
+        quantity,
+        orderId,
+      });
+
+      // Validate parameters before calling the cloud function
+      if (!productId || typeof productId !== "string") {
+        console.error("Invalid productId:", productId);
+        return {
+          success: false,
+          error: "Invalid productId",
+        };
+      }
+
+      if (!saleAmount || isNaN(saleAmount) || saleAmount <= 0) {
+        console.error("Invalid saleAmount:", saleAmount);
+        return {
+          success: false,
+          error: "Invalid saleAmount",
+        };
+      }
+
+      if (
+        manufacturingCost === undefined ||
+        manufacturingCost === null ||
+        isNaN(manufacturingCost)
+      ) {
+        console.error("Invalid manufacturingCost:", manufacturingCost);
+        return {
+          success: false,
+          error: "Invalid manufacturingCost",
+        };
+      }
+
+      if (!quantity || isNaN(quantity) || quantity <= 0) {
+        console.error("Invalid quantity:", quantity);
+        return {
+          success: false,
+          error: "Invalid quantity",
+        };
+      }
+
+      if (!orderId || typeof orderId !== "string") {
+        console.error("Invalid orderId:", orderId);
+        return {
+          success: false,
+          error: "Invalid orderId",
+        };
+      }
+
       // Use Firebase Cloud Function to distribute revenue
       const functions = getFunctions();
       const distributeRevenue = httpsCallable(
@@ -1059,7 +1096,8 @@ class WalletService {
         manufacturingCost,
         quantity,
         productId,
-        productName
+        productName,
+        orderId // This is the parameter that was missing
       );
 
       // Get commission amount (default to 0 if there was an error)
@@ -1171,15 +1209,12 @@ class WalletService {
       }
 
       // Record payment transaction
-      const transactionRef = doc(collection(db, "transactions"));
-      batch.set(transactionRef, {
-        userId: designerId,
+      await this.recordTransaction(designerId, {
         amount: roundedAmount,
         type: "sales_payment",
         description: `Payment for sale of ${productName || "product"}`,
         productId,
         orderId,
-        createdAt: serverTimestamp(),
         status: "completed",
       });
 
@@ -1357,9 +1392,7 @@ class WalletService {
       });
 
       // 12. Record transaction for the business account (outgoing)
-      const businessTransactionRef = doc(collection(db, "transactions"));
-      batch.set(businessTransactionRef, {
-        userId: "business",
+      await this.recordTransaction("business", {
         amount: -businessHeldFunds,
         type: "manufacturer_transfer",
         description: `Funds transfer to manufacturer for ${
@@ -1368,14 +1401,11 @@ class WalletService {
         productId,
         designerId,
         manufacturerId,
-        createdAt: serverTimestamp(),
         status: "completed",
       });
 
       // 13. Record transaction for the manufacturer (incoming)
-      const manufacturerTransactionRef = doc(collection(db, "transactions"));
-      batch.set(manufacturerTransactionRef, {
-        userId: manufacturerId,
+      await this.recordTransaction(manufacturerId, {
         amount: businessHeldFunds,
         type: "manufacturer_funding",
         description: `Funds received for manufacturing ${
@@ -1383,7 +1413,6 @@ class WalletService {
         }${note ? ": " + note : ""}`,
         productId,
         designerId,
-        createdAt: serverTimestamp(),
         status: "completed",
       });
 
