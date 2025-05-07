@@ -1,14 +1,9 @@
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-} from "firebase/firestore";
-import { db } from "../config/firebase";
+import { db } from '../config/firebase';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 
+/**
+ * Service for handling verification requests and verification status
+ */
 class VerificationService {
   /**
    * Verify a user as a manufacturer or designer
@@ -59,78 +54,175 @@ class VerificationService {
   }
 
   /**
-   * Get all users with a specific role
-   * @param {string} role - Role to filter by (manufacturer or designer)
-   * @returns {Promise<Array>} Array of users
+   * Submit a verification request
+   * @param {string} userId - User ID requesting verification
+   * @param {string} role - Role requesting verification for (manufacturer or designer)
+   * @param {Object} data - Verification data including company info, documents, etc.
+   * @returns {Promise<Object>} Result object
    */
-  async getUsersByRole(role) {
+  async submitVerificationRequest(userId, role, data) {
     try {
-      if (!["manufacturer", "designer"].includes(role)) {
-        throw new Error("Invalid role");
+      if (!userId || !["manufacturer", "designer"].includes(role)) {
+        return {
+          success: false,
+          error: "Invalid user ID or role",
+        };
       }
 
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("roles", "array-contains", role));
-      const snapshot = await getDocs(q);
+      const userRef = doc(db, "users", userId);
+      const userDoc = await getDoc(userRef);
 
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      if (!userDoc.exists()) {
+        return {
+          success: false,
+          error: "User not found",
+        };
+      }
+
+      // Check if user already has a pending request
+      const requestsRef = collection(db, "verificationRequests");
+      const q = query(
+        requestsRef,
+        where("userId", "==", userId),
+        where("role", "==", role),
+        where("status", "==", "pending")
+      );
+      
+      const existingRequests = await getDocs(q);
+
+      if (!existingRequests.empty) {
+        return {
+          success: false,
+          error: "You already have a pending verification request for this role",
+        };
+      }
+
+      // Create verification request
+      const verificationRequest = {
+        userId,
+        role,
+        status: "pending",
+        data: {
+          ...data,
+          userEmail: userDoc.data().email || "",
+          displayName: userDoc.data().displayName || "",
+          photoURL: userDoc.data().photoURL || "",
+        },
+        submittedAt: serverTimestamp(),
+      };
+
+      // Add to verificationRequests collection
+      await addDoc(collection(db, "verificationRequests"), verificationRequest);
+
+      // Update user document to mark verification as requested
+      await updateDoc(userRef, {
+        [`${role}VerificationRequested`]: true,
+        updatedAt: new Date()
+      });
+
+      return {
+        success: true,
+        message: "Verification request submitted successfully",
+      };
     } catch (error) {
-      console.error(`Error getting ${role}s:`, error);
-      throw error;
+      console.error("Error submitting verification request:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to submit verification request",
+      };
     }
   }
 
   /**
-   * Get all verified manufacturers
-   * @returns {Promise<Array>} Array of verified manufacturers
+   * Get all verification requests
+   * @param {string} status - Filter by status (pending, approved, rejected)
+   * @returns {Promise<Array>} Array of verification requests
    */
-  async getVerifiedManufacturers() {
+  async getVerificationRequests(status = null) {
     try {
-      const usersRef = collection(db, "users");
-      const q = query(
-        usersRef,
-        where("roles", "array-contains", "manufacturer"),
-        where("manufacturerVerified", "==", true)
-      );
+      const requestsRef = collection(db, "verificationRequests");
+      let q;
+      
+      if (status) {
+        q = query(requestsRef, where("status", "==", status));
+      } else {
+        q = query(requestsRef);
+      }
+      
       const snapshot = await getDocs(q);
-
-      return snapshot.docs.map((doc) => ({
+      
+      return snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
+        ...doc.data()
       }));
     } catch (error) {
-      console.error("Error getting verified manufacturers:", error);
-      return []; // Return empty array on error
+      console.error("Error getting verification requests:", error);
+      return [];
     }
   }
 
   /**
-   * Get all manufacturers (both verified and unverified)
-   * @returns {Promise<Array>} Array of all manufacturers with verification status
+   * Process a verification request (approve or reject)
+   * @param {string} requestId - Request ID
+   * @param {string} decision - Decision (approve or reject)
+   * @param {string} adminId - Admin user ID who processed the request
+   * @param {string} notes - Optional notes about the decision
+   * @returns {Promise<Object>} Result object
    */
-  async getAllManufacturers() {
+  async processVerificationRequest(requestId, decision, adminId, notes = "") {
     try {
-      const usersRef = collection(db, "users");
-      const q = query(
-        usersRef,
-        where("roles", "array-contains", "manufacturer")
-      );
-      const snapshot = await getDocs(q);
+      const requestRef = doc(db, "verificationRequests", requestId);
+      const requestDoc = await getDoc(requestRef);
 
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        verified: doc.data().manufacturerVerified === true,
-        ...doc.data(),
-      }));
+      if (!requestDoc.exists()) {
+        return {
+          success: false,
+          error: "Verification request not found",
+        };
+      }
+
+      const requestData = requestDoc.data();
+      const { userId, role } = requestData;
+
+      // Update request status
+      await updateDoc(requestRef, {
+        status: decision === "approve" ? "approved" : "rejected",
+        processedBy: adminId,
+        processedAt: new Date(),
+        notes,
+      });
+
+      // If approved, update user's verification status
+      if (decision === "approve") {
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, {
+          [`${role}Verified`]: true,
+          [`${role}VerificationRequested`]: false,
+          updatedAt: new Date(),
+        });
+      } else {
+        // If rejected, update request status but don't verify
+        const userRef = doc(db, "users", userId);
+        await updateDoc(userRef, {
+          [`${role}VerificationRequested`]: false,
+          updatedAt: new Date(),
+        });
+      }
+
+      return {
+        success: true,
+        message: `Verification request ${
+          decision === "approve" ? "approved" : "rejected"
+        } successfully`,
+      };
     } catch (error) {
-      console.error("Error getting manufacturers:", error);
-      return []; // Return empty array on error
+      console.error("Error processing verification request:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to process verification request",
+      };
     }
   }
 }
 
-const verificationService = new VerificationService();
-export default verificationService;
+export default new VerificationService();
