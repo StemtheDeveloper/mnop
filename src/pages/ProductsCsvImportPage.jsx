@@ -372,15 +372,25 @@ const ProductsCsvImportPage = () => {
         Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
+            // Add these options for better handling of quoted fields and separators
+            quoteChar: '"',
+            escapeChar: '"',
+            delimiter: ",",
             complete: (results) => {
                 if (results.data && results.data.length > 0) {
                     const newProducts = results.data.map(row => {
+                        // Handle categories array - may be semicolon or comma separated
                         const categoriesArray = row.categories
-                            ? row.categories.split(/[,;]/).map(cat => cat.trim())
+                            ? typeof row.categories === 'string'
+                                ? row.categories.split(/[,;]/).map(cat => cat.trim()).filter(cat => cat)
+                                : row.categories
                             : [];
 
+                        // Handle tags array - may be semicolon or comma separated
                         const tagsArray = row.tags
-                            ? row.tags.split(/[,;]/).map(tag => tag.trim())
+                            ? typeof row.tags === 'string'
+                                ? row.tags.split(/[,;]/).map(tag => tag.trim()).filter(tag => tag)
+                                : row.tags
                             : [];
 
                         return {
@@ -503,36 +513,45 @@ const ProductsCsvImportPage = () => {
         }
 
         const csvData = products.map(product => {
+            // Properly format arrays and handle complex values
             return {
-                name: product.name,
-                description: product.description,
-                price: product.price,
-                stockQuantity: product.stockQuantity,
-                categories: product.categories.join(','),
-                tags: product.tags.join(','),
-                productType: product.productType,
-                manufacturingCost: product.manufacturingCost,
-                designer: product.designer,
-                isCrowdfunded: product.isCrowdfunded,
-                isDirectSell: product.isDirectSell,
-                fundingGoal: product.fundingGoal,
-                averageRating: product.averageRating,
-                businessHeldFunds: product.businessHeldFunds,
-                categoryType: product.categoryType,
-                manufacturerEmail: product.manufacturerEmail,
-                manufacturingStatus: product.manufacturingStatus,
-                rating1Count: product.rating1Count,
-                rating2Count: product.rating2Count,
-                rating3Count: product.rating3Count,
-                rating4Count: product.rating4Count,
-                rating5Count: product.rating5Count,
-                reviewCount: product.reviewCount
+                name: product.name || '',
+                description: product.description || '',
+                price: product.price || '0',
+                stockQuantity: product.stockQuantity || '0',
+                categories: Array.isArray(product.categories) ? product.categories.join(';') : product.categories || '',
+                tags: Array.isArray(product.tags) ? product.tags.join(';') : product.tags || '',
+                productType: product.productType || 'physical',
+                manufacturingCost: product.manufacturingCost || '0',
+                designer: product.designer || '',
+                isCrowdfunded: product.isCrowdfunded?.toString() || 'false',
+                isDirectSell: product.isDirectSell?.toString() || 'true',
+                fundingGoal: product.fundingGoal || '0',
+                averageRating: product.averageRating || '0',
+                businessHeldFunds: product.businessHeldFunds || '0',
+                categoryType: product.categoryType || 'standard',
+                manufacturerEmail: product.manufacturerEmail || '',
+                manufacturingStatus: product.manufacturingStatus || 'pending',
+                rating1Count: product.rating1Count || '0',
+                rating2Count: product.rating2Count || '0',
+                rating3Count: product.rating3Count || '0',
+                rating4Count: product.rating4Count || '0',
+                rating5Count: product.rating5Count || '0',
+                reviewCount: product.reviewCount || '0'
             };
         });
 
+        // Configure Papa Parse with proper options for consistent formatting
         const csv = Papa.unparse({
             fields: headers.filter(h => h !== 'images'),
             data: csvData
+        }, {
+            quotes: true,  // Quote all fields
+            quoteChar: '"',
+            escapeChar: '"',
+            delimiter: ",",
+            header: true,
+            newline: "\r\n"
         });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

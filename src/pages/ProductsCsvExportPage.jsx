@@ -100,7 +100,7 @@ const ProductsCsvExportPage = () => {
         const selectedFields = Object.keys(includeFields).filter(key => includeFields[key]);
 
         // Create header row
-        const header = selectedFields.join(',');
+        const header = selectedFields.map(field => `"${field}"`).join(',');
 
         // Create data rows
         const rows = objArray.map(obj => {
@@ -108,33 +108,36 @@ const ProductsCsvExportPage = () => {
                 let value = obj[field];
 
                 // Handle special cases
-                if (field === 'categories' && Array.isArray(value)) {
-                    // Convert array to string with semicolons
-                    value = value.join(';');
+                if (value === undefined || value === null) {
+                    // Return empty string for undefined/null values
+                    return '""';
+                } else if (Array.isArray(value)) {
+                    // Convert arrays (like categories) to semicolon-separated strings and properly quote
+                    const stringValue = value.join(';');
+                    return `"${stringValue.replace(/"/g, '""')}"`;
                 } else if (value instanceof Date) {
-                    // Format dates as strings
-                    value = value.toISOString();
+                    // Format dates as ISO strings and quote them
+                    return `"${value.toISOString()}"`;
                 } else if (typeof value === 'object' && value !== null) {
                     // Handle Firebase timestamps
                     if (value.seconds !== undefined && value.nanoseconds !== undefined) {
                         const date = new Date(value.seconds * 1000);
-                        value = date.toISOString();
+                        return `"${date.toISOString()}"`;
                     } else {
-                        // Stringify other objects
-                        value = JSON.stringify(value);
+                        // Stringify other objects and properly quote/escape
+                        const stringValue = JSON.stringify(value);
+                        return `"${stringValue.replace(/"/g, '""')}"`;
                     }
                 } else if (typeof value === 'string') {
-                    // Escape quotes and wrap in quotes if the value contains a comma or newline
-                    value = value.replace(/"/g, '""');
-                    if (value.includes(',') || value.includes('\n') || value.includes('"')) {
-                        value = `"${value}"`;
-                    }
-                } else if (value === undefined || value === null) {
-                    // Return empty string for undefined/null values
-                    value = '';
+                    // Always wrap strings in quotes and escape existing quotes
+                    return `"${value.replace(/"/g, '""')}"`;
+                } else if (typeof value === 'number' || typeof value === 'boolean') {
+                    // Don't quote numbers or booleans
+                    return String(value);
+                } else {
+                    // Fallback - stringify and quote anything else
+                    return `"${String(value).replace(/"/g, '""')}"`;
                 }
-
-                return value;
             }).join(',');
         });
 
