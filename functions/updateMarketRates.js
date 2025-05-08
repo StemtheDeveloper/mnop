@@ -2,14 +2,19 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const fetch = require("node-fetch");
 
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+
 /**
  * Cloud Function to update interest rates based on New Zealand market data
  * Runs once per day to ensure rates are current
  */
-exports.updateMarketRates = functions.pubsub
-  .schedule("0 12 * * *") // Run at noon UTC every day
-  .timeZone("Pacific/Auckland") // Changed to New Zealand timezone
-  .onRun(async (context) => {
+
+exports.updateMarketRates = onSchedule(
+  {
+    schedule: "0 12 * * *", // noon UTC
+    timeZone: "Pacific/Auckland", // NZ local time
+  },
+  async (event) => {
     console.log("Starting daily NZ market rate update...");
 
     try {
@@ -89,7 +94,8 @@ exports.updateMarketRates = functions.pubsub
       console.error("Error updating NZ market rates:", error);
       throw error;
     }
-  });
+  }
+);
 
 /**
  * HTTP callable function to manually trigger a market rate update

@@ -18,6 +18,7 @@ import AchievementsManagementPanel from '../components/admin/AchievementsManagem
 import AdminInvestmentSettings from '../components/admin/AdminInvestmentSettings';
 import RefundManagementPanel from '../components/admin/RefundManagementPanel';
 import CurrencyManagementPanel from '../components/admin/CurrencyManagementPanel';
+import VerificationRequestsPanel from '../components/admin/VerificationRequestsPanel';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -677,6 +678,12 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                             Reviews
                         </button>
                         <button
+                            className={`tab-button ${activeTab === 'verifications' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('verifications')}
+                        >
+                            Verifications
+                        </button>
+                        <button
                             className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`}
                             onClick={() => setActiveTab('achievements')}
                         >
@@ -745,7 +752,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                                             <td>{user.displayName || 'No Name'}</td>
                                                             <td className="role-cell">
                                                                 <span className={`role-label ${Array.isArray(user.roles) ? user.roles[0] : user.role || 'customer'}`}>
-                                                                    {formatRoleDisplay(user)}
+                                                                    {Array.isArray(user.roles) ? user.roles.join(', ') : user.role || 'customer'}
                                                                 </span>
                                                             </td>
                                                             <td>{user.createdAt ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
@@ -1005,7 +1012,12 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                 </div>
                             </div>
                         )}
-
+                        {activeTab === 'verifications' && (
+                            <div className="verifications-tab">
+                                <h2>Verification Requests</h2>
+                                <VerificationRequestsPanel />
+                            </div>
+                        )}
                         {activeTab === 'achievements' && (
                             <div className="achievements-tab">
                                 <h2>Achievements & Badges Management</h2>

@@ -1,7 +1,9 @@
 const functions = require("firebase-functions");
-const admin = require("firebase-admin");
 
-// Don't initialize the app here as it's already initialized in index.js
+const admin = require("firebase-admin");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+// Remove the redundant initialization - index.js already handles this
+// Just get the Firestore instance
 const db = admin.firestore();
 
 /**
@@ -31,27 +33,31 @@ exports.calculateDailyInterestHttp = functions.https.onRequest(
  * Daily interest calculation Cloud Function - Scheduled version
  * Runs at midnight every day (server time)
  */
-exports.dailyInterestCalculationScheduled = functions.pubsub
-  .schedule("0 0 * * *") // Run at midnight every day
-  .timeZone("America/New_York")
-  .onRun(async (context) => {
+exports.dailyInterestCalculationScheduled = onSchedule(
+  {
+    schedule: "0 0 * * *", // every midnight
+    timeZone: "America/New_York", // adjust to your desired TZ
+  },
+  async (event) => {
     console.log("Starting daily interest calculation (scheduled)");
 
     try {
-      const result = await calculateInterestForAllWallets();
+      const result = await calculateInterestForAllWallets(); // <-- your helper
       await result.batch.commit();
 
-      console.log(`Successfully calculated and added daily interest:
-        - Total interest paid: ${result.totalInterestPaid.toFixed(2)}
-        - Wallets updated: ${result.walletsUpdated}
-        - Time: ${new Date().toISOString()}`);
+      console.log(`✔︎ Daily interest calculated:
+        • Total paid    : ${result.totalInterestPaid.toFixed(2)}
+        • Wallets updated: ${result.walletsUpdated}
+        • Timestamp      : ${new Date().toISOString()}`);
 
-      return null; // Successful execution
-    } catch (error) {
-      console.error("Error calculating daily interest:", error);
-      throw new Error(error); // Let Cloud Functions know there was an error
+      return; // success
+    } catch (err) {
+      console.error("✖︎ Error calculating daily interest:", err);
+      // Re-throw so Cloud Functions marks the run as failed
+      throw err;
     }
-  });
+  }
+);
 
 /**
  * Calculate interest for a specific user

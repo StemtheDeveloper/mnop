@@ -10,7 +10,7 @@ const VerificationRequestPage = () => {
     const { role } = useParams();
     const navigate = useNavigate();
     const { currentUser } = useUser();
-    const { showSuccess, showError } = useToast();
+    const { success: showSuccess, error: showError } = useToast();
 
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);

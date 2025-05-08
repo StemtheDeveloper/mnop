@@ -2,10 +2,16 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
-// Initialize Firebase Admin if it hasn't been initialized yet
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+
+// Initialize Firebase Admin SDK if not already initialized
+
 if (!admin.apps.length) {
   admin.initializeApp();
 }
+
+// Get Firestore instance
+const db = admin.firestore();
 
 /**
  * This function updates currency exchange rates on a daily schedule.
@@ -14,10 +20,13 @@ if (!admin.apps.length) {
  * In a production environment, you would replace the simulated exchange rate updates
  * with real API calls to services like Open Exchange Rates, Fixer.io, or similar.
  */
-exports.updateExchangeRates = functions.pubsub
-  .schedule("0 0 * * *") // Runs at midnight every day (cron syntax)
-  .timeZone("UTC")
-  .onRun(async (context) => {
+
+exports.updateExchangeRates = onSchedule(
+  {
+    schedule: "0 0 * * *", // daily midnight UTC
+    timeZone: "UTC",
+  },
+  async (event) => {
     try {
       console.log("Starting scheduled exchange rate update");
 
@@ -100,4 +109,5 @@ exports.updateExchangeRates = functions.pubsub
       console.error("Error updating exchange rates:", error);
       return null;
     }
-  });
+  }
+);

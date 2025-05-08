@@ -1,5 +1,6 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 // Initialize admin if not already initialized
 if (!admin.apps.length) {
@@ -12,10 +13,14 @@ const db = admin.firestore();
  * Cloud Function that runs daily to check products that have hit their deadline
  * and haven't reached their funding goal, then archives them and notifies designers
  */
-exports.checkProductDeadlines = functions.pubsub
-  .schedule("0 0 * * *") // Run at midnight every day (cron syntax)
-  .timeZone("UTC")
-  .onRun(async (context) => {
+
+exports.checkProductDeadlines = onSchedule(
+  {
+    schedule: "0 0 * * *", // midnight UTC
+    timeZone: "UTC",
+  },
+  async (event) => {
+    // ⬇️  ORIGINAL FUNCTION BODY GOES HERE (unchanged) ⬇️
     console.log("Starting daily product deadline check...");
 
     try {
@@ -114,7 +119,8 @@ exports.checkProductDeadlines = functions.pubsub
       console.error("Error checking product deadlines:", error);
       throw error;
     }
-  });
+  }
+);
 
 /**
  * HTTP Function to manually trigger deadline checking (for testing or admin use)

@@ -325,6 +325,37 @@ const verificationService = {
       };
     }
   },
+
+  // Get all manufacturers (both verified and unverified)
+  getAllManufacturers: async () => {
+    try {
+      const usersRef = collection(db, "users");
+      const manufacturersQuery = query(
+        usersRef,
+        where("roles", "array-contains", "manufacturer")
+      );
+
+      const querySnapshot = await getDocs(manufacturersQuery);
+      const manufacturers = [];
+
+      querySnapshot.forEach((docSnapshot) => {
+        const userData = docSnapshot.data();
+        manufacturers.push({
+          id: docSnapshot.id,
+          displayName:
+            userData.displayName || userData.email || "Unnamed Manufacturer",
+          email: userData.email || "",
+          verified: userData.manufacturerVerified === true,
+          ...userData,
+        });
+      });
+
+      return manufacturers;
+    } catch (error) {
+      console.error("Error getting manufacturers:", error);
+      throw error;
+    }
+  },
 };
 
 export default verificationService;

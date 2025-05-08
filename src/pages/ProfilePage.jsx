@@ -1934,6 +1934,63 @@ const ProfilePage = () => {
                                         <p>Your account is <strong>Active</strong></p>
                                     </div>
 
+                                    {/* Verification Status Section */}
+                                    <div className="verification-status-section">
+                                        <hr />
+                                        <h4>Verification Status</h4>
+                                        <p>Verified accounts receive a badge and have enhanced credibility in the community.</p>
+
+                                        {hasRole('designer') && (
+                                            <div className="verification-status-item">
+                                                <div className="verification-info">
+                                                    <h5>Designer Verification</h5>
+                                                    <p>Verified designers can showcase their authenticity and expertise.</p>
+                                                </div>
+                                                <div className="verification-badge-container">
+                                                    {userProfile.designerVerified ? (
+                                                        <div className="verification-badge-active">
+                                                            <span className="verification-icon">✓</span>
+                                                            <span>Verified</span>
+                                                        </div>
+                                                    ) : userProfile.designerVerificationRequested ? (
+                                                        <div className="verification-badge-pending">
+                                                            <span>Pending Review</span>
+                                                        </div>
+                                                    ) : (
+                                                        <Link to="/verification-request/designer" className="btn-verification-request">
+                                                            Request Verification
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {hasRole('manufacturer') && (
+                                            <div className="verification-status-item">
+                                                <div className="verification-info">
+                                                    <h5>Manufacturer Verification</h5>
+                                                    <p>Verified manufacturers have proven their manufacturing capabilities and reliability.</p>
+                                                </div>
+                                                <div className="verification-badge-container">
+                                                    {userProfile.manufacturerVerified ? (
+                                                        <div className="verification-badge-active">
+                                                            <span className="verification-icon">✓</span>
+                                                            <span>Verified</span>
+                                                        </div>
+                                                    ) : userProfile.manufacturerVerificationRequested ? (
+                                                        <div className="verification-badge-pending">
+                                                            <span>Pending Review</span>
+                                                        </div>
+                                                    ) : (
+                                                        <Link to="/verification-request/manufacturer" className="btn-verification-request">
+                                                            Request Verification
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Data Export Section */}
                                     <div className="data-export-section">
                                         <hr />
