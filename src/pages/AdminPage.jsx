@@ -414,6 +414,103 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                             <div className="database-tab">
                                 <h2>Database Management</h2>
                                 <FirestoreIndexHelper />
+
+                                <div className="admin-section">
+                                    <h2>Index Management</h2>
+                                    <div className="admin-card">
+                                        <h3>Conversation Query Index</h3>
+                                        <p>
+                                            Checks if the necessary Firestore index exists for efficiently querying user conversations
+                                            (filtering by 'participants' and ordering by 'lastMessageAt').
+                                        </p>
+                                        <button
+                                            className="admin-button"
+                                            onClick={handleCheckConversationIndex}
+                                            disabled={conversationIndexStatus.loading}
+                                        >
+                                            {conversationIndexStatus.loading ? 'Checking...' : 'Check Conversation Index'}
+                                        </button>
+                                        {conversationIndexStatus.message && (
+                                            <div className={`message ${conversationIndexStatus.type} index-status`}>
+                                                {conversationIndexStatus.message}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="admin-section">
+                                    <h2>Database Maintenance</h2>
+                                    <div className="admin-card">
+                                        <h3>Role Structure Migration</h3>
+                                        <p>
+                                            Update user documents to convert from single "role" field to an array of "roles".
+                                            This is recommended for enabling users to have multiple roles.
+                                        </p>
+                                        <button
+                                            className="admin-button"
+                                            onClick={updateRoleStructure}
+                                            disabled={loading}
+                                        >
+                                            {loading && operation === 'role-migration' ? 'Processing...' : 'Migrate Role Structure'}
+                                        </button>
+                                    </div>
+
+                                    <div className="admin-card">
+                                        <h3>Cleanup Orphaned Data</h3>
+                                        <p>
+                                            Scan for and remove orphaned data such as roles for non-existent users
+                                            or references to deleted documents.
+                                        </p>
+                                        <button
+                                            className="admin-button secondary"
+                                            onClick={cleanupOrphanedData}
+                                            disabled={loading}
+                                        >
+                                            {loading && operation === 'cleanup' ? 'Processing...' : 'Cleanup Data'}
+                                        </button>
+                                    </div>
+
+                                    <div className="admin-card">
+                                        <h3>Product Category Data Fixer</h3>
+                                        <p>
+                                            Fix product category data issues. Use this tool to ensure all products have proper
+                                            category fields in the correct format (arrays).
+                                        </p>
+                                        <a href="/admin/data-fixer" className="admin-button">
+                                            Open Data Fixer Tool
+                                        </a>
+                                    </div>
+
+                                    <div className="admin-card">
+                                        <h3>Product Data CSV Export/Import</h3>
+                                        <p>
+                                            Export products data to CSV for bulk editing in Excel (including manufacturing costs),
+                                            then import the modified data back to update product information.
+                                        </p>
+                                        <div className="csv-actions">
+                                            <a href="/admin/products-csv-export" className="admin-button">
+                                                Export Products to CSV
+                                            </a>
+                                            <a href="/admin/products-csv-import" className="admin-button">
+                                                Import Products from CSV
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {result.message && (
+                                    <div className={`result-panel ${result.success ? 'success' : 'error'}`}>
+                                        <h3>{result.success ? 'Success' : 'Error'}</h3>
+                                        <p>{result.message}</p>
+
+                                        {result.details && (
+                                            <div className="details-section">
+                                                <h4>Operation Details:</h4>
+                                                <pre>{JSON.stringify(result.details, null, 2)}</pre>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
