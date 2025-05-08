@@ -612,13 +612,6 @@
   border-left: 4px solid #f44336;
 }
 
-/* Styles to make the spinner look good in buttons */
-.loading-spinner.inline {
-  height: auto;
-  min-height: auto;
-  margin: 0;
-}
-
 .spinner-small {
   width: 18px;
   height: 18px;

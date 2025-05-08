@@ -445,34 +445,6 @@
   gap: 10px;
 }
 
-.role-badge {
-  padding: 3px 8px;
-  border-radius: 4px;
-  color: white;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.role-badge.customer {
-  background-color: #2ecc71;
-}
-
-.role-badge.designer {
-  background-color: #ef3c23;
-}
-
-.role-badge.manufacturer {
-  background-color: #3498db;
-}
-
-.role-badge.investor {
-  background-color: #f39c12;
-}
-
-.role-badge.admin {
-  background-color: #9b59b6;
-}
-
 .role-action-button {
   background: none;
   border: none;

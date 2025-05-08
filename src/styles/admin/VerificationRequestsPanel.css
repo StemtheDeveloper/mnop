@@ -186,25 +186,6 @@
   align-items: flex-end;
 }
 
-.role-badge {
-  padding: 5px 10px;
-  border-radius: 15px;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  text-transform: capitalize;
-}
-
-.role-badge.designer {
-  background-color: #e8f5e9;
-  color: #2e7d32;
-}
-
-.role-badge.manufacturer {
-  background-color: #e3f2fd;
-  color: #1565c0;
-}
-
 .request-date {
   font-size: 14px;
   color: #666;
