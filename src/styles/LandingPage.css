@@ -138,13 +138,6 @@
   margin-right: 5px;
 }
 
-.loading-spinner {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 200px;
-}
-
 /* News Section */
 .news-section {
   margin-bottom: 80px;

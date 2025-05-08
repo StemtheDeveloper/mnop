@@ -151,16 +151,6 @@
   min-height: 200px;
 }
 
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  border-top-color: #3f51b5;
-  animation: spin 1s ease-in-out infinite;
-  margin-bottom: 15px;
-}
-
 @keyframes spin {
   to {
     transform: rotate(360deg);

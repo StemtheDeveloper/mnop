@@ -316,11 +316,16 @@ const ShopPage = () => {
             setError(null);
 
             try {
-                // Fetch the first page
-                await fetchProductsForPage(1);
+                // If search term exists, handle search differently
+                if (searchTerm.trim()) {
+                    await handleSearch({ preventDefault: () => { } });
+                } else {
+                    // Fetch the first page
+                    await fetchProductsForPage(1);
 
-                // Estimate total items for pagination
-                await estimateTotalPages();
+                    // Estimate total items for pagination
+                    await estimateTotalPages();
+                }
             } catch (err) {
                 console.error('Error initializing products:', err);
                 setError('Failed to load products. Please try again.');
@@ -330,7 +335,7 @@ const ShopPage = () => {
         };
 
         initializeProducts();
-    }, [category, sortBy, subCategory]);
+    }, [category, sortBy, subCategory, searchTerm]);
 
     // Load more products
     const loadMoreProducts = async () => {
@@ -429,21 +434,60 @@ const ShopPage = () => {
             // For simple search, we'll fetch all products and filter client-side
             // For production, consider using Firestore extensions like Algolia
             const productsRef = collection(db, 'products');
-            const snapshot = await getDocs(productsRef);
 
-            const allProducts = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+            // Always filter for active products
+            let productsQuery = query(productsRef, where('status', '==', 'active'));
+
+            // Apply category filter if selected
+            if (category !== 'all') {
+                productsQuery = query(productsRef,
+                    where('categories', 'array-contains', category),
+                    where('status', '==', 'active')
+                );
+            }
+
+            // Apply sorting
+            switch (sortBy) {
+                case 'priceAsc':
+                    productsQuery = query(productsQuery, orderBy('price', 'asc'));
+                    break;
+                case 'priceDesc':
+                    productsQuery = query(productsQuery, orderBy('price', 'desc'));
+                    break;
+                case 'popular':
+                    productsQuery = query(productsQuery, orderBy('reviewCount', 'desc'));
+                    break;
+                case 'rating':
+                    productsQuery = query(productsQuery, orderBy('averageRating', 'desc'));
+                    break;
+                default:
+                    productsQuery = query(productsQuery, orderBy('createdAt', 'desc'));
+                    break;
+            }
+
+            const snapshot = await getDocs(productsQuery);
 
             const searchTermLower = searchTerm.toLowerCase();
+            let filteredProducts = snapshot.docs
+                .map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }))
+                .filter(product =>
+                (product.name?.toLowerCase().includes(searchTermLower) ||
+                    product.description?.toLowerCase().includes(searchTermLower))
+                );
 
-            // Filter products that match the search term
-            const filteredProducts = allProducts.filter(product =>
-                product.name?.toLowerCase().includes(searchTermLower) ||
-                product.description?.toLowerCase().includes(searchTermLower)
-            );
+            // Apply subcategory filter if applicable
+            if (category !== 'all' && subCategory !== 'all') {
+                filteredProducts = filteredProducts.filter(product =>
+                    product.subCategory === subCategory ||
+                    (product.tags && product.tags.includes(subCategory))
+                );
+            }
 
+            // We need to calculate an estimate for pagination
+            setTotalItems(filteredProducts.length);
             setProducts(filteredProducts);
             setHasMore(false); // Disable pagination for search results
         } catch (err) {
@@ -601,6 +645,15 @@ const ShopPage = () => {
                         <EnhancedSearchInput
                             placeholder="Search products in shop..."
                             className="shop-enhanced-search"
+                            defaultValue={searchTerm}
+                            onSearch={(term) => {
+                                setSearchTerm(term);
+                                if (term) {
+                                    handleSearch({ preventDefault: () => { } });
+                                } else {
+                                    handleClearSearch();
+                                }
+                            }}
                         />
                     </div>
 
