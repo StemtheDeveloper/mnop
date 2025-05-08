@@ -1,13 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
-// Initialize the app if it hasn't been initialized yet
-try {
-  admin.initializeApp();
-} catch (e) {
-  console.log("App initialization error", e);
-}
-
+// Don't initialize the app here as it's already initialized in index.js
 const db = admin.firestore();
 
 /**
