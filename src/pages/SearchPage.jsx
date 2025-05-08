@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import EnhancedSearchInput from '../components/EnhancedSearchInput';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import '../styles/SearchPage.css';
@@ -9,11 +10,17 @@ import '../styles/SearchPage.css';
 const SearchPage = () => {
     const [searchParams] = useSearchParams();
     const searchQuery = searchParams.get('query') || '';
+    const categoryFilter = searchParams.get('category') || '';
+    const navigate = useNavigate();
 
     const [closeMatches, setCloseMatches] = useState([]);
     const [fuzzyMatches, setFuzzyMatches] = useState([]);
+    const [categoryMatches, setCategoryMatches] = useState([]);
+    const [allCategories, setAllCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState(categoryFilter);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [sortOption, setSortOption] = useState('relevance');
 
     // Calculate similarity score between two strings (Levenshtein distance)
     const calculateSimilarity = (str1, str2) => {
@@ -84,10 +91,54 @@ const SearchPage = () => {
     };
 
     useEffect(() => {
+        // Load all available categories for filtering
+        const fetchCategories = async () => {
+            try {
+                const productsRef = collection(db, 'products');
+                const q = query(
+                    productsRef,
+                    where('status', '==', 'active'),
+                    limit(100)
+                );
+
+                const snapshot = await getDocs(q);
+
+                // Extract unique categories
+                const categories = new Set();
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    if (data.category) {
+                        categories.add(data.category);
+                    }
+                    if (data.categories && Array.isArray(data.categories)) {
+                        data.categories.forEach(cat => {
+                            if (cat) categories.add(cat);
+                        });
+                    }
+                });
+
+                setAllCategories(Array.from(categories).sort());
+
+            } catch (err) {
+                console.error('Error fetching categories:', err);
+            }
+        };
+
+        fetchCategories();
+    }, []);
+
+    // Main search effect
+    useEffect(() => {
+        // Set selected category from URL parameter
+        if (categoryFilter) {
+            setSelectedCategory(categoryFilter);
+        }
+
         const fetchProducts = async () => {
-            if (!searchQuery.trim()) {
+            if (!searchQuery.trim() && !categoryFilter) {
                 setCloseMatches([]);
                 setFuzzyMatches([]);
+                setCategoryMatches([]);
                 setLoading(false);
                 return;
             }
@@ -101,12 +152,44 @@ const SearchPage = () => {
                     .split(/\s+/)
                     .filter(word => word.length > 0);
 
-                console.log('Searching for:', searchWords);
+                console.log('Searching for:', searchWords, 'Category:', categoryFilter);
 
                 // Create a query against the products collection
                 const productsRef = collection(db, 'products');
 
-                // Fetch all active products
+                // Start with base query for active products
+                let baseQuery = query(
+                    productsRef,
+                    where('status', '==', 'active')
+                );
+
+                // Add category filter if specified
+                if (categoryFilter) {
+                    // Try to get products by exact category match
+                    const categoryMatchesRef = collection(db, 'products');
+                    const categoryQuery = query(
+                        categoryMatchesRef,
+                        where('status', '==', 'active'),
+                        where('categories', 'array-contains', categoryFilter)
+                    );
+
+                    const categorySnapshot = await getDocs(categoryQuery);
+                    const categoryMatchProducts = categorySnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+
+                    setCategoryMatches(categoryMatchProducts);
+
+                    if (!searchQuery.trim()) {
+                        setCloseMatches([]);
+                        setFuzzyMatches([]);
+                        setLoading(false);
+                        return;
+                    }
+                }
+
+                // Fetch all active products for text search
                 const q = query(
                     productsRef,
                     where('status', '==', 'active'),
@@ -128,6 +211,16 @@ const SearchPage = () => {
                         ...doc.data()
                     };
 
+                    // Skip if we're filtering by category and product doesn't match
+                    if (categoryFilter) {
+                        const productCategories = productData.categories || [];
+                        const productCategory = productData.category || '';
+
+                        if (!productCategories.includes(categoryFilter) && productCategory !== categoryFilter) {
+                            return;
+                        }
+                    }
+
                     // Fields to check for matches
                     const nameText = productData.name || '';
                     const descText = productData.description || '';
@@ -143,10 +236,39 @@ const SearchPage = () => {
                             containsPartialWordMatch(tag, searchWords)
                         ))
                     ) {
-                        closeMatchesArray.push(productData);
+                        // Calculate relevance score for sorting
+                        let relevanceScore = 0;
+
+                        // Name match is highest priority
+                        if (containsCompleteWord(nameText, searchWords)) {
+                            relevanceScore += 100;
+                        }
+                        else if (containsPartialWordMatch(nameText, searchWords)) {
+                            relevanceScore += 50;
+                        }
+
+                        // Description match
+                        if (containsPartialWordMatch(descText, searchWords)) {
+                            relevanceScore += 20;
+                        }
+
+                        // Category match
+                        if (containsPartialWordMatch(categoryText, searchWords)) {
+                            relevanceScore += 30;
+                        }
+
+                        // Tags match
+                        if (productData.tags && productData.tags.some(tag => containsPartialWordMatch(tag, searchWords))) {
+                            relevanceScore += 25;
+                        }
+
+                        closeMatchesArray.push({
+                            ...productData,
+                            relevanceScore
+                        });
                     }
                     // Calculate similarity for fuzzy matching
-                    else {
+                    else if (searchQuery.trim()) {
                         // Get highest similarity score from any field
                         const nameSimilarity = calculateSimilarity(searchQuery, nameText);
                         const descSimilarity = calculateSimilarity(searchQuery, descText);
@@ -164,27 +286,39 @@ const SearchPage = () => {
                         if (highestSimilarity > 30) {
                             fuzzyMatchesArray.push({
                                 ...productData,
-                                similarity: highestSimilarity
+                                similarity: highestSimilarity,
+                                relevanceScore: highestSimilarity / 2 // Convert to score comparable with close matches
                             });
                         }
                     }
                 });
 
-                // Sort fuzzy matches by similarity (most similar first)
-                fuzzyMatchesArray.sort((a, b) => b.similarity - a.similarity);
+                // Apply sorting based on selected option
+                const sortProducts = (products) => {
+                    switch (sortOption) {
+                        case 'relevance':
+                            return products.sort((a, b) => b.relevanceScore - a.relevanceScore);
+                        case 'price-low':
+                            return products.sort((a, b) => (a.price || 0) - (b.price || 0));
+                        case 'price-high':
+                            return products.sort((a, b) => (b.price || 0) - (a.price || 0));
+                        case 'newest':
+                            return products.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+                        case 'rating':
+                            return products.sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0));
+                        default:
+                            return products;
+                    }
+                };
 
-                console.log(`Found ${closeMatchesArray.length} close matches and ${fuzzyMatchesArray.length} fuzzy matches`);
+                // Sort the results
+                const sortedCloseMatches = sortProducts(closeMatchesArray);
+                const sortedFuzzyMatches = sortProducts(fuzzyMatchesArray);
 
-                if (closeMatchesArray.length > 0) {
-                    console.log('Sample close match:', closeMatchesArray[0].name);
-                }
+                console.log(`Found ${sortedCloseMatches.length} close matches and ${sortedFuzzyMatches.length} fuzzy matches`);
 
-                if (fuzzyMatchesArray.length > 0) {
-                    console.log('Sample fuzzy match:', fuzzyMatchesArray[0].name, 'with similarity', fuzzyMatchesArray[0].similarity.toFixed(2) + '%');
-                }
-
-                setCloseMatches(closeMatchesArray);
-                setFuzzyMatches(fuzzyMatchesArray);
+                setCloseMatches(sortedCloseMatches);
+                setFuzzyMatches(sortedFuzzyMatches);
             } catch (err) {
                 console.error('Error searching products:', err);
                 setError('Failed to search products. Please try again.');
@@ -194,21 +328,95 @@ const SearchPage = () => {
         };
 
         fetchProducts();
-    }, [searchQuery]);
+    }, [searchQuery, categoryFilter, sortOption]);
 
-    const totalResults = closeMatches.length + fuzzyMatches.length;
+    const handleCategoryChange = (category) => {
+        setSelectedCategory(category);
+
+        // Update URL with new category parameter
+        const newSearchParams = new URLSearchParams();
+        if (searchQuery) {
+            newSearchParams.set('query', searchQuery);
+        }
+
+        if (category) {
+            newSearchParams.set('category', category);
+        }
+
+        window.history.pushState(
+            {},
+            '',
+            `${window.location.pathname}?${newSearchParams.toString()}`
+        );
+    };
+
+    const handleSortChange = (e) => {
+        setSortOption(e.target.value);
+    };
+
+    // Handle clicking on a product to navigate to its detail page
+    const handleProductClick = (productId) => {
+        navigate(`/product/${productId}`);
+    };
+
+    const totalResults = closeMatches.length + fuzzyMatches.length + (categoryFilter && !searchQuery ? categoryMatches.length : 0);
+
+    const displayedProducts = categoryFilter && !searchQuery ?
+        categoryMatches :
+        [...closeMatches, ...fuzzyMatches];
 
     return (
         <div className="search-page-container">
             <div className="search-header">
                 <h1>Search Results</h1>
-                <p>
+                <div className="search-box-container">
+                    <EnhancedSearchInput
+                        placeholder={searchQuery || "Search for products..."}
+                        className="search-page-input"
+                    />
+                </div>
+                <p className="search-summary">
                     {searchQuery ? (
-                        `Showing results for "${searchQuery}" (${totalResults} products found)`
+                        `Showing results for "${searchQuery}"${categoryFilter ? ` in ${categoryFilter}` : ''} (${totalResults} products found)`
+                    ) : categoryFilter ? (
+                        `Browsing ${categoryFilter} (${categoryMatches.length} products)`
                     ) : (
                         'Enter a search term to find products'
                     )}
                 </p>
+            </div>
+
+            <div className="search-filters">
+                <div className="filter-section category-filter">
+                    <label htmlFor="category-select">Filter by Category:</label>
+                    <select
+                        id="category-select"
+                        value={selectedCategory}
+                        onChange={(e) => handleCategoryChange(e.target.value)}
+                    >
+                        <option value="">All Categories</option>
+                        {allCategories.map(category => (
+                            <option key={category} value={category}>
+                                {category}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="filter-section sort-filter">
+                    <label htmlFor="sort-select">Sort by:</label>
+                    <select
+                        id="sort-select"
+                        value={sortOption}
+                        onChange={handleSortChange}
+                    >
+                        <option value="relevance">Relevance</option>
+                        <option value="price-low">Price: Low to High</option>
+                        <option value="price-high">Price: High to Low</option>
+                        <option value="newest">Newest First</option>
+                        <option value="rating">Highest Rated</option>
+                    </select>
+                </div>
             </div>
 
             {loading ? (
@@ -226,65 +434,31 @@ const SearchPage = () => {
                     <p>Try searching with different keywords or browse our shop.</p>
                 </div>
             ) : (
-                <>
-                    {closeMatches.length > 0 && (
-                        <div className="search-section">
-                            <h2 className="section-title">Close Matches</h2>
-                            <p className="section-description">Products that directly match your search terms</p>
-                            <div className="search-results">
-                                {closeMatches.map(product => (
-                                    <ProductCard
-                                        key={product.id}
-                                        id={product.id}
-                                        image={product.imageUrl || (product.imageUrls && product.imageUrls[0])}
-                                        images={product.imageUrls || []}
-                                        title={product.name || 'Unnamed Product'}
-                                        description={product.description?.slice(0, 100) || 'No description'}
-                                        price={product.price || 0}
-                                        rating={product.averageRating || 0}
-                                        reviewCount={product.reviewCount || 0}
-                                        viewers={product.activeViewers || 0}
-                                        fundingProgress={product.currentFunding ? (product.currentFunding / product.fundingGoal) * 100 : 0}
-                                        currentFunding={product.currentFunding || 0}
-                                        fundingGoal={product.fundingGoal || 0}
-                                        status={product.status}
-                                        designerId={product.designerId}
-                                        product={product}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {fuzzyMatches.length > 0 && (
-                        <div className="search-section">
-                            <h2 className="section-title">Similar Results</h2>
-                            <p className="section-description">Products that might be relevant to your search</p>
-                            <div className="search-results">
-                                {fuzzyMatches.map(product => (
-                                    <ProductCard
-                                        key={product.id}
-                                        id={product.id}
-                                        image={product.imageUrl || (product.imageUrls && product.imageUrls[0])}
-                                        images={product.imageUrls || []}
-                                        title={product.name || 'Unnamed Product'}
-                                        description={product.description?.slice(0, 100) || 'No description'}
-                                        price={product.price || 0}
-                                        rating={product.averageRating || 0}
-                                        reviewCount={product.reviewCount || 0}
-                                        viewers={product.activeViewers || 0}
-                                        fundingProgress={product.currentFunding ? (product.currentFunding / product.fundingGoal) * 100 : 0}
-                                        currentFunding={product.currentFunding || 0}
-                                        fundingGoal={product.fundingGoal || 0}
-                                        status={product.status}
-                                        designerId={product.designerId}
-                                        product={product}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </>
+                <div className="search-results-container">
+                    <div className="search-results-grid">
+                        {displayedProducts.map(product => (
+                            <ProductCard
+                                key={product.id}
+                                id={product.id}
+                                image={product.imageUrl || (product.imageUrls && product.imageUrls[0])}
+                                images={product.imageUrls || []}
+                                title={product.name || 'Unnamed Product'}
+                                description={product.description?.slice(0, 100) || 'No description'}
+                                price={product.price || 0}
+                                rating={product.averageRating || 0}
+                                reviewCount={product.reviewCount || 0}
+                                viewers={product.activeViewers || 0}
+                                fundingProgress={product.currentFunding ? (product.currentFunding / product.fundingGoal) * 100 : 0}
+                                currentFunding={product.currentFunding || 0}
+                                fundingGoal={product.fundingGoal || 0}
+                                status={product.status}
+                                designerId={product.designerId}
+                                product={product}
+                                onClick={() => handleProductClick(product.id)}
+                            />
+                        ))}
+                    </div>
+                </div>
             )}
         </div>
     );

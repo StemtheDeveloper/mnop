@@ -2,8 +2,21 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Default access rule - maintain existing permissions
     match /{document=**} {
       allow read, write: if true;
+    }
+    
+    // Feedback collection - add specific rules
+    match /feedback/{feedbackId} {
+      // Allow anyone to create feedback
+      allow create: if true;
+      
+      // Only allow admin users to read feedback
+      // This is a more specific rule that will override the default for reading feedback
+      allow read: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }

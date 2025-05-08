@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
@@ -7,10 +7,13 @@ import '../styles/ProfilePage.css';
 import '../styles/UserProfilePage.css';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
+import UserReviewSection from '../components/reviews/UserReviewSection';
+import messagingService from '../services/messagingService';
 
 const UserProfilePage = () => {
     const { currentUser, hasRole } = useUser();
     const { userId } = useParams();
+    const navigate = useNavigate();
 
     const [loading, setLoading] = useState(true);
     const [userProfile, setUserProfile] = useState(null);
@@ -18,24 +21,7 @@ const UserProfilePage = () => {
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [activeTab, setActiveTab] = useState('about');
     const [error, setError] = useState(null);
-
-    // Format user roles consistently
-    const formatUserRoles = (userProfile) => {
-        if (!userProfile) return [];
-
-        // If roles array exists and is an array, use it
-        if (userProfile.roles && Array.isArray(userProfile.roles)) {
-            return userProfile.roles;
-        }
-
-        // If there's a single role string, convert to array
-        if (userProfile.role) {
-            return [userProfile.role];
-        }
-
-        // Default fallback
-        return ['customer'];
-    };
+    const [sendingMessage, setSendingMessage] = useState(false);
 
     // Fetch user data
     useEffect(() => {
@@ -78,7 +64,9 @@ const UserProfilePage = () => {
             if (!userProfile) return;
 
             // Check if user has designer role
-            const userRoles = formatUserRoles(userProfile);
+            const userRoles = Array.isArray(userProfile.roles)
+                ? userProfile.roles
+                : userProfile.role ? [userProfile.role] : [];
 
             const isDesigner = userRoles.includes('designer');
 
@@ -138,7 +126,9 @@ const UserProfilePage = () => {
     const renderRolePills = () => {
         if (!userProfile) return null;
 
-        const roles = formatUserRoles(userProfile);
+        const roles = Array.isArray(userProfile.roles)
+            ? userProfile.roles
+            : userProfile.role ? [userProfile.role] : ['customer'];
 
         return roles.map((role, index) => (
             <div key={index} className={`role-pill ${role.toLowerCase()}`}>
@@ -147,11 +137,38 @@ const UserProfilePage = () => {
                 {role === 'manufacturer' && userProfile.manufacturerVerified && (
                     <span className="verification-badge" title="Verified Manufacturer">✓</span>
                 )}
-                {role === 'designer' && userProfile.designerVerified && (
+                {/* {role === 'designer' && userProfile.designerVerified && (
                     <span className="verification-badge" title="Verified Designer">✓</span>
-                )}
+                )} */}
             </div>
         ));
+    };
+
+    // Handle clicking the message button
+    const handleMessageUser = async () => {
+        if (!currentUser) {
+            navigate('/signin', { state: { from: window.location.pathname } });
+            return;
+        }
+
+        try {
+            setSendingMessage(true);
+
+            // Find or create a conversation between these users
+            const conversation = await messagingService.findOrCreateConversation(
+                currentUser.uid,
+                userId
+            );
+
+            // Navigate to the conversation
+            navigate(`/messages/${conversation.id}`);
+        } catch (err) {
+            console.error('Error creating conversation:', err);
+            // If there's an error, fall back to the messages page
+            navigate('/messages');
+        } finally {
+            setSendingMessage(false);
+        }
     };
 
     if (loading) {
@@ -223,8 +240,12 @@ const UserProfilePage = () => {
                     </div>
 
                     <div className="action-buttons">
-                        <button className="pill-btn message-button" onClick={() => window.location.href = `/messages/new/${userId}`}>
-                            Message User
+                        <button
+                            className="pill-btn message-button"
+                            onClick={handleMessageUser}
+                            disabled={sendingMessage}
+                        >
+                            {sendingMessage ? 'Opening chat...' : 'Message User'}
                         </button>
 
                         {/* Admin verification controls */}
@@ -269,6 +290,12 @@ const UserProfilePage = () => {
                                 Products
                             </div>
                         )}
+                        <div
+                            className={`profile-tab ${activeTab === 'reviews' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('reviews')}
+                        >
+                            Reviews
+                        </div>
                         <div
                             className={`profile-tab ${activeTab === 'achievements' ? 'active' : ''}`}
                             onClick={() => setActiveTab('achievements')}
@@ -378,6 +405,10 @@ const UserProfilePage = () => {
                                     </div>
                                 )}
                             </div>
+                        )}
+
+                        {activeTab === 'reviews' && (
+                            <UserReviewSection userId={userId} userProfile={userProfile} />
                         )}
 
                         {activeTab === 'achievements' && (

@@ -6,8 +6,9 @@ import { db, storage } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../context/ToastContext';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
+import useLocalStorageForm from '../hooks/useLocalStorageForm'; // Import the new hook
 import '../styles/ProductUpload.css';
 
 // Default categories in case Firestore fetch fails
@@ -27,13 +28,14 @@ const MAX_IMAGES = 5; // Maximum number of images allowed
 const ProductEditPage = () => {
     const navigate = useNavigate();
     const { productId } = useParams();
-    const { currentUser, userRole } = useUser();
+    const { currentUser, userRoles, hasRole } = useUser(); // Use userRoles and hasRole function
     const { success, error } = useToast();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [errorState, setErrorState] = useState('');
     const [product, setProduct] = useState(null);
+    const [originalProductData, setOriginalProductData] = useState(null); // Store original product data for comparison
 
     // Multiple image handling state
     const [productImages, setProductImages] = useState([]);
@@ -45,8 +47,8 @@ const ProductEditPage = () => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const imageInputRef = useRef(null);
 
-    // Form state
-    const [formData, setFormData] = useState({
+    // Default form state - will be populated from the product data
+    const defaultFormData = {
         name: '',
         description: '',
         price: '',
@@ -56,22 +58,38 @@ const ProductEditPage = () => {
         customCategory: '',
         isCrowdfunded: true,
         manufacturingCost: '',
-        stockQuantity: '0',  // Initialize with string '0' instead of undefined
-        lowStockThreshold: '5',  // Initialize with string '5' instead of undefined
+        stockQuantity: '0',
+        lowStockThreshold: '5',
         trackInventory: false,
-    });
+        // Add shipping related fields
+        customShipping: false,
+        standardShippingCost: '',
+        expressShippingCost: '',
+        freeShipping: false,
+        freeShippingThreshold: '',
+        shippingProvider: 'standard',
+        customProviderName: ''
+    };
 
     // Categories state
     const [categories, setCategories] = useState([]);
     const [loadingCategories, setLoadingCategories] = useState(true);
     const [useCustomCategory, setUseCustomCategory] = useState(false);
 
-    // Check if user has designer role
-    const isDesigner = userRole && (
-        typeof userRole === 'string' ?
-            userRole === 'designer' :
-            Array.isArray(userRole) && userRole.includes('designer')
-    );
+    // Use our custom localStorage form hook
+    const formStorageKey = `product_edit_${productId}_${currentUser?.uid}`;
+    const {
+        formData,
+        setFormData,
+        hasChanges,
+        handleChange: handleFormChange,
+        updateFormData,
+        clearStoredData,
+        resetForm
+    } = useLocalStorageForm(formStorageKey, defaultFormData, originalProductData, sanitizeString);
+
+    // Check if user has designer role or admin role using the hasRole function
+    const isDesigner = hasRole('designer') || hasRole('admin');
 
     // Fetch the product data
     useEffect(() => {
@@ -89,17 +107,14 @@ const ProductEditPage = () => {
                 const productData = productSnap.data();
 
                 // Check if the current user is the designer of this product or an admin
-                const isAdmin = Array.isArray(userRole)
-                    ? userRole.includes('admin')
-                    : userRole === 'admin';
-
+                const isAdmin = hasRole('admin');
                 const isProductDesigner = productData.designerId === currentUser.uid;
 
                 // Log user and product info for debugging authorization issues
                 console.log('Product Edit Authorization Check:', {
                     currentUserId: currentUser.uid,
                     productDesignerId: productData.designerId,
-                    userRoles: userRole,
+                    userRoles: userRoles,
                     isAdmin,
                     isProductDesigner
                 });
@@ -113,18 +128,32 @@ const ProductEditPage = () => {
                     ...productData
                 });
 
-                // Set form data from product
-                setFormData({
+                // Store original product data for change detection
+                const originalData = {
                     name: productData.name || '',
                     description: productData.description || '',
                     price: productData.price ? productData.price.toString() : '',
                     category: productData.category || '',
-                    categories: productData.categories || [productData.category || ''], // Get multiple categories or fallback to single category
+                    categories: productData.categories || [productData.category || ''],
                     fundingGoal: productData.fundingGoal ? productData.fundingGoal.toString() : '',
                     customCategory: productData.categoryType === 'custom' ? productData.category : '',
-                    isCrowdfunded: productData.isCrowdfunded !== false, // Default to true for backward compatibility
-                    manufacturingCost: productData.manufacturingCost ? productData.manufacturingCost.toString() : '', // Load manufacturing cost
-                });
+                    isCrowdfunded: productData.isCrowdfunded !== false,
+                    manufacturingCost: productData.manufacturingCost ? productData.manufacturingCost.toString() : '',
+                    trackInventory: productData.trackInventory || false,
+                    stockQuantity: productData.stockQuantity ? productData.stockQuantity.toString() : '0',
+                    lowStockThreshold: productData.lowStockThreshold ? productData.lowStockThreshold.toString() : '5',
+                    customShipping: productData.customShipping || false,
+                    standardShippingCost: productData.standardShippingCost ? productData.standardShippingCost.toString() : '',
+                    expressShippingCost: productData.expressShippingCost ? productData.expressShippingCost.toString() : '',
+                    freeShipping: productData.freeShipping || false,
+                    freeShippingThreshold: productData.freeShippingThreshold ? productData.freeShippingThreshold.toString() : '',
+                    shippingProvider: productData.shippingProvider || 'standard',
+                    customProviderName: productData.customProviderName || ''
+                };
+                setOriginalProductData(originalData);
+
+                // Set form data (our hook will use localStorage value if available)
+                updateFormData(originalData);
 
                 // Set useCustomCategory based on categoryType
                 setUseCustomCategory(productData.categoryType === 'custom');
@@ -148,7 +177,7 @@ const ProductEditPage = () => {
         };
 
         fetchProduct();
-    }, [productId, currentUser]);
+    }, [productId, currentUser, updateFormData, userRoles, hasRole]);
 
     // Fetch categories on component mount
     useEffect(() => {
@@ -179,9 +208,9 @@ const ProductEditPage = () => {
         fetchCategories();
     }, []);
 
-    // Handle form input changes
+    // Handle form input changes - now using our custom hook
     const handleChange = (e) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
 
         // Special handling for price and fundingGoal to ensure they're numeric
         if (name === 'price' || name === 'fundingGoal') {
@@ -193,31 +222,32 @@ const ProductEditPage = () => {
                 ? `${parts[0]}.${parts.slice(1).join('')}`
                 : numericValue;
 
-            setFormData({ ...formData, [name]: formattedValue });
+            updateFormData({ [name]: formattedValue });
         }
         // Handle category selection with special case for 'custom'
         else if (name === 'category') {
             if (value === 'custom') {
                 setUseCustomCategory(true);
-                setFormData({ ...formData, [name]: value });
+                updateFormData({ [name]: value });
             } else {
                 setUseCustomCategory(false);
-                setFormData({ ...formData, [name]: value });
+                updateFormData({ [name]: value });
             }
         }
+        // Handle checkbox inputs
+        else if (type === 'checkbox') {
+            updateFormData({ [name]: checked });
+        }
         else {
-            // Store unsanitized value for display in the form
-            setFormData({ ...formData, [name]: value });
+            // Use the handleFormChange from our hook for other fields
+            handleFormChange(e);
         }
     };
 
     // Toggle product type (crowdfunded vs. direct sell)
     const handleProductTypeToggle = (e) => {
         const isCrowdfunded = e.target.value === 'crowdfunded';
-        setFormData(prev => ({
-            ...prev,
-            isCrowdfunded
-        }));
+        updateFormData({ isCrowdfunded });
     };
 
     // Handle category selection (for multi-select)
@@ -227,11 +257,10 @@ const ProductEditPage = () => {
         // Update both the categories array and the category field for backward compatibility
         const primaryCategory = selectedOptions.length > 0 ? selectedOptions[0] : '';
 
-        setFormData(prev => ({
-            ...prev,
+        updateFormData({
             categories: selectedOptions,
             category: primaryCategory // Keep first selected category in the single category field
-        }));
+        });
     };
 
     // Toggle custom category
@@ -239,9 +268,12 @@ const ProductEditPage = () => {
         const newValue = !useCustomCategory;
         setUseCustomCategory(newValue);
         if (newValue) {
-            setFormData(prev => ({ ...prev, category: 'custom' }));
+            updateFormData({ category: 'custom' });
         } else {
-            setFormData(prev => ({ ...prev, category: '', customCategory: '' }));
+            updateFormData({
+                category: '',
+                customCategory: ''
+            });
         }
     };
 
@@ -373,6 +405,13 @@ const ProductEditPage = () => {
             return;
         }
 
+        // Check if there are actual changes to save
+        if (!hasChanges && productImages.length === 0 && imagesToDelete.length === 0) {
+            success("No changes detected. Nothing to save.");
+            navigate(`/product/${productId}`);
+            return;
+        }
+
         setSaving(true);
 
         try {
@@ -380,32 +419,31 @@ const ProductEditPage = () => {
             const newImageUrls = await Promise.all(productImages.map(async (image) => {
                 const timestamp = Date.now();
                 const fileName = `${timestamp}-product-${Math.random().toString(36).substring(7)}.jpg`;
-                const storageRef = ref(storage, `products/${currentUser.uid}/${fileName}`);
+                const imagePath = `products/${productId}/${fileName}`;
+                const imageRef = ref(storage, imagePath);
 
-                // Upload the file
-                await uploadBytes(storageRef, image);
+                await uploadBytes(imageRef, image);
+                const downloadUrl = await getDownloadURL(imageRef);
 
-                // Get the download URL
-                const imageUrl = await getDownloadURL(storageRef);
-                return imageUrl;
+                return downloadUrl;
             }));
 
-            // 2. Delete any images that were marked for deletion
-            // Only attempt to delete if we have storage paths
-            if (product.storagePaths && Array.isArray(product.storagePaths)) {
-                for (const imageUrl of imagesToDelete) {
-                    // Find the storage path that corresponds to this URL
-                    const pathIndex = product.imageUrls.indexOf(imageUrl);
-                    if (pathIndex >= 0 && pathIndex < product.storagePaths.length) {
-                        const storagePath = product.storagePaths[pathIndex];
-                        try {
-                            const imageRef = ref(storage, storagePath);
-                            await deleteObject(imageRef);
-                        } catch (deleteError) {
-                            console.error('Error deleting image:', deleteError);
-                            // Continue with the update even if image deletion fails
-                        }
+            // 2. Delete any images marked for deletion
+            for (const imageUrl of imagesToDelete) {
+                try {
+                    // Extract the path from the URL
+                    const decodedUrl = decodeURIComponent(imageUrl);
+                    const urlParts = decodedUrl.split('/o/')[1]?.split('?')[0];
+
+                    if (urlParts) {
+                        const storagePath = urlParts.replace(/%2F/g, '/');
+                        const imageRef = ref(storage, storagePath);
+                        await deleteObject(imageRef);
+                        console.log(`Deleted image: ${storagePath}`);
                     }
+                } catch (deleteErr) {
+                    console.warn(`Failed to delete image ${imageUrl}`, deleteErr);
+                    // Continue with the update even if image deletion fails
                 }
             }
 
@@ -486,6 +524,23 @@ const ProductEditPage = () => {
                 // Keep stockQuantity if it exists, but mark as not tracked
             }
 
+            // Add shipping settings to product data if custom shipping is enabled
+            if (formData.customShipping) {
+                productData.customShipping = true;
+                productData.standardShippingCost = parseFloat(formData.standardShippingCost) || 10;
+                productData.expressShippingCost = parseFloat(formData.expressShippingCost) || 25;
+                productData.freeShipping = formData.freeShipping;
+                productData.freeShippingThreshold = parseFloat(formData.freeShippingThreshold) || 0;
+                productData.shippingProvider = formData.shippingProvider;
+
+                if (formData.shippingProvider === 'custom') {
+                    productData.customProviderName = formData.customProviderName;
+                }
+            } else {
+                // If custom shipping is disabled, remove any previously set custom shipping values
+                productData.customShipping = false;
+            }
+
             // Update the product document
             await updateDoc(doc(db, 'products', productId), productData);
 
@@ -512,6 +567,9 @@ const ProductEditPage = () => {
                 }
             }
 
+            // Clear local storage data after successful save
+            clearStoredData();
+
             // Show success message
             success(statusMessage);
 
@@ -526,8 +584,35 @@ const ProductEditPage = () => {
         }
     };
 
-    // Redirect if user is not a designer
-    if (userRole !== null && !isDesigner) {
+    // React form cancel button handler
+    const handleCancel = () => {
+        // Ask for confirmation if there are unsaved changes
+        if (hasChanges || productImages.length > 0 || imagesToDelete.length > 0) {
+            if (window.confirm('You have unsaved changes. Are you sure you want to discard them?')) {
+                clearStoredData();
+                navigate(-1);
+            }
+        } else {
+            navigate(-1);
+        }
+    };
+
+    // Handle product deletion
+    const handleDeleteProduct = async () => {
+        try {
+            // Delete product document from Firestore
+            await updateDoc(doc(db, 'products', productId), { status: 'deleted' });
+            success("Product deleted successfully.");
+            navigate('/products'); // Redirect to products list or another appropriate page
+        } catch (error) {
+            console.error('Error deleting product:', error);
+            setErrorState(error.message || 'Failed to delete product. Please try again.');
+            error("Failed to delete product");
+        }
+    };
+
+    // Redirect if user is not a designer or admin
+    if (userRoles !== null && !isDesigner) {
         return (
             <div className="role-error-container">
                 <h2>Designer Access Only</h2>
@@ -578,6 +663,25 @@ const ProductEditPage = () => {
                 <h1>Edit Product</h1>
 
                 {errorState && <div className="error-message">{errorState}</div>}
+
+                {/* Display admin notification when editing another designer's product */}
+                {hasRole('admin') && product && product.designerId !== currentUser.uid && (
+                    <div className="admin-edit-banner">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span>You are editing this product as an administrator. The original designer is {product.designerName || 'Unknown'}.</span>
+                    </div>
+                )}
+
+                {/* Display changes indicator if there are unsaved changes */}
+                {hasChanges && (
+                    <div className="changes-indicator">
+                        You have unsaved changes
+                    </div>
+                )}
 
                 {showImageCropper && (
                     <ImageCropper
@@ -760,6 +864,151 @@ const ProductEditPage = () => {
                                 )}
                             </div>
 
+                            <div className="form-group shipping-settings">
+                                <h3>Shipping Settings</h3>
+
+                                <div className="shipping-toggle">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            name="customShipping"
+                                            checked={formData.customShipping}
+                                            onChange={(e) => setFormData({ ...formData, customShipping: e.target.checked })}
+                                            disabled={saving}
+                                        />
+                                        Use custom shipping for this product (override default settings)
+                                    </label>
+                                    <p className="form-hint">
+                                        Enable to set shipping costs specifically for this product, overriding your default shipping settings.
+                                    </p>
+                                </div>
+
+                                {formData.customShipping && (
+                                    <div className="shipping-fields">
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label htmlFor="standardShippingCost">Standard Shipping Cost ($)</label>
+                                                <input
+                                                    type="number"
+                                                    id="standardShippingCost"
+                                                    name="standardShippingCost"
+                                                    value={formData.standardShippingCost}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        standardShippingCost: e.target.value
+                                                    })}
+                                                    placeholder="10.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    disabled={saving}
+                                                />
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label htmlFor="expressShippingCost">Express Shipping Cost ($)</label>
+                                                <input
+                                                    type="number"
+                                                    id="expressShippingCost"
+                                                    name="expressShippingCost"
+                                                    value={formData.expressShippingCost}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        expressShippingCost: e.target.value
+                                                    })}
+                                                    placeholder="25.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    disabled={saving}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group checkbox">
+                                            <label>
+                                                <input
+                                                    type="checkbox"
+                                                    name="freeShipping"
+                                                    checked={formData.freeShipping}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        freeShipping: e.target.checked
+                                                    })}
+                                                    disabled={saving}
+                                                />
+                                                Offer free shipping for this product
+                                            </label>
+                                        </div>
+
+                                        {!formData.freeShipping && (
+                                            <div className="form-group">
+                                                <label htmlFor="freeShippingThreshold">Free Shipping Threshold ($)</label>
+                                                <input
+                                                    type="number"
+                                                    id="freeShippingThreshold"
+                                                    name="freeShippingThreshold"
+                                                    value={formData.freeShippingThreshold}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        freeShippingThreshold: e.target.value
+                                                    })}
+                                                    placeholder="50.00"
+                                                    min="0"
+                                                    step="0.01"
+                                                    disabled={saving}
+                                                />
+                                                <p className="form-hint">
+                                                    Orders that include this product will receive free shipping if the total order amount exceeds this threshold.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <div className="form-group">
+                                            <label htmlFor="shippingProvider">Shipping Provider</label>
+                                            <select
+                                                id="shippingProvider"
+                                                name="shippingProvider"
+                                                value={formData.shippingProvider}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    setFormData({
+                                                        ...formData,
+                                                        shippingProvider: value,
+                                                        customProviderName: value === 'custom' ? formData.customProviderName : ''
+                                                    });
+                                                }}
+                                                disabled={saving}
+                                            >
+                                                <option value="standard">Standard Shipping</option>
+                                                <option value="usps">USPS</option>
+                                                <option value="ups">UPS</option>
+                                                <option value="fedex">FedEx</option>
+                                                <option value="amazon">Amazon Logistics</option>
+                                                <option value="dhl">DHL</option>
+                                                <option value="custom">Custom Provider</option>
+                                            </select>
+                                        </div>
+
+                                        {formData.shippingProvider === 'custom' && (
+                                            <div className="form-group">
+                                                <label htmlFor="customProviderName">Custom Provider Name</label>
+                                                <input
+                                                    type="text"
+                                                    id="customProviderName"
+                                                    name="customProviderName"
+                                                    value={formData.customProviderName}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        customProviderName: e.target.value
+                                                    })}
+                                                    placeholder="Enter shipping provider name"
+                                                    disabled={saving || formData.shippingProvider !== 'custom'}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="form-group">
                                 <div className="category-selection">
                                     <div className="category-toggle">
@@ -906,65 +1155,6 @@ const ProductEditPage = () => {
                             </div>
 
                             {product && (
-                                <div className="form-group stock-management">
-                                    <h3>Stock Management</h3>
-
-                                    <div className="stock-tracking-toggle">
-                                        <label>
-                                            <input
-                                                type="checkbox"
-                                                name="trackInventory"
-                                                checked={formData.trackInventory}
-                                                onChange={(e) => setFormData({ ...formData, trackInventory: e.target.checked })}
-                                                disabled={saving}
-                                            />
-                                            Track inventory for this product
-                                        </label>
-                                        <p className="form-hint">
-                                            Enable to track stock levels and receive notifications when inventory is low.
-                                        </p>
-                                    </div>
-
-                                    {formData.trackInventory && (
-                                        <div className="stock-fields">
-                                            <div className="form-row">
-                                                <div className="form-group">
-                                                    <label htmlFor="stockQuantity">Stock Quantity*</label>
-                                                    <input
-                                                        type="number"
-                                                        id="stockQuantity"
-                                                        name="stockQuantity"
-                                                        value={formData.stockQuantity}
-                                                        onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
-                                                        placeholder="0"
-                                                        min="0"
-                                                        disabled={saving}
-                                                    />
-                                                </div>
-
-                                                <div className="form-group">
-                                                    <label htmlFor="lowStockThreshold">Low Stock Threshold</label>
-                                                    <input
-                                                        type="number"
-                                                        id="lowStockThreshold"
-                                                        name="lowStockThreshold"
-                                                        value={formData.lowStockThreshold}
-                                                        onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })}
-                                                        placeholder="5"
-                                                        min="0"
-                                                        disabled={saving}
-                                                    />
-                                                    <p className="form-hint">
-                                                        You'll be notified when stock reaches this level.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {product && (
                                 <div className="product-status-info">
                                     <h3>Product Status</h3>
                                     <div className={`status-badge status-${product.status || 'pending'}`}>
@@ -999,15 +1189,30 @@ const ProductEditPage = () => {
                         <button
                             type="button"
                             className="cancel-button"
-                            onClick={() => navigate(-1)}
+                            onClick={handleCancel}
                             disabled={saving}
                         >
                             Cancel
                         </button>
+                        {/* Delete button only for admins */}
+                        {hasRole('admin') && (
+                            <button
+                                type="button"
+                                className="delete-button"
+                                onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete "${formData.name}"? This action cannot be undone.`)) {
+                                        handleDeleteProduct();
+                                    }
+                                }}
+                                disabled={saving}
+                            >
+                                Delete Product
+                            </button>
+                        )}
                         <button
                             type="submit"
                             className="submit-button"
-                            disabled={saving}
+                            disabled={saving || (!hasChanges && productImages.length === 0 && imagesToDelete.length === 0)}
                         >
                             {saving ? <LoadingSpinner /> : 'Save Changes'}
                         </button>

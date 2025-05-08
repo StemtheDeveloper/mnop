@@ -13,10 +13,16 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
     />
+    <!-- Removed Enterprise reCAPTCHA script since it can conflict with Firebase's built-in reCAPTCHA -->
     <title>M'NOP</title>
   </head>
   <body>
     <div id="root"></div>
+    <!-- reCAPTCHA container for Firebase phone auth -->
+    <div
+      id="recaptcha-container"
+      style="position: fixed; bottom: -1000px"
+    ></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

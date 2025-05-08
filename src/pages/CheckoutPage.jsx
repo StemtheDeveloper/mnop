@@ -1,14 +1,163 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, deleteDoc, serverTimestamp, getDoc, getDocs, limit } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import notificationService from '../services/notificationService';
+import cartRecoveryService from '../services/cartRecoveryService';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
+import taxRates from '../config/taxRates';
 import '../styles/CheckoutPage.css';
+
+// CrossSellingSuggestions Component
+const CrossSellingSuggestions = ({ cartItems }) => {
+    const [suggestions, setSuggestions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const { showError } = useToast();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const fetchSuggestions = async () => {
+            if (!cartItems || cartItems.length === 0) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                setLoading(true);
+
+                // Get categories from current cart items
+                const cartProductIds = cartItems.map(item => item.id);
+                const productRefs = cartProductIds.map(id => doc(db, 'products', id));
+
+                // Fetch product details for cart items
+                const productData = [];
+                for (const productRef of productRefs) {
+                    const productDoc = await getDoc(productRef);
+                    if (productDoc.exists()) {
+                        productData.push(productDoc.data());
+                    }
+                }
+
+                // Extract categories from products
+                const categories = new Set();
+                productData.forEach(product => {
+                    if (product.categories && Array.isArray(product.categories)) {
+                        product.categories.forEach(category => categories.add(category));
+                    } else if (product.category) {
+                        categories.add(product.category);
+                    }
+                });
+
+                // Extract designer IDs from products
+                const designers = new Set();
+                productData.forEach(product => {
+                    if (product.designerId) {
+                        designers.add(product.designerId);
+                    }
+                });
+
+                // If no categories found, return
+                if (categories.size === 0 && designers.size === 0) {
+                    setLoading(false);
+                    return;
+                }
+
+                // Find related products based on categories or designers
+                const productsRef = collection(db, 'products');
+                let suggestionsQuery;
+
+                if (categories.size > 0) {
+                    // Get products in similar categories
+                    const categoriesArray = Array.from(categories);
+                    suggestionsQuery = query(
+                        productsRef,
+                        where('status', '==', 'active'),
+                        where('categories', 'array-contains-any', categoriesArray),
+                        limit(8)
+                    );
+                } else {
+                    // Fallback to designer's other products
+                    const designersArray = Array.from(designers);
+                    suggestionsQuery = query(
+                        productsRef,
+                        where('status', '==', 'active'),
+                        where('designerId', 'in', designersArray),
+                        limit(8)
+                    );
+                }
+
+                const suggestionsSnapshot = await getDocs(suggestionsQuery);
+
+                // Filter out products that are already in the cart
+                const suggestedProducts = suggestionsSnapshot.docs
+                    .map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }))
+                    .filter(product => !cartProductIds.includes(product.id));
+
+                // Get only the first 4 products
+                setSuggestions(suggestedProducts.slice(0, 4));
+
+            } catch (error) {
+                console.error('Error fetching product suggestions:', error);
+                showError('Error loading product suggestions');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSuggestions();
+    }, [cartItems, showError]);
+
+    // Format price as currency
+    const formatPrice = (price) => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(price || 0);
+    };
+
+    // Handle click on a suggestion
+    const handleSuggestionClick = (productId) => {
+        navigate(`/product/${productId}`);
+    };
+
+    // Don't show component if no suggestions or still loading
+    if (loading || suggestions.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="cross-selling-suggestions">
+            <h3>You might also like</h3>
+            <div className="suggestions-container">
+                {suggestions.map(product => (
+                    <div key={product.id} className="suggestion-item">
+                        <Link to={`/product/${product.id}`}>
+                            <div className="suggestion-image">
+                                <img
+                                    src={product.imageUrl || (product.imageUrls && product.imageUrls[0]) || 'https://via.placeholder.com/160?text=Product'}
+                                    alt={product.name}
+                                />
+                            </div>
+                            <div className="suggestion-details">
+                                <h4>{product.name || 'Product'}</h4>
+                                <div className="suggestion-price">
+                                    {formatPrice(product.price)}
+                                </div>
+                            </div>
+                        </Link>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 const CheckoutPage = () => {
     const { currentUser, userProfile, userWallet } = useUser();
@@ -22,6 +171,7 @@ const CheckoutPage = () => {
     const [error, setError] = useState(null);
     const [subtotal, setSubtotal] = useState(0);
     const [shipping, setShipping] = useState(10);
+    const [tax, setTax] = useState(0);
     const [total, setTotal] = useState(0);
     const [step, setStep] = useState(1);
     const [orderComplete, setOrderComplete] = useState(false);
@@ -57,6 +207,30 @@ const CheckoutPage = () => {
         // Shipping method
         shippingMethod: 'standard'
     });
+
+    // Calculate tax based on country and state/province
+    const calculateTax = (subtotal, country, state) => {
+        let taxRate = 0;
+
+        // Get country tax rates
+        const countryRates = taxRates[country];
+
+        if (countryRates) {
+            // Check if there's a specific rate for the state/province
+            if (state && countryRates[state]) {
+                taxRate = countryRates[state];
+            } else {
+                // Use default rate for the country
+                taxRate = countryRates.default || 0;
+            }
+        }
+
+        // Calculate tax amount (taxRate is in percentage)
+        const taxAmount = (subtotal * taxRate) / 100;
+
+        // Round to 2 decimal places
+        return Math.round(taxAmount * 100) / 100;
+    };
 
     // Fetch payment settings
     useEffect(() => {
@@ -104,11 +278,146 @@ const CheckoutPage = () => {
         }
     }, [userWallet, total, paymentSettings.allowCreditCardPayment]);
 
+    // Add a list of countries that require state/province
+    useEffect(() => {
+        // Update form validation based on selected country
+        const countriesWithStates = ['United States', 'Canada', 'Australia', 'Mexico', 'Brazil', 'India'];
+        const stateRequired = countriesWithStates.includes(formData.country);
+
+        // Set a placeholder text based on country selected
+        let statePlaceholder = "State";
+        if (formData.country === 'Canada') statePlaceholder = "Province";
+        else if (formData.country === 'United Kingdom') statePlaceholder = "County";
+        else if (formData.country === 'Australia') statePlaceholder = "State/Territory";
+
+        // Update the placeholder
+        const stateInput = document.getElementById('state');
+        if (stateInput) stateInput.placeholder = statePlaceholder;
+    }, [formData.country]);
+
+    // Update tax when country or state changes
+    useEffect(() => {
+        // Only recalculate if we have a subtotal (means cart is loaded)
+        if (subtotal > 0) {
+            const taxAmount = calculateTax(subtotal, formData.country, formData.state);
+            setTax(taxAmount);
+            setTotal(subtotal + shipping + taxAmount);
+        }
+    }, [formData.country, formData.state, subtotal]);
+
     // Calculate subtotal and total
     const calculateTotals = (items) => {
         const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         setSubtotal(itemsTotal);
-        setTotal(itemsTotal + shipping);
+
+        // Calculate tax based on shipping location
+        const taxAmount = calculateTax(itemsTotal, formData.country, formData.state);
+        setTax(taxAmount);
+
+        // Calculate total (subtotal + shipping + tax)
+        setTotal(itemsTotal + shipping + taxAmount);
+    };
+
+    // Fetch shipping costs from designer settings
+    const fetchShippingCosts = async (cartItems) => {
+        try {
+            // Group cart items by designer ID for faster processing
+            const designerItems = {};
+
+            // Track whether any item has free shipping
+            let hasFreeShippingItem = false;
+
+            // Track the lowest free shipping threshold
+            let lowestFreeShippingThreshold = Infinity;
+
+            // Default shipping costs
+            let standardCost = 10;
+            let expressCost = 25;
+
+            // Process each item in the cart
+            for (const item of cartItems) {
+                try {
+                    // Get the product details
+                    const productRef = doc(db, 'products', item.id);
+                    const productDoc = await getDoc(productRef);
+
+                    if (productDoc.exists()) {
+                        const productData = productDoc.data();
+                        const designerId = productData.designerId;
+
+                        // Check if product has custom shipping settings
+                        if (productData.customShipping) {
+                            // Check if product has free shipping
+                            if (productData.freeShipping) {
+                                hasFreeShippingItem = true;
+                            }
+
+                            // Update lowest free shipping threshold if product has one
+                            if (!productData.freeShipping && productData.freeShippingThreshold &&
+                                productData.freeShippingThreshold < lowestFreeShippingThreshold) {
+                                lowestFreeShippingThreshold = productData.freeShippingThreshold;
+                            }
+
+                            // Track product's shipping costs
+                            if (productData.standardShippingCost !== undefined) {
+                                // Use the highest shipping cost among all products
+                                standardCost = Math.max(standardCost, productData.standardShippingCost);
+                            }
+
+                            if (productData.expressShippingCost !== undefined) {
+                                // Use the highest shipping cost among all products
+                                expressCost = Math.max(expressCost, productData.expressShippingCost);
+                            }
+                        } else if (designerId) {
+                            // Check if we already processed this designer
+                            if (!designerItems[designerId]) {
+                                // Get designer's shipping settings
+                                const designerSettingsRef = doc(db, 'designerSettings', designerId);
+                                const designerDoc = await getDoc(designerSettingsRef);
+
+                                if (designerDoc.exists()) {
+                                    const designerSettings = designerDoc.data();
+                                    designerItems[designerId] = {
+                                        standardShippingCost: designerSettings.standardShippingCost !== undefined ? designerSettings.standardShippingCost : 10,
+                                        expressShippingCost: designerSettings.expressShippingCost !== undefined ? designerSettings.expressShippingCost : 25,
+                                        offerFreeShipping: designerSettings.offerFreeShipping || false,
+                                        freeShippingThreshold: designerSettings.freeShippingThreshold || 50
+                                    };
+
+                                    // Update shipping costs with designer settings
+                                    standardCost = Math.max(standardCost, designerItems[designerId].standardShippingCost);
+                                    expressCost = Math.max(expressCost, designerItems[designerId].expressShippingCost);
+
+                                    // Update free shipping threshold
+                                    if (designerSettings.offerFreeShipping &&
+                                        designerSettings.freeShippingThreshold < lowestFreeShippingThreshold) {
+                                        lowestFreeShippingThreshold = designerSettings.freeShippingThreshold;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error processing item ${item.id}:`, error);
+                }
+            }
+
+            return {
+                standardShippingCost: standardCost,
+                expressShippingCost: expressCost,
+                hasFreeShippingItem,
+                freeShippingThreshold: lowestFreeShippingThreshold === Infinity ? 50 : lowestFreeShippingThreshold
+            };
+        } catch (error) {
+            console.error('Error fetching shipping costs:', error);
+            // Default values in case of error
+            return {
+                standardShippingCost: 10,
+                expressShippingCost: 25,
+                hasFreeShippingItem: false,
+                freeShippingThreshold: 50
+            };
+        }
     };
 
     // Fetch cart items
@@ -123,6 +432,26 @@ const CheckoutPage = () => {
                     const localCart = JSON.parse(localStorage.getItem('cart') || '[]');
                     setCartItems(localCart);
                     calculateTotals(localCart);
+
+                    // Fetch shipping costs for the cart
+                    const shippingInfo = await fetchShippingCosts(localCart);
+
+                    // Update shipping costs and method
+                    const currentMethod = formData.shippingMethod;
+                    const shippingCost = currentMethod === 'express' ?
+                        shippingInfo.expressShippingCost :
+                        shippingInfo.standardShippingCost;
+
+                    // Check if order total qualifies for free shipping
+                    if (shippingInfo.hasFreeShippingItem ||
+                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
+                        setShipping(0);
+                        setTotal(subtotal);
+                    } else {
+                        setShipping(shippingCost);
+                        setTotal(subtotal + shippingCost);
+                    }
+
                     setLoading(false);
                     return;
                 }
@@ -131,7 +460,7 @@ const CheckoutPage = () => {
                 const cartsRef = collection(db, 'carts');
                 const q = query(cartsRef, where('userId', '==', currentUser.uid));
 
-                unsubscribe = onSnapshot(q, (snapshot) => {
+                unsubscribe = onSnapshot(q, async (snapshot) => {
                     if (snapshot.empty) {
                         setCartItems([]);
                         calculateTotals([]);
@@ -147,6 +476,26 @@ const CheckoutPage = () => {
                     const items = cart.items || [];
                     setCartItems(items);
                     calculateTotals(items);
+
+                    // Fetch shipping costs for the cart
+                    const shippingInfo = await fetchShippingCosts(items);
+
+                    // Update shipping costs and method
+                    const currentMethod = formData.shippingMethod;
+                    const shippingCost = currentMethod === 'express' ?
+                        shippingInfo.expressShippingCost :
+                        shippingInfo.standardShippingCost;
+
+                    // Check if order total qualifies for free shipping
+                    if (shippingInfo.hasFreeShippingItem ||
+                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
+                        setShipping(0);
+                        setTotal(subtotal);
+                    } else {
+                        setShipping(shippingCost);
+                        setTotal(subtotal + shippingCost);
+                    }
+
                     setLoading(false);
                 }, (err) => {
                     console.error("Error fetching cart:", err);
@@ -165,27 +514,50 @@ const CheckoutPage = () => {
 
         // Clean up subscription
         return () => unsubscribe();
-    }, [currentUser]);
+    }, [currentUser, formData.shippingMethod]);
 
     // Update form data
-    const handleChange = (e) => {
+    const handleChange = async (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: sanitizeString(value) }));
 
         // Update shipping cost based on method
         if (name === 'shippingMethod') {
-            const shippingCost = value === 'express' ? 25 : 10;
-            setShipping(shippingCost);
-            setTotal(subtotal + shippingCost);
+            try {
+                const shippingInfo = await fetchShippingCosts(cartItems);
+                const shippingCost = value === 'express' ?
+                    shippingInfo.expressShippingCost :
+                    shippingInfo.standardShippingCost;
+
+                // Check if order qualifies for free shipping
+                if (shippingInfo.hasFreeShippingItem ||
+                    (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
+                    setShipping(0);
+                    setTotal(subtotal);
+                } else {
+                    setShippingCost(shippingCost);
+                    setTotal(subtotal + shippingCost);
+                }
+            } catch (error) {
+                console.error('Error updating shipping cost:', error);
+                // Fallback to default shipping costs
+                const shippingCost = value === 'express' ? 25 : 10;
+                setShipping(shippingCost);
+                setTotal(subtotal + shippingCost);
+            }
         }
     };
 
     // Handle form submission for shipping info
     const handleShippingSubmit = (e) => {
         e.preventDefault();
-        // Validate shipping information
+        // Validate shipping information - state is only required for certain countries
+        const countriesWithStates = ['United States', 'Canada', 'Australia', 'Mexico', 'Brazil', 'India'];
+        const stateRequired = countriesWithStates.includes(formData.country);
+
         if (!formData.fullName || !formData.email || !formData.phone ||
-            !formData.address || !formData.city || !formData.state || !formData.zipCode) {
+            !formData.address || !formData.city || !formData.zipCode ||
+            (stateRequired && !formData.state)) {
             setError("Please fill in all required shipping fields");
             return;
         }
@@ -249,16 +621,35 @@ const CheckoutPage = () => {
             // Process payment based on selected method
             let paymentStatus = 'pending';
             let paymentMethod = selectedPaymentMethod;
+            let paymentTransactionId = null;
+            let paymentDetails = null;
 
             if (selectedPaymentMethod === 'wallet') {
                 // Deduct from wallet
                 try {
-                    await walletService.deductFunds(
+                    const deductResult = await walletService.deductFunds(
                         currentUser.uid,
                         total,
                         `Payment for order - ${cartItems.length} items`
                     );
-                    paymentStatus = 'paid';
+
+                    if (deductResult.success) {
+                        paymentStatus = 'paid';
+                        // Store transaction info for reference
+                        paymentTransactionId = deductResult.transactionId;
+
+                        // Add transaction information to the order data
+                        paymentDetails = {
+                            method: 'wallet',
+                            transactionId: deductResult.transactionId,
+                            cancellationExpiryTime: deductResult.cancellationExpiryTime,
+                            amount: total
+                        };
+                    } else {
+                        setError(deductResult.error || "Wallet payment failed. Please try again.");
+                        setProcessing(false);
+                        return;
+                    }
                 } catch (error) {
                     console.error("Wallet payment failed:", error);
                     setError("Wallet payment failed. Please try again or use a different payment method.");
@@ -289,19 +680,32 @@ const CheckoutPage = () => {
                 notes: formData.notes,
                 subtotal: subtotal,
                 shipping: shipping,
+                tax: tax,
                 total: total,
                 status: 'processing',
                 createdAt: serverTimestamp(),
                 paymentMethod: paymentMethod,
                 paymentStatus: paymentStatus,
+                paymentTransactionId: paymentTransactionId,
+                paymentDetails: paymentDetails,
                 estimatedDelivery: calculateEstimatedDelivery(formData.shippingMethod)
             };
 
-            // Add order to Firestore
             const orderRef = await addDoc(collection(db, 'orders'), orderData);
             setOrderId(orderRef.id);
 
-            // Process business commission
+            // Mark cart as recovered for analytics purposes
+            if (currentUser && cartId) {
+                try {
+                    await cartRecoveryService.markCartAsRecovered(cartId);
+                    console.log('Cart marked as recovered for tracking abandoned cart recovery metrics');
+                } catch (err) {
+                    // Don't block the order process if this fails
+                    console.error('Error marking cart as recovered:', err);
+                }
+            }
+
+            // Process sales - including designer payments, business commissions, and investor revenue
             for (const item of cartItems) {
                 try {
                     // Fetch the product to get the manufacturing cost
@@ -310,33 +714,26 @@ const CheckoutPage = () => {
 
                     if (productDoc.exists()) {
                         const productData = productDoc.data();
-                        // Calculate and take commission
+                        // Calculate sale amount
                         const manufacturingCost = productData.manufacturingCost || 0;
                         const saleAmount = item.price * item.quantity;
 
-                        const commissionResult = await walletService.processBusinessCommission(
+                        // Use the comprehensive method that handles business commission, 
+                        // investor revenue, AND designer payments in one call
+                        const saleResult = await walletService.processProductSale(
+                            item.id,
+                            item.name || productData.name,
                             saleAmount,
                             manufacturingCost,
                             item.quantity,
-                            item.id,
-                            item.name
+                            orderRef.id,
+                            formData.shippingMethod === 'express' ? 25 : 10 // Pass shipping cost based on selected method
                         );
 
-                        console.log('Business commission processed:', commissionResult);
-
-                        // Distribute revenue to investors
-                        const distributionResult = await walletService.distributeInvestorRevenue(
-                            item.id,
-                            saleAmount,
-                            manufacturingCost,
-                            item.quantity,
-                            orderRef.id
-                        );
-
-                        if (distributionResult.success) {
-                            console.log('Investor revenue distributed:', distributionResult.data);
+                        if (saleResult.success) {
+                            console.log('Product sale processed successfully:', saleResult);
                         } else {
-                            console.error('Error distributing investor revenue:', distributionResult.error);
+                            console.error('Error processing product sale:', saleResult.error);
                         }
                     }
                 } catch (err) {
@@ -628,14 +1025,18 @@ const CheckoutPage = () => {
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label htmlFor="state">State*</label>
+                                        <label htmlFor="state">
+                                            {['United States', 'Canada', 'Australia', 'Mexico', 'Brazil', 'India'].includes(formData.country)
+                                                ? `${formData.country === 'Canada' ? 'Province' : formData.country === 'United Kingdom' ? 'County' : formData.country === 'Australia' ? 'State/Territory' : 'State'}*`
+                                                : `${formData.country === 'United Kingdom' ? 'County' : 'State/Province'} (Optional)`}
+                                        </label>
                                         <input
                                             type="text"
                                             id="state"
                                             name="state"
                                             value={formData.state}
                                             onChange={handleChange}
-                                            required
+                                            required={['United States', 'Canada', 'Australia', 'Mexico', 'Brazil', 'India'].includes(formData.country)}
                                         />
                                     </div>
                                 </div>
@@ -666,6 +1067,21 @@ const CheckoutPage = () => {
                                             <option value="United Kingdom">United Kingdom</option>
                                             <option value="Australia">Australia</option>
                                             <option value="New Zealand">New Zealand</option>
+                                            <option value="Germany">Germany</option>
+                                            <option value="France">France</option>
+                                            <option value="Japan">Japan</option>
+                                            <option value="China">China</option>
+                                            <option value="India">India</option>
+                                            <option value="Brazil">Brazil</option>
+                                            <option value="Mexico">Mexico</option>
+                                            <option value="Spain">Spain</option>
+                                            <option value="Italy">Italy</option>
+                                            <option value="Netherlands">Netherlands</option>
+                                            <option value="Sweden">Sweden</option>
+                                            <option value="Norway">Norway</option>
+                                            <option value="Denmark">Denmark</option>
+                                            <option value="Finland">Finland</option>
+                                            <option value="Singapore">Singapore</option>
                                         </select>
                                     </div>
                                 </div>
@@ -685,7 +1101,17 @@ const CheckoutPage = () => {
                                                 />
                                                 <label htmlFor="standard">
                                                     <div className="option-name">Standard Shipping</div>
-                                                    <div className="option-price">$10.00</div>
+                                                    <div className="option-price">
+                                                        {shipping === 0 && (
+                                                            <span className="free-shipping">FREE</span>
+                                                        )}
+                                                        {shipping !== 0 && formData.shippingMethod === 'standard' && (
+                                                            <span>${shipping.toFixed(2)}</span>
+                                                        )}
+                                                        {shipping !== 0 && formData.shippingMethod !== 'standard' && (
+                                                            <span>$10.00</span>
+                                                        )}
+                                                    </div>
                                                     <div className="option-duration">5-7 business days</div>
                                                 </label>
                                             </div>
@@ -700,7 +1126,17 @@ const CheckoutPage = () => {
                                                 />
                                                 <label htmlFor="express">
                                                     <div className="option-name">Express Shipping</div>
-                                                    <div className="option-price">$25.00</div>
+                                                    <div className="option-price">
+                                                        {shipping === 0 && (
+                                                            <span className="free-shipping">FREE</span>
+                                                        )}
+                                                        {shipping !== 0 && formData.shippingMethod === 'express' && (
+                                                            <span>${shipping.toFixed(2)}</span>
+                                                        )}
+                                                        {shipping !== 0 && formData.shippingMethod !== 'express' && (
+                                                            <span>$25.00</span>
+                                                        )}
+                                                    </div>
                                                     <div className="option-duration">2-3 business days</div>
                                                 </label>
                                             </div>
@@ -976,12 +1412,19 @@ const CheckoutPage = () => {
                                 <span>Shipping</span>
                                 <span>{formatPrice(shipping)}</span>
                             </div>
+                            <div className="summary-row">
+                                <span>Tax</span>
+                                <span>{formatPrice(tax)}</span>
+                            </div>
                             <div className="summary-row total">
                                 <span>Total</span>
                                 <span>{formatPrice(total)}</span>
                             </div>
                         </div>
                     </div>
+
+                    {/* Cross-Selling Suggestions */}
+                    <CrossSellingSuggestions cartItems={cartItems} />
                 </div>
             </div>
         </div>

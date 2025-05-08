@@ -6,6 +6,7 @@ import { db } from '../config/firebase';
 import { useToast } from '../context/ToastContext';
 import '../styles/AchievementsPage.css';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Button from '../components/Button';
 
 const AchievementsPage = () => {
     const { userId } = useParams();
@@ -265,9 +266,15 @@ const AchievementsPage = () => {
                     {achievements.length} of {allAchievements.length} achievements earned
                 </p>
                 {isOwnProfile && (
-                    <button className="check-achievements-button" onClick={handleCheckAchievements} disabled={loading || checkingAchievements}>
-                        {checkingAchievements ? <LoadingSpinner /> : "Check for New Achievements"}
-                    </button>
+                    <Button
+                        variant="primary"
+                        className="check-achievements-button"
+                        onClick={handleCheckAchievements}
+                        disabled={loading || checkingAchievements}
+                        isLoading={checkingAchievements}
+                    >
+                        Check for New Achievements
+                    </Button>
                 )}
             </div>
 
@@ -292,13 +299,14 @@ const AchievementsPage = () => {
                         <label htmlFor="selectAll">Select All</label>
                     </div>
                     <div className="bulk-action-buttons">
-                        <button
+                        <Button
+                            variant="danger"
                             className="bulk-delete-button"
                             onClick={enterBulkDeleteMode}
                             disabled={loading || selectedAchievements.length === 0 || bulkDeleteMode}
                         >
                             Remove Selected
-                        </button>
+                        </Button>
                     </div>
                     {selectedAchievements.length > 0 && (
                         <div className="selected-count">
@@ -317,20 +325,22 @@ const AchievementsPage = () => {
                         This action cannot be undone.
                     </p>
                     <div className="form-actions">
-                        <button
+                        <Button
+                            variant="light"
                             className="cancel-button"
                             onClick={cancelBulkOperations}
                             disabled={loading}
                         >
                             Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                            variant="danger"
                             className="delete-button"
                             onClick={() => setConfirmBulkDelete(true)}
                             disabled={loading}
                         >
                             Remove
-                        </button>
+                        </Button>
                     </div>
                 </div>
             )}
@@ -343,20 +353,23 @@ const AchievementsPage = () => {
                         Please confirm that you want to permanently remove these achievements.
                     </p>
                     <div className="form-actions">
-                        <button
+                        <Button
+                            variant="light"
                             className="cancel-button"
                             onClick={() => setConfirmBulkDelete(false)}
                             disabled={loading}
                         >
                             Go Back
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                            variant="danger"
                             className="delete-button"
                             onClick={executeBulkDelete}
                             disabled={loading}
+                            isLoading={loading}
                         >
-                            {loading ? <LoadingSpinner /> : 'Confirm Removal'}
-                        </button>
+                            Confirm Removal
+                        </Button>
                     </div>
                 </div>
             )}

@@ -658,14 +658,20 @@ const ProductDetailPage = () => {
         }
     };
 
+    // Enhanced review submission function with proper error handling and validation
     const handleSubmitReview = async () => {
         if (!currentUser) {
             showError("Please sign in to submit a review");
             return;
         }
 
-        if (!userReview.rating || !userReview.text) {
-            showError("Please provide a rating and review text");
+        if (!userReview.rating || userReview.rating < 1) {
+            showError("Please select a rating (1-5 stars)");
+            return;
+        }
+
+        if (!userReview.text || userReview.text.trim().length < 3) {
+            showError("Please provide a review comment (minimum 3 characters)");
             return;
         }
 
@@ -678,58 +684,76 @@ const ProductDetailPage = () => {
                 userName: currentUser.displayName || 'Anonymous',
                 userPhotoURL: currentUser.photoURL || null,
                 rating: userReview.rating,
-                text: userReview.text
+                text: userReview.text.trim()
             };
 
-            const result = await reviewService.addReview(reviewData);
+            // Check if user already has a review
+            const existingReviewIndex = reviews.findIndex(rev => rev.userId === currentUser.uid);
+            const isUpdate = existingReviewIndex >= 0;
+
+            console.log('Submitting review data:', reviewData, 'Is update:', isUpdate);
+
+            // Use the reviewService to submit/update the review
+            const result = await reviewService.addReview(
+                reviewData,
+                isUpdate ? reviews[existingReviewIndex].id : null
+            );
 
             if (result.success) {
-                showSuccess(result.message || "Review submitted successfully");
+                showSuccess(isUpdate ? "Review updated successfully!" : "Review submitted successfully!");
 
-                // If it was a new review (not an update), add it to the reviews list
-                if (!reviews.some(rev => rev.userId === currentUser.uid)) {
-                    setReviews(prev => [
-                        {
-                            id: result.data.id,
-                            ...reviewData,
-                            createdAt: new Date()
-                        },
-                        ...prev
-                    ]);
-                } else {
-                    // Update the existing review in the list
-                    setReviews(prev => prev.map(rev =>
+                // Update the UI to reflect the new/updated review
+                if (isUpdate) {
+                    // Update the existing review
+                    setReviews(prevReviews => prevReviews.map(rev =>
                         rev.userId === currentUser.uid
-                            ? { ...rev, rating: userReview.rating, text: userReview.text, updatedAt: new Date() }
+                            ? {
+                                ...rev,
+                                rating: userReview.rating,
+                                text: userReview.text.trim(),
+                                updatedAt: new Date()
+                            }
                             : rev
                     ));
-                }
+                } else {
+                    // Add the new review to the top of the list
+                    const newReview = {
+                        id: result.data?.id || `temp-${Date.now()}`,
+                        ...reviewData,
+                        createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 },
+                        helpfulCount: 0,
+                        helpfulVoters: [],
+                        replyCount: 0,
+                        status: 'active' // Assuming reviews are active by default, or 'pending' if moderation is required
+                    };
 
-                // Update the product's average rating in the UI
-                if (product.reviewCount) {
-                    const totalRating = reviews.reduce((sum, rev) => {
-                        // If this is the user's review, use the new rating
-                        if (rev.userId === currentUser.uid) {
-                            return sum + userReview.rating;
-                        }
-                        return sum + rev.rating;
-                    }, 0);
+                    setReviews(prevReviews => [newReview, ...prevReviews]);
 
-                    const newAvgRating = (totalRating / product.reviewCount).toFixed(1);
+                    // Update the product's review count
                     setProduct(prev => ({
                         ...prev,
-                        averageRating: parseFloat(newAvgRating)
+                        reviewCount: (prev.reviewCount || 0) + 1
                     }));
                 }
 
-                // Clear the review form if it was successful
+                // Update the product's average rating
+                const allRatings = [...reviews.filter(rev => rev.userId !== currentUser.uid).map(rev => rev.rating), userReview.rating];
+                const newAverageRating = allRatings.reduce((sum, rating) => sum + rating, 0) / allRatings.length;
+
+                setProduct(prev => ({
+                    ...prev,
+                    averageRating: Number(newAverageRating.toFixed(1))
+                }));
+
+                // Reset the form
                 setUserReview({ rating: 0, text: '' });
+
             } else {
-                showError(result.error || "Failed to submit review");
+                throw new Error(result.error || "Failed to submit review");
             }
         } catch (error) {
-            console.error("Error submitting review:", error);
-            showError("Failed to submit review");
+            console.error('Error submitting review:', error);
+            showError(error.message || "There was an error submitting your review. Please try again.");
         } finally {
             setIsSubmittingReview(false);
         }
@@ -993,14 +1017,23 @@ const ProductDetailPage = () => {
                                             onChange={(e) => setUserReview({ ...userReview, text: e.target.value })}
                                             placeholder="Share your thoughts about this product..."
                                             rows="4"
+                                            minLength="3"
+                                            required
                                         ></textarea>
                                     </div>
                                     <button
                                         className="submit-review-btn"
                                         onClick={handleSubmitReview}
-                                        disabled={isSubmittingReview || !userReview.rating || !userReview.text}
+                                        disabled={isSubmittingReview || !userReview.rating || !userReview.text.trim()}
                                     >
-                                        {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                                        {isSubmittingReview ? (
+                                            <>
+                                                <span className="spinner"></span> Submitting...
+                                            </>
+                                        ) : reviews.some(rev => rev.userId === currentUser?.uid) ?
+                                            'Update Review' :
+                                            'Submit Review'
+                                        }
                                     </button>
                                 </div>
                             </div>
@@ -1393,6 +1426,7 @@ const ProductDetailPage = () => {
 
                     <div className="product-actions">
                         {/* Add to Cart Button - enabled if product is direct sell or fully funded */}
+                        <h4>Add to cart?</h4>
                         <button
                             className={`btn-primary add-to-cart-button ${(!isFullyFunded && product.isCrowdfunded !== false) ? 'disabled' : ''} ${buttonAnimation}`}
                             disabled={(product.isCrowdfunded !== false && !isFullyFunded) || isAddingToCart}
@@ -1403,16 +1437,7 @@ const ProductDetailPage = () => {
                                     'Add to Cart' : 'Funding Required'}
                         </button>
 
-                        {/* Investment Button - only show for crowdfunded products */}
-                        {currentUser && hasRole('investor') && product.fundingGoal > 0 &&
-                            product.isCrowdfunded !== false && !isFullyFunded && (
-                                <button
-                                    className="invest-button btn-secondary"
-                                    onClick={() => setShowInvestModal(true)}
-                                >
-                                    Invest in This Product
-                                </button>
-                            )}
+
                     </div>
                 </div>
             </div>

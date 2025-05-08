@@ -87,7 +87,7 @@ const AdminVerificationPage = () => {
 
     // Go back to user profile
     const handleBack = () => {
-        navigate(`/profile/${userId}`);
+        navigate(`/user/${userId}`);
     };
 
     // If the current user is not an admin, show access denied

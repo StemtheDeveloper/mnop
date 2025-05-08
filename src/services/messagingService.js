@@ -125,22 +125,35 @@ class MessagingService {
         const fileName = `${timestamp}-${Math.random()
           .toString(36)
           .substring(2, 15)}.${fileExtension}`;
+
         const storagePath = `message_attachments/${conversationId}/${fileName}`;
 
-        // Upload file to storage
+        // Encrypt the file before upload
+        const { encryptedFile, metadata } = await encryptionService.encryptFile(
+          attachment,
+          encryptionKey
+        );
+
+        if (!encryptedFile) {
+          throw new Error("Failed to encrypt file attachment");
+        }
+
+        // Upload encrypted file to storage
         const storageRef = ref(storage, storagePath);
-        await uploadBytes(storageRef, attachment);
+        await uploadBytes(storageRef, encryptedFile);
 
         // Get download URL
         const downloadURL = await getDownloadURL(storageRef);
 
-        // Create attachment data
+        // Create attachment data including encryption metadata
         attachmentData = {
           fileName: attachment.name,
           fileType: attachment.type,
           fileSize: attachment.size,
           storagePath: storagePath,
           downloadURL: downloadURL,
+          encryptionMetadata: metadata,
+          isEncrypted: true,
         };
 
         // Encrypt attachment metadata
@@ -176,16 +189,16 @@ class MessagingService {
         const fileType = attachment.type.split("/")[0];
         switch (fileType) {
           case "image":
-            previewText = "📷 Image";
+            previewText = "📷 Encrypted Image";
             break;
           case "video":
-            previewText = "🎥 Video";
+            previewText = "🎥 Encrypted Video";
             break;
           case "audio":
-            previewText = "🎵 Audio";
+            previewText = "🎵 Encrypted Audio";
             break;
           default:
-            previewText = "📎 File attachment";
+            previewText = "📎 Encrypted File attachment";
         }
       }
 

@@ -99,14 +99,8 @@ export const UserProvider = ({ children }) => {
                 });
             }
 
-            // Fetch transaction history
-            try {
-                const transactionHistory = await walletService.getTransactionHistory(uid);
-                setTransactions(transactionHistory || []);
-            } catch (txError) {
-                console.error("Error fetching transactions:", txError);
-                setTransactions([]);
-            }
+            // Don't fetch transactions here - we'll let the WalletPage handle this
+            // This prevents double-fetching and performance issues
         } catch (error) {
             console.error("Error fetching user data:", error);
             setUserProfile(null);
@@ -166,14 +160,195 @@ export const UserProvider = ({ children }) => {
             const updatedWallet = await walletService.getUserWallet(currentUser.uid);
             setUserWallet(updatedWallet);
 
-            // Update transaction history
-            const updatedTransactions = await walletService.getTransactionHistory(currentUser.uid);
-            setTransactions(updatedTransactions);
+            // Don't update all transactions here - let the WalletPage handle its own transaction updates
+            // This prevents duplicate requests causing performance issues
 
             return result;
         } catch (error) {
             console.error("Error funding product:", error);
             throw error;
+        }
+    };
+
+    // Add user role function
+    const addUserRole = async (roleId, userId = null) => {
+        try {
+            const targetUserId = userId || currentUser?.uid;
+            if (!targetUserId) throw new Error("No user ID provided");
+
+            const userRef = doc(db, "users", targetUserId);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) throw new Error("User document not found");
+
+            const userData = userSnap.data();
+            let currentRoles = [];
+
+            // Get existing roles
+            if (Array.isArray(userData.roles)) {
+                currentRoles = [...userData.roles];
+            } else if (userData.role) {
+                currentRoles = [userData.role];
+            }
+
+            // Check if role already exists
+            if (currentRoles.includes(roleId)) return true;
+
+            // Add the new role
+            currentRoles.push(roleId);
+
+            // For backward compatibility, determine which role should be set as the single role field
+            // If user has admin role, always keep that as the primary role
+            let primaryRole = roleId;
+            if (currentRoles.includes('admin')) {
+                primaryRole = 'admin';
+            } else if (roleId !== 'admin' && currentRoles.length > 0) {
+                // Keep existing primary role if it's not admin and new role isn't admin
+                primaryRole = currentRoles[0];
+            }
+
+            // Update document with new roles
+            await updateDoc(userRef, {
+                roles: currentRoles,
+                role: primaryRole, // Keep role field updated for backward compatibility, prioritizing admin
+                updatedAt: new Date()
+            });
+
+            // If this is the current user, update local state
+            if (targetUserId === currentUser?.uid) {
+                setUserRoles(currentRoles);
+                await refreshUserData();
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Error adding role:", error);
+            return false;
+        }
+    };
+
+    // Remove user role function
+    const removeUserRole = async (roleId, userId = null) => {
+        try {
+            const targetUserId = userId || currentUser?.uid;
+            if (!targetUserId) throw new Error("No user ID provided");
+
+            // Never allow removing the admin role
+            if (roleId === 'admin') {
+                console.warn("Cannot remove admin role");
+                return false;
+            }
+
+            const userRef = doc(db, "users", targetUserId);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) throw new Error("User document not found");
+
+            const userData = userSnap.data();
+            let currentRoles = [];
+
+            // Get existing roles
+            if (Array.isArray(userData.roles)) {
+                currentRoles = [...userData.roles];
+            } else if (userData.role) {
+                currentRoles = [userData.role];
+            } else {
+                return false; // No roles to remove
+            }
+
+            // Check if role exists
+            if (!currentRoles.includes(roleId)) return false;
+
+            // Remove the role
+            const newRoles = currentRoles.filter(role => role !== roleId);
+
+            // Ensure there's at least one role (default to customer)
+            if (newRoles.length === 0) {
+                newRoles.push('customer');
+            }
+
+            // For backward compatibility, determine which role should be set as the single role field
+            let primaryRole = newRoles[0];
+            if (newRoles.includes('admin')) {
+                primaryRole = 'admin'; // Always prioritize admin role if it exists
+            }
+
+            // Update document with new roles
+            await updateDoc(userRef, {
+                roles: newRoles,
+                role: primaryRole, // Keep role field updated for backward compatibility, prioritizing admin
+                updatedAt: new Date()
+            });
+
+            // If this is the current user, update local state
+            if (targetUserId === currentUser?.uid) {
+                setUserRoles(newRoles);
+                await refreshUserData();
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Error removing role:", error);
+            return false;
+        }
+    };
+
+    // Set primary role function
+    const setPrimaryRole = async (roleId, userId = null) => {
+        try {
+            const targetUserId = userId || currentUser?.uid;
+            if (!targetUserId) throw new Error("No user ID provided");
+
+            const userRef = doc(db, "users", targetUserId);
+            const userSnap = await getDoc(userRef);
+
+            if (!userSnap.exists()) throw new Error("User document not found");
+
+            const userData = userSnap.data();
+            let currentRoles = [];
+
+            // Get existing roles
+            if (Array.isArray(userData.roles)) {
+                currentRoles = [...userData.roles];
+            } else if (userData.role) {
+                currentRoles = [userData.role];
+            } else {
+                return false; // No roles to update
+            }
+
+            // Check if role exists
+            if (!currentRoles.includes(roleId)) return false;
+
+            // If user has admin role and trying to set a different role as primary, deny the operation
+            // This ensures admin remains primary if the user has that role
+            if (currentRoles.includes('admin') && roleId !== 'admin') {
+                console.warn("Cannot change primary role: admin must remain primary");
+                return false;
+            }
+
+            // Reorder roles array to put the primary role first
+            const newRoles = [
+                roleId,
+                ...currentRoles.filter(role => role !== roleId)
+            ];
+
+            // Update document with new roles order
+            await updateDoc(userRef, {
+                roles: newRoles,
+                role: roleId, // Update single role field
+                updatedAt: new Date()
+            });
+
+            // If this is the current user, update local state
+            if (targetUserId === currentUser?.uid) {
+                setUserRoles(newRoles);
+                await refreshUserData();
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Error setting primary role:", error);
+            return false;
         }
     };
 
@@ -234,7 +409,7 @@ export const UserProvider = ({ children }) => {
         user: currentUser, // Make sure we expose 'user' for compatibility
         currentUser,
         userProfile,
-        userRole: userRoles[0] || null, // For backward compatibility with a single role string
+        userRole: userRoles.length > 0 ? userRoles[0] : null, // For backward compatibility with a single role string
         userRoles, // New standardized array format
         userWallet,
         transactions,
@@ -247,7 +422,10 @@ export const UserProvider = ({ children }) => {
         getTransactionHistory,
         fundProduct,
         signOut: userSignOut,
-        refreshUserData
+        refreshUserData,
+        addUserRole,
+        removeUserRole,
+        setPrimaryRole
     };
 
     return (

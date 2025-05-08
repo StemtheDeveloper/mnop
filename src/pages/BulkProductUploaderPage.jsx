@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext';
-import { storage, db } from '../firebase/config';
+import { useToast } from '../context/ToastContext';
+import { storage, db } from '../config/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';

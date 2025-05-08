@@ -8,6 +8,8 @@ const PaymentSettingsPanel = () => {
     const [settings, setSettings] = useState({
         useWalletPayment: true,
         allowCreditCardPayment: false,
+        enableCancellationPeriodTesting: false,
+        cancellationPeriodMinutes: 60, // Default to 60 minutes (1 hour)
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -26,12 +28,16 @@ const PaymentSettingsPanel = () => {
                     setSettings({
                         useWalletPayment: data.useWalletPayment ?? true,
                         allowCreditCardPayment: data.allowCreditCardPayment ?? false,
+                        enableCancellationPeriodTesting: data.enableCancellationPeriodTesting ?? false,
+                        cancellationPeriodMinutes: data.cancellationPeriodMinutes ?? 60,
                     });
                 } else {
                     // Create default settings if they don't exist
                     await setDoc(settingsRef, {
                         useWalletPayment: true,
                         allowCreditCardPayment: false,
+                        enableCancellationPeriodTesting: false,
+                        cancellationPeriodMinutes: 60,
                         createdAt: serverTimestamp(),
                         updatedAt: serverTimestamp()
                     });
@@ -53,6 +59,19 @@ const PaymentSettingsPanel = () => {
             ...prev,
             [setting]: !prev[setting]
         }));
+    };
+
+    // Handle numeric input changes
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        // Ensure we have a valid positive number
+        const numValue = parseInt(value, 10);
+        if (!isNaN(numValue) && numValue > 0) {
+            setSettings(prev => ({
+                ...prev,
+                [name]: numValue
+            }));
+        }
     };
 
     // Save settings to Firestore
@@ -104,6 +123,7 @@ const PaymentSettingsPanel = () => {
             {error && <div className="error-message">{error}</div>}
             {success && <div className="success-message">{success}</div>}
 
+            <h4 className="settings-section-title">Payment Methods</h4>
             <div className="settings-group">
                 <div className="setting-item">
                     <div className="setting-info">
@@ -142,6 +162,54 @@ const PaymentSettingsPanel = () => {
                 </div>
             </div>
 
+            <div className="settings-note">
+                <p><strong>Note:</strong> At least one payment method must be enabled. If both are enabled, users will be able to choose their preferred payment method during checkout.</p>
+            </div>
+
+            <h4 className="settings-section-title">Testing Settings</h4>
+            <div className="settings-group testing-settings">
+                <div className="setting-item">
+                    <div className="setting-info">
+                        <h4>Enable Cancellation Period Testing</h4>
+                        <p>Allow testing of the cancellation period by adjusting its duration</p>
+                    </div>
+                    <div className="setting-control">
+                        <label className="toggle-switch">
+                            <input
+                                type="checkbox"
+                                checked={settings.enableCancellationPeriodTesting}
+                                onChange={() => handleToggle('enableCancellationPeriodTesting')}
+                                disabled={saving}
+                            />
+                            <span className="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div className="setting-item">
+                    <div className="setting-info">
+                        <h4>Cancellation Period (Minutes)</h4>
+                        <p>Set the cancellation period in minutes for testing purposes</p>
+                    </div>
+                    <div className="setting-control input-with-label">
+                        <input
+                            type="number"
+                            name="cancellationPeriodMinutes"
+                            value={settings.cancellationPeriodMinutes}
+                            onChange={handleInputChange}
+                            disabled={saving || !settings.enableCancellationPeriodTesting}
+                            min="1"
+                            max="1440"
+                        />
+                        <span className="input-label">minutes</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="settings-note warning">
+                <p><strong>Warning:</strong> Testing settings should only be used in development/testing environments. The standard cancellation period is 60 minutes (1 hour).</p>
+            </div>
+
             <div className="setting-actions">
                 <button
                     className="admin-button"
@@ -150,10 +218,6 @@ const PaymentSettingsPanel = () => {
                 >
                     {saving ? 'Saving...' : 'Save Settings'}
                 </button>
-            </div>
-
-            <div className="settings-note">
-                <p><strong>Note:</strong> At least one payment method must be enabled. If both are enabled, users will be able to choose their preferred payment method during checkout.</p>
             </div>
         </div>
     );

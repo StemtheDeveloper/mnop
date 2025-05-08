@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -124,4 +124,30 @@ const IdeaCard = ({ idea, currentUser, onVote, onDelete }) => {
     );
 };
 
-export default IdeaCard;
+// Custom comparison function for React.memo
+const areEqual = (prevProps, nextProps) => {
+    // Compare idea essential properties
+    const prevIdea = prevProps.idea;
+    const nextIdea = nextProps.idea;
+
+    // Basic equality check for idea's core properties
+    const ideaEqual =
+        prevIdea.id === nextIdea.id &&
+        prevIdea.title === nextIdea.title &&
+        prevIdea.description === nextIdea.description &&
+        prevIdea.votes === nextIdea.votes &&
+        prevIdea.comments === nextIdea.comments;
+
+    // Check if the current user's voting status changed
+    const prevHasVoted = prevProps.currentUser && prevIdea.voters?.includes(prevProps.currentUser.uid);
+    const nextHasVoted = nextProps.currentUser && nextIdea.voters?.includes(nextProps.currentUser.uid);
+
+    return (
+        ideaEqual &&
+        prevHasVoted === nextHasVoted &&
+        prevProps.onVote === nextProps.onVote &&
+        prevProps.onDelete === nextProps.onDelete
+    );
+};
+
+export default memo(IdeaCard, areEqual);

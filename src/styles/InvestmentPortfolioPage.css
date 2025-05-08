@@ -1,23 +1,21 @@
-@import "./variables.css";
-
 .investment-portfolio-page {
-  padding: var(--spacing-xxxl) var(--spacing-md) var(--spacing-xl);
+  padding: 120px 20px 60px;
   max-width: 1200px;
   margin: 0 auto;
 }
 
 .investment-portfolio-container {
-  background-color: var(--background-color);
-  border-radius: var(--border-radius-md);
-  box-shadow: var(--shadow-md);
-  padding: var(--spacing-lg);
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+  padding: 30px;
 }
 
 .investment-portfolio-container h1 {
   margin-top: 0;
-  margin-bottom: var(--spacing-lg);
-  font-size: var(--font-size-xxl);
-  color: var(--text-color);
+  margin-bottom: 30px;
+  font-size: 32px;
+  color: #333;
   text-align: center;
 }
 
@@ -30,18 +28,17 @@
 }
 
 .summary-card {
-  background-color: var(--neutral-50);
-  border-radius: var(--border-radius-md);
-  padding: var(--spacing-md);
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  padding: 20px;
   text-align: center;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--transition-fast),
-    box-shadow var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .summary-card:hover {
   transform: translateY(-5px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
 .summary-card h2 {
@@ -59,19 +56,19 @@
 }
 
 .wallet-balance .summary-value {
-  color: var(--success-color);
+  color: #2e7d32;
 }
 
 .total-invested .summary-value {
-  color: var(--primary-color);
+  color: #ef3c23;
 }
 
 .total-returns .summary-value {
-  color: var(--info-color);
+  color: #1976d2;
 }
 
 .roi .summary-value {
-  color: var(--accent-color);
+  color: #9c27b0;
 }
 
 /* Portfolio Content */
@@ -80,48 +77,38 @@
 }
 
 .portfolio-content h2 {
-  font-size: var(--font-size-xl);
-  margin-bottom: var(--spacing-md);
-  color: var(--text-color);
-  border-bottom: 2px solid var(--neutral-100);
-  padding-bottom: var(--spacing-sm);
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: #333;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 10px;
 }
 
 /* Tabs */
 .portfolio-tabs {
   display: flex;
-  margin-bottom: var(--spacing-lg);
-  border-bottom: 2px solid var(--neutral-100);
+  margin-bottom: 30px;
+  border-bottom: 2px solid #eee;
 }
 
 .tab-button {
   background: none;
   border: none;
-  padding: var(--spacing-sm) var(--spacing-md);
-  font-size: var(--font-size-md);
+  padding: 12px 20px;
+  font-size: 16px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #666;
   cursor: pointer;
   position: relative;
-  transition: color var(--transition-fast);
+  transition: color 0.2s;
 }
 
 .tab-button:hover {
-  color: var(--primary-color);
+  color: #ef3c23;
 }
 
 .tab-button.active {
-  color: var(--primary-color);
-}
-
-.tab-button.active::after {
-  content: "";
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background-color: var(--primary-color);
+  color: #ef3c23;
 }
 
 .tab-button .badge {
@@ -130,10 +117,10 @@
   justify-content: center;
   width: 20px;
   height: 20px;
-  background-color: var(--primary-color);
+  background-color: #ef3c23;
   color: white;
-  border-radius: var(--border-radius-full);
-  font-size: var(--font-size-xs);
+  border-radius: 50%;
+  font-size: 12px;
   margin-left: 5px;
 }
 
@@ -157,24 +144,24 @@
 }
 
 .investments-table th {
-  background-color: var(--neutral-50);
+  background-color: #f5f5f5;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #555;
 }
 
 .investments-table tr:hover {
-  background-color: var(--neutral-50);
+  background-color: #f9f9f9;
 }
 
 .product-link {
-  color: var(--primary-color);
+  color: #ef3c23;
   text-decoration: none;
   font-weight: 500;
-  transition: color var(--transition-fast);
+  transition: color 0.2s;
 }
 
 .product-link:hover {
-  color: var(--primary-hover);
+  color: #d43418;
   text-decoration: underline;
 }
 
@@ -185,49 +172,48 @@
 }
 
 .return-amount.positive {
-  color: var(--success-color);
+  color: #2e7d32;
   font-weight: 600;
 }
 
 .status-badge {
   display: inline-block;
   padding: 5px 10px;
-  border-radius: var(--border-radius-full);
-  font-size: var(--font-size-xs);
+  border-radius: 20px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: capitalize;
 }
 
 .status-badge.active {
-  background-color: var(--success-light);
-  color: var(--success-color);
+  background-color: #e8f5e9;
+  color: #2e7d32;
 }
 
 .status-badge.pending_withdrawal {
-  background-color: var(--warning-light);
-  color: var(--warning-color);
+  background-color: #fff8e1;
+  color: #f57c00;
 }
 
 .status-badge.completed {
-  background-color: var(--info-light);
-  color: var(--info-color);
+  background-color: #e8eaf6;
+  color: #3949ab;
 }
 
 .status-badge.withdrawn {
-  background-color: var(--accent-light);
-  color: var(--accent-color);
+  background-color: #fce4ec;
+  color: #c2185b;
 }
 
 /* Action Buttons */
 .action-button {
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: 8px 12px;
   border: none;
-  border-radius: var(--border-radius-sm);
-  font-size: var(--font-size-xs);
+  border-radius: 4px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color var(--transition-fast),
-    transform var(--transition-fast);
+  transition: background-color 0.2s, transform 0.1s;
 }
 
 .action-button:hover {
@@ -235,30 +221,30 @@
 }
 
 .withdraw-button {
-  background-color: var(--warning-light);
-  color: var(--warning-color);
+  background-color: #ffecb3;
+  color: #ff6d00;
 }
 
 .withdraw-button:hover {
-  background-color: var(--warning-lighter);
+  background-color: #ffe082;
 }
 
 .cancel-button {
-  background-color: var(--error-light);
-  color: var(--error-color);
+  background-color: #ffcdd2;
+  color: #d32f2f;
 }
 
 .cancel-button:hover {
-  background-color: var(--error-lighter);
+  background-color: #ef9a9a;
 }
 
 .confirm-button {
-  background-color: var(--success-light);
-  color: var(--success-color);
+  background-color: #c8e6c9;
+  color: #2e7d32;
 }
 
 .confirm-button:hover {
-  background-color: var(--success-lighter);
+  background-color: #a5d6a7;
 }
 
 /* Empty State */
@@ -276,39 +262,39 @@
 
 .browse-products-link {
   display: inline-block;
-  margin-top: var(--spacing-md);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background-color: var(--primary-color);
+  margin-top: 15px;
+  padding: 10px 20px;
+  background-color: #ef3c23;
   color: white;
-  border-radius: var(--border-radius-md);
+  border-radius: 6px;
   text-decoration: none;
   font-weight: 500;
-  transition: background-color var(--transition-fast);
+  transition: background-color 0.2s;
 }
 
 .browse-products-link:hover {
-  background-color: var(--primary-hover);
+  background-color: #d43418;
 }
 
 /* Feedback Message */
 .feedback-message {
-  margin: var(--spacing-md) 0 var(--spacing-lg);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius-md);
+  margin: 15px 0 25px;
+  padding: 15px;
+  border-radius: 8px;
   position: relative;
   padding-right: 40px;
 }
 
 .feedback-message.success {
-  background-color: var(--success-light);
-  color: var(--success-color);
-  border-left: 4px solid var(--success-color);
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-left: 4px solid #2e7d32;
 }
 
 .feedback-message.error {
-  background-color: var(--error-light);
-  color: var(--error-color);
-  border-left: 4px solid var(--error-color);
+  background-color: #ffebee;
+  color: #c62828;
+  border-left: 4px solid #c62828;
 }
 
 .dismiss-button {
@@ -317,7 +303,7 @@
   right: 10px;
   background: none;
   border: none;
-  font-size: var(--font-size-lg);
+  font-size: 18px;
   cursor: pointer;
   color: inherit;
   opacity: 0.7;
@@ -403,52 +389,52 @@
 }
 
 .form-group {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: 20px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: var(--spacing-xs);
+  margin-bottom: 8px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: #555;
 }
 
 .form-group textarea {
   width: 100%;
-  padding: var(--spacing-sm);
-  border: 1px solid var(--neutral-200);
-  border-radius: var(--border-radius-md);
-  font-size: var(--font-size-sm);
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
   resize: vertical;
   font-family: inherit;
 }
 
 .form-group textarea:focus {
   outline: none;
-  border-color: var(--primary-color);
+  border-color: #ef3c23;
 }
 
 .modal-notice {
-  background-color: var(--warning-lighter);
-  border-radius: var(--border-radius-md);
-  padding: var(--spacing-sm);
-  margin-bottom: var(--spacing-md);
-  font-size: var(--font-size-sm);
+  background-color: #fff9c4;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 20px;
+  font-size: 14px;
 }
 
 .modal-notice p {
   margin: 0;
-  color: var(--warning-dark);
+  color: #5d4037;
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--spacing-sm);
+  gap: 10px;
 }
 
 .modal-actions button {
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: 10px 15px;
 }
 
 /* Achievements Section */

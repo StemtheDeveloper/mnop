@@ -266,6 +266,95 @@
   justify-content: center;
 }
 
+/* Pagination Styles */
+.pagination-container {
+  margin-top: 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pagination-button {
+  min-width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  padding: 0 10px;
+}
+
+.pagination-button.page-number {
+  min-width: 40px;
+  padding: 0;
+}
+
+.pagination-button:hover:not(.disabled):not(.active) {
+  background-color: #f5f5f5;
+  border-color: #ccc;
+}
+
+.pagination-button.active {
+  background-color: #ef3c23;
+  color: white;
+  border-color: #ef3c23;
+}
+
+.pagination-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-ellipsis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 40px;
+  font-size: 16px;
+  color: #555;
+}
+
+.page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pagination-info {
+  font-size: 14px;
+  color: #777;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .pagination-button {
+    min-width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .pagination-info {
+    font-size: 13px;
+  }
+}
+
 @media (max-width: 768px) {
   .shop-page h1 {
     font-size: 1.8rem;
@@ -281,4 +370,19 @@
     flex-direction: column;
     align-items: center;
   }
+}
+
+.shop-search-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto 20px;
+}
+
+.shop-enhanced-search .enhanced-search-form {
+  width: 100%;
+}
+
+/* Make sure the suggestions dropdown appears above other elements */
+.shop-enhanced-search .search-suggestions-dropdown {
+  z-index: 50;
 }

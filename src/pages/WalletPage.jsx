@@ -1,31 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
+import { useToast } from '../context/ToastContext'; // Updated import path
 import LoadingSpinner from '../components/LoadingSpinner';
 import walletService from '../services/walletService';
 import interestService from '../services/interestService';
 import InterestRatesPanel from '../components/InterestRatesPanel'; // Import InterestRatesPanel
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { doc, onSnapshot } from 'firebase/firestore';  // Import for real-time updates
+import { doc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';  // Import for real-time updates
 import { db } from '../config/firebase';  // Import Firestore db
 import '../styles/WalletPage.css';
 
 const WalletPage = () => {
-    const { currentUser, userWallet, userRoles, hasRole } = useUser();
-    const { success: showSuccess, error: showError } = useToast(); // Map to correct function names
+    const { currentUser, userWallet, userRole, hasRole } = useUser();
+    const { success: showSuccess, error: showError } = useToast();
 
     // Wallet state
     const [balance, setBalance] = useState(userWallet?.balance || 0);
     const [transactions, setTransactions] = useState([]);
     const [interestTransactions, setInterestTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [transactionLoading, setTransactionLoading] = useState(true);
+    const [transactionLoading, setTransactionLoading] = useState(false); // Initial value false
+    const [transactionError, setTransactionError] = useState(null);
 
     // UI state
     const [activeTab, setActiveTab] = useState('summary');
     const [activeTransactionType, setActiveTransactionType] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedMonths, setExpandedMonths] = useState({});
+    const [showCancellationModal, setShowCancellationModal] = useState(false);
+
+    // Interval reference for updating countdowns
+    const countdownInterval = useRef(null);
+    // Track whether any transactions are in the cancellation period
+    const [hasPendingTransactions, setHasPendingTransactions] = useState(false);
+
+    // Cache manager - for tracking transaction fetch times
+    const [lastFetchTime, setLastFetchTime] = useState(0);
+    const CACHE_TIMEOUT = 30000; // 30 second cache timeout (reduced from 60s)
 
     // Transfer state
     const [transferTo, setTransferTo] = useState('');
@@ -41,6 +52,19 @@ const WalletPage = () => {
     const [depositError, setDepositError] = useState('');
     const [depositSuccess, setDepositSuccess] = useState('');
 
+    // Role state
+    const [userRoles, setUserRoles] = useState([]);
+
+    // Initialize user roles
+    useEffect(() => {
+        if (userRole) {
+            const roles = Array.isArray(userRole) ? userRole : [userRole];
+            setUserRoles(roles);
+        } else {
+            setUserRoles(['customer']);
+        }
+    }, [userRole]);
+
     // Keep balance in sync with userWallet from context
     useEffect(() => {
         if (userWallet && userWallet.balance !== undefined) {
@@ -48,119 +72,226 @@ const WalletPage = () => {
         }
     }, [userWallet]);
 
-    // Function to determine if user has access to specific tabs
-    const canAccessTab = (tabName) => {
-        // Anyone can access summary
-        if (tabName === 'summary') return true;
-
-        // Transfer requires any role
-        if (tabName === 'transfer') return userRoles.length > 0;
-
-        // Specific roles for other tabs
-        if (tabName === 'deposit') return hasRole('investor') || hasRole('admin');
-        if (tabName === 'interest') return hasRole('investor') || hasRole('admin');
-
-        return false;
+    // Function to determine if user has a specific role
+    const userHasRole = (role) => {
+        return userRoles.includes(role);
     };
 
-    // Memoize loadWalletData to prevent recreation on each render
+    // Function to determine if user has access to specific tabs
+    const canAccessTab = (tabName) => {
+        // Basic access check implementation
+        if (['summary'].includes(tabName)) return true;
+        if (tabName === 'add') return userHasRole('admin');
+        if (tabName === 'transfer') return userRoles.length > 0;
+        if (tabName === 'interest') return userHasRole('investor');
+        return true;
+    };
+
+    // Load wallet data
     const loadWalletData = useCallback(async () => {
-        setLoading(true);
         if (!currentUser) {
-            // Instead of returning, we'll wait for the user context to be available
-            console.log("Waiting for user authentication...");
-            setTimeout(() => {
-                if (currentUser) {
-                    loadWalletData();
-                } else {
-                    setLoading(false);
-                }
-            }, 2000);
+            setLoading(false);
             return;
         }
 
+        setLoading(true);
         try {
-            // Get the most up-to-date wallet data
             const walletData = await walletService.getUserWallet(currentUser.uid);
-            if (walletData) {
-                setBalance(walletData.balance || 0);
-            }
+            if (walletData) setBalance(walletData.balance || 0);
         } catch (error) {
-            console.error('Error loading wallet:', error);
+            console.error('[WalletPage] Error loading wallet:', error);
             showError('Failed to load wallet information');
         } finally {
             setLoading(false);
         }
     }, [currentUser, showError]);
 
-    // Set up real-time listener for wallet updates
+    // Set up real-time listener for wallet balance
     useEffect(() => {
-        if (!currentUser) return;
+        let unsubscribe = () => { };
 
-        const walletRef = doc(db, "wallets", currentUser.uid);
-
-        // Real-time listener for wallet updates
-        const unsubscribe = onSnapshot(walletRef,
-            (walletDoc) => {
-                if (walletDoc.exists()) {
-                    const walletData = walletDoc.data();
-                    setBalance(walletData.balance || 0);
+        if (currentUser) {
+            const walletRef = doc(db, "wallets", currentUser.uid);
+            unsubscribe = onSnapshot(
+                walletRef,
+                (walletDoc) => {
+                    if (walletDoc.exists()) {
+                        const walletData = walletDoc.data();
+                        setBalance(walletData.balance || 0);
+                    }
+                },
+                (error) => {
+                    console.error("[WalletPage] Error in wallet listener:", error);
+                    loadWalletData();
                 }
-            },
-            (error) => {
-                console.error("Error in wallet listener:", error);
-                // Fallback to manual fetch if real-time updates fail
-                loadWalletData();
-            }
-        );
+            );
+        }
 
-        // Initial load
         loadWalletData();
-
         return () => unsubscribe();
     }, [currentUser, loadWalletData]);
 
-    // Real-time listener for transactions
+    // NEW: Set up real-time listener for transactions
     useEffect(() => {
-        const loadTransactions = async () => {
-            if (!currentUser) {
-                // If no user yet, set a timeout to check again
-                setTimeout(() => {
-                    if (currentUser) {
-                        loadTransactions();
-                    } else {
-                        setTransactionLoading(false);
-                    }
-                }, 2000);
-                return;
-            }
+        let unsubscribe = () => { };
 
-            setTransactionLoading(true);
+        if (currentUser) {
             try {
-                // Load regular transactions
-                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
-                setTransactions(txData || []);
+                console.log('[WalletPage] Setting up real-time transaction listener');
+                const transactionsRef = collection(db, "transactions");
+                const q = query(
+                    transactionsRef,
+                    where("userId", "==", currentUser.uid),
+                    orderBy("createdAt", "desc"),
+                    limit(100)
+                );
 
-                // Load interest transactions if user is an investor
-                if (hasRole('investor')) {
-                    const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 20);
-                    setInterestTransactions(interestTxData || []);
-                }
+                unsubscribe = onSnapshot(
+                    q,
+                    (snapshot) => {
+                        console.log(`[WalletPage] Real-time update received - ${snapshot.size} transactions`);
+                        const updatedTransactions = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data(),
+                        }));
+
+                        // Check if we actually have new data
+                        if (updatedTransactions.length !== transactions.length) {
+                            console.log('[WalletPage] Transaction count changed, updating state');
+                            setTransactions(updatedTransactions);
+                            setLastFetchTime(Date.now());
+
+                            // Check for pending transactions
+                            const hasPending = updatedTransactions.some(tx =>
+                                tx.cancellationPeriod === true &&
+                                tx.status === 'pending_confirmation'
+                            );
+                            setHasPendingTransactions(hasPending);
+                        } else {
+                            console.log('[WalletPage] No change in transaction count');
+                        }
+                    },
+                    (error) => {
+                        console.error("[WalletPage] Error in transaction listener:", error);
+                        // Fall back to manual fetch on error
+                        fetchTransactions(true);
+                    }
+                );
             } catch (error) {
-                console.error('Error loading transactions:', error);
-                // Don't show an error toast here to avoid duplicate errors
-            } finally {
-                setTransactionLoading(false);
+                console.error("[WalletPage] Failed to set up transaction listener:", error);
+                // If listener setup fails, fall back to manual fetch
+                fetchTransactions(true);
             }
-        };
+        }
 
-        loadTransactions();
+        return () => unsubscribe();
+    }, [currentUser]);
 
-        // Set up a refresh interval for transactions (every 30 seconds)
-        const intervalId = setInterval(loadTransactions, 30000);
+    // Update transactions when they fall outside the cancellation period
+    const updateTransactionStatuses = useCallback(async () => {
+        if (!currentUser) return;
+
+        try {
+            const result = await walletService.updateTransactionCancellationStatus(currentUser.uid);
+            if (result.success && result.updated > 0) {
+                // If transactions were updated, refresh the transaction list
+                fetchTransactions(true);
+                showSuccess(`${result.updated} transaction(s) have been confirmed`);
+            }
+        } catch (error) {
+            console.error('[WalletPage] Error updating transaction statuses:', error);
+        }
+    }, [currentUser]);
+
+    // Set up interval to check for transactions that have fallen outside the cancellation period
+    useEffect(() => {
+        // Check on component mount
+        updateTransactionStatuses();
+
+        // Set up interval to check every minute
+        const intervalId = setInterval(updateTransactionStatuses, 60000);
 
         return () => clearInterval(intervalId);
-    }, [currentUser, userRoles]);
+    }, [updateTransactionStatuses]);
+
+    // Modified transaction fetch function - now a fallback for when listeners fail
+    const fetchTransactions = useCallback(async (force = false) => {
+        if (!currentUser) return;
+
+        // Skip fetching if cache is still valid and not forcing
+        const now = Date.now();
+        if (!force && transactions.length > 0 && now - lastFetchTime < CACHE_TIMEOUT) {
+            return;
+        }
+
+        setTransactionLoading(true);
+        setTransactionError(null);
+
+        try {
+            console.log('[WalletPage] Manual fetching of transactions...');
+            const txData = await walletService.getTransactionHistory(currentUser.uid, 200); // Increased limit to 200
+            console.log(`[WalletPage] Manually fetched ${txData.length} transactions`);
+
+            if (txData.length > 0) {
+                setTransactions(txData);
+                setLastFetchTime(now);
+
+                // Check if any transactions are in the cancellation period
+                const hasPending = txData.some(tx =>
+                    tx.cancellationPeriod === true &&
+                    tx.status === 'pending_confirmation'
+                );
+                setHasPendingTransactions(hasPending);
+            }
+
+            if (userHasRole('investor')) {
+                const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 100);
+                console.log(`[WalletPage] Fetched ${interestTxData.length} interest transactions`);
+                setInterestTransactions(interestTxData || []);
+            }
+        } catch (error) {
+            console.error('[WalletPage] Error manually fetching transactions:', error);
+            setTransactionError('Failed to load transaction history');
+        } finally {
+            setTransactionLoading(false);
+        }
+    }, [currentUser, userHasRole]);
+
+    // Only run initial transaction fetch when needed (fallback or when real-time listener isn't available)
+    useEffect(() => {
+        if (currentUser && transactions.length === 0) {
+            fetchTransactions(true);
+        }
+    }, [currentUser, fetchTransactions, transactions.length]);
+
+    // Update countdown timers for transactions in cancellation period
+    useEffect(() => {
+        // Cancel existing interval if any
+        if (countdownInterval.current) {
+            clearInterval(countdownInterval.current);
+        }
+
+        // If there are pending transactions, update their countdowns every second
+        if (hasPendingTransactions) {
+            countdownInterval.current = setInterval(() => {
+                setTransactions(prevTransactions => {
+                    // Force re-render by creating a new array
+                    return [...prevTransactions];
+                });
+            }, 1000);
+        }
+
+        return () => {
+            if (countdownInterval.current) {
+                clearInterval(countdownInterval.current);
+            }
+        };
+    }, [hasPendingTransactions]);
+
+    // Refresh button handler
+    const handleRefreshTransactions = () => {
+        fetchTransactions(true); // Force refresh
+    };
 
     // Handle wallet refresh button click
     const handleRefreshWallet = async () => {
@@ -168,15 +299,16 @@ const WalletPage = () => {
             const walletData = await walletService.getUserWallet(currentUser.uid);
             if (walletData) {
                 setBalance(walletData.balance || 0);
+                fetchTransactions(true); // Refresh transactions when wallet is refreshed
                 showSuccess("Wallet updated successfully");
             }
         } catch (error) {
-            console.error('Error refreshing wallet:', error);
+            console.error('[WalletPage] Error refreshing wallet:', error);
             showError('Failed to refresh wallet information');
         }
     };
 
-    // Handle transfer submission
+    // Modified transfer submission to handle immediate updates better
     const handleTransfer = async (e) => {
         e.preventDefault();
 
@@ -213,29 +345,26 @@ const WalletPage = () => {
 
             if (result.success) {
                 setTransferSuccess('Transfer completed successfully!');
-                // Balance will be updated automatically by the listener
                 // Clear form
                 setTransferTo('');
                 setTransferAmount('');
                 setTransferNote('');
-                // Show success toast
                 showSuccess(`Successfully transferred ${formatCurrency(amount)} to ${transferTo}`);
 
-                // Refresh transactions
-                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
-                setTransactions(txData || []);
+                // Force refresh transactions only if real-time listener might not catch it
+                setTimeout(() => fetchTransactions(true), 500);
             } else {
                 setTransferError(result.error || 'Transfer failed. Please try again.');
             }
         } catch (error) {
-            console.error('Transfer error:', error);
+            console.error('[WalletPage] Transfer error:', error);
             setTransferError(error.message || 'An error occurred during transfer');
         } finally {
             setTransferLoading(false);
         }
     };
 
-    // Handle deposit submission
+    // Modified deposit submission to handle immediate updates better
     const handleDeposit = async (e) => {
         e.preventDefault();
 
@@ -253,8 +382,6 @@ const WalletPage = () => {
         setIsDepositing(true);
 
         try {
-            // For demo, we'll simulate a successful deposit
-            // In production, this would integrate with a payment processor
             const result = await walletService.simulateDeposit(
                 currentUser.uid,
                 amount,
@@ -262,21 +389,17 @@ const WalletPage = () => {
             );
 
             if (result.success) {
-                // Clear form
                 setDepositAmount('');
-                // Set success message
                 setDepositSuccess(`Successfully added ${formatCurrency(amount)} to your wallet`);
-                // Show success toast
                 showSuccess(`Added ${formatCurrency(amount)} to your wallet`);
 
-                // Refresh transactions immediately
-                const txData = await walletService.getTransactionHistory(currentUser.uid, 50);
-                setTransactions(txData || []);
+                // Force refresh transactions only if real-time listener might not catch it
+                setTimeout(() => fetchTransactions(true), 500);
             } else {
                 setDepositError(result.error || 'Deposit failed. Please try again.');
             }
         } catch (error) {
-            console.error('Deposit error:', error);
+            console.error('[WalletPage] Deposit error:', error);
             setDepositError(error.message || 'An error occurred during deposit');
         } finally {
             setIsDepositing(false);
@@ -348,15 +471,109 @@ const WalletPage = () => {
             : monthId === Object.keys(groupTransactionsByMonth(filteredAndSearchedTransactions()))[0];
     };
 
+    // Calculate time remaining in the cancellation period
+    const getTimeRemaining = (expiryTime) => {
+        const expiry = expiryTime instanceof Date ? expiryTime :
+            expiryTime?.toDate?.() ? expiryTime.toDate() :
+                new Date(expiryTime);
+
+        const now = new Date();
+        const diffMs = expiry - now;
+
+        if (diffMs <= 0) return { expired: true, display: "Expired" };
+
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffSecs = Math.floor((diffMs % 60000) / 1000);
+
+        return {
+            expired: false,
+            minutes: diffMins,
+            seconds: diffSecs,
+            display: `${diffMins}:${diffSecs.toString().padStart(2, '0')}`
+        };
+    };
+
+    // Transaction Status Indicator component
+    const TransactionStatusIndicator = ({ transaction }) => {
+        if (!transaction) return null;
+
+        if (transaction.cancellationPeriod && transaction.status === 'pending_confirmation') {
+            const timeRemaining = getTimeRemaining(transaction.cancellationExpiryTime);
+
+            return (
+                <>
+                    <span className="transaction-status-indicator cancellation-period"
+                        onClick={() => setShowCancellationModal(true)}>
+                        Within cancellation period
+                    </span>
+                    <div className="transaction-timer">
+                        <span className="timer-icon">⏱</span>
+                        <span className="countdown">Time remaining: {timeRemaining.display}</span>
+                    </div>
+                </>
+            );
+        } else if (transaction.status === 'confirmed') {
+            return (
+                <span className="transaction-status-indicator confirmed-transaction">
+                    Confirmed
+                </span>
+            );
+        }
+
+        return null;
+    };
+
     // Render roles badges 
     const renderRoleBadges = () => {
+        if (!userRoles || userRoles.length === 0) {
+            return (
+                <div className="roles-list">
+                    <div className="role-pill customer">Customer</div>
+                </div>
+            );
+        }
+
         return (
-            <div className="user-roles">
+            <div className="roles-list">
                 {userRoles.map((role, index) => (
-                    <span key={index} className={`role-badge ${role}`}>
+                    <div key={index} className={`role-pill ${role.toLowerCase()}`}>
                         {role.charAt(0).toUpperCase() + role.slice(1)}
-                    </span>
+                    </div>
                 ))}
+            </div>
+        );
+    };
+
+    // Render cancellation period explanation modal
+    const renderCancellationModal = () => {
+        if (!showCancellationModal) return null;
+
+        return (
+            <div className="cancellation-explanation-modal">
+                <div className="cancellation-explanation-content">
+                    <div className="cancellation-explanation-header">
+                        <h3>Transaction Cancellation Period</h3>
+                        <button className="close-modal-button" onClick={() => setShowCancellationModal(false)}>×</button>
+                    </div>
+                    <div className="cancellation-explanation-body">
+                        <p>When you make a payment, the transaction enters a <strong>1-hour cancellation period</strong>. During this time:</p>
+                        <ul>
+                            <li>The funds are deducted from your wallet</li>
+                            <li>If you cancel your order within this period, you'll receive a full refund</li>
+                            <li>After the cancellation period ends, the transaction is confirmed</li>
+                        </ul>
+                        <p>This gives you time to change your mind about purchases while ensuring timely processing of your orders.</p>
+                    </div>
+                    <div className="cancellation-explanation-actions">
+                        <button
+                            className="close-modal-button"
+                            style={{ color: '#fff', background: '#ef3c23', padding: '8px 16px', borderRadius: '4px' }}
+                            onClick={() => setShowCancellationModal(false)}
+                        >
+                            Got it
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     };
@@ -365,8 +582,7 @@ const WalletPage = () => {
         return (
             <div className="wallet-page">
                 <div className="wallet-container loading">
-                    <LoadingSpinner />
-                    <p>Loading your wallet...</p>
+                    <LoadingSpinner size="medium" showText={true} text="Loading your wallet..." />
                 </div>
             </div>
         );
@@ -386,6 +602,7 @@ const WalletPage = () => {
                         </button>
                         <div className="balance-header">Current Balance</div>
                         <div className="balance-amount">{formatCurrency(balance)}</div>
+                        <div className="balance-updated">Last updated: {formatDate(new Date())}</div>
                     </div>
                 </div>
 
@@ -402,13 +619,18 @@ const WalletPage = () => {
                     >
                         Transfer Funds
                     </button>
-                    <button
-                        className={`tab-button ${activeTab === 'add' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('add')}
-                    >
-                        Add Credits
-                    </button>
-                    {hasRole('investor') && (
+
+                    {/* Only show Add Credits tab for admins */}
+                    {userHasRole('admin') && (
+                        <button
+                            className={`tab-button ${activeTab === 'add' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('add')}
+                        >
+                            Add Credits
+                        </button>
+                    )}
+
+                    {userHasRole('investor') && (
                         <button
                             className={`tab-button ${activeTab === 'interest' ? 'active' : ''}`}
                             onClick={() => setActiveTab('interest')}
@@ -467,12 +689,30 @@ const WalletPage = () => {
                                         Purchases
                                     </button>
                                 </div>
+                                {/* Add refresh button to manually reload transactions */}
+                                <div className="refresh-transactions">
+                                    <button
+                                        onClick={handleRefreshTransactions}
+                                        disabled={transactionLoading}
+                                        className="refresh-transactions-button"
+                                    >
+                                        {transactionLoading ? 'Loading...' : 'Refresh Transactions'}
+                                    </button>
+                                </div>
                             </div>
+
+                            {transactionError && (
+                                <div className="error-message transaction-error">
+                                    {transactionError}
+                                    <button onClick={handleRefreshTransactions} className="retry-button">
+                                        Retry
+                                    </button>
+                                </div>
+                            )}
 
                             {transactionLoading ? (
                                 <div className="loading-transactions">
-                                    <LoadingSpinner size="small" />
-                                    <p>Loading transactions...</p>
+                                    <LoadingSpinner size="small" showText={true} text="Loading transactions..." inline={true} />
                                 </div>
                             ) : filteredAndSearchedTransactions().length === 0 ? (
                                 <div className="no-transactions">
@@ -504,21 +744,28 @@ const WalletPage = () => {
                                                     {month.transactions.map(transaction => (
                                                         <div key={transaction.id} className="transaction-item">
                                                             <div className="transaction-icon">
-                                                                {transaction.type === 'deposit' && <span className="icon deposit">+</span>}
-                                                                {transaction.type === 'transfer' && <span className="icon transfer">↑</span>}
-                                                                {transaction.type === 'purchase' && <span className="icon purchase">-</span>}
-                                                                {transaction.type === 'investment' && <span className="icon investment">↗</span>}
-                                                                {transaction.type === 'interest' && <span className="icon interest">%</span>}
-                                                                {!['deposit', 'transfer', 'purchase', 'investment', 'interest'].includes(transaction.type) &&
+                                                                {transaction.status === 'pending_confirmation' && <span className="icon pending_confirmation">⏱</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'deposit' && <span className="icon deposit">+</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'transfer' && <span className="icon transfer">↑</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'purchase' && <span className="icon purchase">-</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'investment' && <span className="icon investment">↗</span>}
+                                                                {transaction.status !== 'pending_confirmation' && transaction.type === 'interest' && <span className="icon interest">%</span>}
+                                                                {transaction.status !== 'pending_confirmation' && !['deposit', 'transfer', 'purchase', 'investment', 'interest'].includes(transaction.type) &&
                                                                     <span className="icon other">•</span>}
                                                             </div>
                                                             <div className="transaction-details">
                                                                 <div className="transaction-description">
                                                                     {transaction.description || 'Transaction'}
+                                                                    <TransactionStatusIndicator transaction={transaction} />
                                                                 </div>
                                                                 <div className="transaction-date">
                                                                     {formatDate(transaction.createdAt)}
                                                                 </div>
+                                                                {transaction.balanceSnapshot !== undefined && (
+                                                                    <div className="balance-snapshot">
+                                                                        Balance: {formatCurrency(transaction.balanceSnapshot)}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             <div className={`transaction-amount ${transaction.amount < 0 ? 'negative' : 'positive'}`}>
                                                                 {transaction.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(transaction.amount))}
@@ -591,8 +838,8 @@ const WalletPage = () => {
                                 >
                                     {transferLoading ? (
                                         <>
-                                            <LoadingSpinner size="small" />
-                                            <span>Processing...</span>
+                                            <LoadingSpinner size="small" inline={true} />
+                                            <span className="button-text">Processing...</span>
                                         </>
                                     ) : 'Transfer Credits'}
                                 </button>
@@ -600,9 +847,12 @@ const WalletPage = () => {
                         </div>
                     )}
 
-                    {activeTab === 'add' && (
+                    {activeTab === 'add' && userHasRole('admin') && (
                         <div className="add-credits-tab">
                             <h3>Add Credits to Wallet</h3>
+                            <div className="admin-notice">
+                                You are adding credits as an administrator. This feature is only available to admin users.
+                            </div>
                             <form onSubmit={handleDeposit} className="deposit-form">
                                 <div className="form-group">
                                     <label htmlFor="depositAmount">Amount to Add</label>
@@ -635,11 +885,9 @@ const WalletPage = () => {
                                                 disabled={isDepositing}
                                             />
                                             <label htmlFor="creditCard">
-                                                Credit Card
-                                                <div className="card-icons">
-                                                    <span className="card-icon visa">Visa</span>
-                                                    <span className="card-icon mastercard">Mastercard</span>
-                                                    <span className="card-icon amex">Amex</span>
+                                                Admin Credit Addition
+                                                <div className="admin-note">
+                                                    <span>Credits are added directly to the wallet balance</span>
                                                 </div>
                                             </label>
                                         </div>
@@ -656,21 +904,21 @@ const WalletPage = () => {
                                 >
                                     {isDepositing ? (
                                         <>
-                                            <LoadingSpinner size="small" />
-                                            <span>Processing...</span>
+                                            <LoadingSpinner size="small" inline={true} />
+                                            <span className="button-text">Processing...</span>
                                         </>
                                     ) : 'Add Credits'}
                                 </button>
 
-                                <div className="security-note">
-                                    <p>💳 Your payment information is securely processed.</p>
-                                    <p>This is for demonstration purposes only. No actual charges will be made.</p>
+                                <div className="security-note admin-security-note">
+                                    <p>⚠️ This is an administrative action that will directly add credits to the wallet.</p>
+                                    <p>All transactions are recorded and audited.</p>
                                 </div>
                             </form>
                         </div>
                     )}
 
-                    {activeTab === 'interest' && hasRole('investor') && (
+                    {activeTab === 'interest' && userHasRole('investor') && (
                         <div className="interest-tab">
                             <h3>Interest Earnings</h3>
                             <InterestRatesPanel />
@@ -678,6 +926,7 @@ const WalletPage = () => {
                     )}
                 </div>
             </div>
+            {renderCancellationModal()}
         </div>
     );
 };

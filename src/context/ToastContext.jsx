@@ -1,91 +1,71 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import ToastNotification from '../components/ToastNotification';
+import { createPortal } from 'react-dom';
 
-// Define toast severity levels
-export const TOAST_SEVERITY = {
-    SUCCESS: 'success',
-    ERROR: 'error',
-    WARNING: 'warning',
-    INFO: 'info'
+// Create the context with default values to avoid 'undefined' errors
+const ToastContext = createContext({
+    showToast: () => { },
+    hideToast: () => { },
+    success: () => { },
+    error: () => { },
+    warning: () => { },
+    info: () => { }
+});
+
+export const useToast = () => {
+    const context = useContext(ToastContext);
+    if (!context) {
+        throw new Error('useToast must be used within a ToastProvider');
+    }
+    return context;
 };
 
-// Create the context
-const ToastContext = createContext();
-
-// Hook for easy context consumption
-export const useToast = () => useContext(ToastContext);
-
-// Helper to generate a unique ID
-const generateUniqueId = () => {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
-
-// Provider component
 export const ToastProvider = ({ children }) => {
     const [toasts, setToasts] = useState([]);
 
-    // Function to show a success toast
-    const showSuccess = (message, duration = 3000) => {
-        const toast = {
-            id: generateUniqueId(),
-            message,
-            severity: TOAST_SEVERITY.SUCCESS,
-            duration
-        };
-        setToasts(prev => [...prev, toast]);
-    };
+    const showToast = useCallback((message, type = 'info', duration = 5000) => {
+        const id = Date.now().toString();
+        setToasts(prevToasts => [...prevToasts, { id, message, type, duration }]);
+        return id;
+    }, []);
 
-    // Function to show an error toast
-    const showError = (message, duration = 3000) => {
-        const toast = {
-            id: generateUniqueId(),
-            message,
-            severity: TOAST_SEVERITY.ERROR,
-            duration
-        };
-        setToasts(prev => [...prev, toast]);
-    };
+    const hideToast = useCallback((id) => {
+        setToasts(prevToasts => prevToasts.filter(toast => toast.id !== id));
+    }, []);
 
-    // Function to show a warning toast
-    const showWarning = (message, duration = 3000) => {
-        const toast = {
-            id: generateUniqueId(),
-            message,
-            severity: TOAST_SEVERITY.WARNING,
-            duration
-        };
-        setToasts(prev => [...prev, toast]);
-    };
+    // Convenience methods for different toast types
+    const success = useCallback((message, duration) =>
+        showToast(message, 'success', duration), [showToast]);
 
-    // Function to show an info toast
-    const showInfo = (message, duration = 3000) => {
-        const toast = {
-            id: generateUniqueId(),
-            message,
-            severity: TOAST_SEVERITY.INFO,
-            duration
-        };
-        setToasts(prev => [...prev, toast]);
-    };
+    const error = useCallback((message, duration) =>
+        showToast(message, 'error', duration), [showToast]);
 
-    // Function to remove a toast
-    const removeToast = (id) => {
-        setToasts(prev => prev.filter(toast => toast.id !== id));
-    };
+    const warning = useCallback((message, duration) =>
+        showToast(message, 'warning', duration), [showToast]);
 
-    // Context value
-    const value = {
-        toasts,
-        showSuccess,
-        showError,
-        showWarning,
-        showInfo,
-        removeToast
-    };
+    const info = useCallback((message, duration) =>
+        showToast(message, 'info', duration), [showToast]);
 
     return (
-        <ToastContext.Provider value={value}>
+        <ToastContext.Provider value={{ showToast, hideToast, success, error, warning, info }}>
             {children}
-            {/* Render toasts here or in a separate component */}
+            {createPortal(
+                <div className="toast-container">
+                    {toasts.map(toast => (
+                        <ToastNotification
+                            key={toast.id}
+                            message={toast.message}
+                            type={toast.type}
+                            duration={toast.duration}
+                            onClose={() => hideToast(toast.id)}
+                        />
+                    ))}
+                </div>,
+                document.body
+            )}
         </ToastContext.Provider>
     );
 };
+
+// Export the context as default for backward compatibility
+export default ToastContext;

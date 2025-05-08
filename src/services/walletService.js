@@ -98,9 +98,23 @@ class WalletService {
     try {
       const transactionRef = collection(db, "transactions");
 
+      // Get current wallet balance to include with the transaction record
+      let balanceSnapshot = 0;
+      try {
+        const walletRef = doc(db, "wallets", userId);
+        const walletDoc = await getDoc(walletRef);
+        if (walletDoc.exists()) {
+          balanceSnapshot = walletDoc.data().balance || 0;
+        }
+      } catch (error) {
+        console.error("Error getting balance snapshot:", error);
+        // Continue with transaction creation even if balance fetch fails
+      }
+
       const transaction = {
         userId,
         ...transactionData,
+        balanceSnapshot, // Include the wallet balance at transaction time
         createdAt: serverTimestamp(),
       };
 
@@ -327,12 +341,48 @@ class WalletService {
         updatedAt: serverTimestamp(),
       });
 
-      // Record the transaction
-      await this.recordTransaction(userId, {
+      // Check if cancellation period testing is enabled and get the custom duration
+      let cancellationPeriodInMinutes = 60; // Default is 1 hour (60 minutes)
+
+      try {
+        const settingsRef = doc(db, "settings", "paymentSettings");
+        const settingsDoc = await getDoc(settingsRef);
+
+        if (settingsDoc.exists()) {
+          const settings = settingsDoc.data();
+
+          if (settings.enableCancellationPeriodTesting) {
+            cancellationPeriodInMinutes =
+              settings.cancellationPeriodMinutes || 60;
+            console.log(
+              `[WalletService] Using test cancellation period: ${cancellationPeriodInMinutes} minutes`
+            );
+          }
+        }
+      } catch (settingsError) {
+        console.error(
+          "Error reading cancellation period settings:",
+          settingsError
+        );
+        // Fallback to default value if there's an error
+      }
+
+      // Calculate cancellation period expiry
+      const cancellationExpiryTime = new Date();
+      cancellationExpiryTime.setMinutes(
+        cancellationExpiryTime.getMinutes() + cancellationPeriodInMinutes
+      );
+
+      // Record the transaction with cancellation period info
+      const transactionRef = await this.recordTransaction(userId, {
         type: "purchase",
         amount: -amount,
         description,
-        status: "completed",
+        status: "pending_confirmation",
+        cancellationPeriod: true,
+        cancellationExpiryTime: Timestamp.fromDate(cancellationExpiryTime),
+        statusMessage: `Transaction is within ${cancellationPeriodInMinutes}-minute cancellation period. You may be eligible to cancel your order.`,
+        createdAt: serverTimestamp(),
       });
 
       // Send notification for withdrawal
@@ -341,7 +391,11 @@ class WalletService {
       );
       await notificationService.sendTransferNotification(userId, amount, false); // false for withdrawal
 
-      return { success: true };
+      return {
+        success: true,
+        transactionId: transactionRef.id,
+        cancellationExpiryTime,
+      };
     } catch (error) {
       console.error("Error deducting funds:", error);
       throw error;
@@ -349,69 +403,240 @@ class WalletService {
   }
 
   /**
-   * Get transaction history for a user
+   * Check and update transactions that have passed their cancellation period
    * @param {string} userId - User ID
-   * @param {number} limit - Maximum number of transactions to return
-   * @returns {Promise<Array>} - Transaction history
+   * @returns {Promise<Object>} Result with success status and updated transactions
    */
-  async getTransactionHistory(userId, limitCount = 50) {
+  async updateTransactionCancellationStatus(userId) {
     try {
       const transactionsRef = collection(db, "transactions");
-
-      // Try using a simpler query first, then sort client-side to avoid index issues
-      let q = query(
+      // Query transactions that are still in cancellation period
+      const q = query(
         transactionsRef,
         where("userId", "==", userId),
+        where("cancellationPeriod", "==", true),
+        where("status", "==", "pending_confirmation")
+      );
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        return {
+          success: true,
+          message: "No transactions in cancellation period found",
+          updated: 0,
+        };
+      }
+
+      const batch = writeBatch(db);
+      const now = new Date();
+      let updatedCount = 0;
+      const updatedTransactions = [];
+
+      for (const doc of snapshot.docs) {
+        const transaction = doc.data();
+        const transactionId = doc.id;
+        const cancellationExpiryTime =
+          transaction.cancellationExpiryTime?.toDate?.() ||
+          new Date(transaction.cancellationExpiryTime);
+
+        // If the cancellation period has expired
+        if (now > cancellationExpiryTime) {
+          batch.update(doc.ref, {
+            status: "completed",
+            cancellationPeriod: false,
+            confirmedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            statusMessage: "Transaction confirmed after cancellation period",
+          });
+
+          updatedCount++;
+          updatedTransactions.push({
+            id: transactionId,
+            ...transaction,
+            status: "completed",
+          });
+
+          // Send notification to user that transaction is now confirmed
+          try {
+            const notificationService = await import(
+              "./notificationService"
+            ).then((module) => module.default);
+
+            await notificationService.createNotification(
+              userId,
+              "transaction_confirmed",
+              "Transaction Confirmed",
+              `Your payment transaction of ${Math.abs(
+                transaction.amount
+              ).toFixed(2)} has been confirmed and is now final.`,
+              "/wallet"
+            );
+          } catch (notifError) {
+            console.error(
+              "Error sending transaction confirmation notification:",
+              notifError
+            );
+            // Continue execution even if notification fails
+          }
+        }
+      }
+
+      if (updatedCount > 0) {
+        await batch.commit();
+      }
+
+      return {
+        success: true,
+        updated: updatedCount,
+        updatedTransactions,
+      };
+    } catch (error) {
+      console.error("Error updating transaction cancellation status:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to update transaction status",
+      };
+    }
+  }
+
+  /**
+   * Add a method to add funds for refunds
+   * @param {string} userId - User ID
+   * @param {number} amount - Amount to add
+   * @param {string} description - Transaction description
+   * @returns {Promise<Object>} Result with success status
+   */
+  async addToWallet(userId, amount, description = "Refund") {
+    try {
+      if (!userId || !amount) {
+        return {
+          success: false,
+          error: "Missing required fields",
+        };
+      }
+
+      if (amount <= 0) {
+        return {
+          success: false,
+          error: "Amount must be greater than 0",
+        };
+      }
+
+      // Update the wallet balance
+      const walletRef = doc(db, "wallets", userId);
+      const walletDoc = await getDoc(walletRef);
+
+      if (walletDoc.exists()) {
+        // Update existing wallet
+        await updateDoc(walletRef, {
+          balance: increment(amount),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create wallet if it doesn't exist
+        await setDoc(walletRef, {
+          balance: amount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // Record the transaction
+      await this.recordTransaction(userId, {
+        type: "refund",
+        amount: amount,
+        description,
+        status: "completed",
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error adding funds to wallet:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to add funds to wallet",
+      };
+    }
+  }
+
+  /**
+   * Get transaction history for a user
+   * @param {string} userId - User ID
+   * @param {number} limitCount - Maximum number of transactions to return
+   * @returns {Promise<Array>} - Transaction history
+   */
+  async getTransactionHistory(userId, limitCount = 200) {
+    try {
+      console.log(
+        `[WalletService] Getting transaction history for ${userId}, limit: ${limitCount}`
+      );
+      const transactionsRef = collection(db, "transactions");
+
+      // Use a compound query with ordering for better results
+      // This query pattern requires an index on userId + createdAt (desc)
+      const q = query(
+        transactionsRef,
+        where("userId", "==", userId),
+        orderBy("createdAt", "desc"), // Sort by createdAt in descending order
         limit(limitCount)
       );
 
-      try {
-        const snapshot = await getDocs(q);
+      console.log("[WalletService] Executing transactions query");
+      const snapshot = await getDocs(q);
+      console.log(`[WalletService] Found ${snapshot.size} transactions`);
 
-        // Sort on client side
-        const transactions = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+      // Map to proper transaction objects
+      const transactions = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-        // Sort by createdAt in descending order (newest first)
-        return transactions.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(0);
-          const dateB = b.createdAt?.toDate?.() || new Date(0);
-          return dateB - dateA;
-        });
-      } catch (error) {
-        // If there's an index error, log it and try without sorting
-        console.error(
-          "Index error for transactions. Falling back to unordered query:",
-          error
-        );
-
-        // Simpler query without ordering
-        q = query(
-          transactionsRef,
-          where("userId", "==", userId),
-          limit(limitCount)
-        );
-
-        const snapshot = await getDocs(q);
-
-        // Sort on client side
-        const transactions = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        // Sort by createdAt in descending order (newest first)
-        return transactions.sort((a, b) => {
-          const dateA = a.createdAt?.toDate?.() || new Date(0);
-          const dateB = b.createdAt?.toDate?.() || new Date(0);
-          return dateB - dateA;
-        });
-      }
+      // Return transactions already sorted by createdAt in descending order
+      return transactions;
     } catch (error) {
       console.error("Error getting transaction history:", error);
-      return [];
+
+      // If there's an index error, try again with the old query method
+      if (error.message && error.message.includes("index")) {
+        console.log(
+          "[WalletService] Index error, falling back to simpler query"
+        );
+        try {
+          // Fallback to simpler query without ordering
+          const fallbackQuery = query(
+            collection(db, "transactions"),
+            where("userId", "==", userId),
+            limit(limitCount)
+          );
+
+          const snapshot = await getDocs(fallbackQuery);
+          console.log(
+            `[WalletService] Fallback query found ${snapshot.size} transactions`
+          );
+
+          // Sort on client side
+          const transactions = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+
+          // Sort by createdAt in descending order (newest first)
+          return transactions.sort((a, b) => {
+            const dateA = a.createdAt?.toDate?.() || new Date(0);
+            const dateB = b.createdAt?.toDate?.() || new Date(0);
+            return dateB - dateA;
+          });
+        } catch (fallbackError) {
+          console.error(
+            "[WalletService] Even fallback query failed:",
+            fallbackError
+          );
+          return []; // Return empty array if both approaches fail
+        }
+      }
+
+      return []; // Return an empty array on error
     }
   }
 
@@ -508,26 +733,20 @@ class WalletService {
 
       // 5. Add transaction records
       // 5.1 Record the investment for the user
-      const userTransactionRef = doc(collection(db, "transactions"));
-      batch.set(userTransactionRef, {
-        userId,
+      await this.recordTransaction(userId, {
         amount: -amount,
         type: "investment",
         description: `Investment in ${productData.name || "product"}`,
         productId,
-        createdAt: serverTimestamp(),
         status: "completed",
       });
 
       // 5.2 Record the deposit to the business account
-      const businessTransactionRef = doc(collection(db, "transactions"));
-      batch.set(businessTransactionRef, {
-        userId: "business",
+      await this.recordTransaction("business", {
         amount: amount,
         type: "funding_hold",
         description: `Holding funds for ${productData.name || "product"}`,
         productId,
-        createdAt: serverTimestamp(),
         status: "pending", // Funds are pending until they can be sent to the manufacturer
         investmentId: investmentRef.id,
         investorId: userId,
@@ -565,6 +784,114 @@ class WalletService {
         );
       }
 
+      // Check if the product has reached its funding goal now
+      const currentFunding = (productData.currentFunding || 0) + amount;
+      const fundingGoal = productData.fundingGoal || 0;
+
+      // If funding goal is reached, send notifications and check for auto-transfer
+      if (
+        fundingGoal > 0 &&
+        currentFunding >= fundingGoal &&
+        (productData.currentFunding || 0) < fundingGoal
+      ) {
+        // Product just became fully funded - send notifications to all stakeholders
+
+        // 1. Send notification to designer that their product is fully funded
+        if (designerId) {
+          await notificationService.createNotification(
+            designerId,
+            "funding_complete",
+            "Product Fully Funded! 🎉",
+            `Congratulations! Your product ${
+              productData.name || "product"
+            } has reached its funding goal of $${fundingGoal}. You can now proceed with manufacturing.`,
+            `/product/${productId}`
+          );
+        }
+
+        // 2. Send notifications to all investors who contributed to this product
+        if (
+          Array.isArray(productData.funders) &&
+          productData.funders.length > 0
+        ) {
+          for (const funderId of productData.funders) {
+            if (funderId !== userId) {
+              // Skip the current investor as they'll get a special message
+              await notificationService.createNotification(
+                funderId,
+                "funding_complete",
+                "Product Fully Funded! 🎉",
+                `A product you invested in (${
+                  productData.name || "product"
+                }) has reached its funding goal of $${fundingGoal} and will now move to manufacturing.`,
+                `/product/${productId}`
+              );
+            }
+          }
+        }
+
+        // 3. Special notification for the investor who just completed the funding
+        await notificationService.createNotification(
+          userId,
+          "funding_complete",
+          "Product Fully Funded! 🎉",
+          `Your investment has fully funded ${
+            productData.name || "product"
+          }! The product has reached its goal of $${fundingGoal} and will now move to manufacturing.`,
+          `/product/${productId}`
+        );
+
+        // 4. If there's a pre-selected manufacturer, notify them as well
+        try {
+          const designerSettingsRef = doc(db, "designerSettings", designerId);
+          const designerSettingsDoc = await getDoc(designerSettingsRef);
+
+          if (designerSettingsDoc.exists()) {
+            const designerSettings = designerSettingsDoc.data();
+            const manufacturerSettings =
+              designerSettings.manufacturerSettings || {};
+            const preSelectedManufacturerId = manufacturerSettings[productId];
+
+            if (preSelectedManufacturerId) {
+              await notificationService.createNotification(
+                preSelectedManufacturerId,
+                "funding_complete",
+                "Product Ready for Manufacturing",
+                `A product assigned to you (${
+                  productData.name || "product"
+                }) has been fully funded with $${fundingGoal} and is now ready for manufacturing.`,
+                `/product/${productId}`
+              );
+            }
+          }
+        } catch (err) {
+          console.error(
+            "Error sending notification to pre-selected manufacturer:",
+            err
+          );
+          // Continue execution even if this notification fails
+        }
+
+        // Check for auto transfer settings
+        setTimeout(async () => {
+          try {
+            await this.checkAndAutoTransferFunds(productId);
+          } catch (error) {
+            console.error("Error in auto-transfer process:", error);
+          }
+        }, 1000); // Slight delay to ensure the batch commit is fully processed first
+      } else if (fundingGoal > 0 && currentFunding >= fundingGoal) {
+        // Product was already fully funded before this investment
+        // Check for auto transfer settings
+        setTimeout(async () => {
+          try {
+            await this.checkAndAutoTransferFunds(productId);
+          } catch (error) {
+            console.error("Error in auto-transfer process:", error);
+          }
+        }, 1000); // Slight delay to ensure the batch commit is fully processed first
+      }
+
       return {
         success: true,
         message: `Successfully invested $${amount} in ${productData.name}`,
@@ -587,6 +914,7 @@ class WalletService {
    * @param {number} quantity - The quantity of items sold
    * @param {string} productId - The product ID
    * @param {string} productName - The product name
+   * @param {string} orderId - The order ID reference
    * @returns {Promise<Object>} Result with success status and commission amount
    */
   async processBusinessCommission(
@@ -594,7 +922,8 @@ class WalletService {
     manufacturingCost,
     quantity = 1,
     productId,
-    productName
+    productName,
+    orderId
   ) {
     try {
       // Get business account settings
@@ -612,40 +941,35 @@ class WalletService {
 
       // Get settings
       const settings = settingsDoc.data();
-      const commissionRate = settings.commissionRate || 2.0; // Default to 2% if not specified
+      // Ensure commission rate is a number
+      const commissionRate = parseFloat(settings.commissionRate) || 2.0; // Default to 2% if not specified or NaN
 
-      // Calculate profit
-      const totalManufacturingCost = manufacturingCost * quantity;
-      const profit = Math.max(0, saleAmount - totalManufacturingCost);
-
-      // Calculate commission (percentage of profit)
-      const commission = profit * (commissionRate / 100);
+      // Calculate commission (percentage of sale amount, not profit)
+      // This ensures the commission is properly calculated as per business requirements
+      const commission = saleAmount * (commissionRate / 100);
       const roundedCommission = Math.round(commission * 100) / 100; // Round to 2 decimal places
 
       if (roundedCommission <= 0) {
         return {
           success: true,
           commissionAmount: 0,
-          message: "No commission taken (zero or negative profit)",
+          message: "No commission taken (zero or negative calculation)",
         };
       }
 
-      // Get business wallet reference
+      // Update business wallet balance
       const businessWalletRef = doc(db, "wallets", "business");
       const businessWalletDoc = await getDoc(businessWalletRef);
 
-      // Create batch for transaction
-      const batch = writeBatch(db);
-
       if (businessWalletDoc.exists()) {
         // Update existing wallet
-        batch.update(businessWalletRef, {
+        await updateDoc(businessWalletRef, {
           balance: increment(roundedCommission),
           updatedAt: serverTimestamp(),
         });
       } else {
         // Create business wallet if it doesn't exist
-        batch.set(businessWalletRef, {
+        await setDoc(businessWalletRef, {
           balance: roundedCommission,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -653,21 +977,16 @@ class WalletService {
       }
 
       // Record transaction for business account
-      const transactionRef = doc(collection(db, "transactions"));
-      batch.set(transactionRef, {
-        userId: "business", // Special ID for business account
+      await this.recordTransaction("business", {
         amount: roundedCommission,
         type: "commission",
         description: `Commission from sale of ${productName || "product"}`,
         productId,
+        orderId, // Add orderId reference for refund tracking
         commissionRate: settings.commissionRate,
         saleAmount,
-        createdAt: serverTimestamp(),
         status: "completed",
       });
-
-      // Commit the batch
-      await batch.commit();
 
       return {
         success: true,
@@ -704,6 +1023,60 @@ class WalletService {
     orderId
   ) {
     try {
+      // Add detailed logging to identify which parameter is invalid
+      console.log("Revenue distribution parameters:", {
+        productId,
+        saleAmount,
+        manufacturingCost,
+        quantity,
+        orderId,
+      });
+
+      // Validate parameters before calling the cloud function
+      if (!productId || typeof productId !== "string") {
+        console.error("Invalid productId:", productId);
+        return {
+          success: false,
+          error: "Invalid productId",
+        };
+      }
+
+      if (!saleAmount || isNaN(saleAmount) || saleAmount <= 0) {
+        console.error("Invalid saleAmount:", saleAmount);
+        return {
+          success: false,
+          error: "Invalid saleAmount",
+        };
+      }
+
+      if (
+        manufacturingCost === undefined ||
+        manufacturingCost === null ||
+        isNaN(manufacturingCost)
+      ) {
+        console.error("Invalid manufacturingCost:", manufacturingCost);
+        return {
+          success: false,
+          error: "Invalid manufacturingCost",
+        };
+      }
+
+      if (!quantity || isNaN(quantity) || quantity <= 0) {
+        console.error("Invalid quantity:", quantity);
+        return {
+          success: false,
+          error: "Invalid quantity",
+        };
+      }
+
+      if (!orderId || typeof orderId !== "string") {
+        console.error("Invalid orderId:", orderId);
+        return {
+          success: false,
+          error: "Invalid orderId",
+        };
+      }
+
       // Use Firebase Cloud Function to distribute revenue
       const functions = getFunctions();
       const distributeRevenue = httpsCallable(
@@ -736,10 +1109,11 @@ class WalletService {
    * Process a product sale - handles both business commission and investor revenue distribution
    * @param {string} productId - The product ID
    * @param {string} productName - The product name
-   * @param {number} saleAmount - The total sale amount
+   * @param {number} saleAmount - The total sale amount (including shipping)
    * @param {number} manufacturingCost - The manufacturing cost per unit
    * @param {number} quantity - The quantity of items sold
    * @param {string} orderId - The order ID
+   * @param {number} shippingCost - The shipping cost (default 0)
    * @returns {Promise<Object>} Result with status and processing details
    */
   async processProductSale(
@@ -748,26 +1122,90 @@ class WalletService {
     saleAmount,
     manufacturingCost,
     quantity = 1,
-    orderId
+    orderId,
+    shippingCost = 0
   ) {
     try {
-      // First, process business commission
+      // Fetch the product to get the designer ID
+      const productRef = doc(db, "products", productId);
+      const productDoc = await getDoc(productRef);
+
+      if (!productDoc.exists()) {
+        return {
+          success: false,
+          error: "Product not found",
+        };
+      }
+
+      const productData = productDoc.data();
+      const designerId = productData.designerId;
+      const isDirectSell = productData.isDirectSell || false;
+
+      if (!designerId) {
+        return {
+          success: false,
+          error: "Product has no designer ID",
+        };
+      }
+
+      // Calculate the product sale amount excluding shipping for commission/investor calculations
+      const productSaleAmount = saleAmount - shippingCost;
+
+      // First, process business commission on the product amount only (not shipping)
+      // Always process commission for all products, including direct sell products
       const commissionResult = await this.processBusinessCommission(
-        saleAmount,
+        productSaleAmount,
         manufacturingCost,
         quantity,
         productId,
-        productName
+        productName,
+        orderId // This is the parameter that was missing
       );
 
-      // Next, distribute revenue to investors
-      const distributionResult = await this.distributeInvestorRevenue(
-        productId,
-        saleAmount,
-        manufacturingCost,
-        quantity,
-        orderId
-      );
+      // Get commission amount (default to 0 if there was an error)
+      const commissionAmount = commissionResult.success
+        ? commissionResult.commissionAmount || 0
+        : 0;
+
+      // Next, distribute revenue to investors (exclude shipping from this calculation)
+      // Only for crowdfunded products (not direct sell)
+      let distributionResult = {
+        success: true,
+        data: { distributedAmount: 0 },
+      };
+      if (!isDirectSell) {
+        distributionResult = await this.distributeInvestorRevenue(
+          productId,
+          productSaleAmount,
+          manufacturingCost,
+          quantity,
+          orderId
+        );
+      }
+
+      // Get total distributed to investors (default to 0 if there was an error)
+      const investorDistribution = distributionResult.success
+        ? distributionResult.data?.distributedAmount || 0
+        : 0;
+
+      // Calculate designer's share: product sale amount minus commission minus investor distribution, plus shipping
+      const designerShare =
+        productSaleAmount -
+        commissionAmount -
+        investorDistribution +
+        shippingCost;
+
+      // Only process designer payment if there's anything to pay
+      let designerPaymentResult = null;
+      if (designerShare > 0) {
+        designerPaymentResult = await this.payDesigner(
+          designerId,
+          designerShare,
+          productId,
+          productName,
+          orderId
+        );
+      }
 
       return {
         success: true,
@@ -775,13 +1213,103 @@ class WalletService {
         distributionResult: distributionResult.success
           ? distributionResult.data
           : null,
+        designerPaymentResult: designerPaymentResult,
         message: "Sale processed successfully",
+        isDirectSell: isDirectSell,
       };
     } catch (error) {
       console.error("Error processing product sale:", error);
       return {
         success: false,
         error: error.message || "Failed to process product sale",
+      };
+    }
+  }
+
+  /**
+   * Pay a designer for a product sale
+   * @param {string} designerId - The ID of the designer
+   * @param {number} amount - The amount to pay
+   * @param {string} productId - The product ID
+   * @param {string} productName - The product name
+   * @param {string} orderId - The order ID
+   * @returns {Promise<Object>} Result with success status
+   */
+  async payDesigner(designerId, amount, productId, productName, orderId) {
+    try {
+      // Validate the amount
+      if (amount <= 0) {
+        return {
+          success: false,
+          error: "Payment amount must be greater than 0",
+        };
+      }
+
+      // Round to 2 decimal places for currency
+      const roundedAmount = Math.round(amount * 100) / 100;
+
+      // Get designer's wallet
+      const walletRef = doc(db, "wallets", designerId);
+      const walletDoc = await getDoc(walletRef);
+
+      // Create batch for transaction
+      const batch = writeBatch(db);
+
+      if (walletDoc.exists()) {
+        // Update existing wallet
+        batch.update(walletRef, {
+          balance: increment(roundedAmount),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create wallet if it doesn't exist
+        batch.set(walletRef, {
+          balance: roundedAmount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // Record payment transaction
+      await this.recordTransaction(designerId, {
+        amount: roundedAmount,
+        type: "sales_payment",
+        description: `Payment for sale of ${productName || "product"}`,
+        productId,
+        orderId,
+        status: "completed",
+      });
+
+      // Commit the batch
+      await batch.commit();
+
+      // Send notification to designer about the payment
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      );
+
+      await notificationService.createNotification(
+        designerId,
+        "payment",
+        "Product Sale Payment",
+        `You received $${roundedAmount.toFixed(2)} from the sale of ${
+          productName || "your product"
+        }.`,
+        `/orders`
+      );
+
+      return {
+        success: true,
+        amount: roundedAmount,
+        message: `Successfully paid designer $${roundedAmount.toFixed(
+          2
+        )} for product sale`,
+      };
+    } catch (error) {
+      console.error("Error paying designer:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to process designer payment",
       };
     }
   }
@@ -883,29 +1411,31 @@ class WalletService {
       ) {
         return {
           success: false,
-          error: "Insufficient funds in business account",
+          error: "Business account has insufficient funds for this transfer",
         };
       }
 
-      // 8. Begin transaction to transfer funds
+      // 8. Create batch for the transfer
       const batch = writeBatch(db);
 
-      // 8.1 Update business wallet
+      // 9. Deduct from business wallet
       batch.update(businessWalletRef, {
         balance: increment(-businessHeldFunds),
         updatedAt: serverTimestamp(),
       });
 
-      // 8.2 Update or create manufacturer wallet
+      // 10. Update manufacturer's wallet
       const manufacturerWalletRef = doc(db, "wallets", manufacturerId);
       const manufacturerWalletDoc = await getDoc(manufacturerWalletRef);
 
       if (manufacturerWalletDoc.exists()) {
+        // Update existing wallet
         batch.update(manufacturerWalletRef, {
           balance: increment(businessHeldFunds),
           updatedAt: serverTimestamp(),
         });
       } else {
+        // Create new wallet if needed
         batch.set(manufacturerWalletRef, {
           balance: businessHeldFunds,
           createdAt: serverTimestamp(),
@@ -913,100 +1443,87 @@ class WalletService {
         });
       }
 
-      // 8.3 Update product status
+      // 11. Update product record to mark funds as transferred
       batch.update(productRef, {
-        manufacturerId,
-        manufacturerEmail,
-        businessHeldFunds: 0, // Reset held funds to 0
-        manufacturingStatus: "funded",
-        fundsSentToManufacturer: true,
-        manufacturingStartDate: serverTimestamp(),
+        businessHeldFunds: 0,
+        manufacturerFunded: true,
+        manufacturerFundedAt: serverTimestamp(),
+        manufacturerId: manufacturerId,
+        manufacturerEmail: manufacturerEmail,
+        manufacturerTransferAmount: businessHeldFunds,
       });
 
-      // 8.4 Create transaction records
-      // Business debit transaction
-      const businessTransactionRef = doc(collection(db, "transactions"));
-      batch.set(businessTransactionRef, {
-        userId: "business",
+      // 12. Record transaction for the business account (outgoing)
+      await this.recordTransaction("business", {
         amount: -businessHeldFunds,
-        type: "manufacturing_transfer",
-        description: `Transferred funds to manufacturer for ${
+        type: "manufacturer_transfer",
+        description: `Funds transfer to manufacturer for ${
           productData.name || "product"
-        }`,
+        }${note ? ": " + note : ""}`,
         productId,
+        designerId,
         manufacturerId,
-        designerId,
-        createdAt: serverTimestamp(),
         status: "completed",
-        note: note || "Manufacturing funds transfer",
       });
 
-      // Manufacturer credit transaction
-      const manufacturerTransactionRef = doc(collection(db, "transactions"));
-      batch.set(manufacturerTransactionRef, {
-        userId: manufacturerId,
+      // 13. Record transaction for the manufacturer (incoming)
+      await this.recordTransaction(manufacturerId, {
         amount: businessHeldFunds,
-        type: "manufacturing_funds",
-        description: `Received manufacturing funds for ${
+        type: "manufacturer_funding",
+        description: `Funds received for manufacturing ${
           productData.name || "product"
-        }`,
+        }${note ? ": " + note : ""}`,
         productId,
         designerId,
-        createdAt: serverTimestamp(),
         status: "completed",
-        note: note || "Manufacturing funds transfer",
       });
 
-      // Commit all changes
+      // 14. Commit all changes
       await batch.commit();
 
-      // 9. Send notifications to relevant parties
+      // 15. Send notifications to all parties
       const notificationService = await import("./notificationService").then(
         (module) => module.default
-      );
-
-      // Notify the designer
-      await notificationService.createNotification(
-        designerId,
-        "manufacturing",
-        "Funds Transferred to Manufacturer",
-        `$${businessHeldFunds.toFixed(
-          2
-        )} has been transferred to ${manufacturerEmail} for manufacturing ${
-          productData.name || "product"
-        }.`,
-        `/product/${productId}`
       );
 
       // Notify the manufacturer
       await notificationService.createNotification(
         manufacturerId,
-        "manufacturing",
+        "manufacturer_funding",
         "Manufacturing Funds Received",
-        `You've received $${businessHeldFunds.toFixed(2)} to manufacture ${
+        `You have received $${businessHeldFunds.toFixed(2)} to manufacture ${
           productData.name || "product"
         }.`,
+        `/manufacturer/dashboard`
+      );
+
+      // Notify the designer
+      await notificationService.createNotification(
+        designerId,
+        "funds_transferred",
+        "Funds Transferred to Manufacturer",
+        `$${businessHeldFunds.toFixed(2)} has been transferred to ${
+          manufacturerData.displayName || manufacturerEmail
+        } for manufacturing ${productData.name || "product"}.`,
         `/product/${productId}`
       );
 
-      // 10. Notify funders that manufacturing has begun
+      // Notify all investors about the manufacturing progress
       if (
         Array.isArray(productData.funders) &&
         productData.funders.length > 0
       ) {
-        for (const funderId of productData.funders) {
-          if (funderId !== designerId) {
-            // Don't notify the designer twice
-            await notificationService.createNotification(
-              funderId,
-              "manufacturing",
-              "Manufacturing Started",
-              `Manufacturing has begun for ${
-                productData.name || "product"
-              } that you funded.`,
-              `/product/${productId}`
-            );
-          }
+        for (const investorId of productData.funders) {
+          await notificationService.createNotification(
+            investorId,
+            "manufacturing_started",
+            "Manufacturing Started",
+            `A product you invested in (${productData.name || "product"}) 
+            is now moving to manufacturing with ${
+              manufacturerData.displayName || "the manufacturer"
+            }.`,
+            `/product/${productId}`
+          );
         }
       }
 
@@ -1015,7 +1532,7 @@ class WalletService {
         amount: businessHeldFunds,
         message: `Successfully transferred $${businessHeldFunds.toFixed(
           2
-        )} to manufacturer ${manufacturerEmail}`,
+        )} to manufacturer for ${productData.name || "product"}`,
       };
     } catch (error) {
       console.error("Error transferring funds to manufacturer:", error);
@@ -1025,7 +1542,101 @@ class WalletService {
       };
     }
   }
+
+  /**
+   * Check and auto-transfer funds to pre-selected manufacturer when a product is fully funded
+   * @param {string} productId - Product ID to check
+   * @returns {Promise<Object>} Result of auto-transfer
+   */
+  async checkAndAutoTransferFunds(productId) {
+    try {
+      // 1. Get the product data
+      const productRef = doc(db, "products", productId);
+      const productDoc = await getDoc(productRef);
+
+      if (!productDoc.exists()) {
+        return {
+          success: false,
+          error: "Product not found",
+        };
+      }
+
+      const productData = productDoc.data();
+      const designerId = productData.designerId;
+
+      if (!designerId) {
+        return {
+          success: false,
+          error: "Product has no designer ID",
+        };
+      }
+
+      // 2. Check if product is fully funded and has business held funds
+      const currentFunding = productData.currentFunding || 0;
+      const fundingGoal = productData.fundingGoal || 0;
+      const businessHeldFunds = productData.businessHeldFunds || 0;
+
+      if (currentFunding < fundingGoal || businessHeldFunds <= 0) {
+        return {
+          success: false,
+          error: "Product is not fully funded or has no business-held funds",
+        };
+      }
+
+      // 3. Check designer settings for auto-transfer configuration
+      const designerSettingsRef = doc(db, "designerSettings", designerId);
+      const designerSettingsDoc = await getDoc(designerSettingsRef);
+
+      if (!designerSettingsDoc.exists()) {
+        return {
+          success: false,
+          error: "Designer settings not found",
+        };
+      }
+
+      const designerSettings = designerSettingsDoc.data();
+
+      // 4. Check if auto-transfer is enabled and there's a pre-selected manufacturer
+      const manufacturerSettings = designerSettings.manufacturerSettings || {};
+      const autoTransferEnabled =
+        manufacturerSettings.autoTransferEnabled || false;
+      const preSelectedManufacturerId = manufacturerSettings[productId];
+
+      if (!autoTransferEnabled || !preSelectedManufacturerId) {
+        return {
+          success: false,
+          error: "Auto-transfer not enabled or no pre-selected manufacturer",
+        };
+      }
+
+      // 5. Get manufacturer email
+      const manufacturerRef = doc(db, "users", preSelectedManufacturerId);
+      const manufacturerDoc = await getDoc(manufacturerRef);
+
+      if (!manufacturerDoc.exists()) {
+        return {
+          success: false,
+          error: "Pre-selected manufacturer not found",
+        };
+      }
+
+      const manufacturerEmail = manufacturerDoc.data().email;
+
+      // 6. Transfer funds to manufacturer
+      return await this.transferProductFundsToManufacturer(
+        designerId,
+        productId,
+        manufacturerEmail,
+        "Auto-transferred funds for manufacturing"
+      );
+    } catch (error) {
+      console.error("Error in auto-transfer funds process:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to auto-transfer funds",
+      };
+    }
+  }
 }
 
-const walletService = new WalletService();
-export default walletService;
+export default new WalletService();

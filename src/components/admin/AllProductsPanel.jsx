@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, getDocs, doc, deleteDoc, orderBy, limit, startAfter, where } from 'firebase/firestore';
+import { collection, query, getDocs, doc, updateDoc, orderBy, limit, startAfter, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../LoadingSpinner';
@@ -219,8 +219,11 @@ const AllProductsPanel = () => {
         if (!productToDelete) return;
 
         try {
-            // Delete product document
-            await deleteDoc(doc(db, 'products', productToDelete.id));
+            // Use soft delete by updating status to 'deleted' rather than deleting document
+            await updateDoc(doc(db, 'products', productToDelete.id), {
+                status: 'deleted',
+                updatedAt: serverTimestamp()
+            });
 
             // Remove product from state
             setProducts(prevProducts =>
@@ -263,6 +266,38 @@ const AllProductsPanel = () => {
             month: 'short',
             day: 'numeric'
         });
+    };
+
+    // Restore a deleted product
+    const handleRestoreProduct = async (product) => {
+        try {
+            // Update the product status back to active
+            await updateDoc(doc(db, 'products', product.id), {
+                status: 'active',
+                updatedAt: serverTimestamp()
+            });
+
+            // Update the product in the state
+            setProducts(prevProducts =>
+                prevProducts.map(p =>
+                    p.id === product.id ? { ...p, status: 'active' } : p
+                )
+            );
+
+            // Notify designer if available
+            if (product.designerId) {
+                await notificationService.createNotification({
+                    userId: product.designerId,
+                    title: "Product Restored",
+                    message: `Your product "${product.name}" has been restored by an administrator and is now active.`,
+                    type: "product_restored",
+                });
+            }
+
+        } catch (err) {
+            console.error('Error restoring product:', err);
+            setError('Failed to restore product. Please try again.');
+        }
     };
 
     // Format price as currency
@@ -313,6 +348,7 @@ const AllProductsPanel = () => {
                             <option value="pending">Pending</option>
                             <option value="archived">Archived</option>
                             <option value="rejected">Rejected</option>
+                            <option value="deleted">Deleted</option>
                         </select>
                     </div>
                 </div>
@@ -416,13 +452,23 @@ const AllProductsPanel = () => {
                                                     >
                                                         Edit
                                                     </button>
-                                                    <button
-                                                        className="delete-button"
-                                                        onClick={() => openDeleteModal(product)}
-                                                        title="Delete Product"
-                                                    >
-                                                        Delete
-                                                    </button>
+                                                    {product.status === 'deleted' ? (
+                                                        <button
+                                                            className="restore-button"
+                                                            onClick={() => handleRestoreProduct(product)}
+                                                            title="Restore Product"
+                                                        >
+                                                            Restore
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            className="delete-button"
+                                                            onClick={() => openDeleteModal(product)}
+                                                            title="Delete Product"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

@@ -2,16 +2,28 @@
  * Format a number as currency
  * @param {number} amount - The amount to format
  * @param {string} currency - Currency code (default: USD)
+ * @param {Object} options - Additional formatting options
  * @returns {string} Formatted currency string
  */
-export const formatCurrency = (amount, currency = "USD") => {
+export const formatCurrency = (amount, currency = "USD", options = {}) => {
+  // Handle null or undefined
+  if (amount === null || amount === undefined) {
+    return "";
+  }
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: options.minimumFractionDigits ?? 2,
+    maximumFractionDigits: options.maximumFractionDigits ?? 2,
+    ...options,
   }).format(amount);
 };
+
+/**
+ * This version of formatCurrency is for use without the CurrencyContext
+ * CurrencyContext's formatAmount method is preferred when available
+ */
 
 /**
  * Format a date in a user-friendly format

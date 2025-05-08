@@ -1,15 +1,28 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, serverTimestamp } from "firebase/firestore";
+import {
+  getFirestore,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
+import { getPerformance, trace } from "firebase/performance";
 import {
   getAuth,
   onAuthStateChanged,
   signOut,
   updateProfile,
   GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  RecaptchaVerifier,
+  multiFactor, // Import multiFactor utility
+  getMultiFactorResolver, // Import the resolver function for MFA
 } from "firebase/auth";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import "firebase/firestore";
@@ -60,6 +73,7 @@ let storage = null;
 let db = null;
 let auth = null;
 let functions = null;
+let perf = null;
 
 try {
   app = initializeApp(firebaseConfig);
@@ -68,11 +82,20 @@ try {
   analytics =
     import.meta.env.VITE_APP_ENV === "production" ? getAnalytics(app) : null;
 
+  // Initialize Performance Monitoring (in all environments for testing)
+  perf = getPerformance(app);
+
   // Initialize Firebase services
   storage = getStorage(app);
   db = getFirestore(app);
   auth = getAuth(app);
   functions = getFunctions(app);
+
+  // Configure auth behavior for phone authentication
+  auth.settings = {
+    // This ensures phone auth works properly
+    appVerificationDisabledForTesting: false,
+  };
 } catch (error) {
   console.error("Error initializing Firebase:", error);
 }
@@ -81,10 +104,25 @@ export const timestamp = serverTimestamp();
 const googleProvider = new GoogleAuthProvider();
 
 // Export Firebase services
-export { db, storage, auth, analytics, functions };
+export { db, storage, auth, analytics, functions, perf, trace };
 
 // Export Firebase authentication functions
-export { onAuthStateChanged, signOut, updateProfile, googleProvider };
+export {
+  onAuthStateChanged,
+  signOut,
+  updateProfile,
+  googleProvider,
+  signInWithEmailAndPassword,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  RecaptchaVerifier,
+  multiFactor,
+  getMultiFactorResolver,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove,
+};
 
 // Export the app as default
 export default app;

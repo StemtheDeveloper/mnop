@@ -1,0 +1,333 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* App Container */
+.App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
+  margin-top: 120px;
+  background-color: var(--background-color);
+}
+
+/* Main content area */
+.main-content {
+  flex: 1;
+  padding-top: 80px; /* Account for fixed navbar */
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Content container with responsive padding */
+.content-container {
+  padding: 1rem;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* Responsive container sizes */
+.container-sm {
+  max-width: 540px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.container-md {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.container-lg {
+  max-width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.container-xl {
+  max-width: 1140px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+/* Responsive padding adjustments */
+@media (min-width: 768px) {
+  .content-container {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 992px) {
+  .content-container {
+    padding: 2rem;
+  }
+}
+
+/* Page Sections */
+.page-section {
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .page-section {
+    margin-bottom: 3rem;
+  }
+}
+
+/* Section headers */
+.section-header {
+  margin-bottom: 1.5rem;
+  text-align: center;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .section-header {
+    text-align: left;
+  }
+}
+
+/* Loading container styles */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  width: 100%;
+  padding-top: 80px; /* Adjust for navbar height */
+}
+
+/* Page Loading Fallback Styles */
+.page-loading-fallback {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: calc(100vh - 80px); /* Adjust for navbar */
+  padding-top: 80px; /* Space for fixed navbar */
+}
+
+.loading-spinner-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid var(--spinner-border-color);
+  border-radius: 50%;
+  border-top-color: var(--spinner-top-color); /* M'NOP brand color */
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Not Found Page Styles */
+.not-found-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 150px 20px 60px;
+  text-align: center;
+  min-height: 60vh;
+}
+
+.not-found-page h1 {
+  font-size: 8rem;
+  margin: 0;
+  color: var(--primary-color);
+  line-height: 1;
+}
+
+.not-found-page h2 {
+  font-size: 2rem;
+  margin: 0 0 1rem;
+  color: var(--text-color);
+}
+
+.not-found-page p {
+  font-size: 1.2rem;
+  color: var(--secondary-text-color);
+  margin-bottom: 2rem;
+}
+
+.not-found-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Button styles with improved responsiveness */
+.btn-primary,
+.btn-secondary {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-align: center;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background-color: var(--secondary-hover);
+}
+
+/* Auth Loading styles */
+.auth-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  padding-top: 80px; /* Account for navbar */
+}
+
+.auth-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(239, 60, 35, 0.2);
+  border-radius: 50%;
+  border-top-color: var(--primary-color);
+  animation: auth-spin 1s linear infinite;
+}
+
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Unauthorized page styles */
+.unauthorized-page {
+  text-align: center;
+  padding: 150px 20px 60px;
+}
+
+.unauthorized-page h1 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.unauthorized-page p {
+  margin-bottom: 2rem;
+  color: var(--text-color);
+}
+
+.unauthorized-page .btn-primary {
+  display: inline-block;
+  padding: 10px 20px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background-color 0.3s;
+}
+
+.unauthorized-page .btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Form elements responsiveness */
+input,
+select,
+textarea,
+button {
+  max-width: 100%;
+  background-color: var(--input-background);
+  color: var(--text-color);
+  border: 1px solid var(--input-border);
+}
+
+/* Responsive tables */
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsive grid system */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: -15px;
+  margin-left: -15px;
+  width: calc(100% + 30px);
+}
+
+.col {
+  position: relative;
+  width: 100%;
+  padding-right: 15px;
+  padding-left: 15px;
+  flex-basis: 0;
+  flex-grow: 1;
+  max-width: 100%;
+}
+
+/* Media query utilities */
+.d-none {
+  display: none !important;
+}
+
+.d-block {
+  display: block !important;
+}
+
+@media (min-width: 768px) {
+  .d-md-none {
+    display: none !important;
+  }
+
+  .d-md-block {
+    display: block !important;
+  }
+}

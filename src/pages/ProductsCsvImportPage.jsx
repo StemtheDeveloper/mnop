@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext';
-import { storage, db } from '../firebase/config';
+import { useToast } from '../context/ToastContext';
+import { storage, db } from '../config/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, getDoc, updateDoc, getDocs } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
@@ -70,6 +70,30 @@ const ProductsCsvImportPage = () => {
         'businessHeldFunds', 'categoryType', 'manufacturerEmail', 'manufacturingStatus'
     ];
     const [headers, setHeaders] = useState(defaultHeaders);
+
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        price: '',
+        stockQuantity: '',
+        category: '',
+        categories: [],
+        tags: [],
+        productType: 'physical',
+        manufacturingCost: '',
+        designer: userProfile?.displayName || '',
+        isCrowdfunded: false,
+        isDirectSell: true,
+        fundingGoal: '0',
+        // Add new shipping fields
+        customShipping: false,
+        standardShippingCost: '',
+        expressShippingCost: '',
+        freeShipping: false,
+        freeShippingThreshold: '',
+        shippingProvider: 'standard',
+        customProviderName: ''
+    });
 
     // Fetch categories on component mount
     useEffect(() => {

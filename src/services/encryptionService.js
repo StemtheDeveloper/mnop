@@ -140,14 +140,24 @@ class EncryptionService {
    */
   async createDecryptedObjectURL(downloadURL, encryptionKey, metadata) {
     try {
-      // Fetch the encrypted file with CORS mode to avoid cross-origin issues
-      const response = await fetch(downloadURL, {
-        mode: "cors",
-        credentials: "same-origin",
-        headers: {
-          "Cache-Control": "no-cache",
-        },
-      });
+      // Try a direct fetch with no special headers or mode first
+      let response;
+      try {
+        response = await fetch(downloadURL);
+      } catch (fetchError) {
+        console.log(
+          "Direct fetch failed, trying alternative approach:",
+          fetchError
+        );
+
+        // If direct fetch fails, try with 'no-cors' mode
+        // Note: This won't give us usable data but might help with detecting availability
+        const checkResponse = await fetch(downloadURL, { mode: "no-cors" });
+
+        // If we reach here, the resource exists but CORS is blocking it
+        // We'll create a fallback representation instead of trying to fetch the actual content
+        throw new Error("Resource exists but CORS is preventing access");
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -172,7 +182,58 @@ class EncryptionService {
       return URL.createObjectURL(decryptedBlob);
     } catch (error) {
       console.error("Failed to create decrypted object URL:", error);
-      throw error; // Re-throw to allow proper error handling upstream
+
+      // Create a fallback for development environments
+      if (process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
+        try {
+          // Create a placeholder image or text based on file type
+          const fileType = metadata?.originalType || "application/octet-stream";
+
+          if (fileType.startsWith("image/")) {
+            // Create a placeholder image with text
+            const canvas = document.createElement("canvas");
+            canvas.width = 300;
+            canvas.height = 200;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#f0f0f0";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#666666";
+            ctx.font = "16px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(
+              "Encrypted Image",
+              canvas.width / 2,
+              canvas.height / 2 - 20
+            );
+            ctx.fillText(
+              "(Cannot load due to CORS restrictions)",
+              canvas.width / 2,
+              canvas.height / 2 + 20
+            );
+
+            return new Promise((resolve) => {
+              canvas.toBlob((blob) => {
+                resolve(URL.createObjectURL(blob));
+              }, "image/png");
+            });
+          } else {
+            // For other file types, create a text blob
+            const fileSize = metadata?.originalSize
+              ? `${(metadata.originalSize / 1024).toFixed(2)} KB`
+              : "Unknown size";
+            const fileName = metadata?.originalName || "file";
+            const fallbackText = `Encrypted File: ${fileName}\nType: ${fileType}\nSize: ${fileSize}\n\nCannot load due to CORS restrictions in development mode.\nPlease deploy your Firebase CORS configuration to resolve this.`;
+            const fallbackBlob = new Blob([fallbackText], {
+              type: "text/plain",
+            });
+            return URL.createObjectURL(fallbackBlob);
+          }
+        } catch (fallbackError) {
+          console.error("Fallback approach also failed:", fallbackError);
+        }
+      }
+
+      throw error;
     }
   }
 }

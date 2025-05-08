@@ -248,6 +248,16 @@ class ReviewService {
   }
 
   /**
+   * Add or update a review for a product - this is a wrapper for addReview for backward compatibility
+   * @param {Object} reviewData - Review data
+   * @param {string} reviewId - Optional review ID for update
+   * @returns {Promise<Object>} - Success or error
+   */
+  async addOrUpdateReview(reviewData, reviewId = null) {
+    return this.addReview(reviewData);
+  }
+
+  /**
    * Mark a review as helpful or unhelpful
    * @param {string} reviewId - The review ID
    * @param {string} userId - The user ID

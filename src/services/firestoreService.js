@@ -18,6 +18,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
+import cacheService from "./cacheService";
 
 /**
  * Firestore Database Service
@@ -52,6 +53,10 @@ class FirestoreService {
       userData.updatedAt = serverTimestamp();
 
       await setDoc(userRef, userData, { merge: true });
+
+      // Invalidate user cache after update
+      cacheService.remove(`user_${uid}`);
+
       return { success: true, data: userData };
     } catch (error) {
       console.error("Error setting user document: ", error);
@@ -62,11 +67,25 @@ class FirestoreService {
   // Get a user by ID
   async getUserById(uid) {
     try {
+      // Check cache first
+      const cacheKey = `user_${uid}`;
+      const cachedUser = cacheService.get(cacheKey);
+
+      if (cachedUser) {
+        return { success: true, data: cachedUser };
+      }
+
+      // If not in cache, fetch from firestore
       const userRef = doc(db, this.collections.USERS, uid);
       const userDoc = await getDoc(userRef);
 
       if (userDoc.exists()) {
-        return { success: true, data: { id: userDoc.id, ...userDoc.data() } };
+        const userData = { id: userDoc.id, ...userDoc.data() };
+
+        // Cache the result for future use - 10 minute TTL
+        cacheService.set(cacheKey, userData, "users", 10 * 60 * 1000);
+
+        return { success: true, data: userData };
       } else {
         return { success: false, error: "User not found" };
       }
@@ -85,6 +104,10 @@ class FirestoreService {
       profileData.updatedAt = serverTimestamp();
 
       await updateDoc(userRef, profileData);
+
+      // Invalidate user cache after update
+      cacheService.remove(`user_${uid}`);
+
       return { success: true };
     } catch (error) {
       console.error("Error updating user profile: ", error);
@@ -106,6 +129,9 @@ class FirestoreService {
       const productsRef = collection(db, this.collections.PRODUCTS);
       const newProductRef = await addDoc(productsRef, productData);
 
+      // Invalidate products list cache
+      cacheService.clearCategory("products");
+
       return {
         success: true,
         data: {
@@ -122,13 +148,27 @@ class FirestoreService {
   // Get a product by ID
   async getProductById(productId) {
     try {
+      // Check cache first
+      const cacheKey = `product_${productId}`;
+      const cachedProduct = cacheService.get(cacheKey);
+
+      if (cachedProduct) {
+        return { success: true, data: cachedProduct };
+      }
+
+      // If not in cache, fetch from firestore
       const productRef = doc(db, this.collections.PRODUCTS, productId);
       const productDoc = await getDoc(productRef);
 
       if (productDoc.exists()) {
+        const productData = { id: productDoc.id, ...productDoc.data() };
+
+        // Cache the result - 5 minute TTL (default)
+        cacheService.set(cacheKey, productData, "products");
+
         return {
           success: true,
-          data: { id: productDoc.id, ...productDoc.data() },
+          data: productData,
         };
       } else {
         return { success: false, error: "Product not found" };
@@ -148,6 +188,13 @@ class FirestoreService {
       productData.updatedAt = serverTimestamp();
 
       await updateDoc(productRef, productData);
+
+      // Invalidate related caches
+      cacheService.remove(`product_${productId}`);
+
+      // Clear category caches that might contain this product
+      cacheService.removePattern(/^products_/);
+
       return { success: true };
     } catch (error) {
       console.error("Error updating product: ", error);
@@ -160,6 +207,11 @@ class FirestoreService {
     try {
       const productRef = doc(db, this.collections.PRODUCTS, productId);
       await deleteDoc(productRef);
+
+      // Invalidate related caches
+      cacheService.remove(`product_${productId}`);
+      cacheService.removePattern(/^products_/);
+
       return { success: true };
     } catch (error) {
       console.error("Error deleting product: ", error);
@@ -178,6 +230,22 @@ class FirestoreService {
         lastVisible = null,
       } = options;
 
+      // Generate cache key based on query parameters
+      const cacheKey = `products_${
+        category || "all"
+      }_${sortBy}_${sortDirection}_${pageSize}_${
+        lastVisible ? "page" + lastVisible.id : "page1"
+      }`;
+
+      // Check cache first, but only for first page and if no special filters
+      if (!lastVisible) {
+        const cachedProducts = cacheService.get(cacheKey);
+        if (cachedProducts) {
+          return cachedProducts;
+        }
+      }
+
+      // If not in cache or pagination, fetch from firestore
       let productsRef = collection(db, this.collections.PRODUCTS);
       let productsQuery;
 
@@ -213,12 +281,19 @@ class FirestoreService {
       // Get last visible document for pagination
       const lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
 
-      return {
+      const result = {
         success: true,
         data: products,
         lastVisible: lastVisibleDoc,
         hasMore: products.length === pageSize,
       };
+
+      // Cache first page results only to avoid caching too much pagination data
+      if (!lastVisible) {
+        cacheService.set(cacheKey, result, "products", 2 * 60 * 1000); // 2 minutes TTL for product lists
+      }
+
+      return result;
     } catch (error) {
       console.error("Error getting products: ", error);
       return { success: false, error };
@@ -227,6 +302,14 @@ class FirestoreService {
 
   // Search products
   async searchProducts(searchTerm) {
+    // Search is a special case, only cache very common searches
+    const cacheKey = `search_${searchTerm.toLowerCase().trim()}`;
+    const cachedResults = cacheService.get(cacheKey);
+
+    if (cachedResults) {
+      return cachedResults;
+    }
+
     try {
       // Note: For complex search functionality, consider using Firebase Extensions
       // like Algolia Search or implementing a custom search solution.
@@ -250,7 +333,12 @@ class FirestoreService {
         }
       });
 
-      return { success: true, data: matchingProducts };
+      const result = { success: true, data: matchingProducts };
+
+      // Cache search results, but with a shorter TTL
+      cacheService.set(cacheKey, result, "searches", 60 * 1000); // 1 minute TTL for searches
+
+      return result;
     } catch (error) {
       console.error("Error searching products: ", error);
       return { success: false, error };
@@ -383,6 +471,14 @@ class FirestoreService {
   // Get all achievements
   async getAllAchievements() {
     try {
+      // Check cache first as achievements don't change often
+      const cacheKey = "all_achievements";
+      const cachedAchievements = cacheService.get(cacheKey);
+
+      if (cachedAchievements) {
+        return { success: true, data: cachedAchievements };
+      }
+
       const achievementsRef = collection(db, this.collections.ACHIEVEMENTS);
       const q = query(achievementsRef, orderBy("createdAt"));
 
@@ -392,6 +488,9 @@ class FirestoreService {
       snapshot.forEach((doc) => {
         achievements.push({ id: doc.id, ...doc.data() });
       });
+
+      // Cache achievements for longer period as they rarely change
+      cacheService.set(cacheKey, achievements, "achievements", 60 * 60 * 1000); // 60 minute TTL
 
       return { success: true, data: achievements };
     } catch (error) {
@@ -426,6 +525,10 @@ class FirestoreService {
         updatedAt: serverTimestamp(),
       });
 
+      // Invalidate relevant caches
+      cacheService.remove(`user_${userId}`);
+      cacheService.remove(`user_achievements_${userId}`);
+
       return { success: true, data: { awarded: true } };
     } catch (error) {
       console.error("Error awarding achievement: ", error);
@@ -436,6 +539,14 @@ class FirestoreService {
   // Get user achievements
   async getUserAchievements(userId) {
     try {
+      // Check cache first
+      const cacheKey = `user_achievements_${userId}`;
+      const cachedAchievements = cacheService.get(cacheKey);
+
+      if (cachedAchievements) {
+        return { success: true, data: cachedAchievements };
+      }
+
       const userRef = doc(db, this.collections.USERS, userId);
       const userDoc = await getDoc(userRef);
 
@@ -463,216 +574,19 @@ class FirestoreService {
         achievementIds.includes(achievement.id)
       );
 
+      // Cache the user achievements for 15 minutes
+      cacheService.set(
+        cacheKey,
+        userAchievements,
+        "user_achievements",
+        15 * 60 * 1000
+      );
+
       return { success: true, data: userAchievements };
     } catch (error) {
       console.error("Error getting user achievements: ", error);
       return { success: false, error };
     }
   }
-
-  /**
-   * ===== CART OPERATIONS =====
-   */
-
-  // Get user cart
-  async getUserCart(userId) {
-    try {
-      const cartsRef = collection(db, this.collections.CART);
-      const q = query(cartsRef, where("userId", "==", userId));
-
-      const snapshot = await getDocs(q);
-
-      if (snapshot.empty) {
-        // Create a new cart if one doesn't exist
-        const newCart = {
-          userId,
-          items: [],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-
-        const newCartRef = await addDoc(cartsRef, newCart);
-        return {
-          success: true,
-          data: { id: newCartRef.id, ...newCart, items: [] },
-        };
-      }
-
-      // Return the first cart found (there should only be one per user)
-      const cartDoc = snapshot.docs[0];
-      return { success: true, data: { id: cartDoc.id, ...cartDoc.data() } };
-    } catch (error) {
-      console.error("Error getting user cart: ", error);
-      return { success: false, error };
-    }
-  }
-
-  // Update user cart
-  async updateCart(cartId, items) {
-    try {
-      const cartRef = doc(db, this.collections.CART, cartId);
-
-      await updateDoc(cartRef, {
-        items,
-        updatedAt: serverTimestamp(),
-      });
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error updating cart: ", error);
-      return { success: false, error };
-    }
-  }
-
-  // Add item to cart
-  async addToCart(userId, product, quantity = 1) {
-    try {
-      // Get the user's cart
-      const { success, data: cart, error } = await this.getUserCart(userId);
-
-      if (!success) {
-        return { success: false, error };
-      }
-
-      const cartItems = cart.items || [];
-
-      // Check if the product is already in the cart
-      const existingItemIndex = cartItems.findIndex(
-        (item) => item.productId === product.id
-      );
-
-      if (existingItemIndex >= 0) {
-        // Update quantity
-        cartItems[existingItemIndex].quantity += quantity;
-      } else {
-        // Add new item
-        cartItems.push({
-          productId: product.id,
-          name: product.name,
-          price: product.price,
-          image: product.image || null,
-          quantity,
-        });
-      }
-
-      // Update the cart
-      await this.updateCart(cart.id, cartItems);
-
-      return { success: true, data: { cartId: cart.id, items: cartItems } };
-    } catch (error) {
-      console.error("Error adding to cart: ", error);
-      return { success: false, error };
-    }
-  }
-
-  /**
-   * ===== CATEGORIES OPERATIONS =====
-   */
-
-  // Get all categories
-  async getCategories() {
-    try {
-      const categoriesRef = collection(db, this.collections.CATEGORIES);
-      const snapshot = await getDocs(categoriesRef);
-
-      const categories = [];
-      snapshot.forEach((doc) => {
-        categories.push({ id: doc.id, ...doc.data() });
-      });
-
-      return { success: true, data: categories };
-    } catch (error) {
-      console.error("Error getting categories: ", error);
-      return { success: false, error };
-    }
-  }
-
-  /**
-   * ===== REVIEW OPERATIONS =====
-   */
-
-  // Add a product review
-  async addReview(reviewData) {
-    try {
-      // Add timestamps
-      reviewData.createdAt = serverTimestamp();
-      reviewData.updatedAt = serverTimestamp();
-
-      const reviewsRef = collection(db, this.collections.REVIEWS);
-      const newReviewRef = await addDoc(reviewsRef, reviewData);
-
-      // Update product rating statistics
-      await this.updateProductRating(reviewData.productId);
-
-      return {
-        success: true,
-        data: {
-          id: newReviewRef.id,
-          ...reviewData,
-        },
-      };
-    } catch (error) {
-      console.error("Error adding review: ", error);
-      return { success: false, error };
-    }
-  }
-
-  // Get product reviews
-  async getProductReviews(productId) {
-    try {
-      const reviewsRef = collection(db, this.collections.REVIEWS);
-      const q = query(
-        reviewsRef,
-        where("productId", "==", productId),
-        orderBy("createdAt", "desc")
-      );
-
-      const snapshot = await getDocs(q);
-
-      const reviews = [];
-      snapshot.forEach((doc) => {
-        reviews.push({ id: doc.id, ...doc.data() });
-      });
-
-      return { success: true, data: reviews };
-    } catch (error) {
-      console.error("Error getting product reviews: ", error);
-      return { success: false, error };
-    }
-  }
-
-  // Update product rating statistics
-  async updateProductRating(productId) {
-    try {
-      // Get all reviews for this product
-      const { success, data: reviews } = await this.getProductReviews(
-        productId
-      );
-
-      if (!success || reviews.length === 0) {
-        return;
-      }
-
-      // Calculate average rating
-      const totalRating = reviews.reduce(
-        (sum, review) => sum + review.rating,
-        0
-      );
-      const averageRating = totalRating / reviews.length;
-
-      // Update product with new rating data
-      const productRef = doc(db, this.collections.PRODUCTS, productId);
-      await updateDoc(productRef, {
-        averageRating,
-        reviewCount: reviews.length,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (error) {
-      console.error("Error updating product rating: ", error);
-    }
-  }
 }
-
-// Create and export a single instance
-const firestoreService = new FirestoreService();
-export default firestoreService;
+export default new FirestoreService();

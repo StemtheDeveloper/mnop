@@ -59,11 +59,11 @@
   transition: width 0.2s ease;
 }
 
-.interest-panel-tabs .tab-button.active {
+/* .interest-panel-tabs .tab-button.active {
   color: #ef3c23;
   border-bottom: 3px solid #ef3c23;
   font-weight: 600;
-}
+} */
 
 .interest-panel-tabs .tab-button.active:after {
   width: 100%;

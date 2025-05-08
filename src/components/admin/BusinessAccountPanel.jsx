@@ -16,6 +16,8 @@ const BusinessAccountPanel = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [transactions, setTransactions] = useState([]);
+    const [groupedTransactions, setGroupedTransactions] = useState({});
+    const [expandedMonths, setExpandedMonths] = useState({});
 
     // Fetch business wallet and settings on component load
     useEffect(() => {
@@ -58,10 +60,22 @@ const BusinessAccountPanel = () => {
                     }
                 }
 
-                // Get recent transactions
+                // Get ALL transactions
                 if (walletDoc.exists()) {
-                    const transactionData = await walletService.getTransactionHistory('business', 10);
+                    const transactionData = await walletService.getTransactionHistory('business');
                     setTransactions(transactionData || []);
+
+                    // Group transactions by month
+                    const grouped = groupTransactionsByMonth(transactionData || []);
+                    setGroupedTransactions(grouped);
+
+                    // By default, expand the most recent month
+                    const allMonths = Object.keys(grouped);
+                    if (allMonths.length > 0) {
+                        const initialExpandedState = {};
+                        initialExpandedState[allMonths[0]] = true;
+                        setExpandedMonths(initialExpandedState);
+                    }
                 }
 
                 setLoading(false);
@@ -74,6 +88,38 @@ const BusinessAccountPanel = () => {
 
         fetchBusinessAccount();
     }, []);
+
+    // Group transactions by month
+    const groupTransactionsByMonth = (transactions) => {
+        const grouped = {};
+
+        transactions.forEach(transaction => {
+            if (!transaction.createdAt) return;
+
+            const date = transaction.createdAt.toDate ? transaction.createdAt.toDate() : new Date(transaction.createdAt);
+            const monthYear = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+            const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+            if (!grouped[monthYear]) {
+                grouped[monthYear] = {
+                    name: monthName,
+                    transactions: []
+                };
+            }
+
+            grouped[monthYear].transactions.push(transaction);
+        });
+
+        return grouped;
+    };
+
+    // Toggle expansion of a month
+    const toggleMonthExpansion = (monthKey) => {
+        setExpandedMonths(prev => ({
+            ...prev,
+            [monthKey]: !prev[monthKey]
+        }));
+    };
 
     // Handle commission toggle
     const handleCommissionToggle = () => {
@@ -103,7 +149,7 @@ const BusinessAccountPanel = () => {
             setError('');
             setSuccess('');
 
-            // Validate commission rate
+            // Validate commission rate and ensure it's a number
             const commissionRate = parseFloat(settings.commissionRate);
             if (isNaN(commissionRate) || commissionRate < 0 || commissionRate > 50) {
                 setError('Commission rate must be between 0 and 50%');
@@ -111,11 +157,11 @@ const BusinessAccountPanel = () => {
                 return;
             }
 
-            // Update settings in Firestore
+            // Update settings in Firestore - ensure commissionRate is stored as a number
             const settingsRef = doc(db, 'settings', 'businessAccount');
             await updateDoc(settingsRef, {
                 enabled: settings.enabled,
-                commissionRate: commissionRate,
+                commissionRate: commissionRate, // Store as number, not string
                 updatedAt: serverTimestamp()
             });
 
@@ -230,30 +276,50 @@ const BusinessAccountPanel = () => {
                 </button>
             </div>
 
-            {transactions.length > 0 && (
+            {Object.keys(groupedTransactions).length > 0 && (
                 <div className="recent-transactions" style={{ marginTop: '30px' }}>
-                    <h4>Recent Transactions</h4>
-                    <div className="users-table-container" style={{ marginTop: '15px' }}>
-                        <table className="users-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Product</th>
-                                    <th>Amount</th>
-                                    <th>Commission Rate</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {transactions.map(transaction => (
-                                    <tr key={transaction.id}>
-                                        <td>{formatDate(transaction.createdAt)}</td>
-                                        <td>{transaction.description}</td>
-                                        <td>{formatCurrency(transaction.amount)}</td>
-                                        <td>{transaction.commissionRate}%</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    <h4>All Transactions</h4>
+
+                    <div className="month-groups">
+                        {Object.entries(groupedTransactions)
+                            .sort(([monthA], [monthB]) => monthB.localeCompare(monthA)) // Sort by date descending
+                            .map(([monthKey, monthData]) => (
+                                <div key={monthKey} className="month-group">
+                                    <div
+                                        className="month-header"
+                                        onClick={() => toggleMonthExpansion(monthKey)}
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        <h5>{monthData.name} ({monthData.transactions.length} transactions)</h5>
+                                        <span>{expandedMonths[monthKey] ? '▼' : '►'}</span>
+                                    </div>
+
+                                    {expandedMonths[monthKey] && (
+                                        <div className="users-table-container" style={{ marginTop: '15px' }}>
+                                            <table className="users-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Date</th>
+                                                        <th>Product</th>
+                                                        <th>Amount</th>
+                                                        <th>Commission Rate</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {monthData.transactions.map(transaction => (
+                                                        <tr key={transaction.id}>
+                                                            <td>{formatDate(transaction.createdAt)}</td>
+                                                            <td>{transaction.description}</td>
+                                                            <td>{formatCurrency(transaction.amount)}</td>
+                                                            <td>{transaction.commissionRate ? `${transaction.commissionRate}%` : 'N/A'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                     </div>
                 </div>
             )}

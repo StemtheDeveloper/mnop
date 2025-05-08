@@ -9,13 +9,14 @@ const ThemeToggle = () => {
         <div className="theme-toggle">
             <button
                 onClick={toggleDarkMode}
-                className={`theme-toggle-button ${darkMode ? 'dark' : 'light'}`}
-                aria-label={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                className="theme-toggle-button"
+                aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             >
                 {darkMode ? (
-                    <span className="toggle-icon">☀️</span>
+                    <span className="theme-icon light-icon">☀️</span>
                 ) : (
-                    <span className="toggle-icon">🌙</span>
+                    <span className="theme-icon dark-icon">🌙</span>
                 )}
             </button>
         </div>

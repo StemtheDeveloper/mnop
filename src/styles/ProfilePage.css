@@ -97,6 +97,12 @@
   font-size: 12px;
   text-align: center;
   min-width: 90px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.role-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .role-pill.designer {
@@ -1082,6 +1088,50 @@
   background-color: #e0e0e0;
 }
 
+/* Add refund button styles */
+.btn-refund-order {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-left: 10px;
+  transition: background-color 0.2s;
+}
+
+.btn-refund-order:hover {
+  background-color: #d32f2f;
+}
+
+/* Improve order action buttons layout */
+.order-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+/* Add refund status indicator */
+.status-badge.refunded {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Add rejection status indicator */
+.status-badge.cancelled {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+/* Add status-rejected for consistency */
+.status-badge.rejected {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
 /* Loading container styles */
 .loading-container {
   display: flex;
@@ -1564,4 +1614,751 @@
     width: 100%;
     text-align: center;
   }
+}
+
+/* Account Roles Styling */
+.account-roles {
+  margin-top: 10px;
+  margin-bottom: 15px;
+}
+
+.account-roles p {
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.account-roles-list {
+  justify-content: flex-start;
+  margin-bottom: 15px;
+}
+
+/* Refund Request Styles */
+.refund-requests-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #fff9ef; /* Light warm yellow background */
+  border-radius: 8px;
+  border: 1px solid #ffeed4;
+}
+
+.refund-requests-section .section-title {
+  color: #d97706; /* Amber/orange color */
+  margin-bottom: 5px;
+}
+
+.refund-requests-section .section-description {
+  color: #6b7280;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.refund-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.refund-request-card {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.refund-request-card .request-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.refund-request-card .request-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.refund-request-card .request-id h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.refund-request-card .status-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.refund-request-card .status-warning {
+  background-color: #fff3c9;
+  color: #9a6700;
+}
+
+.refund-request-card .customer-info,
+.refund-request-card .refund-reason {
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.refund-request-card .order-items-preview {
+  display: flex;
+  margin: 15px 0;
+  gap: 8px;
+}
+
+.refund-request-card .preview-item-image {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.refund-request-card .preview-item-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.refund-request-card .preview-quantity {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  border-top-left-radius: 4px;
+}
+
+.refund-request-card .refund-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.refund-request-card .btn-approve-refund {
+  padding: 8px 16px;
+  background-color: #10b981; /* Green */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.refund-request-card .btn-approve-refund:hover {
+  background-color: #059669;
+}
+
+.refund-request-card .btn-deny-refund {
+  padding: 8px 16px;
+  background-color: #ef4444; /* Red */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.refund-request-card .btn-deny-refund:hover {
+  background-color: #dc2626;
+}
+
+/* Refund Denial Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.refund-denial-modal {
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.refund-denial-modal h3 {
+  margin-top: 0;
+  color: #ef4444;
+  font-size: 1.25rem;
+  margin-bottom: 10px;
+}
+
+.refund-info {
+  background-color: #f3f4f6;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 15px 0;
+}
+
+.refund-order-details p {
+  margin: 5px 0;
+  font-size: 0.9rem;
+}
+
+.refund-denial-modal .form-group {
+  margin-bottom: 20px;
+}
+
+.refund-denial-modal label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.refund-denial-modal textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.refund-denial-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.refund-denial-modal .btn-cancel {
+  padding: 8px 16px;
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.refund-denial-modal .btn-deny-confirm {
+  padding: 8px 16px;
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.refund-denial-modal .btn-deny-confirm:disabled {
+  background-color: #f87171;
+  cursor: not-allowed;
+}
+
+/* Shipping settings styles */
+.shipping-settings-section {
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+  background-color: #f9f9f9;
+}
+
+.shipping-settings-section h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.shipping-settings-info {
+  background-color: #f0f8ff;
+  border-left: 4px solid #3498db;
+  padding: 15px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+
+.shipping-settings-info h4 {
+  margin-top: 0;
+  color: #333;
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+.shipping-settings-info ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.shipping-settings-info li {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.shipping-toggle {
+  margin-bottom: 20px;
+}
+
+.shipping-fields {
+  background-color: #fff;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 15px;
+  border: 1px solid #e0e0e0;
+}
+
+.free-shipping {
+  color: #2ecc71;
+  font-weight: bold;
+}
+
+/* Shipping options in checkout */
+.option-price .free-shipping {
+  display: inline-block;
+  background-color: #2ecc71;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: bold;
+}
+
+/* Security settings styles */
+.security-settings {
+  margin: 1.5rem 0;
+}
+
+.security-options {
+  margin-top: 1rem;
+}
+
+.security-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  background-color: #f8fafc;
+}
+
+.security-option-info {
+  flex: 1;
+}
+
+.security-option-info h5 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #334155;
+}
+
+.security-option-info p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.security-option .btn-secondary {
+  padding: 0.6rem 1rem;
+  white-space: nowrap;
+  margin-left: 1rem;
+}
+
+@media (max-width: 768px) {
+  .security-option {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .security-option .btn-secondary {
+    margin-left: 0;
+    margin-top: 1rem;
+    width: 100%;
+  }
+}
+
+/* Manufacturer settings styles */
+.manufacturer-settings-section {
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+  background-color: #f9f9f9;
+}
+
+.manufacturer-settings-section h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.manufacturer-settings-section h4 {
+  color: #333;
+  font-size: 16px;
+  margin-top: 25px;
+  margin-bottom: 15px;
+}
+
+.manufacturer-product-section {
+  margin-top: 25px;
+}
+
+.manufacturer-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.manufacturer-product-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+@media (min-width: 768px) {
+  .manufacturer-product-card {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.manufacturer-product-card .product-info {
+  display: flex;
+  gap: 15px;
+  flex: 2;
+}
+
+.manufacturer-product-card .product-image {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.manufacturer-product-card .product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.manufacturer-product-card .product-details {
+  flex: 1;
+}
+
+.manufacturer-product-card .product-details h3 {
+  font-size: 16px;
+  margin: 0 0 8px 0;
+}
+
+.manufacturer-product-card .product-funding {
+  margin-top: 8px;
+}
+
+.manufacturer-product-card .funding-progress-bar {
+  height: 8px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.manufacturer-product-card .funding-bar {
+  height: 100%;
+  background-color: #4caf50;
+  border-radius: 4px;
+}
+
+.manufacturer-product-card .funding-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+}
+
+.manufacturer-product-card .manufacturer-selection {
+  flex: 1;
+  padding-top: 8px;
+}
+
+@media (min-width: 768px) {
+  .manufacturer-product-card .manufacturer-selection {
+    padding-top: 0;
+    padding-left: 15px;
+    border-left: 1px solid #eee;
+  }
+}
+
+.manufacturer-product-card .manufacturer-selection label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.manufacturer-product-card .manufacturer-selection select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  margin-bottom: 10px;
+}
+
+.manufacturer-product-card .status-fully-funded {
+  font-size: 13px;
+  color: #2e7d32;
+  padding: 8px 0;
+}
+
+.manufacturer-product-card .status-manufacturer-selected {
+  font-size: 13px;
+  color: #0d47a1;
+  padding: 8px 0;
+}
+
+.manufacturer-product-card .status-pending {
+  font-size: 13px;
+  color: #f57f17;
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.manufacturer-product-card .auto-transfer-badge {
+  background-color: #4caf50;
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 5px;
+}
+
+.manufacturer-product-card .btn-select-now {
+  padding: 6px 12px;
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background-color 0.2s;
+}
+
+.manufacturer-product-card .btn-select-now:hover {
+  background-color: #d32f2f;
+}
+
+.field-description {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* Data Export Section Styles */
+.data-export-section {
+  margin: 25px 0;
+  padding-top: 15px;
+}
+
+.export-format-selector {
+  margin-bottom: 20px;
+}
+
+.export-format-selector label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.export-format-options {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.export-format-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-options label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.export-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.export-actions {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.export-data-btn {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.export-data-btn:hover {
+  background-color: #2980b9;
+}
+
+.export-data-btn:disabled {
+  background-color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.export-note {
+  color: #7f8c8d;
+  font-size: 13px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .export-format-options,
+  .export-options-grid {
+    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Verification Status Styles */
+.verification-status-section {
+  margin: 25px 0;
+  padding-top: 15px;
+}
+
+.verification-status-section h4 {
+  margin-bottom: 15px;
+  font-weight: 600;
+  color: #333;
+}
+
+.verification-status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  /* border-left: 3px solid #3498db; */
+}
+
+.verification-info {
+  flex: 1;
+}
+
+.verification-info h5 {
+  margin: 0 0 8px;
+  color: #333;
+  font-weight: 600;
+}
+
+.verification-info p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.verification-badge-container {
+  display: flex;
+  align-items: center;
+  min-width: 120px;
+  justify-content: flex-end;
+}
+
+.verification-badge-active {
+  display: flex;
+  align-items: center;
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.verification-badge-pending {
+  background-color: #fff8e1;
+  color: #ff8f00;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-verification-request {
+  display: inline-block;
+  background-color: #3498db;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.2s;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-verification-request:hover {
+  background-color: #2980b9;
+  text-decoration: none;
+  color: white;
+}
+
+.verification-steps {
+  margin-top: 15px;
+  padding-left: 20px;
+}
+
+.verification-steps li {
+  margin-bottom: 8px;
+  color: #555;
 }

@@ -6,27 +6,29 @@
 .theme-toggle {
   display: flex;
   align-items: center;
+  margin-left: 10px;
 }
 
 .theme-toggle-button {
   background: none;
   border: none;
   cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s;
+  background-color: var(--secondary-color);
 }
 
 .theme-toggle-button:hover {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: var(--hover-background);
 }
 
-.theme-toggle-button.dark:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+.theme-toggle-button:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .toggle-icon {
@@ -35,6 +37,11 @@
   align-items: center;
   justify-content: center;
   transition: transform 0.3s ease;
+}
+
+.theme-icon {
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .theme-toggle.light .toggle-icon {
@@ -47,6 +54,14 @@
 
 .theme-toggle:hover .toggle-icon {
   transform: rotate(30deg);
+}
+
+.light-icon {
+  color: #f9d71c;
+}
+
+.dark-icon {
+  color: #5c6bc0;
 }
 
 /* Dark mode overrides will be handled by ThemeContext */

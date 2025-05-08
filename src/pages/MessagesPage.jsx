@@ -39,6 +39,34 @@ const MessagesPage = () => {
         loadConversations();
     }, [user]);
 
+    // Debounced search function that runs when searchTerm changes
+    useEffect(() => {
+        // Don't search if user isn't composing a new message
+        if (!composing || !user?.uid) return;
+
+        // Don't search if searchTerm is empty
+        if (!searchTerm.trim()) {
+            setSearchResults([]);
+            return;
+        }
+
+        // Set a timer to delay the search (debounce)
+        const timer = setTimeout(async () => {
+            try {
+                setSearching(true);
+                const results = await messagingService.searchUsers(searchTerm, user.uid);
+                setSearchResults(results);
+            } catch (err) {
+                console.error('Error searching for users:', err);
+            } finally {
+                setSearching(false);
+            }
+        }, 300); // 300ms debounce time
+
+        // Clear the timer if searchTerm changes before the timeout
+        return () => clearTimeout(timer);
+    }, [searchTerm, user, composing]);
+
     const handleNewMessage = () => {
         setComposing(true);
         setSelectedUser(null);
@@ -284,10 +312,7 @@ const MessagesPage = () => {
                     <div className="no-messages">
                         <h2>No messages yet</h2>
                         <p>Start a new conversation to message other users</p>
-                        <button className="new-message-button" onClick={handleNewMessage}>
-                            <FaPlus />
-                            <span>New Message</span>
-                        </button>
+
                     </div>
                 ) : (
                     <div className="conversations-list">

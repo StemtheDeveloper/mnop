@@ -1,9 +1,20 @@
 import React from 'react';
-import '../styles/components/Footer.css';
+import { Link } from 'react-router-dom';
+import {
+  FaFacebookF,
+  FaTelegram,
+  FaInstagram,
+  FaWhatsapp,
+  FaLinkedinIn,
+  FaCommentAlt
+} from 'react-icons/fa';
+import './Footer.css';
 import DailyNop from './DailyNop';
+import { useFeedback } from '../context/FeedbackContext';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
+  const { isPermanentlyHidden, showFeedbackBar } = useFeedback();
 
   return (
     <footer className="footer">
@@ -14,22 +25,24 @@ const Footer = () => {
             <h4>Socials</h4>
             <div className="social-links">
               <a href="https://facebook.com" className="social-icon" title="Facebook">
-                <span className="social-icon-text">FB</span>
+                <FaFacebookF />
               </a>
-              <a href="https://twitter.com" className="social-icon" title="X/Twitter">
-                <span className="social-icon-text">X</span>
+              <a href="https://x.com" className="social-icon" title="X/Twitter">
+                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865l8.875 11.633Z" />
+                </svg>
               </a>
               <a href="https://telegram.org" className="social-icon" title="Telegram">
-                <span className="social-icon-text">TG</span>
+                <FaTelegram />
               </a>
               <a href="https://instagram.com" className="social-icon" title="Instagram">
-                <span className="social-icon-text">IG</span>
+                <FaInstagram />
               </a>
               <a href="https://whatsapp.com" className="social-icon" title="WhatsApp">
-                <span className="social-icon-text">WA</span>
+                <FaWhatsapp />
               </a>
               <a href="https://linkedin.com" className="social-icon" title="LinkedIn">
-                <span className="social-icon-text">LI</span>
+                <FaLinkedinIn />
               </a>
             </div>
           </div>
@@ -49,9 +62,15 @@ const Footer = () => {
                 </a>
               </li>
               <li>
-                <a href="/feedback">
-                  <span>💬</span> Give Feedback
-                </a>
+                {isPermanentlyHidden ? (
+                  <button className="feedback-link-button" onClick={showFeedbackBar}>
+                    <span><FaCommentAlt /></span> Show Feedback Bar
+                  </button>
+                ) : (
+                  <a href="/feedback">
+                    <span>💬</span> Give Feedback
+                  </a>
+                )}
               </li>
               <li>
                 <a href="/report-bug">
@@ -72,15 +91,15 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Column 4: Something Else */}
+          {/* Column 4: Legal */}
           <div className="footer-column">
-            <h4>Something Else</h4>
+            <h4>Legal</h4>
             <ul className="footer-links">
-              <li><a href="/jobs">Jobs</a></li>
-              <li><a href="/affiliates">Affiliates</a></li>
-              <li><a href="/memes">Memes</a></li>
-              <li><a href="/docs">Docs</a></li>
-              <li><a href="/more">More From Us...</a></li>
+              <li><Link to="/terms-and-conditions">Terms and Conditions</Link></li>
+              <li><Link to="/privacy-policy">Privacy Policy</Link></li>
+              <li><Link to="/content-policy">Content Policy</Link></li>
+              <li><a href="/cookies">Cookies Policy</a></li>
+              <li><a href="/compliance">Compliance</a></li>
             </ul>
           </div>
         </div>
@@ -96,11 +115,11 @@ const Footer = () => {
       <div className="footer-bottom">
         <div className="footer-bottom-content">
           <div className="footer-policy-links">
-            <a href="/privacy">Privacy Policy</a>
+            <Link to="/privacy-policy">Privacy Policy</Link>
             <span className="separator">|</span>
-            <a href="/terms">Terms and Conditions</a>
+            <Link to="/terms-and-conditions">Terms and Conditions</Link>
             <span className="separator">|</span>
-            <a href="/cookies">Manage Cookies</a>
+            <Link to="/content-policy">Content Policy</Link>
           </div>
           <p className="copyright">©{currentYear} MNOP Ecommerce</p>
           <p className="branding">Another <span className="red-box">RED BOX</span> SOFTWARE Thing</p>

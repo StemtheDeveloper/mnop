@@ -1,0 +1,84 @@
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+/* For inline spinners that don't need to take up the full container height */
+.loading-spinner.inline {
+  height: auto;
+  min-height: auto;
+}
+
+/* Full page overlay spinner */
+.loading-spinner.full-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 9999;
+}
+
+/* Overlay spinner for a specific container */
+.loading-spinner.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 100;
+}
+
+.spinner-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  border-radius: 50%;
+  border-style: solid;
+  border-color: rgba(0, 0, 0, 0.1);
+  border-top-color: #ef3c23; /* M'NOP brand color */
+  animation: spin 1s ease-in-out infinite;
+  aspect-ratio: 1/1; /* Ensure perfect 1:1 aspect ratio */
+  box-sizing: border-box;
+}
+
+/* Spinner sizes with both width and height to enforce aspect ratio */
+.spinner-small {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.spinner-medium {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+}
+
+.spinner-large {
+  width: 64px;
+  height: 64px;
+  border-width: 5px;
+}
+
+.loading-text {
+  margin-top: 12px;
+  color: #555;
+  font-size: 14px;
+  text-align: center;
+  animation: none !important; /* Ensure text doesn't animate */
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

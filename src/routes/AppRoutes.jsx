@@ -17,6 +17,8 @@ const AdminPage = lazy(() => import('../pages/AdminPage'));
 const AdminDataFixerPage = lazy(() => import('../pages/AdminDataFixerPage'));
 const AdminVerificationPage = lazy(() => import('../pages/AdminVerificationPage')); // Import verification page
 const ReviewModerationPanel = lazy(() => import('../components/admin/ReviewModerationPanel')); // Import review moderation panel
+const InventoryAlertsPanel = lazy(() => import('../components/admin/InventoryAlertsPanel')); // Import inventory alerts panel
+const FeedbackAdminPage = lazy(() => import('../pages/FeedbackAdminPage')); // Import feedback admin page
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
 const UnauthorizedPage = lazy(() => import('../pages/UnauthorizedPage'));
 const ProductsPage = lazy(() => import('../pages/ProductsPage'));
@@ -44,9 +46,16 @@ const MessagesPage = lazy(() => import('../pages/MessagesPage'));
 const ConversationPage = lazy(() => import('../pages/ConversationPage')); // Import ConversationPage instead
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
 const ToastDemoPage = lazy(() => import('../pages/ToastDemoPage'));
-const UserSettingsPage = lazy(() => import('../pages/UserSettingsPage'));
 const ProductsCsvExportPage = lazy(() => import('../pages/ProductsCsvExportPage'));
 const ProductsCsvImportPage = lazy(() => import('../pages/ProductsCsvImportPage'));
+const TermsAndConditionsPage = lazy(() => import('../pages/TermsAndConditionsPage'));
+const PrivacyPolicyPage = lazy(() => import('../pages/PrivacyPolicyPage'));
+const ContentPolicyPage = lazy(() => import('../pages/ContentPolicyPage'));
+const CookieManagementPage = lazy(() => import('../pages/CookieManagementPage')); // Import CookieManagementPage
+const WishlistPage = lazy(() => import('../pages/WishlistPage')); // Import WishlistPage
+const MfaSetupPage = lazy(() => import('../pages/MfaSetupPage')); // Import MFA Setup Page
+const RegisterInvestorPage = lazy(() => import('../pages/RegisterInvestorPage')); // Import RegisterInvestorPage
+const VerificationRequestPage = lazy(() => import('../pages/VerificationRequestPage')); // Import VerificationRequestPage
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -74,6 +83,12 @@ const AppRoutes = () => {
                 <Route path="/help" element={<HelpDocumentationPage />} />
                 <Route path="/ideas" element={<IdeasPage />} />
                 <Route path="/idea/:ideaId" element={<IdeaDetailPage />} />
+
+                {/* Policy Pages */}
+                <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/content-policy" element={<ContentPolicyPage />} />
+                <Route path="/cookies" element={<CookieManagementPage />} />
 
                 {/* Protected Routes */}
                 <Route path="/home" element={
@@ -110,23 +125,18 @@ const AppRoutes = () => {
                 } />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/product-upload" element={
-                    <AuthGuard allowedRoles={["designer"]}>
+                    <AuthGuard allowedRoles={["designer", "admin"]}>
                         <ProductUploadPage />
                     </AuthGuard>
                 } />
                 <Route path="/bulk-product-upload" element={
-                    <AuthGuard allowedRoles={["designer"]}>
+                    <AuthGuard allowedRoles={["designer", "admin"]}>
                         <BulkProductUploaderPage />
                     </AuthGuard>
                 } />
                 <Route path="/product-edit/:productId" element={
-                    <AuthGuard allowedRoles={["designer"]}>
+                    <AuthGuard allowedRoles={["designer", "admin"]}>
                         <ProductEditPage />
-                    </AuthGuard>
-                } />
-                <Route path="/settings" element={
-                    <AuthGuard>
-                        <UserSettingsPage />
                     </AuthGuard>
                 } />
                 <Route path="/achievements" element={
@@ -155,9 +165,29 @@ const AppRoutes = () => {
                         <NotificationsPage />
                     </AuthGuard>
                 } />
+                <Route path="/wishlist" element={
+                    <AuthGuard>
+                        <WishlistPage />
+                    </AuthGuard>
+                } />
                 <Route path="/portfolio" element={
                     <AuthGuard allowedRoles={["investor"]}>
                         <InvestmentPortfolioPage />
+                    </AuthGuard>
+                } />
+                <Route path="/mfa-setup" element={
+                    <AuthGuard>
+                        <MfaSetupPage />
+                    </AuthGuard>
+                } />
+                <Route path="/register-investor" element={
+                    <AuthGuard>
+                        <RegisterInvestorPage />
+                    </AuthGuard>
+                } />
+                <Route path="/verification-request/:role" element={
+                    <AuthGuard>
+                        <VerificationRequestPage />
                     </AuthGuard>
                 } />
 
@@ -225,6 +255,21 @@ const AppRoutes = () => {
                 <Route path="/admin/review-moderation" element={
                     <AuthGuard allowedRoles="admin">
                         <ReviewModerationPanel />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/inventory-alerts" element={
+                    <AuthGuard allowedRoles="admin">
+                        <InventoryAlertsPanel />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/feedback" element={
+                    <AuthGuard allowedRoles="admin">
+                        <FeedbackAdminPage />
+                    </AuthGuard>
+                } />
+                <Route path="/admin/verification-requests" element={
+                    <AuthGuard allowedRoles="admin">
+                        <VerificationRequestPage />
                     </AuthGuard>
                 } />
 

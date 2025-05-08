@@ -16,6 +16,9 @@ import FirestoreIndexHelper from '../components/admin/FirestoreIndexHelper';
 import NopsManagementPanel from '../components/admin/NopsManagementPanel';
 import AchievementsManagementPanel from '../components/admin/AchievementsManagementPanel';
 import AdminInvestmentSettings from '../components/admin/AdminInvestmentSettings';
+import RefundManagementPanel from '../components/admin/RefundManagementPanel';
+import CurrencyManagementPanel from '../components/admin/CurrencyManagementPanel';
+import VerificationRequestsPanel from '../components/admin/VerificationRequestsPanel';
 import '../styles/AdminTools.css';
 
 // Available roles in the system
@@ -76,167 +79,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
             }
         }
     }, [userRole]);
-
-    const addRoleDirectly = async (userId, roleId) => {
-        try {
-            const userRef = doc(db, 'users', userId);
-            const userSnap = await getDoc(userRef);
-
-            if (!userSnap.exists()) {
-                throw new Error('User document not found');
-            }
-
-            const userData = userSnap.data();
-
-            let currentRoles = [];
-            if (Array.isArray(userData.roles)) {
-                currentRoles = [...userData.roles];
-            } else if (userData.role) {
-                currentRoles = [userData.role];
-            } else {
-                currentRoles = ['customer'];
-            }
-
-            if (!currentRoles.includes(roleId)) {
-                currentRoles.push(roleId);
-
-                await updateDoc(userRef, {
-                    roles: currentRoles,
-                    role: roleId,
-                    updatedAt: new Date()
-                });
-
-                return true;
-            }
-
-            return false;
-        } catch (error) {
-            console.error('Error adding role:', error);
-            throw error;
-        }
-    };
-
-    const removeRoleDirectly = async (userId, roleId) => {
-        try {
-            const userRef = doc(db, 'users', userId);
-            const userSnap = await getDoc(userRef);
-
-            if (!userSnap.exists()) {
-                throw new Error('User document not found');
-            }
-
-            const userData = userSnap.data();
-
-            let currentRoles = [];
-            if (Array.isArray(userData.roles)) {
-                currentRoles = [...userData.roles];
-            } else if (userData.role) {
-                currentRoles = [userData.role];
-            } else {
-                return false;
-            }
-
-            if (currentRoles.includes(roleId)) {
-                const newRoles = currentRoles.filter(role => role !== roleId);
-
-                if (newRoles.length === 0) {
-                    newRoles.push('customer');
-                }
-
-                await updateDoc(userRef, {
-                    roles: newRoles,
-                    role: newRoles[0],
-                    updatedAt: new Date()
-                });
-
-                return true;
-            }
-
-            return false;
-        } catch (error) {
-            console.error('Error removing role:', error);
-            throw error;
-        }
-    };
-
-    const handleAddSelfRole = async (roleId) => {
-        if (!currentUser || adminRoles.includes(roleId)) return;
-
-        setSelfRoleLoading(true);
-        setSelfRoleMessage({ type: '', text: '' });
-
-        try {
-            const success = await addRoleDirectly(currentUser.uid, roleId);
-
-            if (success) {
-                setAdminRoles(prev => [...prev, roleId]);
-                setSelfRoleMessage({
-                    type: 'success',
-                    text: `Successfully added ${roleId} role to your account!`
-                });
-            } else {
-                setSelfRoleMessage({
-                    type: 'error',
-                    text: 'Failed to update role. Please try again.'
-                });
-            }
-        } catch (error) {
-            console.error('Error adding role:', error);
-            setSelfRoleMessage({
-                type: 'error',
-                text: `Error: ${error.message}`
-            });
-        } finally {
-            setSelfRoleLoading(false);
-        }
-    };
-
-    const handleRemoveSelfRole = async (roleId) => {
-        if (!currentUser || roleId === 'admin') {
-            setSelfRoleMessage({
-                type: 'warning',
-                text: 'You cannot remove the admin role while on the admin page.'
-            });
-            return;
-        }
-
-        setSelfRoleLoading(true);
-        setSelfRoleMessage({ type: '', text: '' });
-
-        try {
-            const success = await removeRoleDirectly(currentUser.uid, roleId);
-
-            if (success) {
-                setAdminRoles(prev => prev.filter(role => role !== roleId));
-                setSelfRoleMessage({
-                    type: 'success',
-                    text: `Successfully removed ${roleId} role from your account.`
-                });
-            } else {
-                setSelfRoleMessage({
-                    type: 'warning',
-                    text: `Could not remove the ${roleId} role. It may not exist.`
-                });
-            }
-        } catch (error) {
-            console.error('Error removing role:', error);
-            setSelfRoleMessage({
-                type: 'error',
-                text: `Error: ${error.message}`
-            });
-        } finally {
-            setSelfRoleLoading(false);
-        }
-    };
-
-    const debugUserContext = () => {
-        console.log("Available methods in UserContext:",
-            Object.keys(userContext).filter(key => typeof userContext[key] === 'function'));
-        setSelfRoleMessage({
-            type: 'info',
-            text: 'Available methods logged to console. Check browser developer tools.'
-        });
-    };
 
     useEffect(() => {
         fetchUsers();
@@ -312,207 +154,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
         }
     };
 
-    const openRoleModal = (user) => {
-        setSelectedUser(user);
-        setNewRole('');
-        setRoleModalOpen(true);
-    };
-
-    const openDeleteModal = (user) => {
-        setSelectedUser(user);
-        setConfirmDelete('');
-        setDeleteModalOpen(true);
-    };
-
-    const updateUserRole = async () => {
-        if (!selectedUser || !newRole) return;
-
-        setLoading(true);
-        setResult({ success: false, message: 'Updating user role...', details: null });
-
-        try {
-            const success = await addRoleDirectly(selectedUser.id, newRole);
-
-            if (success) {
-                const userRef = doc(db, 'users', selectedUser.id);
-                const userSnap = await getDoc(userRef);
-                const userData = userSnap.data();
-
-                setUsers(prevUsers => prevUsers.map(user =>
-                    user.id === selectedUser.id
-                        ? {
-                            ...user,
-                            roles: userData.roles,
-                            role: userData.role
-                        }
-                        : user
-                ));
-
-                setResult({
-                    success: true,
-                    message: `Updated ${selectedUser.email} with role: ${newRole}`,
-                    details: null
-                });
-
-                setRoleModalOpen(false);
-            } else {
-                setResult({
-                    success: false,
-                    message: `User already has the ${newRole} role`,
-                    details: null
-                });
-            }
-        } catch (error) {
-            console.error('Error updating user role:', error);
-            setResult({
-                success: false,
-                message: `Failed to update role: ${error.message}`,
-                details: null
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const deleteUserAccount = async () => {
-        if (!selectedUser) return;
-
-        if (confirmDelete !== selectedUser.email) {
-            setResult({
-                success: false,
-                message: 'Email confirmation did not match. Account not deleted.',
-                details: null
-            });
-            return;
-        }
-
-        setLoading(true);
-        setResult({ success: false, message: 'Deleting user...', details: null });
-
-        try {
-            await deleteDoc(doc(db, 'users', selectedUser.id));
-
-            setUsers(prevUsers => prevUsers.filter(user => user.id !== selectedUser.id));
-
-            setResult({
-                success: true,
-                message: `Successfully deleted user: ${selectedUser.email}`,
-                details: null
-            });
-
-            setDeleteModalOpen(false);
-        } catch (error) {
-            console.error('Error deleting user:', error);
-            setResult({
-                success: false,
-                message: `Failed to delete user: ${error.message}`,
-                details: null
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const formatRoleDisplay = (user) => {
-        if (Array.isArray(user.roles)) {
-            return user.roles.join(', ');
-        } else if (user.role) {
-            return user.role;
-        }
-        return 'customer';
-    };
-
-    const updateRoleStructure = async () => {
-        setLoading(true);
-        setResult({ success: false, message: 'Processing...', details: null });
-        setOperation('role-migration');
-
-        try {
-            const usersRef = collection(db, 'users');
-            const snapshot = await getDocs(usersRef);
-
-            const batch = writeBatch(db);
-            let updatedCount = 0;
-            let skippedCount = 0;
-            let errorCount = 0;
-            const errors = [];
-
-            snapshot.forEach((document) => {
-                const userData = document.data();
-
-                if (userData.role && !userData.roles) {
-                    const userRef = doc(db, 'users', document.id);
-                    batch.update(userRef, {
-                        roles: [userData.role],
-                        rolesMigrated: true,
-                        lastUpdated: new Date()
-                    });
-                    updatedCount++;
-                } else if (userData.roles) {
-                    skippedCount++;
-                } else if (!userData.role && !userData.roles) {
-                    const userRef = doc(db, 'users', document.id);
-                    batch.update(userRef, {
-                        roles: ['user'],
-                        role: 'user',
-                        rolesMigrated: true,
-                        lastUpdated: new Date()
-                    });
-                    updatedCount++;
-                    errors.push({
-                        userId: document.id,
-                        error: 'No role information found, added default "user" role'
-                    });
-                }
-            });
-
-            await batch.commit();
-
-            setResult({
-                success: true,
-                message: `Operation completed: ${updatedCount} users updated, ${skippedCount} users skipped (already had roles array)`,
-                details: {
-                    updated: updatedCount,
-                    skipped: skippedCount,
-                    errors: errorCount,
-                    errorList: errors
-                }
-            });
-
-        } catch (error) {
-            console.error('Error updating user role structure:', error);
-            setResult({
-                success: false,
-                message: `Error: ${error.message}`,
-                details: { error: error.toString() }
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const cleanupOrphanedData = async () => {
-        setLoading(true);
-        setResult({ success: false, message: 'Searching for orphaned data...', details: null });
-        setOperation('cleanup');
-
-        try {
-            setResult({
-                success: true,
-                message: 'Cleanup operation not yet implemented',
-                details: null
-            });
-        } catch (error) {
-            setResult({
-                success: false,
-                message: `Error: ${error.message}`,
-                details: { error: error.toString() }
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const handleCheckConversationIndex = async () => {
         setConversationIndexStatus({ loading: true, message: 'Checking conversation index...', type: 'info' });
 
@@ -567,71 +208,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                 <div className="admin-container">
                     <h1>Admin Dashboard</h1>
 
-                    <div className="admin-section admin-self-role-section">
-                        <h2>Your Account Roles</h2>
-
-                        {selfRoleMessage.text && (
-                            <div className={`message ${selfRoleMessage.type}`}>
-                                {selfRoleMessage.text}
-                            </div>
-                        )}
-
-                        <button
-                            onClick={debugUserContext}
-                            className="debug-button"
-                        >
-                            Debug Available Methods
-                        </button>
-
-                        <div className="current-roles">
-                            <h3>Current Roles</h3>
-                            {adminRoles.length === 0 ? (
-                                <p>No roles assigned</p>
-                            ) : (
-                                <ul className="role-list">
-                                    {adminRoles.map((role, index) => (
-                                        <li key={role} className="role-item">
-                                            <span className={`role-badge ${role}`}>{role}</span>
-                                            {role !== 'admin' && (
-                                                <button
-                                                    onClick={() => handleRemoveSelfRole(role)}
-                                                    disabled={selfRoleLoading}
-                                                    className="role-action-button remove-button"
-                                                >
-                                                    Remove
-                                                </button>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-
-                        <div className="add-role-section">
-                            <h3>Add Role to Your Account</h3>
-                            <div className="available-roles">
-                                {AVAILABLE_ROLES
-                                    .filter(role => !adminRoles.includes(role.id))
-                                    .map(role => (
-                                        <div key={role.id} className="role-option">
-                                            <div className="role-info">
-                                                <span className={`role-badge ${role.id}`}>{role.name}</span>
-                                                <p>{role.description}</p>
-                                            </div>
-                                            <button
-                                                onClick={() => handleAddSelfRole(role.id)}
-                                                disabled={selfRoleLoading}
-                                                className="add-role-button"
-                                            >
-                                                Add
-                                            </button>
-                                        </div>
-                                    ))
-                                }
-                            </div>
-                        </div>
-                    </div>
-
                     <div className="admin-tabs">
                         <button
                             className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
@@ -650,6 +226,12 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                             onClick={() => setActiveTab('reviews')}
                         >
                             Reviews
+                        </button>
+                        <button
+                            className={`tab-button ${activeTab === 'verifications' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('verifications')}
+                        >
+                            Verifications
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`}
@@ -699,8 +281,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
                                     {loadingUsers && users.length === 0 ? (
                                         <div className="loading-container">
-                                            <LoadingSpinner />
-                                            <p>Loading users...</p>
+                                            <LoadingSpinner size="medium" showText={true} text="Loading users..." />
                                         </div>
                                     ) : (
                                         <div className="users-table-container">
@@ -721,20 +302,20 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                                             <td>{user.displayName || 'No Name'}</td>
                                                             <td className="role-cell">
                                                                 <span className={`role-label ${Array.isArray(user.roles) ? user.roles[0] : user.role || 'customer'}`}>
-                                                                    {formatRoleDisplay(user)}
+                                                                    {Array.isArray(user.roles) ? user.roles.join(', ') : user.role || 'customer'}
                                                                 </span>
                                                             </td>
                                                             <td>{user.createdAt ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}</td>
                                                             <td className="action-cell">
                                                                 <button
                                                                     className="admin-button small"
-                                                                    onClick={() => openRoleModal(user)}
+                                                                    onClick={() => console.log('Change Role')}
                                                                 >
                                                                     Change Role
                                                                 </button>
                                                                 <button
                                                                     className="admin-button danger small"
-                                                                    onClick={() => openDeleteModal(user)}
+                                                                    onClick={() => console.log('Delete User')}
                                                                 >
                                                                     Delete
                                                                 </button>
@@ -764,148 +345,6 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                                         </div>
                                     )}
                                 </div>
-
-                                <div className="admin-tools-section">
-                                    <h2>Database Maintenance</h2>
-                                    <div className="admin-card">
-                                        <h3>Role Structure Migration</h3>
-                                        <p>
-                                            Update user documents to convert from single "role" field to an array of "roles".
-                                            This is recommended for enabling users to have multiple roles.
-                                        </p>
-                                        <button
-                                            className="admin-button"
-                                            onClick={updateRoleStructure}
-                                            disabled={loading}
-                                        >
-                                            {loading && operation === 'role-migration' ? 'Processing...' : 'Migrate Role Structure'}
-                                        </button>
-                                    </div>
-
-                                    <div className="admin-card">
-                                        <h3>Cleanup Orphaned Data</h3>
-                                        <p>
-                                            Scan for and remove orphaned data such as roles for non-existent users
-                                            or references to deleted documents.
-                                        </p>
-                                        <button
-                                            className="admin-button secondary"
-                                            onClick={cleanupOrphanedData}
-                                            disabled={loading}
-                                        >
-                                            {loading && operation === 'cleanup' ? 'Processing...' : 'Cleanup Data'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {result.message && (
-                                    <div className={`result-panel ${result.success ? 'success' : 'error'}`}>
-                                        <h3>{result.success ? 'Success' : 'Error'}</h3>
-                                        <p>{result.message}</p>
-
-                                        {result.details && (
-                                            <div className="details-section">
-                                                <h4>Operation Details:</h4>
-                                                <pre>{JSON.stringify(result.details, null, 2)}</pre>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="admin-log">
-                                    <h3>Admin Activity Log</h3>
-                                    <p>Last action by: {currentUser?.email || 'Unknown'}</p>
-                                    <p>Time: {new Date().toLocaleString()}</p>
-                                </div>
-
-                                {roleModalOpen && selectedUser && (
-                                    <div className="modal-overlay">
-                                        <div className="modal-container">
-                                            <h2>Change User Role</h2>
-                                            <div className="modal-content">
-                                                <p><strong>User:</strong> {selectedUser.email}</p>
-                                                <p><strong>Current Role(s):</strong> {formatRoleDisplay(selectedUser)}</p>
-
-                                                <div className="form-group">
-                                                    <label htmlFor="newRole">Add New Role:</label>
-                                                    <select
-                                                        id="newRole"
-                                                        value={newRole}
-                                                        onChange={(e) => setNewRole(e.target.value)}
-                                                    >
-                                                        <option value="">Select a role</option>
-                                                        {USER_ROLES.map(role => (
-                                                            <option key={role} value={role}>{role}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-
-                                                <div className="modal-actions">
-                                                    <button
-                                                        className="admin-button"
-                                                        onClick={updateUserRole}
-                                                        disabled={!newRole || loading}
-                                                    >
-                                                        {loading ? 'Updating...' : 'Update Role'}
-                                                    </button>
-                                                    <button
-                                                        className="admin-button secondary"
-                                                        onClick={() => setRoleModalOpen(false)}
-                                                        disabled={loading}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {deleteModalOpen && selectedUser && (
-                                    <div className="modal-overlay">
-                                        <div className="modal-container">
-                                            <h2>Delete User Account</h2>
-                                            <div className="modal-content">
-                                                <div className="warning-box">
-                                                    <p>⚠️ Warning: This action cannot be undone!</p>
-                                                    <p>Deleting this user will remove all their account information from the system.</p>
-                                                </div>
-
-                                                <p><strong>User:</strong> {selectedUser.email}</p>
-
-                                                <div className="form-group">
-                                                    <label htmlFor="confirmDelete">
-                                                        Type <strong>{selectedUser.email}</strong> to confirm deletion:
-                                                    </label>
-                                                    <input
-                                                        id="confirmDelete"
-                                                        type="text"
-                                                        value={confirmDelete}
-                                                        onChange={(e) => setConfirmDelete(e.target.value)}
-                                                        placeholder="Enter email to confirm"
-                                                    />
-                                                </div>
-
-                                                <div className="modal-actions">
-                                                    <button
-                                                        className="admin-button danger"
-                                                        onClick={deleteUserAccount}
-                                                        disabled={confirmDelete !== selectedUser.email || loading}
-                                                    >
-                                                        {loading ? 'Deleting...' : 'Delete Account'}
-                                                    </button>
-                                                    <button
-                                                        className="admin-button secondary"
-                                                        onClick={() => setDeleteModalOpen(false)}
-                                                        disabled={loading}
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -922,41 +361,19 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                         {activeTab === 'reviews' && (
                             <div className="reviews-tab">
                                 <h2>Reviews Management</h2>
-
                                 <div className="admin-section">
                                     <div className="admin-card">
                                         <h3>Review Moderation</h3>
-                                        <p>
-                                            Moderate product reviews submitted by users. Approve, reject, or delete pending reviews to maintain high-quality content on the platform.
-                                        </p>
-                                        <a href="/admin/review-moderation" className="admin-button">
-                                            Open Review Moderation Panel
-                                        </a>
-                                    </div>
-
-                                    <div className="admin-card">
-                                        <h3>Review Guidelines</h3>
-                                        <p>
-                                            Our review guidelines help maintain a respectful and productive community. Reviews should:
-                                        </p>
-                                        <ul className="guidelines-list">
-                                            <li>Be honest and authentic about experiences with products</li>
-                                            <li>Focus on product features, quality, and usability</li>
-                                            <li>Avoid offensive language, hate speech, or personal attacks</li>
-                                            <li>Provide constructive feedback that helps others make informed decisions</li>
-                                        </ul>
-                                    </div>
-
-                                    <div className="admin-card">
-                                        <h3>Common Reasons for Review Rejection</h3>
-                                        <ul className="guidelines-list">
-                                            <li><strong>Spam or promotional content:</strong> Reviews that promote other products or contain spam</li>
-                                            <li><strong>Offensive content:</strong> Reviews with inappropriate language or personal attacks</li>
-                                            <li><strong>Off-topic:</strong> Reviews that don't address the product's qualities or performance</li>
-                                            <li><strong>Conflicts of interest:</strong> Reviews by competitors or individuals with vested interests</li>
-                                        </ul>
+                                        <p>Moderate product reviews submitted by users.</p>
                                     </div>
                                 </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'verifications' && (
+                            <div className="verifications-tab">
+                                <h2>Verification Requests</h2>
+                                <VerificationRequestsPanel />
                             </div>
                         )}
 
@@ -977,9 +394,10 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                         {activeTab === 'finance' && (
                             <div className="finance-tab">
                                 <h2>Financial Management</h2>
-
                                 <BusinessAccountPanel />
                                 <PaymentSettingsPanel />
+                                <RefundManagementPanel />
+                                <CurrencyManagementPanel />
                                 <MarketRatesPanel />
                                 <InterestRateAdminPanel />
                             </div>
@@ -988,21 +406,7 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                         {activeTab === 'settings' && (
                             <div className="settings-tab">
                                 <h2>Platform Settings</h2>
-
-                                <div className="settings-tab-navigation">
-                                    <div className="settings-categories">
-                                        <div className="settings-category active">
-                                            Investment Settings
-                                        </div>
-                                        <div className="settings-category">
-                                            Platform Settings
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="settings-content">
-                                    <AdminInvestmentSettings />
-                                </div>
+                                <AdminInvestmentSettings />
                             </div>
                         )}
 

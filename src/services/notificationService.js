@@ -473,7 +473,7 @@ class NotificationService {
       type: "order_received",
       title: "New Order Received",
       message: `Your product "${productName}" has been ordered and is awaiting delivery.`,
-      link: `/orders/designer/${orderId}`,
+      link: `/orders/${orderId}`,
       productId,
       orderId,
       read: false,
@@ -514,4 +514,18 @@ class NotificationService {
 }
 
 const notificationService = new NotificationService();
+
+/**
+ * Helper function to send a notification to a user
+ * @param {string} userId - User ID to send notification to
+ * @param {Object} notificationData - The notification data
+ * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+ */
+export function sendNotification(userId, notificationData) {
+  return notificationService.createNotification({
+    userId,
+    ...notificationData,
+  });
+}
+
 export default notificationService;

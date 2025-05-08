@@ -4,6 +4,7 @@ import { collection, getDocs, query, where, orderBy, limit, startAfter } from 'f
 import { db } from '../config/firebase';
 import ProductCard from '../components/ProductCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import EnhancedSearchInput from '../components/EnhancedSearchInput';
 import { useNavigate } from 'react-router-dom';
 import '../styles/ShopPage.css';
 
@@ -15,6 +16,14 @@ const ShopPage = () => {
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const navigate = useNavigate();
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [pageSnapshots, setPageSnapshots] = useState({});
+    const [isChangingPage, setIsChangingPage] = useState(false);
+    const productsPerPage = 12;
+    const maxDisplayedPages = 5; // Number of page buttons to display
 
     // Filter and sort states
     const [category, setCategory] = useState('all');
@@ -79,7 +88,193 @@ const ShopPage = () => {
         { id: 'art', name: 'Art & Collectibles' }
     ];
 
-    const productsPerPage = 12;
+    // Fetch products for a specific page
+    const fetchProductsForPage = async (pageNumber) => {
+        if (pageNumber < 1) return;
+
+        setIsChangingPage(true);
+        setError(null);
+
+        try {
+            // Check if we already have this page stored
+            if (pageSnapshots[pageNumber]) {
+                setProducts(pageSnapshots[pageNumber].products);
+                setLastVisible(pageSnapshots[pageNumber].lastDoc);
+                setHasMore(pageSnapshots[pageNumber].hasMore);
+                setCurrentPage(pageNumber);
+                setIsChangingPage(false);
+                return;
+            }
+
+            let productsRef = collection(db, 'products');
+            let productsQuery;
+
+            // Apply category filter and status filter
+            if (category !== 'all') {
+                productsQuery = query(
+                    productsRef,
+                    where('categories', 'array-contains', category),
+                    where('status', '==', 'active')
+                );
+            } else {
+                productsQuery = query(
+                    productsRef,
+                    where('status', '==', 'active')
+                );
+            }
+
+            // Apply sorting
+            switch (sortBy) {
+                case 'priceAsc':
+                    productsQuery = query(productsQuery, orderBy('price', 'asc'));
+                    break;
+                case 'priceDesc':
+                    productsQuery = query(productsQuery, orderBy('price', 'desc'));
+                    break;
+                case 'popular':
+                    productsQuery = query(productsQuery, orderBy('reviewCount', 'desc'));
+                    break;
+                case 'rating':
+                    productsQuery = query(productsQuery, orderBy('averageRating', 'desc'));
+                    break;
+                case 'newest':
+                default:
+                    productsQuery = query(productsQuery, orderBy('createdAt', 'desc'));
+                    break;
+            }
+
+            // For pages beyond the first, we need the last document from the previous page
+            if (pageNumber > 1) {
+                // If we have the previous page, use its last document
+                if (pageSnapshots[pageNumber - 1]) {
+                    productsQuery = query(
+                        productsQuery,
+                        startAfter(pageSnapshots[pageNumber - 1].lastDoc),
+                        limit(productsPerPage)
+                    );
+                } else {
+                    // Otherwise, we need to fetch all previous pages in sequence
+                    // This is not ideal for performance but ensures correctness
+                    let lastDoc = null;
+                    for (let i = 1; i < pageNumber; i++) {
+                        const tempQuery = pageSnapshots[i]?.lastDoc
+                            ? query(productsQuery, startAfter(pageSnapshots[i].lastDoc), limit(productsPerPage))
+                            : query(productsQuery, limit(productsPerPage));
+
+                        const tempSnapshot = await getDocs(tempQuery);
+                        if (tempSnapshot.docs.length === 0) {
+                            // No more products available
+                            setProducts([]);
+                            setHasMore(false);
+                            setCurrentPage(i);
+                            setIsChangingPage(false);
+                            return;
+                        }
+
+                        lastDoc = tempSnapshot.docs[tempSnapshot.docs.length - 1];
+
+                        // Store this page if we don't have it
+                        if (!pageSnapshots[i]) {
+                            const pageProducts = tempSnapshot.docs.map(doc => ({
+                                id: doc.id,
+                                ...doc.data()
+                            }));
+
+                            setPageSnapshots(prev => ({
+                                ...prev,
+                                [i]: {
+                                    products: pageProducts,
+                                    lastDoc: lastDoc,
+                                    hasMore: tempSnapshot.docs.length === productsPerPage
+                                }
+                            }));
+                        }
+                    }
+
+                    // Now fetch the requested page
+                    productsQuery = query(productsQuery, startAfter(lastDoc), limit(productsPerPage));
+                }
+            } else {
+                // First page, just apply limit
+                productsQuery = query(productsQuery, limit(productsPerPage));
+            }
+
+            const snapshot = await getDocs(productsQuery);
+
+            // Get products
+            let productList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // Filter by subcategory if needed
+            if (category !== 'all' && subCategory !== 'all') {
+                productList = productList.filter(product =>
+                    product.subCategory === subCategory ||
+                    (product.tags && product.tags.includes(subCategory))
+                );
+            }
+
+            // Store last visible document
+            const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+            setLastVisible(lastDoc);
+
+            // Check if there are more products
+            const hasMore = snapshot.docs.length === productsPerPage;
+            setHasMore(hasMore);
+
+            // Store this page's data
+            setPageSnapshots(prev => ({
+                ...prev,
+                [pageNumber]: {
+                    products: productList,
+                    lastDoc: lastDoc,
+                    hasMore: hasMore
+                }
+            }));
+
+            setProducts(productList);
+            setCurrentPage(pageNumber);
+
+        } catch (err) {
+            console.error(`Error fetching products for page ${pageNumber}:`, err);
+            setError(`Failed to load page ${pageNumber}. Please try again.`);
+        } finally {
+            setIsChangingPage(false);
+        }
+    };
+
+    // Estimate total number of pages - useful for pagination controls
+    const estimateTotalPages = async () => {
+        try {
+            // Get count query based on current filters
+            let productsRef = collection(db, 'products');
+            let countQuery;
+
+            if (category !== 'all') {
+                countQuery = query(
+                    productsRef,
+                    where('categories', 'array-contains', category),
+                    where('status', '==', 'active')
+                );
+            } else {
+                countQuery = query(
+                    productsRef,
+                    where('status', '==', 'active')
+                );
+            }
+
+            // Execute query and count documents
+            const snapshot = await getDocs(countQuery);
+            const totalCount = snapshot.size;
+            setTotalItems(totalCount);
+
+            return totalCount;
+        } catch (err) {
+            console.error('Error estimating total pages:', err);
+            return 0;
+        }
+    };
 
     // Fetch categories
     useEffect(() => {
@@ -111,85 +306,30 @@ const ShopPage = () => {
 
     // Fetch products based on filters and sorting
     useEffect(() => {
-        const fetchProducts = async () => {
+        // Reset pagination state when filters change
+        setCurrentPage(1);
+        setPageSnapshots({});
+
+        // Fetch first page of products and estimate total items
+        const initializeProducts = async () => {
             setLoading(true);
             setError(null);
 
             try {
-                let productsRef = collection(db, 'products');
-                let productsQuery;
+                // Fetch the first page
+                await fetchProductsForPage(1);
 
-                // Apply category filter and status filter (only active products)
-                if (category !== 'all') {
-                    // Use array-contains to match products with multiple categories
-                    productsQuery = query(
-                        productsRef,
-                        where('categories', 'array-contains', category),  // Changed from category field to categories array
-                        where('status', '==', 'active') // Only fetch active products
-                    );
-                } else {
-                    productsQuery = query(
-                        productsRef,
-                        where('status', '==', 'active') // Only fetch active products
-                    );
-                }
-
-                // Apply sorting
-                switch (sortBy) {
-                    case 'priceAsc':
-                        productsQuery = query(productsQuery, orderBy('price', 'asc'));
-                        break;
-                    case 'priceDesc':
-                        productsQuery = query(productsQuery, orderBy('price', 'desc'));
-                        break;
-                    case 'popular':
-                        productsQuery = query(productsQuery, orderBy('reviewCount', 'desc'));
-                        break;
-                    case 'rating':
-                        productsQuery = query(productsQuery, orderBy('averageRating', 'desc'));
-                        break;
-                    case 'newest':
-                    default:
-                        productsQuery = query(productsQuery, orderBy('createdAt', 'desc'));
-                        break;
-                }
-
-                // Apply limit
-                productsQuery = query(productsQuery, limit(productsPerPage));
-
-                const snapshot = await getDocs(productsQuery);
-
-                // Get products
-                let productList = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-
-                // Filter by subcategory if selected (client-side filtering as we can't do this in Firestore directly)
-                if (category !== 'all' && subCategory !== 'all') {
-                    productList = productList.filter(product =>
-                        product.subCategory === subCategory ||
-                        (product.tags && product.tags.includes(subCategory))
-                    );
-                }
-
-                // Set last visible for pagination
-                const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-                setLastVisible(lastDoc);
-
-                // Check if there are more products
-                setHasMore(productList.length === productsPerPage);
-
-                setProducts(productList);
+                // Estimate total items for pagination
+                await estimateTotalPages();
             } catch (err) {
-                console.error('Error fetching products:', err);
+                console.error('Error initializing products:', err);
                 setError('Failed to load products. Please try again.');
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchProducts();
+        initializeProducts();
     }, [category, sortBy, subCategory]);
 
     // Load more products
@@ -457,25 +597,12 @@ const ShopPage = () => {
 
                 {/* Search and Filters */}
                 <div className="shop-controls">
-                    <form className="search-form" onSubmit={handleSearch}>
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Search products..."
-                            className="search-input"
+                    <div className="shop-search-container">
+                        <EnhancedSearchInput
+                            placeholder="Search products in shop..."
+                            className="shop-enhanced-search"
                         />
-                        <button type="submit" className="search-button">Search</button>
-                        {searchTerm && (
-                            <button
-                                type="button"
-                                className="clear-search"
-                                onClick={handleClearSearch}
-                            >
-                                Clear
-                            </button>
-                        )}
-                    </form>
+                    </div>
 
                     <div className="filters">
                         <div className="filter-group">
@@ -600,20 +727,128 @@ const ShopPage = () => {
                     </div>
                 )}
 
-                {/* Load More Button */}
-                {hasMore && (
-                    <div className="load-more-container">
-                        <button
-                            className="load-more-button"
-                            onClick={loadMoreProducts}
-                            disabled={loadingMore}
-                        >
-                            {loadingMore ? 'Loading...' : 'Load More Products'}
-                        </button>
+                {/* Pagination Controls */}
+                {products.length > 0 && totalItems > productsPerPage && (
+                    <div className="pagination-container">
+                        <div className="pagination-controls">
+                            {/* Previous Page Button */}
+                            <button
+                                className={`pagination-button ${currentPage === 1 ? 'disabled' : ''}`}
+                                onClick={() => fetchProductsForPage(currentPage - 1)}
+                                disabled={currentPage === 1 || isChangingPage}
+                            >
+                                &laquo; Previous
+                            </button>
+
+                            {/* Page Number Buttons */}
+                            <div className="page-numbers">
+                                {(() => {
+                                    // Estimated total pages
+                                    const totalPages = Math.ceil(totalItems / productsPerPage);
+                                    const pageNumbers = [];
+
+                                    // Logic to determine which page buttons to show
+                                    let startPage, endPage;
+
+                                    if (totalPages <= maxDisplayedPages) {
+                                        // If we have fewer pages than max display, show all
+                                        startPage = 1;
+                                        endPage = totalPages;
+                                    } else {
+                                        // Calculate start and end pages based on current page position
+                                        const maxPagesBeforeCurrentPage = Math.floor(maxDisplayedPages / 2);
+                                        const maxPagesAfterCurrentPage = Math.ceil(maxDisplayedPages / 2) - 1;
+
+                                        if (currentPage <= maxPagesBeforeCurrentPage) {
+                                            // Near the start
+                                            startPage = 1;
+                                            endPage = maxDisplayedPages;
+                                        } else if (currentPage + maxPagesAfterCurrentPage >= totalPages) {
+                                            // Near the end
+                                            startPage = totalPages - maxDisplayedPages + 1;
+                                            endPage = totalPages;
+                                        } else {
+                                            // Middle
+                                            startPage = currentPage - maxPagesBeforeCurrentPage;
+                                            endPage = currentPage + maxPagesAfterCurrentPage;
+                                        }
+                                    }
+
+                                    // Add "First" page button if needed
+                                    if (startPage > 1) {
+                                        pageNumbers.push(
+                                            <button
+                                                key="first"
+                                                className={`pagination-button page-number`}
+                                                onClick={() => fetchProductsForPage(1)}
+                                                disabled={isChangingPage}
+                                            >
+                                                1
+                                            </button>
+                                        );
+
+                                        if (startPage > 2) {
+                                            pageNumbers.push(
+                                                <span key="ellipsis1" className="pagination-ellipsis">...</span>
+                                            );
+                                        }
+                                    }
+
+                                    // Add page number buttons
+                                    for (let i = startPage; i <= endPage; i++) {
+                                        pageNumbers.push(
+                                            <button
+                                                key={i}
+                                                className={`pagination-button page-number ${i === currentPage ? 'active' : ''}`}
+                                                onClick={() => fetchProductsForPage(i)}
+                                                disabled={i === currentPage || isChangingPage}
+                                            >
+                                                {i}
+                                            </button>
+                                        );
+                                    }
+
+                                    // Add "Last" page button if needed
+                                    if (endPage < totalPages) {
+                                        if (endPage < totalPages - 1) {
+                                            pageNumbers.push(
+                                                <span key="ellipsis2" className="pagination-ellipsis">...</span>
+                                            );
+                                        }
+
+                                        pageNumbers.push(
+                                            <button
+                                                key="last"
+                                                className={`pagination-button page-number`}
+                                                onClick={() => fetchProductsForPage(totalPages)}
+                                                disabled={isChangingPage}
+                                            >
+                                                {totalPages}
+                                            </button>
+                                        );
+                                    }
+
+                                    return pageNumbers;
+                                })()}
+                            </div>
+
+                            {/* Next Page Button */}
+                            <button
+                                className={`pagination-button ${!hasMore ? 'disabled' : ''}`}
+                                onClick={() => fetchProductsForPage(currentPage + 1)}
+                                disabled={!hasMore || isChangingPage}
+                            >
+                                Next &raquo;
+                            </button>
+                        </div>
+
+                        <div className="pagination-info">
+                            Showing {(currentPage - 1) * productsPerPage + 1} to {(currentPage - 1) * productsPerPage + products.length} of approximately {totalItems} products
+                        </div>
                     </div>
                 )}
 
-                {loadingMore && (
+                {isChangingPage && (
                     <div className="loading-more">
                         <LoadingSpinner />
                     </div>
