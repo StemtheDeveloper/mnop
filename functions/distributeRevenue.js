@@ -29,15 +29,14 @@ exports.distributeInvestorRevenue = onCall(
   async (data, context) => {
     try {
       const { productId, saleAmount, manufacturingCost, quantity, orderId } =
-        data;
-
-      // Validate inputs
+        data; // Validate inputs
       if (
         !productId ||
-        saleAmount === undefined ||
+        !saleAmount ||
         saleAmount <= 0 ||
-        manufacturingCost === undefined || // allow 0
-        quantity === undefined ||
+        manufacturingCost === undefined ||
+        manufacturingCost === null ||
+        isNaN(manufacturingCost) ||
         quantity <= 0
       ) {
         throw new functions.https.HttpsError(
@@ -232,6 +231,22 @@ exports.distributeRevenue = async (
   orderId
 ) => {
   try {
+    // Validate parameters
+    if (
+      !productId ||
+      !saleAmount ||
+      saleAmount <= 0 ||
+      manufacturingCost === undefined ||
+      manufacturingCost === null ||
+      isNaN(manufacturingCost) ||
+      quantity <= 0
+    ) {
+      return {
+        success: false,
+        error: "Invalid revenue distribution parameters",
+      };
+    }
+
     // Calculate profit
     const totalManufacturingCost = manufacturingCost * quantity;
     const profit = Math.max(0, saleAmount - totalManufacturingCost);

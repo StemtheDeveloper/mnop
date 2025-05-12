@@ -15,7 +15,7 @@ const CartPage = () => {
     const [total, setTotal] = useState(0);
     const [cartId, setCartId] = useState(null);
     const { currentUser } = useUser();
-    const { showSuccess, showError } = useToast();
+    const { success, error: showError } = useToast();
 
     // Calculate total price of cart items
     const calculateTotal = (items) => {
@@ -151,12 +151,10 @@ const CartPage = () => {
                 const updatedCart = cartItems.filter(item => item.id !== itemId);
                 localStorage.setItem('cart', JSON.stringify(updatedCart));
                 setCartItems(updatedCart);
-                setTotal(calculateTotal(updatedCart));
-
-                // Show success message
+                setTotal(calculateTotal(updatedCart));                // Show success message
                 const removedItem = cartItems.find(item => item.id === itemId);
                 if (removedItem) {
-                    showSuccess(`Removed ${removedItem.name} from your cart`);
+                    success(`Removed ${removedItem.name} from your cart`);
                 }
                 return;
             }
@@ -174,11 +172,9 @@ const CartPage = () => {
             await updateDoc(doc(db, 'carts', cartId), {
                 items: updatedItems,
                 updatedAt: new Date()
-            });
-
-            // Show success message
+            });            // Show success message
             if (removedItem) {
-                showSuccess(`Removed ${removedItem.name} from your cart`);
+                success(`Removed ${removedItem.name} from your cart`);
             }
             // No need to update state here as onSnapshot will handle it
         } catch (err) {

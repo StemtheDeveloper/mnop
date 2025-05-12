@@ -1810,9 +1810,17 @@ const CheckoutPage = () => {
                                 // Update total (subtotal + shipping + tax)
                                 setTotal(newSubtotal + shipping + taxAmount);
                             } else {
-                                // For authenticated users, force a refresh of the cart data
-                                // This ensures tax is calculated correctly when items are added
-                                setTimeout(() => forceCartUpdate(), 500);
+                                // For authenticated users, also update state based on newCartItems
+                                // to ensure tax is calculated and displayed correctly.
+                                // The main onSnapshot listener should ideally converge to these values.
+                                const newSubtotal = newCartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                                const taxAmount = calculateTax(newSubtotal, formData.country, formData.state);
+
+                                setCartItems(newCartItems); // Reflect the added item immediately
+                                setSubtotal(newSubtotal);   // Update subtotal
+                                setTax(taxAmount);          // Crucially, update tax
+                                // 'shipping' is the current state value from CheckoutPage
+                                setTotal(newSubtotal + shipping + taxAmount); // Update total
                             }
                         }}
                         formData={formData}
