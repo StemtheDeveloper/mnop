@@ -11,7 +11,7 @@ import { db } from '../config/firebase';  // Import Firestore db
 import '../styles/WalletPage.css';
 
 const WalletPage = () => {
-    const { currentUser, userWallet, userRole, hasRole } = useUser();
+    const { currentUser, userWallet, userRoles, hasRole } = useUser();
     const { success: showSuccess, error: showError } = useToast();
 
     // Wallet state
@@ -50,40 +50,30 @@ const WalletPage = () => {
     const [depositAmount, setDepositAmount] = useState('');
     const [isDepositing, setIsDepositing] = useState(false);
     const [depositError, setDepositError] = useState('');
-    const [depositSuccess, setDepositSuccess] = useState('');
-
-    // Role state
-    const [userRoles, setUserRoles] = useState([]);
+    const [depositSuccess, setDepositSuccess] = useState('');    // Local state for roles (initialized from context)
+    const [localUserRoles, setLocalUserRoles] = useState([]);
 
     // Initialize user roles
     useEffect(() => {
-        if (userRole) {
-            const roles = Array.isArray(userRole) ? userRole : [userRole];
-            setUserRoles(roles);
+        if (userRoles && userRoles.length > 0) {
+            setLocalUserRoles(userRoles);
         } else {
-            setUserRoles(['customer']);
+            setLocalUserRoles(['customer']);
         }
-    }, [userRole]);
-
-    // Keep balance in sync with userWallet from context
+    }, [userRoles]);// Keep balance in sync with userWallet from context
     useEffect(() => {
         if (userWallet && userWallet.balance !== undefined) {
             setBalance(userWallet.balance);
         }
     }, [userWallet]);
 
-    // Function to determine if user has a specific role
-    const userHasRole = (role) => {
-        return userRoles.includes(role);
-    };
-
     // Function to determine if user has access to specific tabs
     const canAccessTab = (tabName) => {
         // Basic access check implementation
         if (['summary'].includes(tabName)) return true;
-        if (tabName === 'add') return userHasRole('admin');
-        if (tabName === 'transfer') return userRoles.length > 0;
-        if (tabName === 'interest') return userHasRole('investor');
+        if (tabName === 'add') return hasRole('admin');
+        if (tabName === 'transfer') return localUserRoles.length > 0;
+        if (tabName === 'interest') return hasRole('investor');
         return true;
     };
 
@@ -242,9 +232,7 @@ const WalletPage = () => {
                     tx.status === 'pending_confirmation'
                 );
                 setHasPendingTransactions(hasPending);
-            }
-
-            if (userHasRole('investor')) {
+            } if (hasRole('investor')) {
                 const interestTxData = await interestService.getUserInterestTransactions(currentUser.uid, 100);
                 console.log(`[WalletPage] Fetched ${interestTxData.length} interest transactions`);
                 setInterestTransactions(interestTxData || []);
@@ -255,7 +243,7 @@ const WalletPage = () => {
         } finally {
             setTransactionLoading(false);
         }
-    }, [currentUser, userHasRole]);
+    }, [currentUser, hasRole]);
 
     // Only run initial transaction fetch when needed (fallback or when real-time listener isn't available)
     useEffect(() => {
@@ -525,7 +513,7 @@ const WalletPage = () => {
 
     // Render roles badges 
     const renderRoleBadges = () => {
-        if (!userRoles || userRoles.length === 0) {
+        if (!localUserRoles || localUserRoles.length === 0) {
             return (
                 <div className="roles-list">
                     <div className="role-pill customer">Customer</div>
@@ -535,7 +523,7 @@ const WalletPage = () => {
 
         return (
             <div className="roles-list">
-                {userRoles.map((role, index) => (
+                {localUserRoles.map((role, index) => (
                     <div key={index} className={`role-pill ${role.toLowerCase()}`}>
                         {role.charAt(0).toUpperCase() + role.slice(1)}
                     </div>
@@ -618,10 +606,8 @@ const WalletPage = () => {
                         onClick={() => setActiveTab('transfer')}
                     >
                         Transfer Funds
-                    </button>
-
-                    {/* Only show Add Credits tab for admins */}
-                    {userHasRole('admin') && (
+                    </button>                    {/* Only show Add Credits tab for admins */}
+                    {hasRole('admin') && (
                         <button
                             className={`tab-button ${activeTab === 'add' ? 'active' : ''}`}
                             onClick={() => setActiveTab('add')}
@@ -630,7 +616,7 @@ const WalletPage = () => {
                         </button>
                     )}
 
-                    {userHasRole('investor') && (
+                    {hasRole('investor') && (
                         <button
                             className={`tab-button ${activeTab === 'interest' ? 'active' : ''}`}
                             onClick={() => setActiveTab('interest')}
@@ -847,7 +833,7 @@ const WalletPage = () => {
                         </div>
                     )}
 
-                    {activeTab === 'add' && userHasRole('admin') && (
+                    {activeTab === 'add' && hasRole('admin') && (
                         <div className="add-credits-tab">
                             <h3>Add Credits to Wallet</h3>
                             <div className="admin-notice">
@@ -918,7 +904,7 @@ const WalletPage = () => {
                         </div>
                     )}
 
-                    {activeTab === 'interest' && userHasRole('investor') && (
+                    {activeTab === 'interest' && hasRole('investor') && (
                         <div className="interest-tab">
                             <h3>Interest Earnings</h3>
                             <InterestRatesPanel />

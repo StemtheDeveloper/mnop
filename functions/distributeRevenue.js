@@ -34,9 +34,10 @@ exports.distributeInvestorRevenue = onCall(
       // Validate inputs
       if (
         !productId ||
-        !saleAmount ||
+        saleAmount === undefined ||
         saleAmount <= 0 ||
-        !manufacturingCost ||
+        manufacturingCost === undefined || // allow 0
+        quantity === undefined ||
         quantity <= 0
       ) {
         throw new functions.https.HttpsError(

@@ -13,11 +13,17 @@ import taxRates from '../config/taxRates';
 import '../styles/CheckoutPage.css';
 
 // CrossSellingSuggestions Component
-const CrossSellingSuggestions = ({ cartItems }) => {
+const CrossSellingSuggestions = ({
+    cartItems,
+    updateCartState = null, // Function to update checkout state when items are added
+    formData = null // Form data for tax calculation
+}) => {
     const [suggestions, setSuggestions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { showError } = useToast();
+    const { showError, success } = useToast();
+    const { currentUser } = useUser();
     const navigate = useNavigate();
+    const [addingToCart, setAddingToCart] = useState({});
 
     useEffect(() => {
         const fetchSuggestions = async () => {
@@ -127,6 +133,110 @@ const CrossSellingSuggestions = ({ cartItems }) => {
         navigate(`/product/${productId}`);
     };
 
+    // Handle add to cart
+    const handleAddToCart = async (product) => {
+        if (addingToCart[product.id]) return; // Prevent double clicks
+
+        setAddingToCart(prev => ({ ...prev, [product.id]: true }));
+
+        try {
+            if (!currentUser) {
+                // Guest cart handling
+                const localCart = JSON.parse(localStorage.getItem('cart') || '[]');
+
+                // Check if product already in cart
+                const existingItemIndex = localCart.findIndex(item => item.id === product.id);
+
+                if (existingItemIndex >= 0) {
+                    // Update quantity if already in cart
+                    localCart[existingItemIndex].quantity += 1;
+                } else {
+                    // Add new item
+                    localCart.push({
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        imageUrl: product.imageUrl || (product.imageUrls && product.imageUrls[0]),
+                        quantity: 1
+                    });
+                }
+
+                localStorage.setItem('cart', JSON.stringify(localCart));
+                success(`Added ${product.name} to your cart!`);
+
+                // Update parent component cart state if the function is provided
+                if (updateCartState) {
+                    updateCartState(localCart);
+                }
+            } else {
+                // Authenticated user cart
+                const cartsRef = collection(db, 'carts');
+                const q = query(cartsRef, where('userId', '==', currentUser.uid));
+                const snapshot = await getDocs(q);
+
+                if (snapshot.empty) {
+                    // Create a new cart with the new item
+                    const newCartItems = [{
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        imageUrl: product.imageUrl || (product.imageUrls && product.imageUrls[0]),
+                        quantity: 1
+                    }];
+
+                    await addDoc(cartsRef, {
+                        userId: currentUser.uid,
+                        items: newCartItems,
+                        updatedAt: serverTimestamp()
+                    });
+
+                    // Update parent component's state if function is provided
+                    if (updateCartState) {
+                        updateCartState(newCartItems);
+                    }
+                } else {
+                    // Update existing cart
+                    const cartDoc = snapshot.docs[0];
+                    const cartData = cartDoc.data();
+                    const items = cartData.items || [];
+
+                    // Check if item already in cart
+                    const existingItemIndex = items.findIndex(item => item.id === product.id);
+
+                    if (existingItemIndex >= 0) {
+                        // Update quantity
+                        items[existingItemIndex].quantity += 1;
+                    } else {
+                        // Add new item
+                        items.push({
+                            id: product.id,
+                            name: product.name,
+                            price: product.price,
+                            imageUrl: product.imageUrl || (product.imageUrls && product.imageUrls[0]),
+                            quantity: 1
+                        });
+                    }
+
+                    await updateDoc(doc(db, 'carts', cartDoc.id), {
+                        items,
+                        updatedAt: serverTimestamp()
+                    });
+                    // For authenticated users, trigger an immediate update to ensure tax is recalculated
+                    if (updateCartState) {
+                        updateCartState(items);
+                    }
+                }
+
+                success(`Added ${product.name} to your cart!`);
+            }
+        } catch (error) {
+            console.error('Error adding to cart:', error);
+            showError('Failed to add item to cart');
+        } finally {
+            setAddingToCart(prev => ({ ...prev, [product.id]: false }));
+        }
+    };
+
     // Don't show component if no suggestions or still loading
     if (loading || suggestions.length === 0) {
         return null;
@@ -138,20 +248,27 @@ const CrossSellingSuggestions = ({ cartItems }) => {
             <div className="suggestions-container">
                 {suggestions.map(product => (
                     <div key={product.id} className="suggestion-item">
-                        <Link to={`/product/${product.id}`}>
-                            <div className="suggestion-image">
-                                <img
-                                    src={product.imageUrl || (product.imageUrls && product.imageUrls[0]) || 'https://via.placeholder.com/160?text=Product'}
-                                    alt={product.name}
-                                />
+                        <div className="suggestion-image" onClick={() => handleSuggestionClick(product.id)}>
+                            <img
+                                src={product.imageUrl || (product.imageUrls && product.imageUrls[0]) || 'https://via.placeholder.com/160?text=Product'}
+                                alt={product.name}
+                            />
+                        </div>
+                        <div className="suggestion-details">
+                            <h4 onClick={() => handleSuggestionClick(product.id)}>
+                                {product.name || 'Product'}
+                            </h4>
+                            <div className="suggestion-price">
+                                {formatPrice(product.price)}
                             </div>
-                            <div className="suggestion-details">
-                                <h4>{product.name || 'Product'}</h4>
-                                <div className="suggestion-price">
-                                    {formatPrice(product.price)}
-                                </div>
-                            </div>
-                        </Link>
+                            <button
+                                className="suggestion-add-to-cart"
+                                onClick={() => handleAddToCart(product)}
+                                disabled={addingToCart[product.id]}
+                            >
+                                {addingToCart[product.id] ? 'Adding...' : 'Add to Cart'}
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -302,7 +419,9 @@ const CheckoutPage = () => {
             // Update total with tax included
             setTotal(subtotal + shipping + taxAmount);
         }
-    }, [formData.country, formData.state, subtotal, shipping]);// Calculate subtotal and total
+    }, [formData.country, formData.state, subtotal, shipping]);
+
+    // Calculate subtotal and total
     const calculateTotals = (items) => {
         // Calculate subtotal from items
         const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -318,10 +437,29 @@ const CheckoutPage = () => {
         const orderTotal = itemsTotal + shipping + taxAmount;
         console.log(`Calculating total: subtotal(${itemsTotal}) + shipping(${shipping}) + tax(${taxAmount}) = ${orderTotal}`);
         setTotal(orderTotal);
-        
+
         // Check for insufficient funds immediately if wallet is selected
         if (userWallet && selectedPaymentMethod === 'wallet') {
             setInsufficientFunds(userWallet.balance < orderTotal);
+        }
+    };
+
+    // Force recalculation of cart totals, useful when items are added but listener doesn't update
+    const forceCartUpdate = async () => {
+        if (!currentUser || !cartId) return;
+
+        try {
+            const cartRef = doc(db, "carts", cartId);
+            const cartDoc = await getDoc(cartRef);
+
+            if (cartDoc.exists()) {
+                const cart = cartDoc.data();
+                const items = cart.items || [];
+                setCartItems(items);
+                calculateTotals(items);
+            }
+        } catch (error) {
+            console.error("Error forcing cart update:", error);
         }
     };
 
@@ -551,11 +689,11 @@ const CheckoutPage = () => {
                 if (!currentUser) {
                     const localCart = JSON.parse(localStorage.getItem('cart') || '[]');
                     setCartItems(localCart);
-                    
+
                     // Calculate subtotal first
                     const itemsTotal = localCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                     setSubtotal(itemsTotal);
-                    
+
                     // Fetch shipping costs for the cart
                     const shippingInfo = await fetchShippingCosts(localCart);
 
@@ -564,25 +702,25 @@ const CheckoutPage = () => {
                     const shippingCost = currentMethod === 'express' ?
                         shippingInfo.expressShippingCost :
                         shippingInfo.standardShippingCost;
-                    
+
                     // Determine final shipping cost
                     let finalShippingCost = shippingCost;
                     if (shippingInfo.hasFreeShippingItem ||
                         (itemsTotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
                         finalShippingCost = 0;
                     }
-                    
+
                     // Set shipping cost
                     setShipping(finalShippingCost);
-                    
+
                     // Calculate tax amount based on subtotal only (tax is not applied to shipping)
                     const taxAmount = calculateTax(itemsTotal, formData.country, formData.state);
                     setTax(taxAmount);
-                    
+
                     // Explicitly calculate final total ensuring subtotal is included
                     const finalTotal = itemsTotal + finalShippingCost + taxAmount;
                     setTotal(finalTotal);
-                    
+
                     // Store shipping info details for UI notifications
                     setShippingDetails(shippingInfo);
 
@@ -591,7 +729,7 @@ const CheckoutPage = () => {
                 }
 
                 // For authenticated users, get cart from Firestore
-                const cartsRef = collection(db, 'carts');                const q = query(cartsRef, where('userId', '==', currentUser.uid));
+                const cartsRef = collection(db, 'carts'); const q = query(cartsRef, where('userId', '==', currentUser.uid));
 
                 unsubscribe = onSnapshot(q, async (snapshot) => {
                     if (snapshot.empty) {
@@ -608,11 +746,11 @@ const CheckoutPage = () => {
 
                     const items = cart.items || [];
                     setCartItems(items);
-                    
+
                     // Calculate the subtotal first
                     const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
                     setSubtotal(itemsTotal);
-                    
+
                     // Fetch shipping costs for the cart
                     const shippingInfo = await fetchShippingCosts(items);
 
@@ -628,18 +766,18 @@ const CheckoutPage = () => {
                         (itemsTotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
                         finalShippingCost = 0;
                     }
-                    
+
                     // Set shipping cost
                     setShipping(finalShippingCost);
-                    
+
                     // Calculate tax amount based on subtotal only (tax is not applied to shipping)
                     const taxAmount = calculateTax(itemsTotal, formData.country, formData.state);
                     setTax(taxAmount);
-                    
+
                     // Explicitly calculate final total ensuring subtotal is included
                     const finalTotal = itemsTotal + finalShippingCost + taxAmount;
                     setTotal(finalTotal);
-                    
+
                     // Store shipping info details for UI notifications
                     setShippingDetails(shippingInfo);
 
@@ -675,44 +813,44 @@ const CheckoutPage = () => {
                 const shippingCost = value === 'express' ?
                     shippingInfo.expressShippingCost :
                     shippingInfo.standardShippingCost;
-                
+
                 // Calculate current subtotal to ensure it's always included in total
                 const currentSubtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                
+
                 // Check if order qualifies for free shipping
                 let finalShippingCost = shippingCost;
                 if (shippingInfo.hasFreeShippingItem ||
-                    (currentSubtotal >= shippingInfo.freeShippingThreshold && 
-                     shippingInfo.freeShippingThreshold > 0 && 
-                     shippingInfo.allowFreeShipping)) {
+                    (currentSubtotal >= shippingInfo.freeShippingThreshold &&
+                        shippingInfo.freeShippingThreshold > 0 &&
+                        shippingInfo.allowFreeShipping)) {
                     finalShippingCost = 0;
                 }
-                
+
                 // Set shipping cost
                 setShipping(finalShippingCost);
-                
+
                 // Recalculate tax based on subtotal only (tax is not applied to shipping)
                 const taxAmount = calculateTax(currentSubtotal, formData.country, formData.state);
                 setTax(taxAmount);
-                
+
                 // Explicitly calculate final total ensuring subtotal is included
                 const finalTotal = currentSubtotal + finalShippingCost + taxAmount;
                 setTotal(finalTotal);
-                
+
             } catch (error) {
                 console.error('Error updating shipping cost:', error);
-                
+
                 // Fallback to default shipping costs
                 const shippingCost = value === 'express' ? 25 : 10;
                 setShipping(shippingCost);
-                
+
                 // Make sure we correctly calculate with subtotal included
                 const currentSubtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                
+
                 // Recalculate tax based on subtotal only (tax is not applied to shipping)
                 const taxAmount = calculateTax(currentSubtotal, formData.country, formData.state);
                 setTax(taxAmount);
-                
+
                 // Explicitly include subtotal in the total calculation
                 const finalTotal = currentSubtotal + shippingCost + taxAmount;
                 setTotal(finalTotal);
@@ -888,13 +1026,13 @@ const CheckoutPage = () => {
                         const productData = productDoc.data();                        // Calculate sale amount
                         const manufacturingCost = productData.manufacturingCost || 0;
                         const saleAmount = item.price * item.quantity;
-                        
+
                         // Calculate proportional shipping based on item price relative to total order value
                         // This ensures more expensive items get proportionally more shipping revenue
                         const itemPriceTotal = item.price * item.quantity;
                         const orderSubtotal = cartItems.reduce((sum, cartItem) => sum + (cartItem.price * cartItem.quantity), 0);
                         const itemShippingShare = shipping * (itemPriceTotal / orderSubtotal);
-                        
+
                         // Use the comprehensive method that handles business commission, 
                         // investor revenue, AND designer payments in one call
                         const saleResult = await walletService.processProductSale(
@@ -1653,10 +1791,32 @@ const CheckoutPage = () => {
                                 <span>{formatPrice(total)}</span>
                             </div>
                         </div>
-                    </div>
+                    </div>                    {/* Cross-Selling Suggestions */}
+                    <CrossSellingSuggestions
+                        cartItems={cartItems}
+                        updateCartState={(newCartItems) => {
+                            if (!currentUser) {
+                                // For guest users, manually update state
+                                setCartItems(newCartItems);
 
-                    {/* Cross-Selling Suggestions */}
-                    <CrossSellingSuggestions cartItems={cartItems} />
+                                // Calculate new totals
+                                const newSubtotal = newCartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                                setSubtotal(newSubtotal);
+
+                                // Calculate tax based on the subtotal
+                                const taxAmount = calculateTax(newSubtotal, formData.country, formData.state);
+                                setTax(taxAmount);
+
+                                // Update total (subtotal + shipping + tax)
+                                setTotal(newSubtotal + shipping + taxAmount);
+                            } else {
+                                // For authenticated users, force a refresh of the cart data
+                                // This ensures tax is calculated correctly when items are added
+                                setTimeout(() => forceCartUpdate(), 500);
+                            }
+                        }}
+                        formData={formData}
+                    />
                 </div>
             </div>
         </div>
