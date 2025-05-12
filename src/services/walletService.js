@@ -1014,8 +1014,7 @@ class WalletService {
    * @param {number} quantity - The quantity of items sold
    * @param {string} orderId - The order ID
    * @returns {Promise<Object>} Result with success status and distribution info
-   */
-  async distributeInvestorRevenue(
+   */ async distributeInvestorRevenue(
     productId,
     saleAmount,
     manufacturingCost,
@@ -1032,6 +1031,22 @@ class WalletService {
         orderId,
       });
 
+      // Ensure numeric values are actually numbers, not strings
+      let validatedSaleAmount = saleAmount;
+      if (typeof saleAmount === "string") {
+        validatedSaleAmount = parseFloat(saleAmount);
+      }
+
+      let validatedManufacturingCost = manufacturingCost;
+      if (typeof manufacturingCost === "string") {
+        validatedManufacturingCost = parseFloat(manufacturingCost);
+      }
+
+      let validatedQuantity = quantity;
+      if (typeof quantity === "string") {
+        validatedQuantity = parseInt(quantity, 10);
+      }
+
       // Validate parameters before calling the cloud function
       if (!productId || typeof productId !== "string") {
         console.error("Invalid productId:", productId);
@@ -1041,7 +1056,11 @@ class WalletService {
         };
       }
 
-      if (!saleAmount || isNaN(saleAmount) || saleAmount <= 0) {
+      if (
+        !validatedSaleAmount ||
+        isNaN(validatedSaleAmount) ||
+        validatedSaleAmount <= 0
+      ) {
         console.error("Invalid saleAmount:", saleAmount);
         return {
           success: false,
@@ -1050,9 +1069,9 @@ class WalletService {
       }
 
       if (
-        manufacturingCost === undefined ||
-        manufacturingCost === null ||
-        isNaN(manufacturingCost)
+        validatedManufacturingCost === undefined ||
+        validatedManufacturingCost === null ||
+        isNaN(validatedManufacturingCost)
       ) {
         console.error("Invalid manufacturingCost:", manufacturingCost);
         return {
@@ -1061,7 +1080,11 @@ class WalletService {
         };
       }
 
-      if (!quantity || isNaN(quantity) || quantity <= 0) {
+      if (
+        !validatedQuantity ||
+        isNaN(validatedQuantity) ||
+        validatedQuantity <= 0
+      ) {
         console.error("Invalid quantity:", quantity);
         return {
           success: false,
@@ -1082,20 +1105,55 @@ class WalletService {
       const distributeRevenue = httpsCallable(
         functions,
         "distributeInvestorRevenue"
+      ); // Use safe logging to prevent circular references
+      console.log(
+        "Calling distributeInvestorRevenue with params:",
+        JSON.stringify({
+          productId,
+          saleAmount: validatedSaleAmount,
+          manufacturingCost: validatedManufacturingCost,
+          quantity: validatedQuantity,
+          orderId,
+        })
       );
 
-      const result = await distributeRevenue({
-        productId,
-        saleAmount,
-        manufacturingCost,
-        quantity,
-        orderId,
-      });
-
-      return {
-        success: true,
-        data: result.data,
+      // Create a clean parameter object to avoid any circular references
+      const cleanParams = {
+        productId: String(productId),
+        saleAmount: Number(validatedSaleAmount),
+        manufacturingCost: Number(validatedManufacturingCost),
+        quantity: Number(validatedQuantity),
+        orderId: String(orderId),
       };
+
+      const result = await distributeRevenue(cleanParams); // Use safe logging to prevent circular references and extract only the data we need
+      try {
+        const safeResult = {
+          distributedAmount: result.data.distributedAmount || 0,
+          investorCount: result.data.investorCount || 0,
+          success: result.data.success || false,
+          message: result.data.message || "",
+        };
+
+        console.log(
+          "distributeInvestorRevenue result:",
+          JSON.stringify(safeResult)
+        );
+
+        return {
+          success: true,
+          data: safeResult,
+        };
+      } catch (resultError) {
+        console.error("Error processing result:", resultError);
+        return {
+          success: true, // Still consider it a success if we got a result but couldn't parse it
+          data: {
+            distributedAmount: 0,
+            message: "Could not process distribution result",
+          },
+        };
+      }
     } catch (error) {
       console.error("Error distributing investor revenue:", error);
       return {
@@ -1115,8 +1173,7 @@ class WalletService {
    * @param {string} orderId - The order ID
    * @param {number} shippingCost - The shipping cost (default 0)
    * @returns {Promise<Object>} Result with status and processing details
-   */
-  async processProductSale(
+   */ async processProductSale(
     productId,
     productName,
     saleAmount,
@@ -1126,6 +1183,80 @@ class WalletService {
     shippingCost = 0
   ) {
     try {
+      // Log all parameters for debugging
+      console.log("processProductSale parameters:", {
+        productId,
+        productName,
+        saleAmount,
+        manufacturingCost,
+        quantity,
+        orderId,
+        shippingCost,
+      });
+
+      // Ensure numeric values are actually numbers
+      const validatedSaleAmount =
+        typeof saleAmount === "string" ? parseFloat(saleAmount) : saleAmount;
+      const validatedManufacturingCost =
+        typeof manufacturingCost === "string"
+          ? parseFloat(manufacturingCost)
+          : manufacturingCost;
+      const validatedQuantity =
+        typeof quantity === "string" ? parseInt(quantity, 10) : quantity;
+      const validatedShippingCost =
+        typeof shippingCost === "string"
+          ? parseFloat(shippingCost)
+          : shippingCost;
+
+      // Validate all required parameters
+      if (!productId || typeof productId !== "string") {
+        console.error("Invalid productId:", productId);
+        return {
+          success: false,
+          error: "Invalid product ID",
+        };
+      }
+
+      if (
+        !validatedSaleAmount ||
+        isNaN(validatedSaleAmount) ||
+        validatedSaleAmount <= 0
+      ) {
+        console.error("Invalid saleAmount:", saleAmount);
+        return {
+          success: false,
+          error: "Invalid sale amount",
+        };
+      }
+
+      if (isNaN(validatedManufacturingCost)) {
+        console.error("Invalid manufacturingCost:", manufacturingCost);
+        return {
+          success: false,
+          error: "Invalid manufacturing cost",
+        };
+      }
+
+      if (
+        !validatedQuantity ||
+        isNaN(validatedQuantity) ||
+        validatedQuantity <= 0
+      ) {
+        console.error("Invalid quantity:", quantity);
+        return {
+          success: false,
+          error: "Invalid quantity",
+        };
+      }
+
+      if (!orderId || typeof orderId !== "string") {
+        console.error("Invalid orderId:", orderId);
+        return {
+          success: false,
+          error: "Invalid order ID",
+        };
+      }
+
       // Fetch the product to get the designer ID
       const productRef = doc(db, "products", productId);
       const productDoc = await getDoc(productRef);
@@ -1149,17 +1280,17 @@ class WalletService {
       }
 
       // Calculate the product sale amount excluding shipping for commission/investor calculations
-      const productSaleAmount = saleAmount - shippingCost;
+      const productSaleAmount = validatedSaleAmount - validatedShippingCost;
 
       // First, process business commission on the product amount only (not shipping)
       // Always process commission for all products, including direct sell products
       const commissionResult = await this.processBusinessCommission(
         productSaleAmount,
-        manufacturingCost,
-        quantity,
+        validatedManufacturingCost,
+        validatedQuantity,
         productId,
         productName,
-        orderId // This is the parameter that was missing
+        orderId
       );
 
       // Get commission amount (default to 0 if there was an error)
@@ -1177,8 +1308,8 @@ class WalletService {
         distributionResult = await this.distributeInvestorRevenue(
           productId,
           productSaleAmount,
-          manufacturingCost,
-          quantity,
+          validatedManufacturingCost,
+          validatedQuantity,
           orderId
         );
       }
@@ -1205,15 +1336,35 @@ class WalletService {
           productName,
           orderId
         );
-      }
+      } // Create a clean result object without circular references
+      const safeCommissionResult = commissionResult.success
+        ? {
+            success: commissionResult.success,
+            commissionAmount: commissionResult.commissionAmount || 0,
+            commissionRate: commissionResult.commissionRate,
+          }
+        : null;
+
+      const safeDistributionResult = distributionResult.success
+        ? {
+            distributedAmount: distributionResult.data?.distributedAmount || 0,
+            investorCount: distributionResult.data?.investorCount || 0,
+            message: distributionResult.data?.message || "",
+          }
+        : null;
+
+      const safeDesignerResult = designerPaymentResult
+        ? {
+            success: designerPaymentResult.success,
+            amount: designerPaymentResult.amount || 0,
+          }
+        : null;
 
       return {
         success: true,
-        commissionResult: commissionResult.success ? commissionResult : null,
-        distributionResult: distributionResult.success
-          ? distributionResult.data
-          : null,
-        designerPaymentResult: designerPaymentResult,
+        commissionResult: safeCommissionResult,
+        distributionResult: safeDistributionResult,
+        designerPaymentResult: safeDesignerResult,
         message: "Sale processed successfully",
         isDirectSell: isDirectSell,
       };

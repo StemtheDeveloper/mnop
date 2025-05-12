@@ -1034,21 +1034,44 @@ const CheckoutPage = () => {
                         const itemShippingShare = shipping * (itemPriceTotal / orderSubtotal);
 
                         // Use the comprehensive method that handles business commission, 
-                        // investor revenue, AND designer payments in one call
+                        // investor revenue, AND designer payments in one call                        // Ensure numeric values are properly converted
+                        const validatedSaleAmount = typeof saleAmount === 'string' ? parseFloat(saleAmount) : saleAmount;
+                        const validatedManufacturingCost = typeof manufacturingCost === 'string' ? parseFloat(manufacturingCost) : manufacturingCost;
+                        const validatedQuantity = typeof item.quantity === 'string' ? parseInt(item.quantity, 10) : item.quantity;
+                        const validatedShippingShare = typeof itemShippingShare === 'string' ? parseFloat(itemShippingShare) : itemShippingShare;
+
+                        console.log(`Processing sale for ${item.id} with values:`, {
+                            saleAmount: validatedSaleAmount,
+                            manufacturingCost: validatedManufacturingCost,
+                            quantity: validatedQuantity,
+                            shippingShare: validatedShippingShare
+                        });
+
                         const saleResult = await walletService.processProductSale(
                             item.id,
                             item.name || productData.name,
-                            saleAmount,
-                            manufacturingCost,
-                            item.quantity,
+                            validatedSaleAmount,
+                            validatedManufacturingCost,
+                            validatedQuantity,
                             orderRef.id,
-                            itemShippingShare // Distribute shipping cost proportionally based on item price
-                        );
-
-                        if (saleResult.success) {
-                            console.log('Product sale processed successfully:', saleResult);
+                            validatedShippingShare // Distribute shipping cost proportionally based on item price
+                        ); if (saleResult.success) {
+                            try {
+                                // Use safe JSON serialization to avoid circular references
+                                const safeSaleResult = {
+                                    success: saleResult.success,
+                                    message: saleResult.message,
+                                    isDirectSell: saleResult.isDirectSell,
+                                    commissionAmount: saleResult.commissionResult?.commissionAmount,
+                                    distributedAmount: saleResult.distributionResult?.distributedAmount,
+                                    designerAmount: saleResult.designerPaymentResult?.amount
+                                };
+                                console.log('Product sale processed successfully:', JSON.stringify(safeSaleResult));
+                            } catch (logError) {
+                                console.log('Product sale processed successfully (log error):', logError);
+                            }
                         } else {
-                            console.error('Error processing product sale:', saleResult.error);
+                            console.error('Error processing product sale:', saleResult.error || 'Unknown error');
                         }
                     }
                 } catch (err) {
