@@ -182,6 +182,7 @@ const CheckoutPage = () => {
     });
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('wallet');
     const [insufficientFunds, setInsufficientFunds] = useState(false);
+    const [shippingDetails, setShippingDetails] = useState(null);
 
     const [formData, setFormData] = useState({
         // Shipping info
@@ -334,6 +335,18 @@ const CheckoutPage = () => {
             let standardCost = 10;
             let expressCost = 25;
 
+            // Track whether the cart contains any large items that require special shipping
+            let hasLargeItems = false;
+            let hasOverweightItems = false;
+
+            // Track individual item shipping metrics
+            const largeItems = [];
+            const overweightItems = [];
+
+            // Calculate volumetric weight for combined shipping
+            let totalVolumetricWeight = 0;
+            let totalActualWeight = 0;
+
             // Process each item in the cart
             for (const item of cartItems) {
                 try {
@@ -345,11 +358,62 @@ const CheckoutPage = () => {
                         const productData = productDoc.data();
                         const designerId = productData.designerId;
 
+                        // Calculate metrics for each item, accounting for quantity
+                        const quantity = item.quantity || 1;
+
+                        // Process dimensions and calculate volumetric weight
+                        if (productData.dimensions) {
+                            const { length = 0, width = 0, height = 0, unit = 'inches' } = productData.dimensions;
+
+                            // Convert to inches if necessary
+                            const conversionFactor = unit === 'cm' ? 0.393701 : 1;
+                            const lengthInches = length * conversionFactor;
+                            const widthInches = width * conversionFactor;
+                            const heightInches = height * conversionFactor;
+
+                            // Check if any dimension exceeds thresholds for standard shipping
+                            if (lengthInches > 30 || widthInches > 30 || heightInches > 30) {
+                                hasLargeItems = true;
+                                largeItems.push({
+                                    id: item.id,
+                                    name: productData.name || item.name,
+                                    dimensions: `${lengthInches.toFixed(1)}″ x ${widthInches.toFixed(1)}″ x ${heightInches.toFixed(1)}″`
+                                });
+                            }
+
+                            // Calculate volumetric weight (L x W x H in inches / 139)
+                            const volumetricWeight = (lengthInches * widthInches * heightInches) / 139;
+                            totalVolumetricWeight += volumetricWeight * quantity;
+                        }
+
+                        // Process weight
+                        if (productData.weight) {
+                            // Convert to pounds if necessary
+                            const weightUnit = productData.weightUnit || 'lb';
+                            const weightInLbs = weightUnit === 'kg' ? productData.weight * 2.20462 : productData.weight;
+
+                            // Check if product weight exceeds threshold for standard shipping
+                            if (weightInLbs > 20) {
+                                hasOverweightItems = true;
+                                overweightItems.push({
+                                    id: item.id,
+                                    name: productData.name || item.name,
+                                    weight: `${weightInLbs.toFixed(1)} lbs`
+                                });
+                            }
+
+                            // Add to total actual weight
+                            totalActualWeight += weightInLbs * quantity;
+                        }
+
                         // Check if product has custom shipping settings
                         if (productData.customShipping) {
                             // Check if product has free shipping
                             if (productData.freeShipping) {
-                                hasFreeShippingItem = true;
+                                // Only consider free shipping if it's not a large or overweight item
+                                if (!hasLargeItems && !hasOverweightItems) {
+                                    hasFreeShippingItem = true;
+                                }
                             }
 
                             // Update lowest free shipping threshold if product has one
@@ -402,11 +466,53 @@ const CheckoutPage = () => {
                 }
             }
 
+            // Use the greater of volumetric weight or actual weight
+            const shippingWeight = Math.max(totalVolumetricWeight, totalActualWeight);
+
+            // Apply progressive surcharges based on weight and dimensions
+            let standardSurcharge = 0;
+            let expressSurcharge = 0;
+
+            // Add base surcharges for large items
+            if (hasLargeItems) {
+                standardSurcharge += 15; // Base $15 surcharge for large items with standard shipping
+                expressSurcharge += 25;  // Base $25 surcharge for large items with express shipping
+            }
+
+            // Add base surcharges for overweight items
+            if (hasOverweightItems) {
+                standardSurcharge += 10; // Base $10 surcharge for overweight items with standard shipping
+                expressSurcharge += 15;  // Base $15 surcharge for overweight items with express shipping
+            }
+
+            // Add progressive weight surcharges beyond 50 lbs
+            if (shippingWeight > 50) {
+                // Add $0.50 per pound over 50 lbs for standard, $0.75 for express
+                const excessWeight = shippingWeight - 50;
+                standardSurcharge += excessWeight * 0.5;
+                expressSurcharge += excessWeight * 0.75;
+            }
+
+            // Apply final surcharges
+            standardCost += standardSurcharge;
+            expressCost += expressSurcharge;
+
+            // Prevent free shipping for orders with large or overweight items
+            const allowFreeShipping = !hasLargeItems && !hasOverweightItems;
+
             return {
-                standardShippingCost: standardCost,
-                expressShippingCost: expressCost,
-                hasFreeShippingItem,
-                freeShippingThreshold: lowestFreeShippingThreshold === Infinity ? 50 : lowestFreeShippingThreshold
+                standardShippingCost: Math.round(standardCost * 100) / 100,
+                expressShippingCost: Math.round(expressCost * 100) / 100,
+                hasFreeShippingItem: allowFreeShipping && hasFreeShippingItem,
+                freeShippingThreshold: lowestFreeShippingThreshold === Infinity ? 50 : lowestFreeShippingThreshold,
+                hasLargeItems,
+                hasOverweightItems,
+                largeItems,
+                overweightItems,
+                shippingWeight: Math.round(shippingWeight * 10) / 10,
+                volumetricWeight: Math.round(totalVolumetricWeight * 10) / 10,
+                actualWeight: Math.round(totalActualWeight * 10) / 10,
+                allowFreeShipping
             };
         } catch (error) {
             console.error('Error fetching shipping costs:', error);
@@ -415,7 +521,15 @@ const CheckoutPage = () => {
                 standardShippingCost: 10,
                 expressShippingCost: 25,
                 hasFreeShippingItem: false,
-                freeShippingThreshold: 50
+                freeShippingThreshold: 50,
+                hasLargeItems: false,
+                hasOverweightItems: false,
+                largeItems: [],
+                overweightItems: [],
+                shippingWeight: 0,
+                volumetricWeight: 0,
+                actualWeight: 0,
+                allowFreeShipping: true
             };
         }
     };
@@ -444,13 +558,16 @@ const CheckoutPage = () => {
 
                     // Check if order total qualifies for free shipping
                     if (shippingInfo.hasFreeShippingItem ||
-                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
+                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
                         setShipping(0);
                         setTotal(subtotal);
                     } else {
                         setShipping(shippingCost);
                         setTotal(subtotal + shippingCost);
                     }
+
+                    // Store shipping info details for UI notifications
+                    setShippingDetails(shippingInfo);
 
                     setLoading(false);
                     return;
@@ -488,13 +605,16 @@ const CheckoutPage = () => {
 
                     // Check if order total qualifies for free shipping
                     if (shippingInfo.hasFreeShippingItem ||
-                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
+                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
                         setShipping(0);
                         setTotal(subtotal);
                     } else {
                         setShipping(shippingCost);
                         setTotal(subtotal + shippingCost);
                     }
+
+                    // Store shipping info details for UI notifications
+                    setShippingDetails(shippingInfo);
 
                     setLoading(false);
                 }, (err) => {
@@ -1143,6 +1263,61 @@ const CheckoutPage = () => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Designer delivery responsibility notice */}
+                                <div className="designer-responsibility-notice">
+                                    <div className="responsibility-content">
+                                        <h4>Important Delivery Information</h4>
+                                        <p>Please note that the designers of the products in your cart are solely responsible for delivering or arranging delivery of these products.</p>
+                                    </div>
+                                </div>
+
+                                {shippingDetails && (shippingDetails.hasLargeItems || shippingDetails.hasOverweightItems) && (
+                                    <div className="shipping-surcharge-notification">
+                                        <p>
+                                            <strong>Special Shipping Notice:</strong> Your cart contains {shippingDetails.hasLargeItems && shippingDetails.hasOverweightItems ? 'large and overweight' :
+                                                shippingDetails.hasLargeItems ? 'large' : 'overweight'} items that require additional shipping costs.
+                                        </p>
+                                        <div className="surcharge-details">
+                                            <p>These items are not eligible for free shipping regardless of order total:</p>
+
+                                            {shippingDetails.hasLargeItems && shippingDetails.largeItems && shippingDetails.largeItems.length > 0 && (
+                                                <>
+                                                    <p><strong>Large items</strong> (any dimension exceeding 30 inches):</p>
+                                                    <ul>
+                                                        {shippingDetails.largeItems.map((item, index) => (
+                                                            <li key={`large-${item.id}-${index}`}>
+                                                                {item.name} - {item.dimensions}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <p>Large item surcharge: $15 for standard shipping or $25 for express shipping</p>
+                                                </>
+                                            )}
+
+                                            {shippingDetails.hasOverweightItems && shippingDetails.overweightItems && shippingDetails.overweightItems.length > 0 && (
+                                                <>
+                                                    <p><strong>Overweight items</strong> (exceeding 20 pounds):</p>
+                                                    <ul>
+                                                        {shippingDetails.overweightItems.map((item, index) => (
+                                                            <li key={`weight-${item.id}-${index}`}>
+                                                                {item.name} - {item.weight}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                    <p>Overweight item surcharge: $10 for standard shipping or $15 for express shipping</p>
+                                                </>
+                                            )}
+
+                                            {shippingDetails.shippingWeight > 50 && (
+                                                <div className="additional-weight-notice">
+                                                    <p><strong>Additional weight surcharge:</strong> Your order's combined shipping weight of {shippingDetails.shippingWeight} lbs exceeds 50 lbs.</p>
+                                                    <p>This incurs an additional $0.50 per pound over 50 lbs for standard shipping or $0.75 per pound for express shipping.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="form-row">
                                     <div className="form-group">

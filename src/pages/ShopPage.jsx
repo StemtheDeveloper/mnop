@@ -10,10 +10,9 @@ import { useNavigate } from 'react-router-dom';
 import '../styles/ShopPage.css';
 
 const ShopPage = () => {
-    const navigate = useNavigate();
-
-    // State for products and filtering
+    const navigate = useNavigate();    // State for products and filtering
     const [products, setProducts] = useState([]);
+    const [allProductsData, setAllProductsData] = useState([]); // Cache for all products when searching
     const [categories, setCategories] = useState([]);
     const [subCategories, setSubCategories] = useState({});
     const [loading, setLoading] = useState(true);
@@ -41,15 +40,16 @@ const ShopPage = () => {
     // Function to check if any filters are active
     const isFilterActive = () => {
         return category !== 'all' || sortBy !== 'newest' || searchTerm !== '' || productType !== 'all';
-    };
-
-    // Function to clear all filters
+    };    // Function to clear all filters
     const handleClearAllFilters = () => {
         setCategory('all');
         setSubCategory('all');
         setSortBy('newest');
         setSearchTerm('');
+        setDebouncedSearchTerm('');
         setProductType('all');
+        setAllProductsData([]);  // Clear the products cache
+        setCurrentPage(1);       // Reset to first page
     };
 
     // Fetch categories on component mount
@@ -179,16 +179,61 @@ const ShopPage = () => {
         setError('');
 
         try {
-            const productQuery = buildProductQuery();
+            let productsRef = collection(db, 'products');
+            let constraints = [];
+
+            // Always filter by status - only show active products
+            constraints.push(where('status', '==', 'active'));
+
+            // Filter by category
+            if (category !== 'all') {
+                constraints.push(where('categories', 'array-contains', category));
+            }
+
+            // Filter by product type
+            if (productType === 'crowdfunded') {
+                constraints.push(where('isCrowdfunded', '==', true));
+            } else if (productType === 'direct') {
+                constraints.push(where('isDirectSell', '==', true));
+            }
+
+            // Sort by selected option
+            let sortField = 'createdAt';
+            let sortDirection = 'desc';
+
+            switch (sortBy) {
+                case 'priceAsc':
+                    sortField = 'price';
+                    sortDirection = 'asc';
+                    break;
+                case 'priceDesc':
+                    sortField = 'price';
+                    sortDirection = 'desc';
+                    break;
+                case 'popular':
+                    sortField = 'viewCount';
+                    sortDirection = 'desc';
+                    break;
+                case 'rating':
+                    sortField = 'averageRating';
+                    sortDirection = 'desc';
+                    break;
+            }
+
+            constraints.push(orderBy(sortField, sortDirection));
+
+            // If we're searching, we need to fetch ALL products that match our filters
+            // to perform client-side filtering properly
+            let productQuery;
+            if (debouncedSearchTerm) {
+                // Fetch without a limit to get all matching products
+                productQuery = query(productsRef, ...constraints);
+            } else {
+                // Normal pagination with limit
+                productQuery = query(productsRef, ...constraints, limit(productsPerPage));
+            }
+
             const querySnapshot = await getDocs(productQuery);
-
-            // Update pagination controls
-            const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
-            const firstVisible = querySnapshot.docs[0];
-
-            setLastVisible(lastVisible);
-            setFirstVisible(firstVisible);
-            setHasMore(querySnapshot.docs.length === productsPerPage);
 
             // Map the product data
             const productsData = querySnapshot.docs.map(doc => ({
@@ -203,12 +248,39 @@ const ShopPage = () => {
                     product.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
                     (product.tags && product.tags.some(tag => tag.toLowerCase().includes(debouncedSearchTerm.toLowerCase())))
                 ) :
-                productsData;
+                productsData;            // Update pagination for search results vs normal results
+            if (debouncedSearchTerm) {
+                // Store all fetched products for future pagination
+                setAllProductsData(productsData);
 
-            setProducts(filteredProducts);
+                // For search results, we implement client-side pagination
+                // Just set the total items to the filtered count
+                setTotalItems(filteredProducts.length);
 
-            // Count total items for pagination
-            countTotalItems();
+                // Only display the current page worth of products
+                const startIndex = (currentPage - 1) * productsPerPage;
+                const endIndex = startIndex + productsPerPage;
+                const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+
+                // Set has more based on whether there are more items after this page
+                setHasMore(endIndex < filteredProducts.length);
+                setProducts(paginatedProducts);
+            } else {
+                // Clear the cache when not searching
+                setAllProductsData([]);
+
+                // For normal pagination, update controls as before
+                const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
+                const firstVisible = querySnapshot.docs[0];
+
+                setLastVisible(lastVisible);
+                setFirstVisible(firstVisible);
+                setHasMore(querySnapshot.docs.length === productsPerPage);
+                setProducts(filteredProducts);
+
+                // Count total items for pagination
+                countTotalItems();
+            }
         } catch (err) {
             console.error("Error fetching products:", err);
             setError("Failed to load products. Please try again later.");
@@ -217,13 +289,44 @@ const ShopPage = () => {
             setLoadingMore(false);
             setIsChangingPage(false);
         }
-    }, [buildProductQuery, countTotalItems, debouncedSearchTerm, productsPerPage]);
-
-    // Function to fetch products for a specific page
+    }, [buildProductQuery, countTotalItems, debouncedSearchTerm, productsPerPage, category, sortBy, productType, currentPage]);    // Function to fetch products for a specific page
     const fetchProductsForPage = async (pageNumber) => {
         setIsChangingPage(true);
         setCurrentPage(pageNumber);
 
+        // If we are searching, use client-side pagination from our cached results
+        if (debouncedSearchTerm) {
+            try {
+                if (allProductsData.length > 0) {
+                    // We already have all products cached, just filter and paginate
+                    const filteredProducts = allProductsData.filter(product =>
+                        product.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                        product.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                        (product.tags && product.tags.some(tag => tag.toLowerCase().includes(debouncedSearchTerm.toLowerCase())))
+                    );
+
+                    // Calculate pagination
+                    const startIndex = (pageNumber - 1) * productsPerPage;
+                    const endIndex = startIndex + productsPerPage;
+                    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+
+                    setTotalItems(filteredProducts.length);
+                    setHasMore(endIndex < filteredProducts.length);
+                    setProducts(paginatedProducts);
+                } else {
+                    // Fetch all products if we don't have them cached yet
+                    await fetchProducts(true);
+                }
+            } catch (err) {
+                console.error("Error fetching search results page:", err);
+                setError("Failed to load products. Please try again later.");
+            } finally {
+                setIsChangingPage(false);
+            }
+            return;
+        }
+
+        // Normal pagination for non-search results
         try {
             let productsRef = collection(db, 'products');
             let constraints = [];
@@ -328,16 +431,7 @@ const ShopPage = () => {
                         ...doc.data()
                     }));
 
-                    // Filter by search term on client side if provided
-                    const filteredProducts = debouncedSearchTerm ?
-                        productsData.filter(product =>
-                            product.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-                            product.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-                            (product.tags && product.tags.some(tag => tag.toLowerCase().includes(debouncedSearchTerm.toLowerCase())))
-                        ) :
-                        productsData;
-
-                    setProducts(filteredProducts);
+                    setProducts(productsData);
                 }
             } else {
                 // For page 1, just do a normal fetch
@@ -580,9 +674,7 @@ const ShopPage = () => {
 
                         <p>No products found. Try adjusting your filters or search terms.</p>
                     </div>
-                )}
-
-                {/* Pagination Controls */}
+                )}                {/* Pagination Controls */}
                 {products.length > 0 && totalItems > productsPerPage && (
                     <div className="pagination-container">
                         <div className="pagination-controls">
@@ -685,20 +777,17 @@ const ShopPage = () => {
 
                                     return pageNumbers;
                                 })()}
-                            </div>
-
-                            {/* Next Page Button */}
+                            </div>                            {/* Next Page Button */}
                             <button
-                                className={`pagination-button ${!hasMore ? 'disabled' : ''}`}
+                                className={`pagination-button ${(!hasMore || currentPage >= Math.ceil(totalItems / productsPerPage)) ? 'disabled' : ''}`}
                                 onClick={() => fetchProductsForPage(currentPage + 1)}
-                                disabled={!hasMore || isChangingPage}
+                                disabled={(!hasMore || currentPage >= Math.ceil(totalItems / productsPerPage)) || isChangingPage}
                             >
                                 Next &raquo;
                             </button>
-                        </div>
-
-                        <div className="pagination-info">
-                            Showing {(currentPage - 1) * productsPerPage + 1} to {(currentPage - 1) * productsPerPage + products.length} of approximately {totalItems} products
+                        </div>                        <div className="pagination-info">
+                            Showing {(currentPage - 1) * productsPerPage + 1} to {(currentPage - 1) * productsPerPage + products.length} of {totalItems} products
+                            {debouncedSearchTerm && <span> matching "{debouncedSearchTerm}"</span>}
                         </div>
                     </div>
                 )}
