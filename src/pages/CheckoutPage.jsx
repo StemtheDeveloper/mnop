@@ -207,9 +207,7 @@ const CheckoutPage = () => {
 
         // Shipping method
         shippingMethod: 'standard'
-    });
-
-    // Calculate tax based on country and state/province
+    });    // Calculate tax based on country and state/province
     const calculateTax = (subtotal, country, state) => {
         let taxRate = 0;
 
@@ -229,7 +227,7 @@ const CheckoutPage = () => {
         // Calculate tax amount (taxRate is in percentage)
         const taxAmount = (subtotal * taxRate) / 100;
 
-        // Round to 2 decimal places
+        // Round to 2 decimal places to avoid floating point issues
         return Math.round(taxAmount * 100) / 100;
     };
 
@@ -294,29 +292,37 @@ const CheckoutPage = () => {
         // Update the placeholder
         const stateInput = document.getElementById('state');
         if (stateInput) stateInput.placeholder = statePlaceholder;
-    }, [formData.country]);
-
-    // Update tax when country or state changes
+    }, [formData.country]);    // Update tax when country, state, subtotal, or shipping changes
     useEffect(() => {
         // Only recalculate if we have a subtotal (means cart is loaded)
         if (subtotal > 0) {
+            // Calculate tax based on shipping location and subtotal
             const taxAmount = calculateTax(subtotal, formData.country, formData.state);
             setTax(taxAmount);
+            // Update total with tax included
             setTotal(subtotal + shipping + taxAmount);
         }
-    }, [formData.country, formData.state, subtotal]);
-
-    // Calculate subtotal and total
+    }, [formData.country, formData.state, subtotal, shipping]);// Calculate subtotal and total
     const calculateTotals = (items) => {
+        // Calculate subtotal from items
         const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         setSubtotal(itemsTotal);
 
-        // Calculate tax based on shipping location
+        // Calculate tax based on shipping location and subtotal
+        // Note: Tax calculation should be based on the subtotal and shipping destination
         const taxAmount = calculateTax(itemsTotal, formData.country, formData.state);
         setTax(taxAmount);
 
         // Calculate total (subtotal + shipping + tax)
-        setTotal(itemsTotal + shipping + taxAmount);
+        // Explicitly ensure all components are included
+        const orderTotal = itemsTotal + shipping + taxAmount;
+        console.log(`Calculating total: subtotal(${itemsTotal}) + shipping(${shipping}) + tax(${taxAmount}) = ${orderTotal}`);
+        setTotal(orderTotal);
+        
+        // Check for insufficient funds immediately if wallet is selected
+        if (userWallet && selectedPaymentMethod === 'wallet') {
+            setInsufficientFunds(userWallet.balance < orderTotal);
+        }
     };
 
     // Fetch shipping costs from designer settings
@@ -545,8 +551,11 @@ const CheckoutPage = () => {
                 if (!currentUser) {
                     const localCart = JSON.parse(localStorage.getItem('cart') || '[]');
                     setCartItems(localCart);
-                    calculateTotals(localCart);
-
+                    
+                    // Calculate subtotal first
+                    const itemsTotal = localCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    setSubtotal(itemsTotal);
+                    
                     // Fetch shipping costs for the cart
                     const shippingInfo = await fetchShippingCosts(localCart);
 
@@ -555,17 +564,25 @@ const CheckoutPage = () => {
                     const shippingCost = currentMethod === 'express' ?
                         shippingInfo.expressShippingCost :
                         shippingInfo.standardShippingCost;
-
-                    // Check if order total qualifies for free shipping
+                    
+                    // Determine final shipping cost
+                    let finalShippingCost = shippingCost;
                     if (shippingInfo.hasFreeShippingItem ||
-                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
-                        setShipping(0);
-                        setTotal(subtotal);
-                    } else {
-                        setShipping(shippingCost);
-                        setTotal(subtotal + shippingCost);
+                        (itemsTotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
+                        finalShippingCost = 0;
                     }
-
+                    
+                    // Set shipping cost
+                    setShipping(finalShippingCost);
+                    
+                    // Calculate tax amount based on subtotal only (tax is not applied to shipping)
+                    const taxAmount = calculateTax(itemsTotal, formData.country, formData.state);
+                    setTax(taxAmount);
+                    
+                    // Explicitly calculate final total ensuring subtotal is included
+                    const finalTotal = itemsTotal + finalShippingCost + taxAmount;
+                    setTotal(finalTotal);
+                    
                     // Store shipping info details for UI notifications
                     setShippingDetails(shippingInfo);
 
@@ -574,8 +591,7 @@ const CheckoutPage = () => {
                 }
 
                 // For authenticated users, get cart from Firestore
-                const cartsRef = collection(db, 'carts');
-                const q = query(cartsRef, where('userId', '==', currentUser.uid));
+                const cartsRef = collection(db, 'carts');                const q = query(cartsRef, where('userId', '==', currentUser.uid));
 
                 unsubscribe = onSnapshot(q, async (snapshot) => {
                     if (snapshot.empty) {
@@ -592,8 +608,11 @@ const CheckoutPage = () => {
 
                     const items = cart.items || [];
                     setCartItems(items);
-                    calculateTotals(items);
-
+                    
+                    // Calculate the subtotal first
+                    const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    setSubtotal(itemsTotal);
+                    
                     // Fetch shipping costs for the cart
                     const shippingInfo = await fetchShippingCosts(items);
 
@@ -603,16 +622,24 @@ const CheckoutPage = () => {
                         shippingInfo.expressShippingCost :
                         shippingInfo.standardShippingCost;
 
-                    // Check if order total qualifies for free shipping
+                    // Determine final shipping cost
+                    let finalShippingCost = shippingCost;
                     if (shippingInfo.hasFreeShippingItem ||
-                        (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
-                        setShipping(0);
-                        setTotal(subtotal);
-                    } else {
-                        setShipping(shippingCost);
-                        setTotal(subtotal + shippingCost);
+                        (itemsTotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
+                        finalShippingCost = 0;
                     }
-
+                    
+                    // Set shipping cost
+                    setShipping(finalShippingCost);
+                    
+                    // Calculate tax amount based on subtotal only (tax is not applied to shipping)
+                    const taxAmount = calculateTax(itemsTotal, formData.country, formData.state);
+                    setTax(taxAmount);
+                    
+                    // Explicitly calculate final total ensuring subtotal is included
+                    const finalTotal = itemsTotal + finalShippingCost + taxAmount;
+                    setTotal(finalTotal);
+                    
                     // Store shipping info details for UI notifications
                     setShippingDetails(shippingInfo);
 
@@ -648,22 +675,47 @@ const CheckoutPage = () => {
                 const shippingCost = value === 'express' ?
                     shippingInfo.expressShippingCost :
                     shippingInfo.standardShippingCost;
-
+                
+                // Calculate current subtotal to ensure it's always included in total
+                const currentSubtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                
                 // Check if order qualifies for free shipping
+                let finalShippingCost = shippingCost;
                 if (shippingInfo.hasFreeShippingItem ||
-                    (subtotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0)) {
-                    setShipping(0);
-                    setTotal(subtotal);
-                } else {
-                    setShippingCost(shippingCost);
-                    setTotal(subtotal + shippingCost);
+                    (currentSubtotal >= shippingInfo.freeShippingThreshold && 
+                     shippingInfo.freeShippingThreshold > 0 && 
+                     shippingInfo.allowFreeShipping)) {
+                    finalShippingCost = 0;
                 }
+                
+                // Set shipping cost
+                setShipping(finalShippingCost);
+                
+                // Recalculate tax based on subtotal only (tax is not applied to shipping)
+                const taxAmount = calculateTax(currentSubtotal, formData.country, formData.state);
+                setTax(taxAmount);
+                
+                // Explicitly calculate final total ensuring subtotal is included
+                const finalTotal = currentSubtotal + finalShippingCost + taxAmount;
+                setTotal(finalTotal);
+                
             } catch (error) {
                 console.error('Error updating shipping cost:', error);
+                
                 // Fallback to default shipping costs
                 const shippingCost = value === 'express' ? 25 : 10;
                 setShipping(shippingCost);
-                setTotal(subtotal + shippingCost);
+                
+                // Make sure we correctly calculate with subtotal included
+                const currentSubtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                
+                // Recalculate tax based on subtotal only (tax is not applied to shipping)
+                const taxAmount = calculateTax(currentSubtotal, formData.country, formData.state);
+                setTax(taxAmount);
+                
+                // Explicitly include subtotal in the total calculation
+                const finalTotal = currentSubtotal + shippingCost + taxAmount;
+                setTotal(finalTotal);
             }
         }
     };
@@ -833,11 +885,16 @@ const CheckoutPage = () => {
                     const productDoc = await getDoc(productRef);
 
                     if (productDoc.exists()) {
-                        const productData = productDoc.data();
-                        // Calculate sale amount
+                        const productData = productDoc.data();                        // Calculate sale amount
                         const manufacturingCost = productData.manufacturingCost || 0;
                         const saleAmount = item.price * item.quantity;
-
+                        
+                        // Calculate proportional shipping based on item price relative to total order value
+                        // This ensures more expensive items get proportionally more shipping revenue
+                        const itemPriceTotal = item.price * item.quantity;
+                        const orderSubtotal = cartItems.reduce((sum, cartItem) => sum + (cartItem.price * cartItem.quantity), 0);
+                        const itemShippingShare = shipping * (itemPriceTotal / orderSubtotal);
+                        
                         // Use the comprehensive method that handles business commission, 
                         // investor revenue, AND designer payments in one call
                         const saleResult = await walletService.processProductSale(
@@ -847,7 +904,7 @@ const CheckoutPage = () => {
                             manufacturingCost,
                             item.quantity,
                             orderRef.id,
-                            formData.shippingMethod === 'express' ? 25 : 10 // Pass shipping cost based on selected method
+                            itemShippingShare // Distribute shipping cost proportionally based on item price
                         );
 
                         if (saleResult.success) {
