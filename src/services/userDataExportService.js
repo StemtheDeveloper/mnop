@@ -9,6 +9,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
+import { unsanitizeObject, securityWarning } from "../utils/unsanitizer";
 
 class UserDataExportService {
   /**
@@ -451,8 +452,14 @@ class UserDataExportService {
         throw new Error(result.error || "Failed to export data");
       }
 
+      // Unsanitize the data before export
+      const unsanitizedData = unsanitizeObject(result.data);
+
+      // Add security warning to the export
+      unsanitizedData._securityWarning = securityWarning();
+
       // Convert data to formatted JSON string
-      const jsonData = JSON.stringify(result.data, null, 2);
+      const jsonData = JSON.stringify(unsanitizedData, null, 2);
 
       // Create blob from JSON string
       const blob = new Blob([jsonData], { type: "application/json" });

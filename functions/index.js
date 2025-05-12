@@ -6,6 +6,7 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
+// Import modules
 const dailyInterestCalculation = require("./dailyInterestCalculation");
 const processInvestment = require("./processInvestment");
 const trendingProductExtension = require("./trendingProductExtension");
@@ -16,17 +17,24 @@ const stockNotifications = require("./stockNotifications");
 const updateExchangeRates = require("./updateExchangeRates");
 
 // Export the functions
-// Daily interest calculation functions
-exports.dailyInterestCalculationScheduled =
-  dailyInterestCalculation.dailyInterestCalculationScheduled;
-exports.calculateDailyInterestHttp =
-  dailyInterestCalculation.calculateDailyInterestHttp;
+// Export v2 functions directly - ensure they maintain their v2 structure
+// For v2 functions, we just re-export them as is (destructure them)
+const { dailyInterestCalculationScheduled, calculateDailyInterestHttp } =
+  dailyInterestCalculation;
 
-// Export other functions
-// Process investment functions
-exports.processInvestment = processInvestment.processInvestment;
-exports.createInvestmentRecord = processInvestment.createInvestmentRecord;
+const { processInvestment: processInvestmentFn, createInvestmentRecord } =
+  processInvestment;
 
+const { distributeInvestorRevenue } = distributeRevenue;
+
+// Re-export v2 functions
+exports.dailyInterestCalculationScheduled = dailyInterestCalculationScheduled;
+exports.calculateDailyInterestHttp = calculateDailyInterestHttp;
+exports.processInvestment = processInvestmentFn;
+exports.createInvestmentRecord = createInvestmentRecord;
+exports.distributeInvestorRevenue = distributeInvestorRevenue;
+
+// Export other functions (gen 1 style)
 // Trending product functions
 exports.extendTrendingStatus = trendingProductExtension.extendTrendingStatus;
 exports.checkTrendingStatus = trendingProductExtension.checkTrendingStatus;
@@ -37,9 +45,6 @@ exports.fetchLatestRates = updateMarketRates.fetchLatestRates;
 
 // Product deadline functions
 exports.checkProductDeadlines = checkProductDeadlines.checkProductDeadlines;
-
-// Revenue distribution functions
-exports.distributeInvestorRevenue = distributeRevenue.distributeInvestorRevenue;
 
 // Stock notification functions
 exports.checkProductsBackInStock = stockNotifications.checkProductsBackInStock;

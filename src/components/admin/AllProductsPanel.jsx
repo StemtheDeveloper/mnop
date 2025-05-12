@@ -504,88 +504,88 @@ const AllProductsPanel = () => {
     };
 
     const importProducts = async () => {
-        if (!importData || importData.length === 0) return;
+        if (!Array.isArray(importData) || importData.length === 0) return;
 
         setLoading(true);
+        setError(null);
+
+        const PRODUCTS_COLLECTION = collection(db, 'products');
+        const MAX_BATCH = 500;               // Firestore hard limit
+        let batch = writeBatch(db);
+        let opCount = 0;
+
+        let success = 0;
+        let skipped = 0;
+
+        const commitAndResetBatch = async () => {
+            await batch.commit();
+            batch = writeBatch(db);
+            opCount = 0;
+        };
 
         try {
-            const batch = writeBatch(db);
-            const productsRef = collection(db, 'products');
-            let successCount = 0;
-            let skipCount = 0;
-
-            for (const item of importData) {
-                // If item has an ID, update existing product
-                if (item.id) {
-                    try {
-                        // Check if document exists
-                        const docRef = doc(db, 'products', item.id);
-                        const docSnap = await getDoc(docRef);
-
-                        if (docSnap.exists()) {
-                            // Process item for update (removing id)
-                            const { id, ...updateData } = item;
-
-                            // Convert strings back to appropriate types
-                            if (updateData.price) updateData.price = parseFloat(updateData.price);
-                            if (updateData.imageUrl && updateData.imageUrl.includes(';')) {
-                                updateData.imageUrls = updateData.imageUrl.split(';');
-                                delete updateData.imageUrl;
-                            }
-
-                            batch.update(docRef, {
-                                ...updateData,
-                                updatedAt: serverTimestamp()
-                            });
-                            successCount++;
-                        } else {
-                            skipCount++;
-                        }
-                    } catch (err) {
-                        console.error('Error processing product for update:', err);
-                        skipCount++;
-                    }
-                } else {
-                    // Create new product
-                    try {
-                        // Process item for creation
-                        const newProduct = { ...item };
-
-                        // Convert strings back to appropriate types
-                        if (newProduct.price) newProduct.price = parseFloat(newProduct.price);
-                        if (newProduct.imageUrl && newProduct.imageUrl.includes(';')) {
-                            newProduct.imageUrls = newProduct.imageUrl.split(';');
-                            delete newProduct.imageUrl;
-                        }
-
-                        const docRef = doc(productsRef);
-                        batch.set(docRef, {
-                            ...newProduct,
-                            status: newProduct.status || 'pending',
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp()
-                        });
-                        successCount++;
-                    } catch (err) {
-                        console.error('Error processing product for creation:', err);
-                        skipCount++;
-                    }
+            for (const raw of importData) {
+                // --- 1. Skip completely empty CSV rows ------------------------------
+                if (!raw || Object.values(raw).every(v => v === '' || v === null)) {
+                    skipped++;
+                    continue;
                 }
+
+                // --- 2. Normalise / coerce -----------------------------------------
+                const item = { ...raw };
+
+                // price
+                if (item.price !== undefined) item.price = parseFloat(item.price) || 0;
+
+                // image URLs -> array
+                if (item.imageUrl && typeof item.imageUrl === 'string') {
+                    item.imageUrls = item.imageUrl.split(';').map(s => s.trim()).filter(Boolean);
+                    delete item.imageUrl;
+                }
+
+                // status
+                item.status = item.status || 'pending';
+
+                // -------------------------------------------------------------------
+                let docRef;
+
+                if (item.id) {
+                    // UPDATE existing --------------------------------------------------
+                    docRef = doc(db, 'products', item.id);
+                    const snap = await getDoc(docRef);
+
+                    if (!snap.exists()) {
+                        skipped++;
+                        continue;
+                    }
+
+                    const { id, ...updateFields } = item;
+                    batch.update(docRef, { ...updateFields, updatedAt: serverTimestamp() });
+                } else {
+                    // CREATE new -------------------------------------------------------
+                    docRef = doc(PRODUCTS_COLLECTION);      // auto-id
+                    batch.set(docRef, {
+                        ...item,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                    });
+                }
+
+                success++;
+                opCount++;
+
+                // --- 3. Commit every 500 ops ---------------------------------------
+                if (opCount === MAX_BATCH) await commitAndResetBatch();
             }
 
-            // Commit batch
-            await batch.commit();
+            // commit leftovers
+            if (opCount > 0) await commitAndResetBatch();
 
-            // Show success message
-            setError(null);
-            const message = `Import complete: ${successCount} products processed, ${skipCount} skipped.`;
-            alert(message);
-
-            // Refresh products list
+            alert(`Import complete:\n✅ ${success} processed\n⏭️ ${skipped} skipped`);
             loadProducts();
         } catch (err) {
             console.error('Error importing products:', err);
-            setError('Failed to import products. Please try again.');
+            setError('Import failed – check the console for details.');
         } finally {
             setLoading(false);
             setImportModalOpen(false);
@@ -593,6 +593,7 @@ const AllProductsPanel = () => {
             setImportPreview([]);
         }
     };
+
 
     // Selection functions
     const toggleSelectProduct = (productId) => {

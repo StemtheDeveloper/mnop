@@ -9,6 +9,8 @@ import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
 import '../styles/BulkProductUploader.css';
 import '../styles/UnifiedProductManager.css';
+import ImageCropper from '../components/ImageCropper';
+import { unsanitizeString } from '../utils/unsanitizer';
 
 // Default categories as fallback
 const DEFAULT_CATEGORIES = [
@@ -28,6 +30,9 @@ const ProductsCsvImportPage = () => {
     const imageInputRef = useRef(null);
     const csvInputRef = useRef(null);
     const tableRef = useRef(null);
+    // Image cropper state
+    const [showImageCropper, setShowImageCropper] = useState(false);
+    const [cropImageSrc, setCropImageSrc] = useState('');
 
     // Safely access toast functions
     const showSuccess = (message) => {
@@ -63,10 +68,17 @@ const ProductsCsvImportPage = () => {
     const [newCategory, setNewCategory] = useState('');
     const [loadingCategories, setLoadingCategories] = useState(false);
 
+    // const defaultHeaders = [
+    //     'name', 'description', 'price', 'stockQuantity', 'categories',
+    //     'tags', 'productType', 'manufacturingCost', 'images',
+    //     'isCrowdfunded', 'isDirectSell', 'fundingGoal', 'averageRating',
+    //     'businessHeldFunds', 'categoryType', 'manufacturerEmail', 'manufacturingStatus'
+    // ];
+
     const defaultHeaders = [
         'name', 'description', 'price', 'stockQuantity', 'categories',
         'tags', 'productType', 'manufacturingCost', 'images',
-        'isCrowdfunded', 'isDirectSell', 'fundingGoal', 'averageRating',
+        'isCrowdfunded', 'fundingGoal', 'averageRating',
         'businessHeldFunds', 'categoryType', 'manufacturerEmail', 'manufacturingStatus'
     ];
     const [headers, setHeaders] = useState(defaultHeaders);
@@ -177,6 +189,7 @@ const ProductsCsvImportPage = () => {
             // Add to Firestore categories collection
             const categoryRef = collection(db, 'categories');
             const newCategoryDoc = await addDoc(categoryRef, categoryData);
+            const newCategoryId = newCategoryDoc.id;
 
             // Update local state with the new category
             const updatedCategories = [...categories, categoryName];
@@ -184,14 +197,20 @@ const ProductsCsvImportPage = () => {
 
             // Update category mapping
             const catMap = { ...categoryMapping };
-            catMap[categoryName.toLowerCase()] = newCategoryDoc.id;
+            catMap[categoryName.toLowerCase()] = newCategoryId;
             setCategoryMapping(catMap);
 
             showSuccess(`Added new category: ${categoryName}`);
             if (!newCategoryName) setNewCategory('');
+
+            return {
+                id: newCategoryId,
+                name: categoryName
+            };
         } catch (error) {
             console.error('Error adding category:', error);
             showError('Failed to add category');
+            return null;
         }
     };
 
@@ -258,9 +277,7 @@ const ProductsCsvImportPage = () => {
         if (files.length > 0) {
             handleImageDrop(productId, Array.from(files));
         }
-    };
-
-    const handleImageDrop = (productId, files) => {
+    }; const handleImageDrop = (productId, files) => {
         // Filter only image files
         const imageFiles = files.filter(file =>
             file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024 // 5MB limit
@@ -271,24 +288,69 @@ const ProductsCsvImportPage = () => {
             return;
         }
 
-        setProducts(products.map(product => {
-            if (product.id === productId) {
-                const existingFiles = product.imageFiles || [];
-                return {
-                    ...product,
-                    imageFiles: [...existingFiles, ...imageFiles]
-                };
-            }
-            return product;
+        // Process the first image through the cropper
+        const file = imageFiles[0];
+
+        // Create URL for the cropper and store reference to original file
+        const imageUrl = URL.createObjectURL(file);
+        setCropImageSrc(imageUrl);
+        setCurrentProductId(productId);
+        setShowImageCropper(true);
+
+        // Store the original file info to pass to the image cropper
+        // This way we can preserve WebP files
+        sessionStorage.setItem('currentUploadFile', JSON.stringify({
+            type: file.type,
+            name: file.name
         }));
+    };
+
+    const handleCropComplete = async (blob, originalFile) => {
+        try {
+            setShowImageCropper(false);
+
+            // Determine whether to keep original format (for WEBP) or use JPEG
+            const isWebP = originalFile && originalFile.type === 'image/webp';
+            const fileType = isWebP ? 'image/webp' : 'image/jpeg';
+            const fileExt = isWebP ? 'webp' : 'jpg';
+
+            // Create a File from the blob with appropriate type
+            const croppedFile = new File(
+                [blob],
+                `product-image-${Date.now()}.${fileExt}`,
+                { type: fileType }
+            );
+
+            // Add the cropped image to the product
+            setProducts(products.map(product => {
+                if (product.id === currentProductId) {
+                    const existingFiles = product.imageFiles || [];
+                    return {
+                        ...product,
+                        imageFiles: [...existingFiles, croppedFile]
+                    };
+                }
+                return product;
+            }));
+
+            // Clean up
+            URL.revokeObjectURL(cropImageSrc);
+            setCropImageSrc('');
+
+        } catch (error) {
+            console.error("Error processing cropped image:", error);
+            showError('Error processing the cropped image');
+        }
     };
 
     const handleImageSelect = (productId, e) => {
         const files = Array.from(e.target.files);
-        handleImageDrop(productId, files);
-        // Reset the input
-        if (imageInputRef.current) {
-            imageInputRef.current.value = '';
+        if (files.length > 0) {
+            handleImageDrop(productId, files);
+            // Reset the input
+            if (imageInputRef.current) {
+                imageInputRef.current.value = '';
+            }
         }
     };
 
@@ -313,19 +375,17 @@ const ProductsCsvImportPage = () => {
 
         setProducts(products.filter(product => product.id !== productId));
         setSelectedProducts(selectedProducts.filter(id => id !== productId));
-    };
-
-    // Define filteredProducts as a computed property
+    };    // Define filteredProducts as a computed property
     const filteredProducts = products.filter(product => {
         if (!filterText) return true;
         const searchLower = filterText.toLowerCase();
         return (
-            (product.name && product.name.toLowerCase().includes(searchLower)) ||
-            (product.description && product.description.toLowerCase().includes(searchLower)) ||
+            (product.name && unsanitizeString(product.name).toLowerCase().includes(searchLower)) ||
+            (product.description && unsanitizeString(product.description).toLowerCase().includes(searchLower)) ||
             (Array.isArray(product.categories) &&
-                product.categories.some(cat => cat.toLowerCase().includes(searchLower))) ||
+                product.categories.some(cat => unsanitizeString(cat).toLowerCase().includes(searchLower))) ||
             (Array.isArray(product.tags) &&
-                product.tags.some(tag => tag.toLowerCase().includes(searchLower)))
+                product.tags.some(tag => unsanitizeString(tag).toLowerCase().includes(searchLower)))
         );
     });
 
@@ -425,10 +485,8 @@ const ProductsCsvImportPage = () => {
                             isFromCsv: true,
                             originalCsvData: row
                         };
-                    });
-
-                    setProducts(prevProducts => [...prevProducts, ...newProducts]);
-
+                    }); setProducts(prevProducts => [...prevProducts, ...newProducts]);
+                    // Note: Removed incorrect isCrowdfunded reference that was causing errors
                     const newHeaders = results.meta.fields || [];
                     if (newHeaders.includes('images')) {
                         setHeaders(prevHeaders => {
@@ -504,34 +562,35 @@ const ProductsCsvImportPage = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    };
-
-    const exportCurrentData = () => {
+    }; const exportCurrentData = () => {
         if (products.length === 0) {
             showError('No products to export');
             return;
         }
 
         const csvData = products.map(product => {
-            // Properly format arrays and handle complex values
+            // Properly format arrays and handle complex values WITHOUT sanitizing data
             return {
-                name: product.name || '',
-                description: product.description || '',
+                name: product.name ? unsanitizeString(product.name) : '',
+                description: product.description ? unsanitizeString(product.description) : '',
                 price: product.price || '0',
                 stockQuantity: product.stockQuantity || '0',
-                categories: Array.isArray(product.categories) ? product.categories.join(';') : product.categories || '',
-                tags: Array.isArray(product.tags) ? product.tags.join(';') : product.tags || '',
-                productType: product.productType || 'physical',
+                categories: Array.isArray(product.categories)
+                    ? product.categories.map(cat => unsanitizeString(cat)).join(';')
+                    : product.categories ? unsanitizeString(product.categories) : '',
+                tags: Array.isArray(product.tags)
+                    ? product.tags.map(tag => unsanitizeString(tag)).join(';')
+                    : product.tags ? unsanitizeString(product.tags) : '',
+                productType: product.productType ? unsanitizeString(product.productType) : 'physical',
                 manufacturingCost: product.manufacturingCost || '0',
-                designer: product.designer || '',
+                designer: product.designer ? unsanitizeString(product.designer) : '',
                 isCrowdfunded: product.isCrowdfunded?.toString() || 'false',
                 isDirectSell: product.isDirectSell?.toString() || 'true',
                 fundingGoal: product.fundingGoal || '0',
                 averageRating: product.averageRating || '0',
-                businessHeldFunds: product.businessHeldFunds || '0',
-                categoryType: product.categoryType || 'standard',
-                manufacturerEmail: product.manufacturerEmail || '',
-                manufacturingStatus: product.manufacturingStatus || 'pending',
+                businessHeldFunds: product.businessHeldFunds || '0', categoryType: product.categoryType ? unsanitizeString(product.categoryType) : 'standard',
+                manufacturerEmail: product.manufacturerEmail ? unsanitizeString(product.manufacturerEmail) : '',
+                manufacturingStatus: product.manufacturingStatus ? unsanitizeString(product.manufacturingStatus) : 'pending',
                 rating1Count: product.rating1Count || '0',
                 rating2Count: product.rating2Count || '0',
                 rating3Count: product.rating3Count || '0',
@@ -719,9 +778,7 @@ const ProductsCsvImportPage = () => {
                         imageUrls.push(downloadUrl);
                         storagePaths.push(fileName);
                     }
-                }
-
-                let categoriesArray = product.categories;
+                } let categoriesArray = product.categories;
                 if (!Array.isArray(categoriesArray)) {
                     if (typeof categoriesArray === 'string') {
                         categoriesArray = categoriesArray.split(/[,;]/).map(cat => cat.trim());
@@ -729,6 +786,12 @@ const ProductsCsvImportPage = () => {
                         categoriesArray = [];
                     }
                 }
+
+                // Convert category names to category IDs
+                const categoryIds = categoriesArray.map(categoryName => {
+                    // Try to find the category ID in the mapping
+                    return categoryMapping[categoryName.toLowerCase()] || null;
+                }).filter(id => id !== null); // Remove any null values
 
                 let tagsArray = product.tags;
                 if (!Array.isArray(tagsArray)) {
@@ -739,16 +802,13 @@ const ProductsCsvImportPage = () => {
                     }
                 }
 
-                const categoryId = categoriesArray.length > 0
-                    ? categoryMapping[categoriesArray[0].toLowerCase()] || ''
-                    : '';
-
-                const productData = {
+                const categoryId = categoryIds.length > 0 ? categoryIds[0] : ''; const productData = {
                     name: product.name,
                     description: product.description || '',
                     price: parseFloat(product.price) || 0,
                     stockQuantity: parseInt(product.stockQuantity) || 0,
-                    categories: categoriesArray,
+                    categories: categoryIds, // Store category IDs instead of names
+                    categoryNames: categoriesArray, // Keep category names for reference
                     category: categoryId,
                     tags: tagsArray,
                     productType: product.productType || 'physical',
@@ -934,7 +994,7 @@ const ProductsCsvImportPage = () => {
                                 onChange={() => setAdvancedMode(!advancedMode)}
                             />
                             <span className="toggle-slider"></span>
-                            <span className="toggle-label">{advancedMode ? 'Advanced Mode' : 'Basic Mode'}</span>
+                            <span className="toggle-label">Advanced Mode</span>
                         </label>
                     </div>
                 </div>
@@ -1038,53 +1098,55 @@ const ProductsCsvImportPage = () => {
                                         } else if (header === 'categories') {
                                             return (
                                                 <td key={index}>
-                                                    <div className="categories-input-wrapper">
-                                                        <select
-                                                            multiple
-                                                            className="categories-select"
-                                                            value={Array.isArray(product.categories) ? product.categories : []}
-                                                            onChange={(e) => {
-                                                                const selectedCategories = Array.from(
-                                                                    e.target.selectedOptions,
-                                                                    option => option.value
-                                                                );
-                                                                updateProductField(product.id, 'categories', selectedCategories);
-                                                            }}
-                                                        >
-                                                            {categories.map((category, catIndex) => (
-                                                                <option key={catIndex} value={category}>
-                                                                    {category}
+                                                    <div className="categories-input-wrapper">                                                    <select
+                                                        multiple
+                                                        className="categories-select"
+                                                        value={Array.isArray(product.categories) ? product.categories : []}
+                                                        onChange={(e) => {
+                                                            const selectedCategoryNames = Array.from(
+                                                                e.target.selectedOptions,
+                                                                option => option.value
+                                                            );
+                                                            updateProductField(product.id, 'categories', selectedCategoryNames);
+                                                        }}
+                                                    >
+                                                        {categories.map((category, catIndex) => (<option key={catIndex} value={category}>
+                                                            {category}
+                                                        </option>
+                                                        ))}
+                                                        {/* If the product has a custom category not in the main list, add it as an option */}
+                                                        {Array.isArray(product.categories) &&
+                                                            product.categories
+                                                                .filter(cat => !categories.includes(cat))
+                                                                .map((customCat, idx) => (<option key={`custom-${idx}`} value={customCat}>
+                                                                    {unsanitizeString(customCat)} (Custom)
                                                                 </option>
-                                                            ))}
-                                                            {/* If the product has a custom category not in the main list, add it as an option */}
-                                                            {Array.isArray(product.categories) &&
-                                                                product.categories
-                                                                    .filter(cat => !categories.includes(cat))
-                                                                    .map((customCat, idx) => (
-                                                                        <option key={`custom-${idx}`} value={customCat}>
-                                                                            {customCat} (Custom)
-                                                                        </option>
-                                                                    ))
-                                                            }
-                                                        </select>
-                                                        <div className="category-input-actions">
+                                                                ))
+                                                        }
+                                                    </select>                                                        <div className="category-input-actions">
                                                             <input
                                                                 type="text"
                                                                 placeholder="Add custom category"
                                                                 className="custom-category-input"
-                                                                onKeyDown={(e) => {
+                                                                onKeyDown={async (e) => {
                                                                     if (e.key === 'Enter' && e.target.value.trim()) {
                                                                         e.preventDefault();
                                                                         const newCat = e.target.value.trim();
                                                                         const currentCategories = Array.isArray(product.categories) ? [...product.categories] : [];
 
                                                                         if (!currentCategories.includes(newCat)) {
-                                                                            const updatedCategories = [...currentCategories, newCat];
-                                                                            updateProductField(product.id, 'categories', updatedCategories);
-
                                                                             // Also update the global categories list if it's not already there
                                                                             if (!categories.includes(newCat)) {
-                                                                                addNewCategory(newCat);
+                                                                                // Add the new category and get its ID
+                                                                                const result = await addNewCategory(newCat);
+                                                                                if (result) {
+                                                                                    const updatedCategories = [...currentCategories, newCat];
+                                                                                    updateProductField(product.id, 'categories', updatedCategories);
+                                                                                }
+                                                                            } else {
+                                                                                // Category already exists in the list, just add it to this product
+                                                                                const updatedCategories = [...currentCategories, newCat];
+                                                                                updateProductField(product.id, 'categories', updatedCategories);
                                                                             }
 
                                                                             e.target.value = '';
@@ -1092,23 +1154,21 @@ const ProductsCsvImportPage = () => {
                                                                     }
                                                                 }}
                                                             />
-                                                        </div>
-                                                        <div className="field-info">
+                                                        </div>                                                        <div className="field-info">
                                                             {Array.isArray(product.categories) && product.categories.length > 0
-                                                                ? product.categories.map((cat, idx) => (
-                                                                    <span key={idx} className="category-tag product-category-tag">
-                                                                        {cat}
-                                                                        <button
-                                                                            className="remove-tag-btn"
-                                                                            onClick={() => {
-                                                                                const updatedCategories = [...product.categories];
-                                                                                updatedCategories.splice(idx, 1);
-                                                                                updateProductField(product.id, 'categories', updatedCategories);
-                                                                            }}
-                                                                        >
-                                                                            ×
-                                                                        </button>
-                                                                    </span>
+                                                                ? product.categories.map((cat, idx) => (<span key={idx} className="category-tag product-category-tag">
+                                                                    {unsanitizeString(cat)}
+                                                                    <button
+                                                                        className="remove-tag-btn"
+                                                                        onClick={() => {
+                                                                            const updatedCategories = [...product.categories];
+                                                                            updatedCategories.splice(idx, 1);
+                                                                            updateProductField(product.id, 'categories', updatedCategories);
+                                                                        }}
+                                                                    >
+                                                                        ×
+                                                                    </button>
+                                                                </span>
                                                                 ))
                                                                 : <span className="no-categories-msg">No categories selected</span>
                                                             }
@@ -1118,19 +1178,19 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (header === 'tags') {
                                             return (
-                                                <td key={index}>
-                                                    <input
-                                                        type="text"
-                                                        value={Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || ''}
-                                                        onChange={(e) => {
-                                                            const tagsArray = e.target.value
-                                                                .split(',')
-                                                                .map(tag => tag.trim())
-                                                                .filter(tag => tag);
-                                                            updateProductField(product.id, 'tags', tagsArray);
-                                                        }}
-                                                        placeholder="tag1, tag2, tag3"
-                                                    />
+                                                <td key={index}>                                                    <input
+                                                    type="text" value={Array.isArray(product.tags)
+                                                        ? product.tags.map(tag => tag ? unsanitizeString(tag) : '').join(', ')
+                                                        : product.tags ? unsanitizeString(product.tags) : ''}
+                                                    onChange={(e) => {
+                                                        const tagsArray = e.target.value
+                                                            .split(',')
+                                                            .map(tag => tag.trim())
+                                                            .filter(tag => tag);
+                                                        updateProductField(product.id, 'tags', tagsArray);
+                                                    }}
+                                                    placeholder="tag1, tag2, tag3"
+                                                />
                                                 </td>
                                             );
                                         } else if (header === 'productType') {
@@ -1217,23 +1277,21 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (header === 'description') {
                                             return (
-                                                <td key={index}>
-                                                    <textarea
-                                                        value={product[header] || ''}
-                                                        onChange={(e) => updateProductField(product.id, header, e.target.value)}
-                                                        placeholder="Product description"
-                                                    />
+                                                <td key={index}>                                                    <textarea
+                                                    value={product[header] ? unsanitizeString(product[header]) : ''}
+                                                    onChange={(e) => updateProductField(product.id, header, e.target.value)}
+                                                    placeholder="Product description"
+                                                />
                                                 </td>
                                             );
                                         } else {
                                             return (
-                                                <td key={index}>
-                                                    <input
-                                                        type="text"
-                                                        value={product[header] || ''}
-                                                        onChange={(e) => updateProductField(product.id, header, e.target.value)}
-                                                        placeholder={`Enter ${header}`}
-                                                    />
+                                                <td key={index}>                                                    <input
+                                                    type="text"
+                                                    value={product[header] ? unsanitizeString(product[header]) : ''}
+                                                    onChange={(e) => updateProductField(product.id, header, e.target.value)}
+                                                    placeholder={`Enter ${header}`}
+                                                />
                                                 </td>
                                             );
                                         }
@@ -1289,7 +1347,7 @@ const ProductsCsvImportPage = () => {
                             key={index}
                             className={`result-item ${result.status}`}
                         >
-                            <div className="result-name">{result.name}</div>
+                            <div className="result-name">{result.name ? unsanitizeString(result.name) : ''}</div>
                             <div className="result-status">
                                 {result.status === 'success' ? 'Success' : 'Failed'}
                             </div>
@@ -1301,10 +1359,20 @@ const ProductsCsvImportPage = () => {
                 </div>
             </div>
         );
-    };
-
-    return (
+    }; return (
         <div className="unified-product-manager">
+            {showImageCropper && (
+                <ImageCropper
+                    imageUrl={cropImageSrc}
+                    aspect={1}
+                    onCropComplete={handleCropComplete}
+                    onCancel={() => {
+                        setShowImageCropper(false);
+                        URL.revokeObjectURL(cropImageSrc);
+                    }}
+                />
+            )}
+
             <h1>Unified Product Manager</h1>
             <p className="description">
                 Import products from CSV, add products manually, edit them, and upload to the database.

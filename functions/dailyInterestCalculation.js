@@ -1,4 +1,6 @@
 const functions = require("firebase-functions");
+const { onCall } = require("firebase-functions/v2/https");
+const { onRequest } = require("firebase-functions/v2/https");
 
 const admin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -10,7 +12,12 @@ const db = admin.firestore();
  * Daily interest calculation Cloud Function
  * This version is triggered by HTTP request (for testing)
  */
-exports.calculateDailyInterestHttp = functions.https.onRequest(
+exports.calculateDailyInterestHttp = onRequest(
+  {
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 300,
+  },
   async (req, res) => {
     try {
       const result = await calculateInterestForAllWallets();
@@ -37,6 +44,9 @@ exports.dailyInterestCalculationScheduled = onSchedule(
   {
     schedule: "0 0 * * *", // every midnight
     timeZone: "America/New_York", // adjust to your desired TZ
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 300,
   },
   async (event) => {
     console.log("Starting daily interest calculation (scheduled)");
@@ -63,7 +73,12 @@ exports.dailyInterestCalculationScheduled = onSchedule(
  * Calculate interest for a specific user
  * For manual testing or admin-triggered interest payments
  */
-exports.calculateInterestForUser = functions.https.onCall(
+exports.calculateInterestForUser = onCall(
+  {
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 60,
+  },
   async (data, context) => {
     // Only allow admin to call this function
     if (!context.auth || !context.auth.token.admin) {

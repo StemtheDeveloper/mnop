@@ -11,7 +11,7 @@ import '../styles/ShopPage.css';
 
 const ShopPage = () => {
     const navigate = useNavigate();
-
+    
     // State for products and filtering
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -20,7 +20,7 @@ const ShopPage = () => {
     const [loadingMore, setLoadingMore] = useState(false);
     const [error, setError] = useState('');
     const [isChangingPage, setIsChangingPage] = useState(false);
-
+    
     // Pagination state
     const [lastVisible, setLastVisible] = useState(null);
     const [firstVisible, setFirstVisible] = useState(null);
@@ -29,7 +29,7 @@ const ShopPage = () => {
     const [totalItems, setTotalItems] = useState(0);
     const productsPerPage = 12;
     const maxDisplayedPages = 5;
-
+    
     // Filter state
     const [category, setCategory] = useState('all');
     const [subCategory, setSubCategory] = useState('all');
@@ -37,12 +37,12 @@ const ShopPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [productType, setProductType] = useState('all'); // 'all', 'crowdfunded', or 'direct'
-
+    
     // Function to check if any filters are active
     const isFilterActive = () => {
         return category !== 'all' || sortBy !== 'newest' || searchTerm !== '' || productType !== 'all';
     };
-
+    
     // Function to clear all filters
     const handleClearAllFilters = () => {
         setCategory('all');
@@ -51,7 +51,7 @@ const ShopPage = () => {
         setSearchTerm('');
         setProductType('all');
     };
-
+    
     // Fetch categories on component mount
     useEffect(() => {
         const fetchCategories = async () => {
@@ -61,12 +61,12 @@ const ShopPage = () => {
                     id: doc.id,
                     ...doc.data()
                 }));
-
+                
                 setCategories(categoriesData);
-
+                
                 // Create subcategories mapping
                 const subCatsMap = {};
-
+                
                 // Add "All" option for each category
                 categoriesData.forEach(cat => {
                     if (cat.subCategories && cat.subCategories.length > 0) {
@@ -76,40 +76,40 @@ const ShopPage = () => {
                         ];
                     }
                 });
-
+                
                 setSubCategories(subCatsMap);
             } catch (err) {
                 console.error("Error fetching categories:", err);
                 setError("Failed to load categories. Please try again later.");
             }
         };
-
+        
         fetchCategories();
     }, []);
-
+    
     // Build query based on filters
     const buildProductQuery = useCallback(() => {
         let productsRef = collection(db, 'products');
         let constraints = [];
-
+        
         // Filter by status - only show active products
         constraints.push(where('status', '==', 'active'));
-
+        
         // Filter by approval status (if needed)
         // constraints.push(where('approved', '==', true));
-
+        
         // Filter by category
         if (category !== 'all') {
             constraints.push(where('categories', 'array-contains', category));
         }
-
+        
         // Filter by product type
         if (productType === 'crowdfunded') {
             constraints.push(where('isCrowdfunded', '==', true));
         } else if (productType === 'direct') {
             constraints.push(where('isDirectSell', '==', true));
         }
-
+        
         // Sort by selected option
         let sortConstraint;
         switch (sortBy) {
@@ -130,36 +130,36 @@ const ShopPage = () => {
                 sortConstraint = orderBy('createdAt', 'desc');
                 break;
         }
-
+        
         constraints.push(sortConstraint);
-
+        
         // Limit the number of products per page
         constraints.push(limit(productsPerPage));
-
+        
         return query(productsRef, ...constraints);
     }, [category, sortBy, productType, productsPerPage]);
-
+    
     // Function to count total items
     const countTotalItems = useCallback(async () => {
         try {
             let productsRef = collection(db, 'products');
             let constraints = [];
-
+            
             // Only count active products
             constraints.push(where('status', '==', 'active'));
-
+            
             // Filter by category if selected
             if (category !== 'all') {
                 constraints.push(where('categories', 'array-contains', category));
             }
-
+            
             // Filter by product type
             if (productType === 'crowdfunded') {
                 constraints.push(where('isCrowdfunded', '==', true));
             } else if (productType === 'direct') {
                 constraints.push(where('isDirectSell', '==', true));
             }
-
+            
             const countQuery = query(productsRef, ...constraints);
             const snapshot = await getCountFromServer(countQuery);
             setTotalItems(snapshot.data().count);
@@ -167,7 +167,7 @@ const ShopPage = () => {
             console.error("Error counting products:", err);
         }
     }, [category, productType]);
-
+    
     // Function to fetch products based on current filters
     const fetchProducts = useCallback(async (isInitialLoad = false) => {
         if (isInitialLoad) {
@@ -175,38 +175,38 @@ const ShopPage = () => {
         } else {
             setLoadingMore(true);
         }
-
+        
         setError('');
-
+        
         try {
             const productQuery = buildProductQuery();
             const querySnapshot = await getDocs(productQuery);
-
+            
             // Update pagination controls
             const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
             const firstVisible = querySnapshot.docs[0];
-
+            
             setLastVisible(lastVisible);
             setFirstVisible(firstVisible);
             setHasMore(querySnapshot.docs.length === productsPerPage);
-
+            
             // Map the product data
             const productsData = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
-
+            
             // Filter by search term on client side if provided
-            const filteredProducts = debouncedSearchTerm ?
-                productsData.filter(product =>
-                    product.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+            const filteredProducts = debouncedSearchTerm ? 
+                productsData.filter(product => 
+                    product.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) || 
                     product.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
                     (product.tags && product.tags.some(tag => tag.toLowerCase().includes(debouncedSearchTerm.toLowerCase())))
-                ) :
+                ) : 
                 productsData;
-
+            
             setProducts(filteredProducts);
-
+            
             // Count total items for pagination
             countTotalItems();
         } catch (err) {
@@ -218,35 +218,35 @@ const ShopPage = () => {
             setIsChangingPage(false);
         }
     }, [buildProductQuery, countTotalItems, debouncedSearchTerm, productsPerPage]);
-
+    
     // Function to fetch products for a specific page
     const fetchProductsForPage = async (pageNumber) => {
         setIsChangingPage(true);
         setCurrentPage(pageNumber);
-
+        
         try {
             let productsRef = collection(db, 'products');
             let constraints = [];
-
+            
             // Basic filters
             constraints.push(where('status', '==', 'active'));
-
+            
             // Category filter
             if (category !== 'all') {
                 constraints.push(where('categories', 'array-contains', category));
             }
-
+            
             // Filter by product type
             if (productType === 'crowdfunded') {
                 constraints.push(where('isCrowdfunded', '==', true));
             } else if (productType === 'direct') {
                 constraints.push(where('isDirectSell', '==', true));
             }
-
+            
             // Sort constraint
             let sortField = 'createdAt';
             let sortDirection = 'desc';
-
+            
             switch (sortBy) {
                 case 'priceAsc':
                     sortField = 'price';
@@ -265,47 +265,47 @@ const ShopPage = () => {
                     sortDirection = 'desc';
                     break;
             }
-
+            
             constraints.push(orderBy(sortField, sortDirection));
-
+            
             // Skip to the correct page
             if (pageNumber > 1) {
                 // We need to fetch the first document of the requested page
                 // Start by getting the first batch
                 let firstBatchQuery = query(productsRef, ...constraints, limit(productsPerPage));
                 let firstBatch = await getDocs(firstBatchQuery);
-
+                
                 let startingDoc = null;
-
+                
                 // For pages beyond the second, we need to paginate
                 if (pageNumber > 2) {
                     // Calculate how many documents to skip
                     const documentsToSkip = (pageNumber - 1) * productsPerPage;
-
+                    
                     // This is simplistic and would be inefficient for large skips
                     // For a real app, consider using a more efficient pagination strategy
                     let currentDocIndex = 0;
                     let currentQuery = firstBatchQuery;
                     let currentBatch = firstBatch;
-
+                    
                     while (currentDocIndex < documentsToSkip - productsPerPage) {
                         const lastDocInBatch = currentBatch.docs[currentBatch.docs.length - 1];
-
+                        
                         if (!lastDocInBatch) {
                             // No more documents
                             setHasMore(false);
                             break;
                         }
-
+                        
                         currentQuery = query(productsRef, ...constraints, startAfter(lastDocInBatch), limit(productsPerPage));
                         currentBatch = await getDocs(currentQuery);
-
+                        
                         if (currentBatch.empty) {
                             // No more documents
                             setHasMore(false);
                             break;
                         }
-
+                        
                         currentDocIndex += currentBatch.docs.length;
                         startingDoc = currentBatch.docs[0];
                     }
@@ -313,30 +313,30 @@ const ShopPage = () => {
                     // For page 2, just use the last doc from the first page
                     startingDoc = firstBatch.docs[firstBatch.docs.length - 1];
                 }
-
+                
                 if (startingDoc) {
                     // Now fetch the actual page we want
                     const pageQuery = query(productsRef, ...constraints, startAfter(startingDoc), limit(productsPerPage));
                     const pageSnapshot = await getDocs(pageQuery);
-
+                    
                     setLastVisible(pageSnapshot.docs[pageSnapshot.docs.length - 1]);
                     setFirstVisible(pageSnapshot.docs[0]);
                     setHasMore(pageSnapshot.docs.length === productsPerPage);
-
+                    
                     const productsData = pageSnapshot.docs.map(doc => ({
                         id: doc.id,
                         ...doc.data()
                     }));
-
+                    
                     // Filter by search term on client side if provided
-                    const filteredProducts = debouncedSearchTerm ?
-                        productsData.filter(product =>
-                            product.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                    const filteredProducts = debouncedSearchTerm ? 
+                        productsData.filter(product => 
+                            product.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) || 
                             product.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
                             (product.tags && product.tags.some(tag => tag.toLowerCase().includes(debouncedSearchTerm.toLowerCase())))
-                        ) :
+                        ) : 
                         productsData;
-
+                    
                     setProducts(filteredProducts);
                 }
             } else {
@@ -350,27 +350,27 @@ const ShopPage = () => {
             setIsChangingPage(false);
         }
     };
-
+    
     // Load initial products
     useEffect(() => {
         fetchProducts(true);
     }, [fetchProducts]);
-
+    
     // Reload products when filters change
     useEffect(() => {
         setCurrentPage(1);
         fetchProducts(true);
     }, [category, sortBy, productType, fetchProducts]);
-
+    
     // Debounce the search term to avoid frequent updates
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedSearchTerm(searchTerm);
         }, 500);
-
+        
         return () => clearTimeout(timer);
     }, [searchTerm]);
-
+    
     // Fetch products when the debounced search term changes
     useEffect(() => {
         setCurrentPage(1);
@@ -498,7 +498,7 @@ const ShopPage = () => {
                             </select>
                             {sortBy !== 'newest' && <span className="filter-badge"></span>}
                         </div>
-
+                        
                         <div className="filter-group">
                             <label htmlFor="productType">Type:</label>
                             <select

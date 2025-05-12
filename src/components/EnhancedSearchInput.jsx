@@ -4,8 +4,21 @@ import { collection, query, where, getDocs, orderBy, limit, startAt, endAt } fro
 import { db } from '../config/firebase';
 import '../styles/EnhancedSearchInput.css';
 
-const EnhancedSearchInput = ({ placeholder = "Search products...", className = "" }) => {
-    const [searchTerm, setSearchTerm] = useState('');
+const EnhancedSearchInput = ({
+    placeholder = "Search products...",
+    className = "",
+    value,
+    onChange,
+    onClear,
+    onSearch
+}) => {
+    // Use controlled input if provided, otherwise use internal state
+    const isControlled = value !== undefined && onChange !== undefined;
+    const [internalSearchTerm, setInternalSearchTerm] = useState('');
+
+    // Use either the controlled value or the internal state
+    const searchTerm = isControlled ? value : internalSearchTerm;
+
     const [suggestions, setSuggestions] = useState([]);
     const [recentSearches, setRecentSearches] = useState([]);
     const [popularProducts, setPopularProducts] = useState([]);
@@ -184,11 +197,30 @@ const EnhancedSearchInput = ({ placeholder = "Search products...", className = "
 
     const handleInputChange = (e) => {
         const value = e.target.value;
-        setSearchTerm(value);
+
+        if (isControlled) {
+            // Use the provided onChange function
+            onChange(e);
+        } else {
+            // Use internal state
+            setInternalSearchTerm(value);
+        }
+
         setShowSuggestions(true);
     };
 
-    const handleFormSubmit = (e) => {
+    const clearSearch = () => {
+        if (isControlled && onClear) {
+            // Use the provided onClear function
+            onClear();
+        } else {
+            // Use internal state
+            setInternalSearchTerm('');
+        }
+
+        // Clear suggestions
+        setShowSuggestions(false);
+    }; const handleFormSubmit = (e) => {
         e.preventDefault();
 
         // If an item is selected in the dropdown, use that
@@ -201,8 +233,15 @@ const EnhancedSearchInput = ({ placeholder = "Search products...", className = "
         if (searchTerm.trim()) {
             // Save to recent searches
             saveRecentSearch(searchTerm);
-            // Navigate to search page
-            navigate(`/search?query=${encodeURIComponent(searchTerm.trim())}`);
+
+            // If onSearch handler is provided, use it
+            if (onSearch) {
+                onSearch(searchTerm.trim());
+            } else {
+                // Default behavior: navigate to search page
+                navigate(`/search?query=${encodeURIComponent(searchTerm.trim())}`);
+            }
+
             setShowSuggestions(false);
         }
     };
@@ -289,8 +328,8 @@ const EnhancedSearchInput = ({ placeholder = "Search products...", className = "
     };
 
     return (
-        <div className={`enhanced-search-container ${className}`} ref={searchContainerRef}>
-            <form onSubmit={handleFormSubmit} className="enhanced-search-form">
+        <div className={`enhanced-search-container ${className}`} ref={searchContainerRef}>            <form onSubmit={handleFormSubmit} className="enhanced-search-form">
+            <div className="search-input-wrapper">
                 <input
                     ref={inputRef}
                     type="search"
@@ -302,13 +341,24 @@ const EnhancedSearchInput = ({ placeholder = "Search products...", className = "
                     onKeyDown={handleKeyDown}
                     autoComplete="off"
                 />
-                <button
-                    type="submit"
-                    className="enhanced-search-button"
-                >
-                    Search
-                </button>
-            </form>
+                {searchTerm && (
+                    <button
+                        type="button"
+                        className="search-clear-button"
+                        onClick={clearSearch}
+                        aria-label="Clear search"
+                    >
+                        ×
+                    </button>
+                )}
+            </div>
+            <button
+                type="submit"
+                className="enhanced-search-button"
+            >
+                Search
+            </button>
+        </form>
 
             {showSuggestions && (
                 <div className="search-suggestions-dropdown">

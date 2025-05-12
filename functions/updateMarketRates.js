@@ -13,6 +13,9 @@ exports.updateMarketRates = onSchedule(
   {
     schedule: "0 12 * * *", // noon UTC
     timeZone: "Pacific/Auckland", // NZ local time
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 300,
   },
   async (event) => {
     console.log("Starting daily NZ market rate update...");

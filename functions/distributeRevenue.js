@@ -1,4 +1,5 @@
 const functions = require("firebase-functions");
+const { onCall } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 
 // Initialize Firebase Admin if not already initialized
@@ -19,7 +20,12 @@ const db = admin.firestore();
  * - quantity: number - Quantity sold
  * - orderId: string - Order ID reference
  */
-exports.distributeInvestorRevenue = functions.https.onCall(
+exports.distributeInvestorRevenue = onCall(
+  {
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 120,
+  },
   async (data, context) => {
     try {
       const { productId, saleAmount, manufacturingCost, quantity, orderId } =

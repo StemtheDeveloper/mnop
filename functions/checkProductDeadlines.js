@@ -1,6 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall } = require("firebase-functions/v2/https");
 
 // Initialize admin if not already initialized
 if (!admin.apps.length) {
@@ -18,6 +19,9 @@ exports.checkProductDeadlines = onSchedule(
   {
     schedule: "0 0 * * *", // midnight UTC
     timeZone: "UTC",
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 300,
   },
   async (event) => {
     // ⬇️  ORIGINAL FUNCTION BODY GOES HERE (unchanged) ⬇️

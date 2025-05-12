@@ -19,7 +19,13 @@ const db = admin.firestore();
 // 1. HOURLY: notify subscribers when a product is back in stock
 // ────────────────────────────────────────────────────────────────────────────────
 exports.checkProductsBackInStock = onSchedule(
-  { schedule: "0 * * * *", timeZone: "UTC" }, // every hour
+  {
+    schedule: "0 * * * *",
+    timeZone: "UTC",
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 300,
+  },
   async () => {
     try {
       console.log("Checking for back-in-stock products …");
@@ -96,7 +102,13 @@ exports.checkProductsBackInStock = onSchedule(
 // 2. NIGHTLY: low-stock check + optional auto-reorder
 // ────────────────────────────────────────────────────────────────────────────────
 exports.checkLowStockLevels = onSchedule(
-  { schedule: "0 0 * * *", timeZone: "UTC" }, // midnight UTC
+  {
+    schedule: "0 0 * * *",
+    timeZone: "UTC",
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 300,
+  },
   async () => {
     console.log("Running low-stock check …");
     try {
@@ -279,7 +291,12 @@ async function processAutoReorder(product, variantId, batch) {
 // 3. Firestore trigger: purchase order → update inventory on “received”
 // ────────────────────────────────────────────────────────────────────────────────
 exports.processPurchaseOrderUpdate = onDocumentUpdated(
-  "purchaseOrders/{poId}",
+  {
+    document: "purchaseOrders/{poId}",
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 60,
+  },
   async (event) => {
     const before = event.data.before.data();
     const after = event.data.after.data();
@@ -321,7 +338,12 @@ exports.processPurchaseOrderUpdate = onDocumentUpdated(
 // 4. Realtime trigger: product flips to in-stock → notify subscribers
 // ────────────────────────────────────────────────────────────────────────────────
 exports.notifyForBackInStock = onDocumentUpdated(
-  "products/{productId}",
+  {
+    document: "products/{productId}",
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 60,
+  },
   async (event) => {
     const productId = event.params.productId;
     const beforeData = event.data.before.data();

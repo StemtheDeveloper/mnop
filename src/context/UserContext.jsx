@@ -39,15 +39,17 @@ export const UserProvider = ({ children }) => {
                 let rolesArray = [];
 
                 if (userData.roles && Array.isArray(userData.roles)) {
+                    // Use the roles array directly if it exists
                     rolesArray = userData.roles;
                 } else if (userData.role) {
-                    // If only a string role exists, convert to array
+                    // If only a string role exists, convert to array and update document
                     rolesArray = [userData.role];
 
                     // Update the document to standardize the format
                     try {
                         await updateDoc(docRef, {
                             roles: rolesArray
+                            // No longer need to maintain the role field
                         });
                     } catch (updateError) {
                         console.error("Error updating roles format:", updateError);
@@ -60,6 +62,7 @@ export const UserProvider = ({ children }) => {
                     try {
                         await updateDoc(docRef, {
                             roles: rolesArray
+                            // No longer need to maintain the role field
                         });
                     } catch (updateError) {
                         console.error("Error setting default roles:", updateError);
@@ -75,6 +78,7 @@ export const UserProvider = ({ children }) => {
                     displayName: auth.currentUser?.displayName || '',
                     photoURL: auth.currentUser?.photoURL || '',
                     roles: ['customer'], // Always use array format
+                    // No longer include role field in new user documents
                     createdAt: serverTimestamp()
                 };
 
@@ -112,6 +116,13 @@ export const UserProvider = ({ children }) => {
     const hasRole = (role) => {
         if (!userRoles || !userRoles.length) return false;
         return userRoles.includes(role);
+    };
+
+    // Function to check if a user has all specified roles
+    const hasRoles = (roles) => {
+        if (!userRoles || !userRoles.length) return false;
+        if (!Array.isArray(roles)) roles = [roles]; // Convert single role to array
+        return roles.every(role => userRoles.includes(role));
     };
 
     // Utility function to check if user has any of the provided roles
@@ -197,21 +208,11 @@ export const UserProvider = ({ children }) => {
             // Add the new role
             currentRoles.push(roleId);
 
-            // For backward compatibility, determine which role should be set as the single role field
-            // If user has admin role, always keep that as the primary role
-            let primaryRole = roleId;
-            if (currentRoles.includes('admin')) {
-                primaryRole = 'admin';
-            } else if (roleId !== 'admin' && currentRoles.length > 0) {
-                // Keep existing primary role if it's not admin and new role isn't admin
-                primaryRole = currentRoles[0];
-            }
-
             // Update document with new roles
             await updateDoc(userRef, {
                 roles: currentRoles,
-                role: primaryRole, // Keep role field updated for backward compatibility, prioritizing admin
                 updatedAt: new Date()
+                // No longer updating the legacy role field
             });
 
             // If this is the current user, update local state
@@ -267,17 +268,11 @@ export const UserProvider = ({ children }) => {
                 newRoles.push('customer');
             }
 
-            // For backward compatibility, determine which role should be set as the single role field
-            let primaryRole = newRoles[0];
-            if (newRoles.includes('admin')) {
-                primaryRole = 'admin'; // Always prioritize admin role if it exists
-            }
-
             // Update document with new roles
             await updateDoc(userRef, {
                 roles: newRoles,
-                role: primaryRole, // Keep role field updated for backward compatibility, prioritizing admin
                 updatedAt: new Date()
+                // No longer updating the legacy role field
             });
 
             // If this is the current user, update local state
@@ -335,8 +330,8 @@ export const UserProvider = ({ children }) => {
             // Update document with new roles order
             await updateDoc(userRef, {
                 roles: newRoles,
-                role: roleId, // Update single role field
                 updatedAt: new Date()
+                // No longer updating the legacy role field
             });
 
             // If this is the current user, update local state
@@ -409,14 +404,15 @@ export const UserProvider = ({ children }) => {
         user: currentUser, // Make sure we expose 'user' for compatibility
         currentUser,
         userProfile,
-        userRole: userRoles.length > 0 ? userRoles[0] : null, // For backward compatibility with a single role string
-        userRoles, // New standardized array format
+        // No longer exposing the legacy userRole field
+        userRoles, // Using only the standardized array format
         userWallet,
         transactions,
         loading,
         authInitialized,
         isLoggedIn: !!currentUser, // Explicitly provide login status
         hasRole,
+        hasRoles,
         hasAnyRole,
         getWalletBalance,
         getTransactionHistory,

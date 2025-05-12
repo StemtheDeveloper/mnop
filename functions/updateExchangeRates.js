@@ -25,6 +25,9 @@ exports.updateExchangeRates = onSchedule(
   {
     schedule: "0 0 * * *", // daily midnight UTC
     timeZone: "UTC",
+    cpu: 1,
+    memory: "1GiB",
+    timeoutSeconds: 300,
   },
   async (event) => {
     try {
