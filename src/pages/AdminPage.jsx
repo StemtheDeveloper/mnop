@@ -589,6 +589,8 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
 
     return (
         <AuthGuard allowedRoles="admin">
+
+            <br /><br /><br /><br /><br />
             <div className="admin-page">
                 <div className="admin-container">
                     <h1>Admin Dashboard</h1>
