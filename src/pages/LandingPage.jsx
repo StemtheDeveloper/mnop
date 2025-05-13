@@ -89,15 +89,15 @@ function LandingPage() {
           ...doc.data()
         }));
 
-        setRecommendedProducts(recommendedList);
-        // If we still don't have a featured product but have recommended products, use the first recommended product
-        if (!featuredProduct && recommendedList.length > 0) {
+        setRecommendedProducts(recommendedList);        // If we still don't have a featured product but have recommended products, use the first recommended product
+        // We need to check featuredSnapshot.empty because featuredProduct state might not be updated yet (it's asynchronous)
+        if (featuredSnapshot.empty && recommendedList.length > 0) {
           console.log("Using a recommended product as featured product");
           setFeaturedProduct(recommendedList[0]);
         }
 
         // As a last resort, create a default featured product
-        if (!featuredProduct && recommendedList.length === 0) {
+        if (featuredSnapshot.empty && recommendedList.length === 0) {
           console.log("Creating a default featured product");
           setFeaturedProduct({
             id: 'default-product',

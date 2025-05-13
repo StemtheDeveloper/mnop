@@ -1242,7 +1242,7 @@ const AllProductsPanel = () => {
                             </div>
                         )}
 
-                        <div className="pagination-container">
+                        <div className="admin-pagination-container">
                             <div className="pagination-controls">
                                 <button
                                     onClick={() => goToPage(1)}

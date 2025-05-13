@@ -107,7 +107,7 @@ const ShopPage = () => {
         if (productType === 'crowdfunded') {
             constraints.push(where('isCrowdfunded', '==', true));
         } else if (productType === 'direct') {
-            constraints.push(where('isDirectSell', '==', true));
+            constraints.push(where('isCrowdfunded', '==', false));
         }
 
         // Sort by selected option
@@ -265,16 +265,19 @@ const ShopPage = () => {
                 // Set has more based on whether there are more items after this page
                 setHasMore(endIndex < filteredProducts.length);
                 setProducts(paginatedProducts);
-            } else {
-                // Clear the cache when not searching
+            } else {                // Clear the cache when not searching
                 setAllProductsData([]);
 
                 // For normal pagination, update controls as before
                 const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
                 const firstVisible = querySnapshot.docs[0];
 
-                setLastVisible(lastVisible);
-                setFirstVisible(firstVisible);
+                // Make sure we're actually storing these document references correctly
+                if (lastVisible && firstVisible) {
+                    setLastVisible(lastVisible);
+                    setFirstVisible(firstVisible);
+                }
+
                 setHasMore(querySnapshot.docs.length === productsPerPage);
                 setProducts(filteredProducts);
 
@@ -328,6 +331,12 @@ const ShopPage = () => {
 
         // Normal pagination for non-search results
         try {
+            // For page 1, just fetch the first page
+            if (pageNumber === 1) {
+                await fetchProducts(true);
+                return;
+            }
+
             let productsRef = collection(db, 'products');
             let constraints = [];
 
@@ -371,71 +380,107 @@ const ShopPage = () => {
 
             constraints.push(orderBy(sortField, sortDirection));
 
-            // Skip to the correct page
-            if (pageNumber > 1) {
-                // We need to fetch the first document of the requested page
-                // Start by getting the first batch
-                let firstBatchQuery = query(productsRef, ...constraints, limit(productsPerPage));
-                let firstBatch = await getDocs(firstBatchQuery);
+            // For page 2 and beyond, use different pagination approaches
+            if (pageNumber === 2 && lastVisible) {
+                // For page 2, we can use the lastVisible document from page 1
+                try {
+                    // Start after the last document from page 1
+                    const nextPageQuery = query(
+                        productsRef,
+                        ...constraints,
+                        startAfter(lastVisible),
+                        limit(productsPerPage)
+                    );
 
-                let startingDoc = null;
+                    const nextPageSnapshot = await getDocs(nextPageQuery);
 
-                // For pages beyond the second, we need to paginate
-                if (pageNumber > 2) {
-                    // Calculate how many documents to skip
-                    const documentsToSkip = (pageNumber - 1) * productsPerPage;
+                    if (!nextPageSnapshot.empty) {
+                        const productsData = nextPageSnapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
 
-                    // This is simplistic and would be inefficient for large skips
-                    // For a real app, consider using a more efficient pagination strategy
-                    let currentDocIndex = 0;
-                    let currentQuery = firstBatchQuery;
-                    let currentBatch = firstBatch;
-
-                    while (currentDocIndex < documentsToSkip - productsPerPage) {
-                        const lastDocInBatch = currentBatch.docs[currentBatch.docs.length - 1];
-
-                        if (!lastDocInBatch) {
-                            // No more documents
-                            setHasMore(false);
-                            break;
-                        }
-
-                        currentQuery = query(productsRef, ...constraints, startAfter(lastDocInBatch), limit(productsPerPage));
-                        currentBatch = await getDocs(currentQuery);
-
-                        if (currentBatch.empty) {
-                            // No more documents
-                            setHasMore(false);
-                            break;
-                        }
-
-                        currentDocIndex += currentBatch.docs.length;
-                        startingDoc = currentBatch.docs[0];
+                        setProducts(productsData);
+                        setLastVisible(nextPageSnapshot.docs[nextPageSnapshot.docs.length - 1]);
+                        setFirstVisible(nextPageSnapshot.docs[0]);
+                        setHasMore(nextPageSnapshot.docs.length === productsPerPage);
+                    } else {
+                        // No results for page 2
+                        setProducts([]);
+                        setHasMore(false);
                     }
-                } else {
-                    // For page 2, just use the last doc from the first page
-                    startingDoc = firstBatch.docs[firstBatch.docs.length - 1];
+                } catch (err) {
+                    console.error("Error fetching page 2:", err);
+                    setError("Failed to load page 2");
                 }
+            } else {
+                // For pages > 2 or if we don't have lastVisible cursor, use a different approach
+                try {
+                    // Get first page results first
+                    const firstPageQuery = query(productsRef, ...constraints, limit(productsPerPage));
+                    const firstPageSnapshot = await getDocs(firstPageQuery);
 
-                if (startingDoc) {
-                    // Now fetch the actual page we want
-                    const pageQuery = query(productsRef, ...constraints, startAfter(startingDoc), limit(productsPerPage));
-                    const pageSnapshot = await getDocs(pageQuery);
+                    if (firstPageSnapshot.empty) {
+                        // No results at all
+                        setProducts([]);
+                        setHasMore(false);
+                        setIsChangingPage(false);
+                        return;
+                    }
 
-                    setLastVisible(pageSnapshot.docs[pageSnapshot.docs.length - 1]);
-                    setFirstVisible(pageSnapshot.docs[0]);
-                    setHasMore(pageSnapshot.docs.length === productsPerPage);
+                    // We'll implement a sequential pagination approach
+                    let currentPage = 1;
+                    let currentSnapshot = firstPageSnapshot;
+                    let lastDocInCurrentPage = currentSnapshot.docs[currentSnapshot.docs.length - 1];
 
-                    const productsData = pageSnapshot.docs.map(doc => ({
+                    // Keep fetching next pages until we reach the desired page
+                    while (currentPage < pageNumber) {
+                        if (!lastDocInCurrentPage) {
+                            // We've run out of documents
+                            setProducts([]);
+                            setHasMore(false);
+                            setIsChangingPage(false);
+                            return;
+                        }
+
+                        // Fetch the next page
+                        const nextPageQuery = query(
+                            productsRef,
+                            ...constraints,
+                            startAfter(lastDocInCurrentPage),
+                            limit(productsPerPage)
+                        );
+
+                        const nextSnapshot = await getDocs(nextPageQuery);
+
+                        if (nextSnapshot.empty) {
+                            // No more results
+                            setProducts([]);
+                            setHasMore(false);
+                            setIsChangingPage(false);
+                            return;
+                        }
+
+                        // Update tracking variables
+                        currentSnapshot = nextSnapshot;
+                        lastDocInCurrentPage = currentSnapshot.docs[currentSnapshot.docs.length - 1];
+                        currentPage++;
+                    }
+
+                    // By now, currentSnapshot contains our target page
+                    const productsData = currentSnapshot.docs.map(doc => ({
                         id: doc.id,
                         ...doc.data()
                     }));
 
                     setProducts(productsData);
+                    setLastVisible(lastDocInCurrentPage);
+                    setFirstVisible(currentSnapshot.docs[0]);
+                    setHasMore(currentSnapshot.docs.length === productsPerPage);
+                } catch (err) {
+                    console.error("Error during pagination:", err);
+                    setError("Failed to load page " + pageNumber);
                 }
-            } else {
-                // For page 1, just do a normal fetch
-                await fetchProducts(true);
             }
         } catch (err) {
             console.error("Error fetching page:", err);
@@ -443,18 +488,19 @@ const ShopPage = () => {
         } finally {
             setIsChangingPage(false);
         }
-    };
-
-    // Load initial products
+    };    // Load initial products on mount only
     useEffect(() => {
         fetchProducts(true);
-    }, [fetchProducts]);
+    }, []); // Removed dependency on fetchProducts to prevent re-runs
 
     // Reload products when filters change
     useEffect(() => {
+        // Reset to page 1 when filters change
         setCurrentPage(1);
+        setLastVisible(null);
+        setFirstVisible(null);
         fetchProducts(true);
-    }, [category, sortBy, productType, fetchProducts]);
+    }, [category, sortBy, productType]); // Removed fetchProducts dependency
 
     // Debounce the search term to avoid frequent updates
     useEffect(() => {
@@ -463,13 +509,14 @@ const ShopPage = () => {
         }, 500);
 
         return () => clearTimeout(timer);
-    }, [searchTerm]);
-
-    // Fetch products when the debounced search term changes
+    }, [searchTerm]);    // Fetch products when the debounced search term changes
     useEffect(() => {
+        // Reset to page 1 when search term changes
         setCurrentPage(1);
+        setLastVisible(null);
+        setFirstVisible(null);
         fetchProducts(true);
-    }, [debouncedSearchTerm, fetchProducts]);
+    }, [debouncedSearchTerm]); // Removed fetchProducts dependency
 
     // Product navigation handler
     const handleProductClick = (productId) => {
@@ -777,8 +824,7 @@ const ShopPage = () => {
 
                                     return pageNumbers;
                                 })()}
-                            </div>                            {/* Next Page Button */}
-                            <button
+                            </div>                            {/* Next Page Button */}                            <button
                                 className={`pagination-button ${(!hasMore || currentPage >= Math.ceil(totalItems / productsPerPage)) ? 'disabled' : ''}`}
                                 onClick={() => fetchProductsForPage(currentPage + 1)}
                                 disabled={(!hasMore || currentPage >= Math.ceil(totalItems / productsPerPage)) || isChangingPage}

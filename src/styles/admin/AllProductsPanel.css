@@ -608,7 +608,7 @@
 }
 
 /* Pagination */
-.pagination-container {
+.admin-pagination-container {
   position: absolute;
   bottom: 0;
   left: 0;
