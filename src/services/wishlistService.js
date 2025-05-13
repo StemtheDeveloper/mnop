@@ -28,7 +28,6 @@ class WishlistService {
     this.wishlistCollection = "wishlists";
     this.stockNotificationsCollection = "stockNotifications";
   }
-
   /**
    * Add an item to a user's wishlist
    * @param {string} userId - The user's ID
@@ -39,47 +38,22 @@ class WishlistService {
    */
   async addToWishlist(userId, productId, variantId = null, productData = {}) {
     try {
-      // Generate a unique ID for the wishlist item
-      const itemId = variantId ? `${productId}_${variantId}` : productId;
-      const wishlistRef = doc(db, this.wishlistCollection, userId);
+      // For likedProducts implementation, we ignore variantId and productData
+      const userRef = doc(db, "users", userId);
+      
+      // Update the user document by adding the productId to the likedProducts array
+      // if it doesn't already exist
+      await updateDoc(userRef, {
+        likedProducts: arrayUnion(productId),
+        updatedAt: serverTimestamp()
+      });
 
-      // Get the current wishlist document
-      const wishlistDoc = await getDoc(wishlistRef);
-
-      if (!wishlistDoc.exists()) {
-        // Create new wishlist if it doesn't exist
-        await setDoc(wishlistRef, {
-          userId,
-          items: {
-            [itemId]: {
-              productId,
-              variantId,
-              addedAt: serverTimestamp(),
-              ...productData,
-            },
-          },
-          updatedAt: serverTimestamp(),
-        });
-      } else {
-        // Add item to existing wishlist
-        await updateDoc(wishlistRef, {
-          [`items.${itemId}`]: {
-            productId,
-            variantId,
-            addedAt: serverTimestamp(),
-            ...productData,
-          },
-          updatedAt: serverTimestamp(),
-        });
-      }
-
-      return { success: true, itemId };
+      return { success: true, itemId: productId };
     } catch (error) {
       console.error("Error adding item to wishlist:", error);
       return { success: false, error: error.message };
     }
   }
-
   /**
    * Remove an item from a user's wishlist
    * @param {string} userId - The user's ID
@@ -89,12 +63,19 @@ class WishlistService {
    */
   async removeFromWishlist(userId, productId, variantId = null) {
     try {
-      const itemId = variantId ? `${productId}_${variantId}` : productId;
-      const wishlistRef = doc(db, this.wishlistCollection, userId);
-
-      await updateDoc(wishlistRef, {
-        [`items.${itemId}`]: deleteDoc.FieldValue?.delete() || null,
-        updatedAt: serverTimestamp(),
+      // For the likedProducts implementation, we ignore variantId
+      const userRef = doc(db, "users", userId);
+      
+      // Get current likedProducts array
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        return { success: false, error: "User not found" };
+      }
+      
+      // Update the document by removing the productId from the likedProducts array
+      await updateDoc(userRef, {
+        likedProducts: arrayRemove(productId),
+        updatedAt: serverTimestamp()
       });
 
       return { success: true };
@@ -103,7 +84,6 @@ class WishlistService {
       return { success: false, error: error.message };
     }
   }
-
   /**
    * Get a user's wishlist
    * @param {string} userId - The user's ID
@@ -111,18 +91,41 @@ class WishlistService {
    */
   async getWishlist(userId) {
     try {
-      const wishlistRef = doc(db, this.wishlistCollection, userId);
-      const wishlistDoc = await getDoc(wishlistRef);
+      // First, get the user document to access likedProducts array
+      const userRef = doc(db, "users", userId);
+      const userDoc = await getDoc(userRef);
 
-      if (!wishlistDoc.exists()) {
+      if (!userDoc.exists()) {
         return { success: true, items: [] };
       }
 
-      const data = wishlistDoc.data();
-      const items = Object.entries(data.items || {}).map(([itemId, item]) => ({
-        itemId,
-        ...item,
-      }));
+      const userData = userDoc.data();
+      const likedProductIds = userData.likedProducts || [];
+      
+      if (likedProductIds.length === 0) {
+        return { success: true, items: [] };
+      }
+      
+      // Fetch the actual product data for each liked product ID
+      const productsPromises = likedProductIds.map(async (productId) => {
+        const productRef = doc(db, "products", productId);
+        const productDoc = await getDoc(productRef);
+        
+        if (productDoc.exists()) {
+          const productData = productDoc.data();
+          return {
+            id: productId,
+            itemId: productId,
+            productId,
+            ...productData,
+            addedAt: productData.createdAt || serverTimestamp()
+          };
+        }
+        return null;
+      });
+      
+      const productsResults = await Promise.all(productsPromises);
+      const items = productsResults.filter(item => item !== null);
 
       return { success: true, items };
     } catch (error) {
@@ -130,7 +133,6 @@ class WishlistService {
       return { success: false, error: error.message, items: [] };
     }
   }
-
   /**
    * Check if a product is in the user's wishlist
    * @param {string} userId - The user's ID
@@ -140,16 +142,19 @@ class WishlistService {
    */
   async isInWishlist(userId, productId, variantId = null) {
     try {
-      const itemId = variantId ? `${productId}_${variantId}` : productId;
-      const wishlistRef = doc(db, this.wishlistCollection, userId);
-      const wishlistDoc = await getDoc(wishlistRef);
+      // For likedProducts implementation, we ignore variantId
+      const userRef = doc(db, "users", userId);
+      const userDoc = await getDoc(userRef);
 
-      if (!wishlistDoc.exists()) {
+      if (!userDoc.exists()) {
         return false;
       }
 
-      const data = wishlistDoc.data();
-      return data.items && data.items[itemId] !== undefined;
+      const userData = userDoc.data();
+      const likedProducts = userData.likedProducts || [];
+      
+      // Check if the productId is in the likedProducts array
+      return likedProducts.includes(productId);
     } catch (error) {
       console.error("Error checking if item is in wishlist:", error);
       return false;

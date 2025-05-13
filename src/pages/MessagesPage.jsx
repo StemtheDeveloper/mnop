@@ -186,7 +186,7 @@ const MessagesPage = () => {
                                 {searching ? (
                                     <div className="searching-indicator">
                                         <LoadingSpinner size="small" />
-                                        <span>Searching...</span>
+
                                     </div>
                                 ) : searchResults.length > 0 ? (
                                     searchResults.map((user) => (
