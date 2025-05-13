@@ -19,7 +19,7 @@ import {
   Timestamp,
   documentId,
 } from "firebase/firestore";
-import { achievementService } from "./achievementService";
+import achievementService from "./achievementService";
 
 class ReviewService {
   /**

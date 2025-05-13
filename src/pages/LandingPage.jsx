@@ -40,7 +40,6 @@ function LandingPage() {
       link: "/news/investor-spotlight"
     }
   ];
-
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
@@ -56,7 +55,18 @@ function LandingPage() {
           limit(1)
         );
 
-        const featuredSnapshot = await getDocs(featuredQuery);
+        let featuredSnapshot = await getDocs(featuredQuery);
+
+        // If no products found with likes, try to get any active product
+        if (featuredSnapshot.empty) {
+          console.log("No featured products found based on likes, fetching any active product");
+          const backupQuery = query(
+            productsRef,
+            where('status', '==', 'active'),
+            limit(1)
+          );
+          featuredSnapshot = await getDocs(backupQuery);
+        }
 
         if (!featuredSnapshot.empty) {
           setFeaturedProduct({
@@ -80,6 +90,27 @@ function LandingPage() {
         }));
 
         setRecommendedProducts(recommendedList);
+        // If we still don't have a featured product but have recommended products, use the first recommended product
+        if (!featuredProduct && recommendedList.length > 0) {
+          console.log("Using a recommended product as featured product");
+          setFeaturedProduct(recommendedList[0]);
+        }
+
+        // As a last resort, create a default featured product
+        if (!featuredProduct && recommendedList.length === 0) {
+          console.log("Creating a default featured product");
+          setFeaturedProduct({
+            id: 'default-product',
+            name: 'Featured Product',
+            description: 'This is a placeholder for our featured product. Check back soon for actual featured products!',
+            price: 99.99,
+            imageUrl: 'https://placehold.co/600x400?text=Featured+Product',
+            likesCount: 0,
+            reviewCount: 0,
+            averageRating: 0
+          });
+        }
+
         setLoading(false);
       } catch (err) {
         console.error('Error fetching products:', err);

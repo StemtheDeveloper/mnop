@@ -40,9 +40,7 @@ exports.processInvestment = functions.https.onCall(async (data, context) => {
         "permission-denied",
         "You can only make investments for yourself"
       );
-    }
-
-    // Check if user has investor role
+    } // Check if user exists and automatically add investor role if needed
     const userRef = db.collection("users").doc(userId);
     const userDoc = await userRef.get();
 
@@ -55,13 +53,16 @@ exports.processInvestment = functions.https.onCall(async (data, context) => {
       ? userData.roles
       : userData.role
       ? [userData.role]
-      : ["customer"];
-
+      : ["customer"]; // If user doesn't have investor role, add it automatically
+    let roleWasAdded = false;
     if (!roles.includes("investor")) {
-      throw new functions.https.HttpsError(
-        "permission-denied",
-        "You need investor role to make investments"
-      );
+      const updatedRoles = [...roles, "investor"];
+      await userRef.update({
+        roles: updatedRoles,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      roleWasAdded = true;
+      console.log(`Automatically added investor role to user ${userId}`);
     }
 
     // Get the product
@@ -159,9 +160,7 @@ exports.processInvestment = functions.https.onCall(async (data, context) => {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      transaction.set(investmentRef, investmentData);
-
-      // Create notifications for both investor and designer
+      transaction.set(investmentRef, investmentData); // Create notifications for both investor and designer
       const investorNotificationRef = db.collection("notifications").doc();
       transaction.set(investorNotificationRef, {
         userId: userId,
@@ -174,6 +173,21 @@ exports.processInvestment = functions.https.onCall(async (data, context) => {
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      // If the user was automatically upgraded to an investor role, notify them
+      if (roleWasAdded) {
+        const roleUpgradeNotificationRef = db.collection("notifications").doc();
+        transaction.set(roleUpgradeNotificationRef, {
+          userId: userId,
+          type: "role_upgrade",
+          title: "New Role: Investor",
+          message:
+            "You have been automatically upgraded to an Investor. You can now invest in products and track your investments in your portfolio.",
+          link: "/portfolio",
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
 
       // Notify the designer about the investment
       const designerNotificationRef = db.collection("notifications").doc();

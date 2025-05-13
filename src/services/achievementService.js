@@ -12,6 +12,7 @@ import {
   where,
   serverTimestamp,
   arrayUnion,
+  increment,
 } from "firebase/firestore";
 
 /**
@@ -336,8 +337,7 @@ export const achievementService = {
   /**
    * Award an achievement to a user directly in the users collection
    * This is a simpler implementation that just adds the achievement ID to the user's achievements array
-   */
-  async directlyAwardAchievement(userId, achievementId) {
+   */ async directlyAwardAchievement(userId, achievementId) {
     try {
       // Check if user exists
       const userRef = doc(db, "users", userId);
@@ -363,21 +363,77 @@ export const achievementService = {
         updatedAt: serverTimestamp(),
       });
 
+      let achievement;
+      let points = 0;
+
       // Get achievement details for points
-      const achievement = await this.getAchievementById(achievementId);
+      try {
+        // Try to get the achievement from Firestore
+        achievement = await this.getAchievementById(achievementId);
+        points = achievement.points || 0;
+      } catch (err) {
+        // If achievement doesn't exist, try to get default data
+        console.warn(
+          `Could not find achievement ${achievementId}, using default data`
+        );
+        const defaultData = this.getDefaultAchievementData(achievementId);
 
-      // Update achievement stats
-      const achievementRef = doc(db, "achievements", achievementId);
-      await updateDoc(achievementRef, {
-        awardCount: (achievement.awardCount || 0) + 1,
-        updatedAt: serverTimestamp(),
-      });
+        if (defaultData) {
+          achievement = { id: achievementId, ...defaultData };
+          points = defaultData.points || 0;
 
-      // Also update user achievement points if applicable
-      if (achievement.points) {
+          // Create the achievement in the database for future reference
+          const achievementRef = doc(db, "achievements", achievementId);
+          await setDoc(achievementRef, {
+            ...defaultData,
+            awardCount: 1,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          // No default data, create minimal achievement
+          achievement = {
+            id: achievementId,
+            name: achievementId,
+            description: "Achievement unlocked!",
+            points: 5,
+          };
+          points = 5;
+
+          // Create a minimal achievement record
+          const achievementRef = doc(db, "achievements", achievementId);
+          await setDoc(achievementRef, {
+            name: achievementId,
+            description: "Achievement unlocked!",
+            category: "other",
+            points: 5,
+            awardCount: 1,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+
+      try {
+        // Try to update achievement stats
+        const achievementRef = doc(db, "achievements", achievementId);
+        await updateDoc(achievementRef, {
+          awardCount: increment(1),
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        // Ignore errors updating achievement stats
+        console.warn(
+          `Error updating achievement stats for ${achievementId}:`,
+          err
+        );
+      }
+
+      // Update user achievement points
+      if (points > 0) {
         const currentPoints = userData.achievementPoints || 0;
         await updateDoc(userRef, {
-          achievementPoints: currentPoints + achievement.points,
+          achievementPoints: currentPoints + points,
         });
       }
 
@@ -595,7 +651,66 @@ export const achievementService = {
 
   /**
    * Check achievements related to account age and engagement
+   */ /**
+   * Get default achievement data for predefined achievements
+   * This is used as a fallback when achievements don't exist in the database
    */
+  getDefaultAchievementData(achievementId) {
+    // Default achievement data by ID
+    const defaultAchievements = {
+      first_review: {
+        name: "First Review",
+        description: "You've written your first product review!",
+        category: "social",
+        imageUrl: "/achievements/first_review.png",
+        points: 10,
+        triggerConfig: {
+          type: "review",
+          condition: "count",
+          value: "1",
+        },
+      },
+      reviewer_5: {
+        name: "Dedicated Reviewer",
+        description: "You've written 5 product reviews!",
+        category: "social",
+        imageUrl: "/achievements/reviewer_5.png",
+        points: 25,
+        triggerConfig: {
+          type: "review",
+          condition: "count",
+          value: "5",
+        },
+      },
+      first_product: {
+        name: "First Product",
+        description: "You've created your first product!",
+        category: "product",
+        imageUrl: "/achievements/first_product.png",
+        points: 20,
+        triggerConfig: {
+          type: "product_upload",
+          condition: "count",
+          value: "1",
+        },
+      },
+      first_investment: {
+        name: "First Investment",
+        description: "You've made your first investment!",
+        category: "investment",
+        imageUrl: "/achievements/first_investment.png",
+        points: 15,
+        triggerConfig: {
+          type: "investment",
+          condition: "count",
+          value: "1",
+        },
+      },
+    };
+
+    return defaultAchievements[achievementId] || null;
+  },
+
   async checkAccountAgeAchievements(userId) {
     try {
       // Get user data
@@ -675,21 +790,151 @@ export const achievementService = {
   },
 
   /**
-   * Placeholder implementation for quote achievements
-   */
-  async checkQuoteAchievements(userId) {
-    // This would contain similar logic to the other achievement checkers
-    // but for manufacturing quotes
-    return { earnedIds: [] };
-  },
-
-  /**
-   * Placeholder implementation for review achievements
+   * Check achievements related to reviews
    */
   async checkReviewAchievements(userId) {
-    // This would contain similar logic to the other achievement checkers
-    // but for product reviews
-    return { earnedIds: [] };
+    try {
+      // Get user's reviews
+      const reviewsRef = collection(db, "reviews");
+      const q = query(reviewsRef, where("userId", "==", userId));
+      const snapshot = await getDocs(q);
+      const reviewCount = snapshot.docs.length;
+
+      // Get achievements that need to be checked
+      const achievementsRef = collection(db, "achievements");
+      const achievementsSnapshot = await getDocs(achievementsRef);
+
+      // Get IDs of review-related achievements
+      const reviewAchievementIds = achievementsSnapshot.docs
+        .filter((doc) => {
+          const data = doc.data();
+          return (
+            data.category === "social" ||
+            (data.triggerConfig && data.triggerConfig.type === "review")
+          );
+        })
+        .map((doc) => doc.id);
+
+      // Get user's current achievements
+      const userRef = doc(db, "users", userId);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        return { earnedIds: [] };
+      }
+
+      const userData = userSnap.data();
+      const userAchievements = userData.achievements || [];
+
+      // Filter to achievements user doesn't have yet
+      const candidateAchievements = reviewAchievementIds.filter(
+        (id) => !userAchievements.includes(id)
+      );
+
+      // Check each achievement condition and award if met
+      const earnedIds = [];
+
+      for (const achievementId of candidateAchievements) {
+        // Get specific achievement details
+        const achievementDoc = achievementsSnapshot.docs.find(
+          (doc) => doc.id === achievementId
+        );
+        if (!achievementDoc) continue;
+
+        const achievement = { id: achievementId, ...achievementDoc.data() };
+
+        // Check if condition is met
+        let conditionMet = false;
+
+        // Handle predefined achievements from achievementsData.js
+        if (achievement.id === "first_review" && reviewCount >= 1) {
+          conditionMet = true;
+        } else if (achievement.id === "reviewer_5" && reviewCount >= 5) {
+          conditionMet = true;
+        }
+
+        // Award achievement if condition is met
+        if (conditionMet) {
+          const result = await this.directlyAwardAchievement(
+            userId,
+            achievementId
+          );
+          if (result.success && !result.alreadyAwarded) {
+            earnedIds.push(achievementId);
+          }
+        }
+      }
+
+      return { earnedIds };
+    } catch (error) {
+      console.error("Error checking review achievements:", error);
+      return { earnedIds: [] };
+    }
+  },
+  /**
+   * Check a specific achievement by ID and award it to the user if not already awarded
+   * This is used for direct achievement checks like when a user completes a specific action
+   * @param {string} achievementId - The ID of the achievement to check and potentially award
+   * @param {string} userId - The user ID to award the achievement to
+   * @returns {Promise<Object>} Result with success status and achievement details if awarded
+   */
+  async checkAchievement(achievementId, userId) {
+    try {
+      // First check if user already has this achievement
+      const userRef = doc(db, "users", userId);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        return { success: false, error: "User not found" };
+      }
+
+      const userData = userSnap.data();
+      const userAchievements = userData.achievements || [];
+
+      // If user already has the achievement, return early with alreadyAwarded flag
+      if (userAchievements.includes(achievementId)) {
+        return { success: true, alreadyAwarded: true };
+      }
+
+      // Check if achievement exists, and create a default one if not
+      try {
+        const achievementRef = doc(db, "achievements", achievementId);
+        const achievementSnap = await getDoc(achievementRef);
+
+        if (!achievementSnap.exists()) {
+          // Create default achievement based on ID
+          const defaultAchievementData =
+            this.getDefaultAchievementData(achievementId);
+
+          // Create the achievement if we have default data
+          if (defaultAchievementData) {
+            console.log(`Creating default achievement for ${achievementId}`);
+            await setDoc(achievementRef, {
+              ...defaultAchievementData,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          }
+        }
+      } catch (err) {
+        console.warn(
+          `Error checking/creating achievement ${achievementId}:`,
+          err
+        );
+        // Continue anyway to try the direct award
+      }
+
+      // Award the achievement directly since this is an event-based direct award
+      const result = await this.directlyAwardAchievement(userId, achievementId);
+
+      return result;
+    } catch (error) {
+      console.error(
+        `Error checking achievement ${achievementId} for user ${userId}:`,
+        error
+      );
+      return { success: false, error: error.message };
+    }
   },
 };
 
