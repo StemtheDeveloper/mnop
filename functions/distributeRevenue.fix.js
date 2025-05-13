@@ -2,6 +2,7 @@
 // Once we confirm the fix works, we can merge these changes into distributeRevenue.js
 
 const admin = require("firebase-admin");
+// Firebase Admin is initialized in index.js
 
 /**
  * Add debug logs to identify why revenue distribution isn't working

@@ -1,12 +1,7 @@
 const functions = require("firebase-functions");
-const { onCall } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
+// Firebase Admin is initialized in index.js
 const db = admin.firestore();
 
 /**
@@ -20,90 +15,23 @@ const db = admin.firestore();
  * - quantity: number - Quantity sold
  * - orderId: string - Order ID reference
  */
-exports.distributeInvestorRevenue = onCall(
-  {
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 120,
-  },
+exports.distributeInvestorRevenue = functions.https.onCall(
   async (data, context) => {
     try {
-      // Use a try/catch for logging to prevent circular reference errors
-      try {
-        console.log("Received data:", JSON.stringify(data));
-      } catch (logError) {
-        console.log("Received data (could not stringify)");
-      }
+      const { productId, saleAmount, manufacturingCost, quantity, orderId } =
+        data;
 
-      // Safe extraction of parameters
-      let productId, saleAmount, manufacturingCost, quantity, orderId;
-
-      try {
-        productId = data.productId;
-        saleAmount = Number(data.saleAmount);
-        manufacturingCost = Number(data.manufacturingCost);
-        quantity = Number(data.quantity);
-        orderId = data.orderId;
-
-        // Log individual parameters for debugging
-        console.log("Parameters received:", {
-          productId,
-          saleAmount,
-          manufacturingCost,
-          quantity,
-          orderId,
-        });
-      } catch (paramError) {
-        console.error("Error extracting parameters:", paramError);
-        throw new functions.https.HttpsError(
-          "invalid-argument",
-          "Could not extract required parameters: " + paramError.message
-        );
-      }
-
-      // Validate inputs with improved error messages
-      if (!productId || typeof productId !== "string") {
-        console.error("Invalid productId:", productId);
-        throw new functions.https.HttpsError(
-          "invalid-argument",
-          "Invalid product ID - must be a non-empty string"
-        );
-      }
-
-      if (!saleAmount || isNaN(saleAmount) || saleAmount <= 0) {
-        console.error("Invalid saleAmount:", saleAmount);
-        throw new functions.https.HttpsError(
-          "invalid-argument",
-          "Invalid sale amount - must be a positive number"
-        );
-      }
-
-      // Allow manufacturingCost to be 0 (might be valid in some cases)
+      // Validate inputs
       if (
-        manufacturingCost === undefined ||
-        manufacturingCost === null ||
-        isNaN(manufacturingCost)
+        !productId ||
+        !saleAmount ||
+        saleAmount <= 0 ||
+        !manufacturingCost ||
+        quantity <= 0
       ) {
-        console.error("Invalid manufacturingCost:", manufacturingCost);
         throw new functions.https.HttpsError(
           "invalid-argument",
-          "Invalid manufacturing cost - must be a number"
-        );
-      }
-
-      if (!quantity || isNaN(quantity) || quantity <= 0) {
-        console.error("Invalid quantity:", quantity);
-        throw new functions.https.HttpsError(
-          "invalid-argument",
-          "Invalid quantity - must be a positive number"
-        );
-      }
-
-      if (!orderId || typeof orderId !== "string") {
-        console.error("Invalid orderId:", orderId);
-        throw new functions.https.HttpsError(
-          "invalid-argument",
-          "Invalid order ID - must be a non-empty string"
+          "Invalid revenue distribution parameters"
         );
       }
 
@@ -293,60 +221,6 @@ exports.distributeRevenue = async (
   orderId
 ) => {
   try {
-    // Log parameters for debugging
-    console.log("Helper function parameters:", {
-      productId,
-      saleAmount,
-      manufacturingCost,
-      quantity,
-      orderId,
-    });
-
-    // Detailed parameter validation
-    if (!productId || typeof productId !== "string") {
-      console.error("Helper: Invalid productId:", productId);
-      return {
-        success: false,
-        error: "Invalid product ID - must be a non-empty string",
-      };
-    }
-
-    if (!saleAmount || isNaN(saleAmount) || saleAmount <= 0) {
-      console.error("Helper: Invalid saleAmount:", saleAmount);
-      return {
-        success: false,
-        error: "Invalid sale amount - must be a positive number",
-      };
-    }
-
-    if (
-      manufacturingCost === undefined ||
-      manufacturingCost === null ||
-      isNaN(manufacturingCost)
-    ) {
-      console.error("Helper: Invalid manufacturingCost:", manufacturingCost);
-      return {
-        success: false,
-        error: "Invalid manufacturing cost - must be a number",
-      };
-    }
-
-    if (!quantity || isNaN(quantity) || quantity <= 0) {
-      console.error("Helper: Invalid quantity:", quantity);
-      return {
-        success: false,
-        error: "Invalid quantity - must be a positive number",
-      };
-    }
-
-    if (!orderId || typeof orderId !== "string") {
-      console.error("Helper: Invalid orderId:", orderId);
-      return {
-        success: false,
-        error: "Invalid order ID - must be a non-empty string",
-      };
-    }
-
     // Calculate profit
     const totalManufacturingCost = manufacturingCost * quantity;
     const profit = Math.max(0, saleAmount - totalManufacturingCost);

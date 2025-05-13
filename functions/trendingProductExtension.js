@@ -1,28 +1,17 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
 
-// Initialize admin if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
+// Firebase Admin is initialized in index.js
 const db = admin.firestore();
 
 /**
  * Function to check for trending products and extend their deadlines
  * A product is considered trending if it has high view count or investment activity
  */
-
-exports.checkTrendingProducts = onSchedule(
-  {
-    schedule: "0 0 * * *", // daily midnight UTC
-    timeZone: "UTC",
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 300,
-  },
-  async (event) => {
+exports.checkTrendingProducts = functions.pubsub
+  .schedule("0 0 * * *") // Run daily at midnight
+  .timeZone("UTC")
+  .onRun(async (context) => {
     console.log("Starting daily trending products check...");
 
     try {
@@ -189,8 +178,7 @@ exports.checkTrendingProducts = onSchedule(
       console.error("Error checking trending products:", error);
       throw error;
     }
-  }
-);
+  });
 
 /**
  * HTTP callable function for designers to request a deadline extension for trending products

@@ -1,23 +1,14 @@
 const functions = require("firebase-functions");
-const { onCall } = require("firebase-functions/v2/https");
-const { onRequest } = require("firebase-functions/v2/https");
-
 const admin = require("firebase-admin");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
-// Remove the redundant initialization - index.js already handles this
-// Just get the Firestore instance
+
+// Firebase Admin is initialized in index.js
 const db = admin.firestore();
 
 /**
  * Daily interest calculation Cloud Function
  * This version is triggered by HTTP request (for testing)
  */
-exports.calculateDailyInterestHttp = onRequest(
-  {
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 300,
-  },
+exports.calculateDailyInterestHttp = functions.https.onRequest(
   async (req, res) => {
     try {
       const result = await calculateInterestForAllWallets();
@@ -40,45 +31,33 @@ exports.calculateDailyInterestHttp = onRequest(
  * Daily interest calculation Cloud Function - Scheduled version
  * Runs at midnight every day (server time)
  */
-exports.dailyInterestCalculationScheduled = onSchedule(
-  {
-    schedule: "0 0 * * *", // every midnight
-    timeZone: "America/New_York", // adjust to your desired TZ
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 300,
-  },
-  async (event) => {
+exports.dailyInterestCalculationScheduled = functions.pubsub
+  .schedule("0 0 * * *") // Run at midnight every day
+  .timeZone("America/New_York")
+  .onRun(async (context) => {
     console.log("Starting daily interest calculation (scheduled)");
 
     try {
-      const result = await calculateInterestForAllWallets(); // <-- your helper
+      const result = await calculateInterestForAllWallets();
       await result.batch.commit();
 
-      console.log(`✔︎ Daily interest calculated:
-        • Total paid    : ${result.totalInterestPaid.toFixed(2)}
-        • Wallets updated: ${result.walletsUpdated}
-        • Timestamp      : ${new Date().toISOString()}`);
+      console.log(`Successfully calculated and added daily interest:
+        - Total interest paid: ${result.totalInterestPaid.toFixed(2)}
+        - Wallets updated: ${result.walletsUpdated}
+        - Time: ${new Date().toISOString()}`);
 
-      return; // success
-    } catch (err) {
-      console.error("✖︎ Error calculating daily interest:", err);
-      // Re-throw so Cloud Functions marks the run as failed
-      throw err;
+      return null; // Successful execution
+    } catch (error) {
+      console.error("Error calculating daily interest:", error);
+      throw new Error(error); // Let Cloud Functions know there was an error
     }
-  }
-);
+  });
 
 /**
  * Calculate interest for a specific user
  * For manual testing or admin-triggered interest payments
  */
-exports.calculateInterestForUser = onCall(
-  {
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 60,
-  },
+exports.calculateInterestForUser = functions.https.onCall(
   async (data, context) => {
     // Only allow admin to call this function
     if (!context.auth || !context.auth.token.admin) {

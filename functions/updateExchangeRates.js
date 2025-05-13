@@ -1,17 +1,7 @@
-// filepath: c:\Users\GGPC\Desktop\mnop-app\functions\updateExchangeRates.js
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 
-const { onSchedule } = require("firebase-functions/v2/scheduler");
-
-// Initialize Firebase Admin SDK if not already initialized
-
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
-// Get Firestore instance
-const db = admin.firestore();
+// Firebase Admin is initialized in index.js
 
 /**
  * This function updates currency exchange rates on a daily schedule.
@@ -20,16 +10,14 @@ const db = admin.firestore();
  * In a production environment, you would replace the simulated exchange rate updates
  * with real API calls to services like Open Exchange Rates, Fixer.io, or similar.
  */
-
-exports.updateExchangeRates = onSchedule(
-  {
-    schedule: "0 0 * * *", // daily midnight UTC
-    timeZone: "UTC",
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 300,
-  },
-  async (event) => {
+exports.updateExchangeRates = functions
+  .runWith({
+    memory: "256MB", // Lower memory to ensure GCF gen 1 compatibility
+    timeoutSeconds: 60,
+  })
+  .pubsub.schedule("0 0 * * *") // Runs at midnight every day (cron syntax)
+  .timeZone("UTC")
+  .onRun(async (context) => {
     try {
       console.log("Starting scheduled exchange rate update");
 
@@ -112,5 +100,4 @@ exports.updateExchangeRates = onSchedule(
       console.error("Error updating exchange rates:", error);
       return null;
     }
-  }
-);
+  });

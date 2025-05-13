@@ -1,434 +1,639 @@
-/****************************************************************************************
- * Stock & Inventory Cloud Functions
- * ──────────────────────────────────────────────────────────────────────────────────────
- *  • checkProductsBackInStock   – hourly cron, notifies users when items return to stock
- *  • checkLowStockLevels        – nightly cron, low-stock alerts + auto-reorders
- *  • processPurchaseOrderUpdate – Firestore update trigger, adds received stock
- *  • notifyForBackInStock       – Firestore update trigger, realtime back-in-stock notify
- ****************************************************************************************/
-
-// ─── Imports & init ────────────────────────────────────────────────────────────────
+const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 
-if (!admin.apps.length) admin.initializeApp();
+// Firebase Admin is initialized in index.js
 const db = admin.firestore();
 
-// ────────────────────────────────────────────────────────────────────────────────
-// 1. HOURLY: notify subscribers when a product is back in stock
-// ────────────────────────────────────────────────────────────────────────────────
-exports.checkProductsBackInStock = onSchedule(
-  {
-    schedule: "0 * * * *",
-    timeZone: "UTC",
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 300,
-  },
-  async () => {
+/**
+ * Cloud Function to check for products back in stock and notify users who have subscribed
+ * This function is scheduled to run every hour
+ */
+exports.checkProductsBackInStock = functions.pubsub
+  .schedule("every 1 hours")
+  .onRun(async (context) => {
     try {
-      console.log("Checking for back-in-stock products …");
+      console.log("Checking for back in stock products...");
 
-      const pendingSnaps = await db
-        .collection("stockNotifications")
+      // Get all stock notification subscriptions that haven't been notified yet
+      const notificationsRef = db.collection("stockNotifications");
+      const snapshot = await notificationsRef
         .where("notified", "==", false)
         .get();
 
-      if (pendingSnaps.empty) {
-        console.log("No pending stock notifications.");
-        return;
+      if (snapshot.empty) {
+        console.log("No pending stock notifications found.");
+        return null;
       }
 
-      console.log(`Found ${pendingSnaps.size} pending notifications.`);
+      console.log(`Found ${snapshot.size} pending stock notifications.`);
       const batch = db.batch();
       let notifiedCount = 0;
 
-      for (const notifDoc of pendingSnaps.docs) {
-        const notif = notifDoc.data();
-        const prodRef = db.collection("products").doc(notif.productId);
-        const prodDoc = await prodRef.get();
+      for (const doc of snapshot.docs) {
+        const notification = doc.data();
 
-        // Clean up deleted products
-        if (!prodDoc.exists) {
-          batch.delete(notifDoc.ref);
+        // Check product stock
+        const productRef = db
+          .collection("products")
+          .doc(notification.productId);
+        const productDoc = await productRef.get();
+
+        if (!productDoc.exists) {
+          // Product no longer exists, delete notification
+          batch.delete(doc.ref);
+          console.log(
+            `Deleted notification for non-existent product: ${notification.productId}`
+          );
           continue;
         }
 
-        const product = { ...prodDoc.data(), id: prodDoc.id };
-        let inStock = false;
+        const productData = productDoc.data();
 
-        if (notif.variantId) {
-          const variant = (product.variants || []).find(
-            (v) => v.id === notif.variantId
+        let isInStock = false;
+
+        if (notification.variantId) {
+          // Check variant stock
+          const variant = (productData.variants || []).find(
+            (v) => v.id === notification.variantId
           );
-          inStock = !!(variant && variant.stockQuantity > 0);
+
+          isInStock = variant && variant.stockQuantity > 0;
         } else {
-          inStock =
-            (product.trackInventory && product.stockQuantity > 0) ||
-            !product.trackInventory;
+          // Check main product stock
+          isInStock =
+            (productData.trackInventory && productData.stockQuantity > 0) ||
+            !productData.trackInventory;
         }
 
-        if (inStock) {
-          // user notification
-          batch.set(db.collection("notifications").doc(), {
-            userId: notif.userId,
-            type: "PRODUCT_BACK_IN_STOCK",
+        if (isInStock) {
+          // Product is back in stock, notify user
+          const notificationId = admin
+            .firestore()
+            .collection("notifications")
+            .doc().id;
+          batch.set(db.collection("notifications").doc(notificationId), {
+            userId: notification.userId,
+            type: "product_stock",
             title: "Product Back in Stock",
-            message: `${product.name} is now available!`,
-            link: `/product/${product.id}`,
+            message: `${productData.name} is now back in stock!`,
+            link: `/product/${notification.productId}`,
             read: false,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-          batch.update(notifDoc.ref, {
+          // Mark notification as sent
+          batch.update(doc.ref, {
             notified: true,
             notifiedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
           notifiedCount++;
+          console.log(
+            `Created back-in-stock notification for user ${notification.userId} for product ${notification.productId}`
+          );
         }
       }
 
+      // Commit all changes in a batch
       await batch.commit();
-      console.log(`✔︎ Sent ${notifiedCount} notifications.`);
-    } catch (err) {
-      console.error("checkProductsBackInStock error:", err);
-    }
-  }
-);
+      console.log(
+        `Successfully processed ${notifiedCount} back-in-stock notifications.`
+      );
 
-// ────────────────────────────────────────────────────────────────────────────────
-// 2. NIGHTLY: low-stock check + optional auto-reorder
-// ────────────────────────────────────────────────────────────────────────────────
-exports.checkLowStockLevels = onSchedule(
-  {
-    schedule: "0 0 * * *",
-    timeZone: "UTC",
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 300,
-  },
-  async () => {
-    console.log("Running low-stock check …");
+      return null;
+    } catch (error) {
+      console.error("Error in checkProductsBackInStock:", error);
+      return null;
+    }
+  });
+
+/**
+ * Cloud Function to check inventory levels daily and send alerts for low stock
+ * Also handles automated reordering for eligible products
+ */
+exports.checkLowStockLevels = functions.pubsub
+  .schedule("every day 00:00")
+  .timeZone("UTC")
+  .onRun(async (context) => {
+    console.log("Checking for low stock inventory levels...");
+
     try {
-      const prodSnap = await db
-        .collection("products")
+      // Get all products that track inventory
+      const productsRef = db.collection("products");
+      const productsSnapshot = await productsRef
         .where("trackInventory", "==", true)
         .get();
 
-      if (prodSnap.empty) return;
+      if (productsSnapshot.empty) {
+        console.log("No products with inventory tracking found.");
+        return null;
+      }
+
+      console.log(
+        `Found ${productsSnapshot.size} products with inventory tracking.`
+      );
 
       const batch = db.batch();
-      let lowStockAlerts = 0;
-      let autoReorders = 0;
+      let lowStockCount = 0;
+      let reorderedCount = 0;
 
-      for (const prodDoc of prodSnap.docs) {
-        const product = { ...prodDoc.data(), id: prodDoc.id };
-        const defaultThreshold = product.lowStockThreshold || 5;
-        const mainQty = product.stockQuantity ?? 0;
-        const mainLow = mainQty <= defaultThreshold;
+      // Process each product
+      for (const productDoc of productsSnapshot.docs) {
+        const productData = productDoc.data();
+        const productId = productDoc.id;
 
-        // ── Variants ──
-        if (product.hasVariants && Array.isArray(product.variants)) {
-          for (const variant of product.variants) {
-            if (!variant.trackInventory) continue;
+        // Check if stock is below threshold
+        const stockQuantity = productData.stockQuantity || 0;
+        const lowStockThreshold = productData.lowStockThreshold || 5; // Default threshold of 5
+        const isLowStock = stockQuantity <= lowStockThreshold;
 
-            const vQty = variant.stockQuantity ?? 0;
-            const vTh = variant.lowStockThreshold ?? defaultThreshold;
-            if (vQty <= vTh) {
-              await createLowStockAlert(product, variant.id, vQty, vTh);
-              lowStockAlerts++;
+        // If product has variants, check each variant's stock level
+        if (productData.hasVariants && Array.isArray(productData.variants)) {
+          for (const variant of productData.variants) {
+            if (variant.trackInventory) {
+              const variantStockQuantity = variant.stockQuantity || 0;
+              const variantThreshold =
+                variant.lowStockThreshold || lowStockThreshold;
+              const isVariantLowStock =
+                variantStockQuantity <= variantThreshold;
 
-              if (variant.autoReorder && !variant.reorderInProgress) {
-                await processAutoReorder(product, variant.id, batch);
-                autoReorders++;
+              if (isVariantLowStock) {
+                // Create low stock alert for this variant
+                await createLowStockAlert(
+                  productData,
+                  variant.id,
+                  variantStockQuantity,
+                  variantThreshold
+                );
+                lowStockCount++;
+
+                // Check if this variant has auto-reordering enabled
+                if (variant.autoReorder && !variant.reorderInProgress) {
+                  await processAutoReorder(productData, variant.id, batch);
+                  reorderedCount++;
+                }
               }
             }
           }
         }
 
-        // ── Main product ──
-        if (!product.hasVariants && mainLow) {
-          await createLowStockAlert(product, null, mainQty, defaultThreshold);
-          lowStockAlerts++;
+        // Check main product stock level (for products without variants)
+        if (isLowStock && !productData.hasVariants) {
+          // Create low stock alert
+          await createLowStockAlert(
+            productData,
+            null,
+            stockQuantity,
+            lowStockThreshold
+          );
+          lowStockCount++;
 
-          if (product.autoReorder && !product.reorderInProgress) {
-            await processAutoReorder(product, null, batch);
-            autoReorders++;
+          // Check if auto-reordering is enabled for this product
+          if (productData.autoReorder && !productData.reorderInProgress) {
+            await processAutoReorder(productData, null, batch);
+            reorderedCount++;
           }
         }
       }
 
+      // Commit the batch
       await batch.commit();
-      console.log(
-        `✔︎ ${lowStockAlerts} alerts, ${autoReorders} auto-reorders.`
-      );
-    } catch (err) {
-      console.error("checkLowStockLevels error:", err);
-    }
-  }
-);
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Helper: create admin low-stock alert
-// ────────────────────────────────────────────────────────────────────────────────
+      console.log(
+        `Processed ${lowStockCount} low stock alerts and initiated ${reorderedCount} automated reorders.`
+      );
+      return null;
+    } catch (error) {
+      console.error("Error checking low stock levels:", error);
+      return null;
+    }
+  });
+
+/**
+ * Helper function to create a low stock alert notification for admins
+ */
 async function createLowStockAlert(
-  product,
+  productData,
   variantId,
   currentStock,
   threshold
 ) {
   try {
-    const variantName = variantId
-      ? (product.variants || []).find((v) => v.id === variantId)?.name ||
-        "Unknown"
-      : null;
-
-    await db.collection("lowStockAlerts").add({
+    // Create notification in the system
+    const alertData = {
       type: "LOW_STOCK_ALERT",
-      productId: product.id,
-      productName: product.name,
-      variantId,
-      variantName,
-      currentStock,
-      threshold,
+      productId: productData.id,
+      productName: productData.name,
+      currentStock: currentStock,
+      threshold: threshold,
+      variantId: variantId,
+      variantName: variantId
+        ? productData.variants.find((v) => v.id === variantId)?.name ||
+          "Unknown variant"
+        : null,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       status: "new",
-    });
+    };
 
-    // notify admins …
-    const admins = await db
+    // Add to low stock alerts collection
+    await db.collection("lowStockAlerts").add(alertData);
+
+    // Find admin users to notify
+    const adminsSnapshot = await db
       .collection("users")
       .where("roles", "array-contains", "admin")
       .get();
-    const ops = [];
 
-    admins.forEach((a) => {
-      const adminId = a.id;
-      const msg = variantId
-        ? `${product.name} (${variantName}) low: ${currentStock} left`
-        : `${product.name} low: ${currentStock} left`;
+    // Send notification to each admin
+    for (const adminDoc of adminsSnapshot.docs) {
+      const adminId = adminDoc.id;
 
-      ops.push(
-        db
-          .collection("notifications")
-          .doc(adminId)
-          .collection("userNotifications")
-          .add({
-            type: "LOW_STOCK_ALERT",
-            title: "Low Stock Alert",
-            message: msg,
-            productId: product.id,
-            variantId,
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            read: false,
-          }),
-        db
-          .collection("notifications")
-          .doc(adminId)
-          .set(
-            { unreadCount: admin.firestore.FieldValue.increment(1) },
-            { merge: true }
-          )
-      );
-    });
+      const notificationData = {
+        type: "LOW_STOCK_ALERT",
+        title: "Low Stock Alert",
+        message: variantId
+          ? `${productData.name} (${alertData.variantName}) is running low: ${currentStock} units left`
+          : `${productData.name} is running low: ${currentStock} units left`,
+        productId: productData.id,
+        variantId: variantId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      };
 
-    await Promise.all(ops);
-  } catch (err) {
-    console.error("createLowStockAlert error:", err);
+      // Add to admin's notifications
+      await db
+        .collection("notifications")
+        .doc(adminId)
+        .collection("userNotifications")
+        .add(notificationData);
+
+      // Increment unread count
+      await db
+        .collection("notifications")
+        .doc(adminId)
+        .set(
+          {
+            unreadCount: admin.firestore.FieldValue.increment(1),
+          },
+          { merge: true }
+        );
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error creating low stock alert:", error);
+    return { success: false, error: error.message };
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Helper: start an auto-reorder (writes updates to caller’s batch)
-// ────────────────────────────────────────────────────────────────────────────────
-async function processAutoReorder(product, variantId, batch) {
+/**
+ * Helper function to process automatic reordering for products
+ */
+async function processAutoReorder(productData, variantId, batch) {
   try {
+    // Determine which object to work with (main product or specific variant)
     const item = variantId
-      ? (product.variants || []).find((v) => v.id === variantId)
-      : product;
-    if (!item) return;
+      ? productData.variants.find((v) => v.id === variantId)
+      : productData;
 
-    const qty = item.reorderQuantity || 50;
-    const poRef = await db.collection("purchaseOrders").add({
-      productId: product.id,
-      productName: product.name,
-      variantId,
-      variantName: variantId ? item.name : null,
-      quantity: qty,
+    if (!item) {
+      console.error(
+        `Variant ${variantId} not found for product ${productData.id}`
+      );
+      return { success: false, error: "Item not found" };
+    }
+
+    // Get reorder quantity and supplier information
+    const reorderQuantity = item.reorderQuantity || 50; // Default reorder quantity
+    const supplierId =
+      item.preferredSupplierId || productData.preferredSupplierId;
+
+    // Create a purchase order
+    const purchaseOrderData = {
+      productId: productData.id,
+      productName: productData.name,
+      variantId: variantId,
+      variantName: variantId
+        ? productData.variants.find((v) => v.id === variantId)?.name ||
+          "Unknown variant"
+        : null,
+      quantity: reorderQuantity,
+      supplierId: supplierId,
       status: "pending",
       autoGenerated: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
 
-    const prodRef = db.collection("products").doc(product.id);
+    // Add to purchase orders collection
+    const purchaseOrderRef = await db
+      .collection("purchaseOrders")
+      .add(purchaseOrderData);
+
+    // Update product/variant to mark reordering in progress
     if (variantId) {
-      const updatedVariants = (product.variants || []).map((v) =>
-        v.id === variantId
-          ? {
-              ...v,
-              reorderInProgress: true,
-              lastReorderDate: admin.firestore.FieldValue.serverTimestamp(),
-              lastPurchaseOrderId: poRef.id,
-            }
-          : v
-      );
-      batch.update(prodRef, { variants: updatedVariants });
+      // For variant, we need to update the specific variant in the array
+      const productRef = db.collection("products").doc(productData.id);
+      const updatedVariants = productData.variants.map((v) => {
+        if (v.id === variantId) {
+          return {
+            ...v,
+            reorderInProgress: true,
+            lastReorderDate: admin.firestore.FieldValue.serverTimestamp(),
+            lastPurchaseOrderId: purchaseOrderRef.id,
+          };
+        }
+        return v;
+      });
+
+      batch.update(productRef, {
+        variants: updatedVariants,
+      });
     } else {
-      batch.update(prodRef, {
+      // For main product, update the document directly
+      const productRef = db.collection("products").doc(productData.id);
+      batch.update(productRef, {
         reorderInProgress: true,
         lastReorderDate: admin.firestore.FieldValue.serverTimestamp(),
-        lastPurchaseOrderId: poRef.id,
+        lastPurchaseOrderId: purchaseOrderRef.id,
       });
     }
-  } catch (err) {
-    console.error("processAutoReorder error:", err);
+
+    // If we have a supplier, send notification to them as well
+    if (supplierId) {
+      // Get supplier information
+      const supplierDoc = await db
+        .collection("suppliers")
+        .doc(supplierId)
+        .get();
+
+      if (supplierDoc.exists) {
+        const supplierData = supplierDoc.data();
+        const supplierEmail = supplierData.email;
+
+        // If supplier has a user account, send in-app notification
+        if (supplierData.userId) {
+          const notificationData = {
+            type: "NEW_PURCHASE_ORDER",
+            title: "New Purchase Order",
+            message: variantId
+              ? `New order for ${productData.name} (${purchaseOrderData.variantName}): ${reorderQuantity} units`
+              : `New order for ${productData.name}: ${reorderQuantity} units`,
+            poId: purchaseOrderRef.id,
+            productId: productData.id,
+            quantity: reorderQuantity,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            read: false,
+          };
+
+          await db
+            .collection("notifications")
+            .doc(supplierData.userId)
+            .collection("userNotifications")
+            .add(notificationData);
+
+          await db
+            .collection("notifications")
+            .doc(supplierData.userId)
+            .set(
+              {
+                unreadCount: admin.firestore.FieldValue.increment(1),
+              },
+              { merge: true }
+            );
+        }
+      }
+    }
+
+    return { success: true, purchaseOrderId: purchaseOrderRef.id };
+  } catch (error) {
+    console.error("Error processing auto reorder:", error);
+    return { success: false, error: error.message };
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
-// 3. Firestore trigger: purchase order → update inventory on “received”
-// ────────────────────────────────────────────────────────────────────────────────
-exports.processPurchaseOrderUpdate = onDocumentUpdated(
-  {
-    document: "purchaseOrders/{poId}",
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 60,
-  },
-  async (event) => {
-    const before = event.data.before.data();
-    const after = event.data.after.data();
-    if (!before || !after) return;
+/**
+ * Cloud Function to handle purchase order status updates
+ * Updates inventory when orders are received
+ */
+exports.processPurchaseOrderUpdate = functions.firestore
+  .document("purchaseOrders/{purchaseOrderId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const purchaseOrderId = context.params.purchaseOrderId;
 
-    if (before.status === "received" || after.status !== "received") return;
+    // Check if status changed to "received"
+    if (before.status !== "received" && after.status === "received") {
+      try {
+        // Get the product
+        const productRef = db.collection("products").doc(after.productId);
+        const productDoc = await productRef.get();
 
-    try {
-      const prodRef = db.collection("products").doc(after.productId);
-      const prodDoc = await prodRef.get();
-      if (!prodDoc.exists) return;
-
-      const product = prodDoc.data();
-
-      if (after.variantId) {
-        const updatedVariants = (product.variants || []).map((v) =>
-          v.id === after.variantId
-            ? {
-                ...v,
-                stockQuantity: (v.stockQuantity || 0) + after.quantity,
-                reorderInProgress: false,
-              }
-            : v
-        );
-        await prodRef.update({ variants: updatedVariants });
-      } else {
-        await prodRef.update({
-          stockQuantity: admin.firestore.FieldValue.increment(after.quantity),
-          reorderInProgress: false,
-        });
-      }
-    } catch (err) {
-      console.error("processPurchaseOrderUpdate error:", err);
-    }
-  }
-);
-
-// ────────────────────────────────────────────────────────────────────────────────
-// 4. Realtime trigger: product flips to in-stock → notify subscribers
-// ────────────────────────────────────────────────────────────────────────────────
-exports.notifyForBackInStock = onDocumentUpdated(
-  {
-    document: "products/{productId}",
-    cpu: 1,
-    memory: "1GiB",
-    timeoutSeconds: 60,
-  },
-  async (event) => {
-    const productId = event.params.productId;
-    const beforeData = event.data.before.data();
-    const afterData = event.data.after.data();
-    if (!beforeData || !afterData) return;
-
-    // Single-SKU product
-    if (!afterData.hasVariants && !beforeData.inStock && afterData.inStock) {
-      await notifySubscribers(productId, null, afterData);
-      return;
-    }
-
-    // Variants: check each one
-    if (afterData.hasVariants && Array.isArray(afterData.variants)) {
-      const promises = [];
-      afterData.variants.forEach((variant) => {
-        const prev = (beforeData.variants || []).find(
-          (v) => v.id === variant.id
-        );
-        if (variant.inStock && (!prev || !prev.inStock)) {
-          promises.push(
-            notifySubscribers(productId, variant.id, { ...afterData, variant })
+        if (!productDoc.exists) {
+          console.log(
+            `Product ${after.productId} not found for purchase order ${purchaseOrderId}`
           );
+          return null;
         }
-      });
-      await Promise.all(promises);
-    }
-  }
-);
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Helper: notify each subscriber & mark notification as sent
-// ────────────────────────────────────────────────────────────────────────────────
+        const productData = productDoc.data();
+
+        // Update inventory based on received order
+        if (after.variantId) {
+          // Update variant inventory
+          const variants = productData.variants || [];
+          const updatedVariants = variants.map((variant) => {
+            if (variant.id === after.variantId) {
+              return {
+                ...variant,
+                stockQuantity: (variant.stockQuantity || 0) + after.quantity,
+                reorderInProgress: false,
+              };
+            }
+            return variant;
+          });
+
+          await productRef.update({
+            variants: updatedVariants,
+          });
+        } else {
+          // Update main product inventory
+          await productRef.update({
+            stockQuantity: admin.firestore.FieldValue.increment(after.quantity),
+            reorderInProgress: false,
+          });
+        }
+
+        console.log(
+          `Updated inventory for ${after.productName} from purchase order ${purchaseOrderId}`
+        );
+        return { success: true };
+      } catch (error) {
+        console.error("Error processing purchase order update:", error);
+        return null;
+      }
+    }
+
+    return null;
+  });
+
+/**
+ * Cloud Function that checks if products with subscribers are back in stock
+ * and sends notifications to the subscribers.
+ *
+ * This function is triggered by Firestore updates to product inventory.
+ */
+exports.notifyForBackInStock = functions.firestore
+  .document("products/{productId}")
+  .onUpdate(async (change, context) => {
+    const productId = context.params.productId;
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+
+    // Check if product went from out of stock to in stock
+    if (!beforeData.inStock && afterData.inStock) {
+      try {
+        const db = admin.firestore();
+
+        // Get the product details
+        const productSnapshot = await db
+          .collection("products")
+          .doc(productId)
+          .get();
+        const productData = productSnapshot.data();
+
+        // If the product doesn't have variants, notify for the main product
+        if (!productData.hasVariants) {
+          await notifySubscribers(productId, null, productData);
+        } else {
+          // Check variants
+          const variantsRef = db
+            .collection("products")
+            .doc(productId)
+            .collection("variants");
+
+          const variantsSnapshot = await variantsRef.get();
+
+          // Process each variant
+          const notifications = [];
+          variantsSnapshot.forEach((variantDoc) => {
+            const variantId = variantDoc.id;
+            const variantData = variantDoc.data();
+
+            // Check if variant went from out of stock to in stock
+            if (
+              variantData.inStock &&
+              (!beforeData.variants ||
+                !beforeData.variants[variantId] ||
+                !beforeData.variants[variantId].inStock)
+            ) {
+              notifications.push(
+                notifySubscribers(productId, variantId, {
+                  ...productData,
+                  variant: variantData,
+                })
+              );
+            }
+          });
+
+          await Promise.all(notifications);
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error("Error in notifyForBackInStock function:", error);
+        return { error: error.message };
+      }
+    }
+
+    return { success: true, noChange: true };
+  });
+
+/**
+ * Helper function to notify subscribers when a product is back in stock
+ */
 async function notifySubscribers(productId, variantId, productData) {
   try {
-    let query = db
+    const db = admin.firestore();
+
+    // Query for subscribers to this product/variant
+    const query = db
       .collection("stockNotifications")
       .where("productId", "==", productId)
       .where("notified", "==", false);
 
-    query = variantId
+    // Add variant filter if needed
+    const finalQuery = variantId
       ? query.where("variantId", "==", variantId)
       : query.where("variantId", "==", null);
 
-    const snap = await query.get();
-    if (snap.empty) return;
+    const subscribersSnapshot = await finalQuery.get();
 
-    const ops = [];
-    snap.forEach((doc) => {
-      const sn = doc.data();
-      const userId = sn.userId;
+    if (subscribersSnapshot.empty) {
+      return { success: true, notifiedCount: 0 };
+    }
 
-      ops.push(
-        db
-          .collection("notifications")
-          .doc(userId)
-          .collection("userNotifications")
-          .add({
-            type: "PRODUCT_BACK_IN_STOCK",
-            title: "Product Back in Stock!",
-            message: `${productData.name} is now available for purchase.`,
-            productId,
-            variantId,
-            productName: productData.name,
-            productImage: productData.images?.[0] || null,
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            read: false,
-          }),
-        db
-          .collection("notifications")
-          .doc(userId)
-          .set(
-            { unreadCount: admin.firestore.FieldValue.increment(1) },
-            { merge: true }
-          ),
-        db.collection("stockNotifications").doc(doc.id).update({
-          notified: true,
-          notifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    // Notify each subscriber
+    const notificationPromises = [];
+
+    subscribersSnapshot.forEach((doc) => {
+      const subscriberData = doc.data();
+      const userId = subscriberData.userId;
+
+      // Create notification
+      const productName = productData.name || "A product you wanted";
+      const notificationData = {
+        type: "PRODUCT_BACK_IN_STOCK",
+        title: "Product Back in Stock!",
+        message: `${productName} is now back in stock and available for purchase.`,
+        productId,
+        variantId,
+        productName: productData.name,
+        productImage:
+          productData.images && productData.images.length > 0
+            ? productData.images[0]
+            : null,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      };
+
+      // Add notification to the user's notifications collection
+      const notificationPromise = db
+        .collection("notifications")
+        .doc(userId)
+        .collection("userNotifications")
+        .add(notificationData)
+        .then(() => {
+          // Increment unread count
+          return db
+            .collection("notifications")
+            .doc(userId)
+            .set(
+              {
+                unreadCount: admin.firestore.FieldValue.increment(1),
+              },
+              { merge: true }
+            );
         })
-      );
+        .then(() => {
+          // Mark stock notification as sent
+          return db.collection("stockNotifications").doc(doc.id).update({
+            notified: true,
+            notifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        });
+
+      notificationPromises.push(notificationPromise);
     });
 
-    await Promise.all(ops);
-    console.log(`Notified ${snap.size} subscriber(s) for product ${productId}`);
-  } catch (err) {
-    console.error("notifySubscribers error:", err);
+    await Promise.all(notificationPromises);
+
+    return {
+      success: true,
+      notifiedCount: subscribersSnapshot.size,
+    };
+  } catch (error) {
+    console.error("Error notifying subscribers:", error);
+    return { success: false, error: error.message };
   }
 }
