@@ -17,6 +17,7 @@ import AdminProductNotifier from './components/admin/AdminProductNotifier';
 import PolicyNotificationBanner from './components/PolicyNotificationBanner';
 import CookieConsentBanner from './components/CookieConsentBanner';
 import FeedbackBar from './components/FeedbackBar';
+import ScrollToTop from './components/ScrollToTop'; // Import ScrollToTop component
 import { ErrorBoundary } from './components/error';
 import './styles/App.css';
 import './styles/Buttons.css'; // Importing common button styles
@@ -36,7 +37,7 @@ function App() {
                   <CurrencyProvider>
                     <CartProvider>
                       <FeedbackProvider>
-
+                        <ScrollToTop /> {/* Add ScrollToTop component here */}
                         <div className="app">
                           <br /><br /><br /><br /><br />
                           <Nav />

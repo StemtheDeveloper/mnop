@@ -380,9 +380,13 @@
 
 .shop-enhanced-search .enhanced-search-form {
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Make sure the suggestions dropdown appears above other elements */
 .shop-enhanced-search .search-suggestions-dropdown {
   z-index: 50;
+  max-width: 600px;
 }

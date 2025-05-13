@@ -497,7 +497,7 @@ const DesignerQuoteDetailPage = () => {
                                             </div>
                                         )}
                                         {product.imageUrl && (
-                                            <div className="product-image">
+                                            <div className="quote-product-image">
                                                 <img src={product.imageUrl} alt={product.name || 'Product'} />
                                             </div>
                                         )}

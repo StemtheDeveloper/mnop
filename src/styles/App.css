@@ -68,11 +68,8 @@ button {
 
 /* Card elements */
 .card,
-.product-card,
 .investment-card {
   background-color: var(--card-bg);
   border: 1px solid var(--border-color);
   box-shadow: 0 2px 4px var(--shadow);
 }
-
-/* ...existing styles... */

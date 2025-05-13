@@ -435,7 +435,7 @@ const ProductsExcelView = () => {
                     <div className="image-gallery">
                         {product.imageUrls.map((url, index) => (
                             <div className="product-image-container" key={`${product.id}-img-${index}`}>
-                                <img src={url} alt={`${product.name || 'Product'} ${index + 1}`} className="product-image" />
+                                <img src={url} alt={`${product.name || 'Product'} ${index + 1}`} className="admin-product-image" />
                                 <div className="image-index">Image {index + 1}</div>
                             </div>
                         ))}

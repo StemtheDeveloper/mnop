@@ -5,19 +5,19 @@
 
 .enhanced-search-form {
   display: flex;
-  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .search-input-wrapper {
   position: relative;
-  flex: 1;
+
   display: flex;
 }
 
 .enhanced-search-input {
-  flex: 1;
-  padding: 10px 15px;
-  padding-right: 35px;
+  padding: 10px 23px;
+
   border: 1px solid #ddd;
   border-radius: 4px 0 0 4px;
   font-size: 15px;
@@ -81,6 +81,7 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   z-index: 100;
   max-height: 400px;
+  max-width: 600px;
   overflow-y: auto;
 }
 

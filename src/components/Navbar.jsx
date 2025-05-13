@@ -253,7 +253,7 @@ const Navbar = () => {
                 <Link to="/cart" className={isActive('/cart') ? 'active' : ''} onClick={() => setIsOpen(false)}>
                   Cart
                   {cartCount > 0 && (
-                    <span className="notification-badge cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+                    <span className="cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
                   )}
                 </Link>
               </li>
@@ -291,7 +291,7 @@ const Navbar = () => {
               <Link to="/cart">
                 <img src={CartIcon} alt="Cart icon" />
                 {cartCount > 0 && (
-                  <span className="notification-badge cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+                  <span className="cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
                 )}
               </Link>
             </li>
@@ -333,7 +333,7 @@ const Navbar = () => {
                   <Link to="/cart">
                     <img src={CartIcon} title="Cart" alt="Cart icon" />
                     {cartCount > 0 && (
-                      <span className="notification-badge cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
+                      <span className="cart-badge">{cartCount > 99 ? '99+' : cartCount}</span>
                     )}
                   </Link>
                 </li>

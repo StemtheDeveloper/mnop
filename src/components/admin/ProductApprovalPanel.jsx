@@ -274,7 +274,7 @@ const ProductApprovalPanel = () => {
                     <div className="pending-products-list">
                         {pendingProducts.map(product => (
                             <div key={product.id} className="pending-product-card">
-                                <div className="product-image">
+                                <div className="admin-product-image">
                                     <img
                                         src={getProductImage(product)}
                                         alt={product.name}

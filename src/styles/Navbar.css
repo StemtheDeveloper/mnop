@@ -54,7 +54,7 @@ ul {
   display: flex;
   align-items: center;
   flex-shrink: 1; /* Allow logo to shrink if needed */
-  max-width: 180px; /* Slightly reduced */
+  max-width: 180px;
 }
 
 .logo img {
@@ -488,6 +488,11 @@ li {
     top: 10px;
     right: 10px;
   }
+
+  .cart-badge {
+    top: 50px;
+    right: 90%;
+  }
 }
 
 /* Responsive adjustments for desktop navigation */
@@ -670,6 +675,16 @@ li {
   position: relative;
   cursor: pointer;
 }
+.nav-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 0.5rem;
+}
+
+.navbar-icons {
+  height: 100%;
+}
 
 .notification-badge {
   position: absolute;
@@ -684,9 +699,25 @@ li {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
+
   font-weight: bold;
-  box-shadow: 0 1px 3px var(--shadow-color);
+}
+
+.cart-badge {
+  position: relative;
+  top: -30px;
+  left: 40%;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  max-width: 18px;
+  height: 18px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: bold;
 }
 
 .search-container {
