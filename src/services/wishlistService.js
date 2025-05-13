@@ -40,12 +40,12 @@ class WishlistService {
     try {
       // For likedProducts implementation, we ignore variantId and productData
       const userRef = doc(db, "users", userId);
-      
+
       // Update the user document by adding the productId to the likedProducts array
       // if it doesn't already exist
       await updateDoc(userRef, {
         likedProducts: arrayUnion(productId),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
 
       return { success: true, itemId: productId };
@@ -65,17 +65,17 @@ class WishlistService {
     try {
       // For the likedProducts implementation, we ignore variantId
       const userRef = doc(db, "users", userId);
-      
+
       // Get current likedProducts array
       const userDoc = await getDoc(userRef);
       if (!userDoc.exists()) {
         return { success: false, error: "User not found" };
       }
-      
+
       // Update the document by removing the productId from the likedProducts array
       await updateDoc(userRef, {
         likedProducts: arrayRemove(productId),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
 
       return { success: true };
@@ -101,16 +101,16 @@ class WishlistService {
 
       const userData = userDoc.data();
       const likedProductIds = userData.likedProducts || [];
-      
+
       if (likedProductIds.length === 0) {
         return { success: true, items: [] };
       }
-      
+
       // Fetch the actual product data for each liked product ID
       const productsPromises = likedProductIds.map(async (productId) => {
         const productRef = doc(db, "products", productId);
         const productDoc = await getDoc(productRef);
-        
+
         if (productDoc.exists()) {
           const productData = productDoc.data();
           return {
@@ -118,14 +118,14 @@ class WishlistService {
             itemId: productId,
             productId,
             ...productData,
-            addedAt: productData.createdAt || serverTimestamp()
+            addedAt: productData.createdAt || serverTimestamp(),
           };
         }
         return null;
       });
-      
+
       const productsResults = await Promise.all(productsPromises);
-      const items = productsResults.filter(item => item !== null);
+      const items = productsResults.filter((item) => item !== null);
 
       return { success: true, items };
     } catch (error) {
@@ -152,7 +152,7 @@ class WishlistService {
 
       const userData = userDoc.data();
       const likedProducts = userData.likedProducts || [];
-      
+
       // Check if the productId is in the likedProducts array
       return likedProducts.includes(productId);
     } catch (error) {

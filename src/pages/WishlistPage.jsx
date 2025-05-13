@@ -23,7 +23,7 @@ const WishlistPage = () => {
             }
 
             setLoading(true);
-            setError(null);            try {
+            setError(null); try {
                 const { success, items, error } = await wishlistService.getWishlist(user.uid);
 
                 if (success) {
@@ -46,10 +46,11 @@ const WishlistPage = () => {
                 showError('An unexpected error occurred');
             } finally {
                 setLoading(false);
-            }        };
+            }
+        };
 
         fetchWishlist();
-    }, [user, showError]);    const handleRemoveFromWishlist = async (productId) => {
+    }, [user, showError]); const handleRemoveFromWishlist = async (productId) => {
         try {
             const { success, error } = await wishlistService.removeFromWishlist(user.uid, productId);
 
@@ -64,7 +65,7 @@ const WishlistPage = () => {
             console.error('Error removing from wishlist:', err);
             showError('An unexpected error occurred');
         }
-    };    if (!user) {
+    }; if (!user) {
         return (
             <div className="wishlist-page">
                 <div className="wishlist-container">
@@ -110,39 +111,39 @@ const WishlistPage = () => {
                             </Link>
                         </div>
                     </div>
-                ) : (                <div className="wishlist-items-grid">
-                        {wishlistItems.map((product) => (
-                            <div key={product.id} className="wishlist-product-container">
-                                <button
-                                    className="wishlist-remove-button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRemoveFromWishlist(product.id);
-                                    }}
-                                    title="Remove from wishlist"
-                                >
-                                    <FaTimes />
-                                </button>
-                                <ProductCard
-                                    id={product.id}
-                                    image={product.imageUrl || (product.imageUrls && product.imageUrls[0]) || product.mainImage || 'https://placehold.co/300x300?text=Product'}
-                                    images={Array.isArray(product.imageUrls) ? product.imageUrls : product.imageUrl ? [product.imageUrl] : []}
-                                    title={product.name || product.title || 'Unnamed Product'}
-                                    description={product.description ? product.description.slice(0, 100) + (product.description.length > 100 ? '...' : '') : 'No description available'}
-                                    price={typeof product.price === 'number' ? product.price : parseFloat(product.price) || 0}
-                                    rating={typeof product.averageRating === 'number' ? product.averageRating : product.rating || 0}
-                                    reviewCount={typeof product.reviewCount === 'number' ? product.reviewCount : 0}
-                                    viewers={typeof product.activeViewers === 'number' ? product.activeViewers : product.viewers || 0}
-                                    fundingProgress={product.fundingGoal > 0 ? Math.min((product.currentFunding || 0) / product.fundingGoal * 100, 100) : 0}
-                                    currentFunding={typeof product.currentFunding === 'number' ? product.currentFunding : 0}
-                                    fundingGoal={typeof product.fundingGoal === 'number' ? product.fundingGoal : 0}
-                                    status={product.status || 'active'}
-                                    designerId={product.designerId || ''}
-                                    onClick={() => navigate(`/product/${product.id}`)}
-                                />
-                            </div>
-                        ))}
-                    </div>
+                ) : (<div className="wishlist-items-grid">
+                    {wishlistItems.map((product) => (
+                        <div key={product.id} className="wishlist-product-container">
+                            <button
+                                className="wishlist-remove-button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveFromWishlist(product.id);
+                                }}
+                                title="Remove from wishlist"
+                            >
+                                <FaTimes />
+                            </button>
+                            <ProductCard
+                                id={product.id}
+                                image={product.imageUrl || (product.imageUrls && product.imageUrls[0]) || product.mainImage || 'https://placehold.co/300x300?text=Product'}
+                                images={Array.isArray(product.imageUrls) ? product.imageUrls : product.imageUrl ? [product.imageUrl] : []}
+                                title={product.name || product.title || 'Unnamed Product'}
+                                description={product.description ? product.description.slice(0, 100) + (product.description.length > 100 ? '...' : '') : 'No description available'}
+                                price={typeof product.price === 'number' ? product.price : parseFloat(product.price) || 0}
+                                rating={typeof product.averageRating === 'number' ? product.averageRating : product.rating || 0}
+                                reviewCount={typeof product.reviewCount === 'number' ? product.reviewCount : 0}
+                                viewers={typeof product.activeViewers === 'number' ? product.activeViewers : product.viewers || 0}
+                                fundingProgress={product.fundingGoal > 0 ? Math.min((product.currentFunding || 0) / product.fundingGoal * 100, 100) : 0}
+                                currentFunding={typeof product.currentFunding === 'number' ? product.currentFunding : 0}
+                                fundingGoal={typeof product.fundingGoal === 'number' ? product.fundingGoal : 0}
+                                status={product.status || 'active'}
+                                designerId={product.designerId || ''}
+                                onClick={() => navigate(`/product/${product.id}`)}
+                            />
+                        </div>
+                    ))}
+                </div>
                 )}
             </div>
         </div>
