@@ -29,6 +29,8 @@ import messagingService from '../services/messagingService';
 import encryptionService from '../services/encryptionService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { format } from 'date-fns';
+import { useToast } from '../context/ToastContext';
+import { errorToToast, handleErrorWithToast } from '../utils/errorToToast';
 
 const FileGalleryPreview = ({ messages, isDecrypting, decryptedUrls, decryptErrors }) => {
     const [activeTab, setActiveTab] = useState('images');
@@ -273,6 +275,7 @@ const ConversationPage = () => {
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const { success: showSuccess, error: showError } = useToast();
     const [sendingMessage, setSendingMessage] = useState(false);
     const [sendProgress, setSendProgress] = useState(0);
     const [attachment, setAttachment] = useState(null);
@@ -410,7 +413,9 @@ const ConversationPage = () => {
                 return () => unsubscribe();
             } catch (err) {
                 console.error('Error loading conversation:', err);
-                setError('Failed to load conversation. Please try again.');
+                // Use handleErrorWithToast to handle error and show toast notification
+                const errorMsg = handleErrorWithToast(err, showError, 'Failed to load conversation. Please try again.');
+                setError(errorMsg);
                 setLoading(false);
             }
         };
@@ -548,7 +553,9 @@ const ConversationPage = () => {
             }, 500);
         } catch (err) {
             console.error('Error sending message:', err);
-            setError('Failed to send message. Please try again.');
+            // Use handleErrorWithToast to handle error and show toast notification
+            const errorMsg = handleErrorWithToast(err, showError, 'Failed to send message. Please try again.');
+            setError(errorMsg);
             setSendingMessage(false);
         }
     };
@@ -559,10 +566,10 @@ const ConversationPage = () => {
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
-        if (!file) return;
-
-        if (file.size > 20 * 1024 * 1024) {
-            setError('File size exceeds 20MB limit');
+        if (!file) return; if (file.size > 20 * 1024 * 1024) {
+            const errorMsg = 'File size exceeds 20MB limit';
+            setError(errorMsg);
+            showError(errorMsg);
             return;
         }
 
@@ -849,7 +856,9 @@ const ConversationPage = () => {
             setEditingContent('');
         } catch (err) {
             console.error('Error editing message:', err);
-            setError('Failed to edit message. Please try again.');
+            // Use handleErrorWithToast to handle error and show toast notification
+            const errorMsg = handleErrorWithToast(err, showError, 'Failed to edit message. Please try again.');
+            setError(errorMsg);
         } finally {
             setIsDeleting(false);
         }
@@ -864,7 +873,9 @@ const ConversationPage = () => {
             setActiveMessageOptions(null);
         } catch (err) {
             console.error('Error deleting message:', err);
-            setError('Failed to delete message. Please try again.');
+            // Use handleErrorWithToast to handle error and show toast notification
+            const errorMsg = handleErrorWithToast(err, showError, 'Failed to delete message. Please try again.');
+            setError(errorMsg);
         } finally {
             setIsDeleting(false);
         }
@@ -879,7 +890,9 @@ const ConversationPage = () => {
             navigate('/messages');
         } catch (err) {
             console.error('Error deleting conversation:', err);
-            setError('Failed to delete conversation. Please try again.');
+            // Use handleErrorWithToast to handle error and show toast notification
+            const errorMsg = handleErrorWithToast(err, showError, 'Failed to delete conversation. Please try again.');
+            setError(errorMsg);
         } finally {
             setIsDeleting(false);
             setShowDeleteConfirm(false);
@@ -957,14 +970,14 @@ const ConversationPage = () => {
                 </div>
             </div>
         );
-    }
-
-    if (error) {
+    } if (error) {
+        // Show error message as toast notification
+        errorToToast(error, showError);
         return (
             <div className="conversation-page">
                 <div className="error-container">
                     <h2>Error</h2>
-                    <p className="error-message">{error}</p>
+                    <p>{error}</p>
                     <Link to="/messages" className="back-link">Back to Messages</Link>
                 </div>
             </div>

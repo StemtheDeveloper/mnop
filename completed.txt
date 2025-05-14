@@ -1,5 +1,35 @@
 # Completed Improvements for mnop-app
 
+- Optimize LoadingSpinner component by implementing a timeout to automatically hide after a certain period to prevent UI lockout
+
+- Add earnings summary to the /earnings page
+
+- Need to fix Shop icons, like and add to cart
+
+- Need to fix Wishlist icons, like, add to cart, delete
+
+- Can't write reviews on other user's pages
+
+- Style the my sales tab better
+
+- Add a button to toggle between basic and advanced view on the Allproducts panel. The advanced page should display and allow editing for all the products data.
+
+- Sorting doesn't work and the sorting by type "Crowdfunded" or "Direct Sell" doesn't work either. The type sort should only use isCrowdfunded because isDirectSell is redundant. So if it's not crowdfunded then it's direct sell.
+
+- Need to make sure that the add to cart button shows if the product is fully funded
+
+- I want to change the functionality of the nav search. Instead of viewing the results on a completely different page the user should be directed to the shop page and the props of the search should be passed to the shop to display the search item.
+
+- Search page: Category drop down is showing category ID's rather than the names of the categories
+
+- Move all error messages to toast banner
+
+- Fix recommended purchases
+
+- Add column highlight feature on products-csv-import page and hover title to help with UX
+
+- Fix success message showing in error-message div: corrected style classes for success messages
+
 - Resolve customer orders link from notifications drawer
 - Commission needs to be taken from direct sell products
 - Fix the display of cross sell items

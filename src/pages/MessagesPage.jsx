@@ -5,6 +5,8 @@ import '../styles/MessagesPage.css';
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useToast } from '../context/ToastContext';
+import { errorToToast, handleErrorWithToast } from '../utils/errorToToast';
 
 const MessagesPage = () => {
     const { user, userProfile, loading: userLoading } = useUser();
@@ -19,18 +21,18 @@ const MessagesPage = () => {
     const [message, setMessage] = useState('');
     const [sendingMessage, setSendingMessage] = useState(false);
     const navigate = useNavigate();
-
-    useEffect(() => {
+    const { success: showSuccess, error: showError } = useToast(); useEffect(() => {
         const loadConversations = async () => {
             if (!user?.uid) return;
-
             try {
                 setLoading(true);
                 const userConversations = await messagingService.getUserConversations(user.uid);
                 setConversations(userConversations);
             } catch (err) {
                 console.error('Error loading conversations:', err);
-                setError('Failed to load conversations. Please try again.');
+                // Use handleErrorWithToast to handle the error and show toast
+                const errorMsg = handleErrorWithToast(err, showError, 'Failed to load conversations. Please try again.');
+                setError(errorMsg);
             } finally {
                 setLoading(false);
             }
@@ -48,9 +50,7 @@ const MessagesPage = () => {
         if (!searchTerm.trim()) {
             setSearchResults([]);
             return;
-        }
-
-        // Set a timer to delay the search (debounce)
+        }        // Set a timer to delay the search (debounce)
         const timer = setTimeout(async () => {
             try {
                 setSearching(true);
@@ -58,6 +58,8 @@ const MessagesPage = () => {
                 setSearchResults(results);
             } catch (err) {
                 console.error('Error searching for users:', err);
+                // Use handleErrorWithToast to show toast notification
+                handleErrorWithToast(err, showError, 'Error searching for users. Please try again.');
             } finally {
                 setSearching(false);
             }
@@ -78,9 +80,7 @@ const MessagesPage = () => {
     const handleBackToList = () => {
         setComposing(false);
         setSelectedUser(null);
-    };
-
-    const handleUserSearch = async (e) => {
+    }; const handleUserSearch = async (e) => {
         e.preventDefault();
         if (!searchTerm.trim() || !user?.uid) return;
 
@@ -90,6 +90,8 @@ const MessagesPage = () => {
             setSearchResults(results);
         } catch (err) {
             console.error('Error searching for users:', err);
+            // Use handleErrorWithToast to show toast notification
+            handleErrorWithToast(err, showError, 'Error searching for users. Please try again.');
         } finally {
             setSearching(false);
         }
@@ -99,9 +101,7 @@ const MessagesPage = () => {
         setSelectedUser(selectedUser);
         setSearchResults([]);
         setSearchTerm('');
-    };
-
-    const handleSendMessage = async () => {
+    }; const handleSendMessage = async () => {
         if (!message.trim() || !user?.uid || !selectedUser?.id) return;
 
         try {
@@ -125,7 +125,9 @@ const MessagesPage = () => {
             navigate(`/messages/${conversation.id}`);
         } catch (err) {
             console.error('Error sending message:', err);
-            setError('Failed to send message. Please try again.');
+            // Use handleErrorWithToast to handle the error and show toast
+            const errorMsg = handleErrorWithToast(err, showError, 'Failed to send message. Please try again.');
+            setError(errorMsg);
         } finally {
             setSendingMessage(false);
         }
@@ -301,13 +303,14 @@ const MessagesPage = () => {
                     </button>
                 </div>
 
-                {loading ? (
-                    <div className="loading-container">
-                        <LoadingSpinner />
-                        <p>Loading conversations...</p>
-                    </div>
+                {loading ? (<div className="loading-container">
+                    <LoadingSpinner />
+                    <p>Loading conversations...</p>
+                </div>
                 ) : error ? (
-                    <div className="error-message">{error}</div>
+                    <div>
+                        {errorToToast(error, showError)}
+                    </div>
                 ) : conversations.length === 0 ? (
                     <div className="no-messages">
                         <h2>No messages yet</h2>

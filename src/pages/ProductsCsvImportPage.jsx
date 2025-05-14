@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
 import '../styles/BulkProductUploader.css';
 import '../styles/UnifiedProductManager.css';
+import '../styles/ColumnHighlight.css';
 import ImageCropper from '../components/ImageCropper';
 import { unsanitizeString } from '../utils/unsanitizer';
 
@@ -67,6 +68,42 @@ const ProductsCsvImportPage = () => {
     const [advancedMode, setAdvancedMode] = useState(false);
     const [newCategory, setNewCategory] = useState('');
     const [loadingCategories, setLoadingCategories] = useState(false);
+    const [highlightedColumn, setHighlightedColumn] = useState(null);
+
+    // Handle column hover for highlighting
+    const handleColumnMouseEnter = (header) => {
+        setHighlightedColumn(header);
+    };
+
+    // Handle column mouse leave to remove highlighting
+    const handleColumnMouseLeave = () => {
+        setHighlightedColumn(null);
+    };
+
+    // Check if a cell should be highlighted
+    const isHighlighted = (header) => {
+        return highlightedColumn === header;
+    };
+
+    // Header descriptions for tooltips
+    const headerDescriptions = {
+        'name': 'Product name - required',
+        'description': 'Full product description',
+        'price': 'Selling price in your currency',
+        'stockQuantity': 'Number of available items',
+        'categories': 'Product categories separated by semicolons',
+        'tags': 'Tags for search optimization separated by commas',
+        'productType': 'Physical or digital product',
+        'manufacturingCost': 'Cost to manufacture each unit',
+        'images': 'Product images (drag and drop here)',
+        'isCrowdfunded': 'Whether the product is crowdfunded (true/false)',
+        'fundingGoal': 'Target amount for successful funding',
+        'averageRating': 'Average product rating',
+        'businessHeldFunds': 'Funds held by the business',
+        'categoryType': 'Type of product category',
+        'manufacturerEmail': 'Email address of manufacturer',
+        'manufacturingStatus': 'Current production status'
+    };
 
     // const defaultHeaders = [
     //     'name', 'description', 'price', 'stockQuantity', 'categories',
@@ -1008,12 +1045,14 @@ const ProductsCsvImportPage = () => {
                                         checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
                                         onChange={selectAllProducts}
                                     />
-                                </th>
-                                {displayHeaders.map((header, index) => (
+                                </th>                                {displayHeaders.map((header, index) => (
                                     <th
                                         key={index}
                                         onClick={() => requestSort(header)}
-                                        className={sortConfig.key === header ? `sort-${sortConfig.direction}` : ''}
+                                        onMouseEnter={() => handleColumnMouseEnter(header)}
+                                        onMouseLeave={handleColumnMouseLeave}
+                                        className={`${sortConfig.key === header ? `sort-${sortConfig.direction}` : ''} ${isHighlighted(header) ? 'highlighted-column' : ''}`}
+                                        data-title={headerDescriptions[header] || header}
                                     >
                                         {header.charAt(0).toUpperCase() + header.slice(1)}
                                         {sortConfig.key === header && (
@@ -1039,7 +1078,7 @@ const ProductsCsvImportPage = () => {
                                     {displayHeaders.map((header, index) => {
                                         if (header === 'images') {
                                             return (
-                                                <td key={index} className="image-cell">
+                                                <td key={index} className={`image-cell ${isHighlighted(header) ? 'highlighted-cell' : ''}`}>
                                                     <div
                                                         className="image-drop-area"
                                                         onDragOver={(e) => handleDragOver(e, product.id)}
@@ -1097,7 +1136,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (header === 'categories') {
                                             return (
-                                                <td key={index}>
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>
                                                     <div className="categories-input-wrapper">                                                    <select
                                                         multiple
                                                         className="categories-select"
@@ -1178,7 +1217,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (header === 'tags') {
                                             return (
-                                                <td key={index}>                                                    <input
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>                                                    <input
                                                     type="text" value={Array.isArray(product.tags)
                                                         ? product.tags.map(tag => tag ? unsanitizeString(tag) : '').join(', ')
                                                         : product.tags ? unsanitizeString(product.tags) : ''}
@@ -1195,7 +1234,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (header === 'productType') {
                                             return (
-                                                <td key={index}>
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>
                                                     <select
                                                         value={product.productType || 'physical'}
                                                         onChange={(e) => updateProductField(product.id, 'productType', e.target.value)}
@@ -1208,7 +1247,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (header === 'categoryType') {
                                             return (
-                                                <td key={index}>
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>
                                                     <select
                                                         value={product.categoryType || 'standard'}
                                                         onChange={(e) => updateProductField(product.id, 'categoryType', e.target.value)}
@@ -1221,7 +1260,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (header === 'manufacturingStatus') {
                                             return (
-                                                <td key={index}>
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>
                                                     <select
                                                         value={product.manufacturingStatus || 'pending'}
                                                         onChange={(e) => updateProductField(product.id, 'manufacturingStatus', e.target.value)}
@@ -1236,7 +1275,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (['isCrowdfunded', 'isDirectSell', 'fundsSentToManufacturer'].includes(header)) {
                                             return (
-                                                <td key={index}>
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>
                                                     <select
                                                         value={product[header]?.toString() || 'false'}
                                                         onChange={(e) => updateProductField(
@@ -1252,7 +1291,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (['price', 'manufacturingCost', 'fundingGoal', 'averageRating', 'businessHeldFunds', 'currentFunding'].includes(header)) {
                                             return (
-                                                <td key={index}>
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>
                                                     <input
                                                         type="number"
                                                         step="0.01"
@@ -1265,7 +1304,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (['stockQuantity', 'rating1Count', 'rating2Count', 'rating3Count', 'rating4Count', 'rating5Count', 'reviewCount', 'investorCount'].includes(header)) {
                                             return (
-                                                <td key={index}>
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>
                                                     <input
                                                         type="number"
                                                         min="0"
@@ -1277,7 +1316,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else if (header === 'description') {
                                             return (
-                                                <td key={index}>                                                    <textarea
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>                                                    <textarea
                                                     value={product[header] ? unsanitizeString(product[header]) : ''}
                                                     onChange={(e) => updateProductField(product.id, header, e.target.value)}
                                                     placeholder="Product description"
@@ -1286,7 +1325,7 @@ const ProductsCsvImportPage = () => {
                                             );
                                         } else {
                                             return (
-                                                <td key={index}>                                                    <input
+                                                <td key={index} className={isHighlighted(header) ? 'highlighted-cell' : ''}>                                                    <input
                                                     type="text"
                                                     value={product[header] ? unsanitizeString(product[header]) : ''}
                                                     onChange={(e) => updateProductField(product.id, header, e.target.value)}

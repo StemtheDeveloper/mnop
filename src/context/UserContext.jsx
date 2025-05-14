@@ -17,6 +17,8 @@ export const USER_ROLES = {
 };
 
 export const UserProvider = ({ children }) => {
+    console.log('UserProvider initializing');
+
     const [currentUser, setCurrentUser] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
     const [userRoles, setUserRoles] = useState([]);

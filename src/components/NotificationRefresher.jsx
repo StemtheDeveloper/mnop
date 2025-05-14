@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNotifications } from '../contexts/NotificationContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 
 // Create a small component to briefly open and close the notification drawer
 const AutoOpenCloseDrawer = ({ isActive, userId, onComplete }) => {

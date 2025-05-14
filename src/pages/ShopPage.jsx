@@ -151,13 +151,11 @@ const ShopPage = () => {
             // Filter by category if selected
             if (category !== 'all') {
                 constraints.push(where('categories', 'array-contains', category));
-            }
-
-            // Filter by product type
+            }            // Filter by product type
             if (productType === 'crowdfunded') {
                 constraints.push(where('isCrowdfunded', '==', true));
             } else if (productType === 'direct') {
-                constraints.push(where('isDirectSell', '==', true));
+                constraints.push(where('isCrowdfunded', '==', false));
             }
 
             const countQuery = query(productsRef, ...constraints);
@@ -188,13 +186,11 @@ const ShopPage = () => {
             // Filter by category
             if (category !== 'all') {
                 constraints.push(where('categories', 'array-contains', category));
-            }
-
-            // Filter by product type
+            }            // Filter by product type
             if (productType === 'crowdfunded') {
                 constraints.push(where('isCrowdfunded', '==', true));
             } else if (productType === 'direct') {
-                constraints.push(where('isDirectSell', '==', true));
+                constraints.push(where('isCrowdfunded', '==', false));
             }
 
             // Sort by selected option

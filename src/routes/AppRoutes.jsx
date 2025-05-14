@@ -13,6 +13,7 @@ const ProductDetailPage = lazy(() => import('../pages/ProductDetailPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const UserProfilePage = lazy(() => import('../pages/UserProfilePage')); // Import the new UserProfilePage
 const WalletPage = lazy(() => import('../pages/WalletPage'));
+const EarningsPage = lazy(() => import('../pages/EarningsPage')); // Import EarningsPage
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const AdminDataFixerPage = lazy(() => import('../pages/AdminDataFixerPage'));
 const AdminVerificationPage = lazy(() => import('../pages/AdminVerificationPage')); // Import verification page
@@ -106,6 +107,11 @@ const AppRoutes = () => {
                 <Route path="/wallet" element={
                     <AuthGuard>
                         <WalletPage />
+                    </AuthGuard>
+                } />
+                <Route path="/earnings" element={
+                    <AuthGuard>
+                        <EarningsPage />
                     </AuthGuard>
                 } />
                 <Route path="/orders" element={

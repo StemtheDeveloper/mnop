@@ -1,20 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { useAuth } from '../../contexts/AuthContext';
 import notificationService from '../../services/notificationService';
 
 /**
  * Component that checks for pending products and notifies admins
  * This is a "headless" component - it doesn't render anything visible
  */
-const AdminProductNotifier = () => {
-    const { currentUser, hasRole } = useAuth();
+const AdminProductNotifier = ({ userContext }) => {
+    console.log('AdminProductNotifier received userContext:', userContext);
+
+    // Simplify to avoid hasRole function issues
+    const currentUser = userContext?.currentUser;
+    const userRoles = userContext?.userRoles || [];
+    const isAdmin = userRoles.includes('admin');
+
     const [lastCheck, setLastCheck] = useState(null);
 
     useEffect(() => {
         // Only run for admin users
-        if (!currentUser?.uid || !hasRole('admin')) return;
+        if (!currentUser?.uid || !isAdmin) return;
 
         // Don't check more often than every 5 minutes
         const now = new Date();

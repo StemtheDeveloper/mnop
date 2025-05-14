@@ -1,5 +1,5 @@
 import React from 'react';
-import { useToast } from '../contexts/ToastContext';
+import { useToast } from '../context/ToastContext';
 
 const ToastDemoPage = () => {
     const { showSuccess, showError, showInfo, showWarning } = useToast();

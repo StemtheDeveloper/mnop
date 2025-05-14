@@ -1,0 +1,32 @@
+/* Column highlight styles for product tables */
+.product-table th[data-title] {
+  position: relative;
+  cursor: pointer;
+}
+
+.product-table th[data-title]:hover::after {
+  content: attr(data-title);
+  position: absolute;
+  top: -30px;
+  left: 0;
+  background-color: #333;
+  color: #fff;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 100;
+}
+
+.product-table .highlighted-column {
+  background-color: rgba(66, 135, 245, 0.1) !important;
+}
+
+.product-table td.highlighted-cell {
+  background-color: rgba(66, 135, 245, 0.1) !important;
+}
+
+/* Ensure the tooltip appears above other elements */
+.product-table th[data-title]:hover {
+  z-index: 1000;
+}

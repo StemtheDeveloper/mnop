@@ -8,12 +8,13 @@ import { ThemeProvider } from './context/ThemeContext';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider, AuthConsumer } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
-import { ToastProvider } from './context/ToastContext';
 import { FeedbackProvider } from './context/FeedbackContext';
 import { CurrencyProvider } from './context/CurrencyContext';
 import NotificationToastContainer from './components/NotificationToastContainer';
 import { NotificationRefresher } from './components/notifications';
-import AdminProductNotifier from './components/admin/AdminProductNotifier';
+import WrappedAdminProductNotifier from './components/admin/WrappedAdminProductNotifier';
+import DebugComponent from './components/admin/DebugComponent';
+import TestComponent from './components/TestComponent';
 import PolicyNotificationBanner from './components/PolicyNotificationBanner';
 import CookieConsentBanner from './components/CookieConsentBanner';
 import FeedbackBar from './components/FeedbackBar';
@@ -30,38 +31,35 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <UserProvider>
-          <AuthProvider>
-            <AuthConsumer>
-              <NotificationProvider>
-                <ToastProvider>
-                  <CurrencyProvider>
-                    <CartProvider>
-                      <FeedbackProvider>
-                        <ScrollToTop /> {/* Add ScrollToTop component here */}
-                        <div className="app">
-                          <br /><br /><br /><br /><br />
-                          <Nav />
-                          <NotificationToastContainer />
-                          <NotificationRefresher />
-                          <AdminProductNotifier />
-                          <PolicyNotificationBanner />
-                          {!isCookiesPage && <CookieConsentBanner />}
+          <AuthProvider>            <AuthConsumer>
+            <NotificationProvider>
+              <CurrencyProvider>
+                <CartProvider>
+                  <FeedbackProvider>
+                    <ScrollToTop /> {/* Add ScrollToTop component here */}
+                    <div className="app">
+                      <br /><br /><br /><br /><br />                      <TestComponent />
+                      <Nav />
+                      <NotificationToastContainer />
+                      <NotificationRefresher />
+                      <PolicyNotificationBanner />
+                      {!isCookiesPage && <CookieConsentBanner />}
+                      <DebugComponent />
+                      {/* <WrappedAdminProductNotifier /> */}
 
-                          <FeedbackBar />
-                          <main className="main-content">
-                            <ErrorBoundary>
-                              <AppRoutes />
-                            </ErrorBoundary>
-                          </main>
-                          <Footer />
-                        </div>
+                      <FeedbackBar />
+                      <main className="main-content">
+                        <ErrorBoundary>
+                          <AppRoutes />
+                        </ErrorBoundary>
+                      </main>
+                      <Footer />
+                    </div>
 
-                      </FeedbackProvider>
-                    </CartProvider>
-                  </CurrencyProvider>
-                </ToastProvider>
-              </NotificationProvider>
-            </AuthConsumer>
+                  </FeedbackProvider>
+                </CartProvider>              </CurrencyProvider>
+            </NotificationProvider>
+          </AuthConsumer>
           </AuthProvider>
         </UserProvider>
       </ThemeProvider>

@@ -1,4 +1,161 @@
-/* ...existing code... */
+/* Shop icons styling */
+
+.like-button.liked {
+  color: #ff385c;
+}
+
+.add-to-cart-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Add to cart animation */
+.animate-add-to-cart {
+  animation: add-to-cart-pulse 0.7s ease-in-out;
+}
+
+@keyframes add-to-cart-pulse {
+  0% {
+    transform: scale(1);
+    background-color: rgba(0, 0, 0, 0.6);
+  }
+  25% {
+    transform: scale(1.2);
+    background-color: #3498db;
+  }
+  50% {
+    transform: scale(0.95);
+    background-color: #3498db;
+  }
+  75% {
+    transform: scale(1.05);
+    background-color: #3498db;
+  }
+  100% {
+    transform: scale(1);
+    background-color: rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Product info section */
+.product-info {
+  padding: 15px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.product-description {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #666;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex-grow: 1;
+}
+
+/* Funding progress bar */
+.product-funding {
+  margin: 10px 0;
+}
+
+.funding-progress-bar {
+  height: 6px;
+  background-color: #e0e0e0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.funding-progress-bar .progress {
+  height: 100%;
+  background-color: #4caf50;
+  transition: width 0.3s ease;
+}
+
+.funding-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+}
+
+/* Product meta (price and rating) */
+.product-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.product-price {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.product-rating {
+  display: flex;
+  align-items: center;
+  color: #666;
+  font-size: 14px;
+}
+
+.product-rating .star {
+  color: #ffa41c;
+  margin-right: 4px;
+}
+
+.review-count {
+  margin-left: 4px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Pending approval badge */
+.product-pending-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background-color: #ff9800;
+  color: white;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  z-index: 3;
+}
+
+@media (max-width: 768px) {
+  .product-image {
+    height: 180px;
+  }
+
+  .product-info h3 {
+    font-size: 16px;
+  }
+
+  .product-price {
+    font-size: 16px;
+  }
+
+  .product-info p {
+    font-size: 13px;
+  }
+
+  .funding-info {
+    font-size: 12px;
+  }
+}
 
 .product-card {
   position: relative;
@@ -52,17 +209,15 @@
 .product-actions {
   position: absolute;
   top: 10px;
-  left: 10px;
+  left: 10px; /* Changed from left to right for better visibility */
   display: flex;
   gap: 8px;
-  z-index: 2;
-  opacity: 0;
-  transform: translateY(-10px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 5; /* Increased z-index to ensure buttons appear above other elements */
+  opacity: 1; /* Always visible now */
+  transition: transform 0.2s ease;
 }
 
 .product-card:hover .product-actions {
-  opacity: 1;
   transform: translateY(0);
 }
 
@@ -75,35 +230,46 @@
   height: 36px;
   border-radius: 50%;
   border: none;
-  background-color: rgba(255, 255, 255, 0.9);
-  color: #333;
+  background-color: rgba(
+    0,
+    0,
+    0,
+    0.6
+  ); /* Darker background for better visibility */
+  color: white;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease, background-color 0.2s ease;
 }
 
-.like-button:hover,
+.like-button:hover {
+  transform: scale(1.1);
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
 .add-to-cart-button:hover {
-  background-color: white;
-  color: #ff4757;
+  transform: scale(1.1);
+  background-color: rgba(0, 0, 0, 0.8);
 }
 
 .like-button.liked {
-  color: #ff4757;
+  background-color: #ff3366;
+  color: white;
 }
 
-.add-to-cart-button:hover {
-  color: #3498db;
+.like-button.liked:hover {
+  background-color: #e6264d;
 }
 
 .add-to-cart-button.disabled {
-  background-color: rgba(255, 255, 255, 0.5);
-  color: #ccc;
+  background-color: rgba(0, 0, 0, 0.3);
   cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .add-to-cart-button.disabled:hover {
-  background-color: rgba(255, 255, 255, 0.5);
-  color: #ccc;
+  transform: none;
+  background-color: rgba(0, 0, 0, 0.3);
 }
 
 .active-viewers {

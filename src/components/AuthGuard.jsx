@@ -3,7 +3,13 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';  // Updated to use UserContext
 
 const AuthGuard = ({ children, allowedRoles }) => {
-  const { currentUser, hasRole, loading } = useUser();  // Use the consistent UserContext
+  // Safe access to user context properties
+  const userContext = useUser();
+  const currentUser = userContext?.currentUser;
+  const loading = userContext?.loading || false;
+  const userRoles = userContext?.userRoles || [];
+
+  // Use location for redirect state
   const location = useLocation();
 
   // Wait for authentication to initialize
@@ -17,12 +23,13 @@ const AuthGuard = ({ children, allowedRoles }) => {
   }
 
   // If roles are specified, check if user has access
-  if (allowedRoles) {
-    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-    const hasRequiredRole = roles.some(role => hasRole(role));
+  if (allowedRoles && allowedRoles.length > 0) {
+    const rolesToCheck = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+    // Check if user has any of the required roles
+    const hasRequiredRole = rolesToCheck.some(role => userRoles.includes(role));
 
     if (!hasRequiredRole) {
-      return <Navigate to="/unauthorized" state={{ requiredRoles: roles }} replace />;
+      return <Navigate to="/unauthorized" state={{ requiredRoles: rolesToCheck }} replace />;
     }
   }
 

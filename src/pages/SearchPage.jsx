@@ -88,12 +88,24 @@ const SearchPage = () => {
             const regex = new RegExp(`\\b${word}\\b`, 'i');
             return regex.test(text);
         });
-    };
-
-    useEffect(() => {
+    }; useEffect(() => {
         // Load all available categories for filtering
         const fetchCategories = async () => {
             try {
+                // First, get all category documents for name mapping
+                const categoriesRef = collection(db, 'categories');
+                const categoriesSnapshot = await getDocs(categoriesRef);
+
+                // Create a mapping of category IDs to names
+                const categoryMapping = {};
+                categoriesSnapshot.docs.forEach(doc => {
+                    const categoryData = doc.data();
+                    if (categoryData && categoryData.name) {
+                        categoryMapping[doc.id] = categoryData.name;
+                    }
+                });
+
+                // Then fetch products to get the used categories
                 const productsRef = collection(db, 'products');
                 const q = query(
                     productsRef,
@@ -103,22 +115,38 @@ const SearchPage = () => {
 
                 const snapshot = await getDocs(q);
 
-                // Extract unique categories
-                const categories = new Set();
+                // Extract unique categories with their IDs and names
+                const categoriesSet = new Set();
+                const categoryObjects = [];
+
                 snapshot.docs.forEach(doc => {
                     const data = doc.data();
-                    if (data.category) {
-                        categories.add(data.category);
+                    // Handle single category field (legacy)
+                    if (data.category && !categoriesSet.has(data.category)) {
+                        categoriesSet.add(data.category);
+                        categoryObjects.push({
+                            id: data.category,
+                            name: categoryMapping[data.category] || data.category // Fallback to ID if name not found
+                        });
                     }
+
+                    // Handle categories array (current approach)
                     if (data.categories && Array.isArray(data.categories)) {
-                        data.categories.forEach(cat => {
-                            if (cat) categories.add(cat);
+                        data.categories.forEach(catId => {
+                            if (catId && !categoriesSet.has(catId)) {
+                                categoriesSet.add(catId);
+                                categoryObjects.push({
+                                    id: catId,
+                                    name: categoryMapping[catId] || catId // Fallback to ID if name not found
+                                });
+                            }
                         });
                     }
                 });
 
-                setAllCategories(Array.from(categories).sort());
-
+                // Sort categories by name for better UI
+                categoryObjects.sort((a, b) => a.name.localeCompare(b.name));
+                setAllCategories(categoryObjects);
             } catch (err) {
                 console.error('Error fetching categories:', err);
             }
@@ -352,11 +380,15 @@ const SearchPage = () => {
 
     const handleSortChange = (e) => {
         setSortOption(e.target.value);
-    };
-
-    // Handle clicking on a product to navigate to its detail page
+    };    // Handle clicking on a product to navigate to its detail page    
     const handleProductClick = (productId) => {
         navigate(`/product/${productId}`);
+    };
+
+    // Helper function to get category name from ID
+    const getCategoryName = (categoryId) => {
+        const category = allCategories.find(cat => cat.id === categoryId);
+        return category ? category.name : categoryId;
     };
 
     const totalResults = closeMatches.length + fuzzyMatches.length + (categoryFilter && !searchQuery ? categoryMatches.length : 0);
@@ -374,12 +406,11 @@ const SearchPage = () => {
                         placeholder={searchQuery || "Search for products..."}
                         className="search-page-input"
                     />
-                </div>
-                <p className="search-summary">
+                </div>                <p className="search-summary">
                     {searchQuery ? (
-                        `Showing results for "${searchQuery}"${categoryFilter ? ` in ${categoryFilter}` : ''} (${totalResults} products found)`
+                        `Showing results for "${searchQuery}"${categoryFilter ? ` in ${getCategoryName(categoryFilter)}` : ''} (${totalResults} products found)`
                     ) : categoryFilter ? (
-                        `Browsing ${categoryFilter} (${categoryMatches.length} products)`
+                        `Browsing ${getCategoryName(categoryFilter)} (${categoryMatches.length} products)`
                     ) : (
                         'Enter a search term to find products'
                     )}
@@ -388,16 +419,15 @@ const SearchPage = () => {
 
             <div className="search-filters">
                 <div className="filter-section category-filter">
-                    <label htmlFor="category-select">Filter by Category:</label>
-                    <select
+                    <label htmlFor="category-select">Filter by Category:</label>                    <select
                         id="category-select"
                         value={selectedCategory}
                         onChange={(e) => handleCategoryChange(e.target.value)}
                     >
                         <option value="">All Categories</option>
                         {allCategories.map(category => (
-                            <option key={category} value={category}>
-                                {category}
+                            <option key={category.id} value={category.id}>
+                                {category.name}
                             </option>
                         ))}
                     </select>
@@ -456,8 +486,7 @@ const SearchPage = () => {
                                 product={product}
                                 onClick={() => handleProductClick(product.id)}
                             />
-                        ))}
-                    </div>
+                        ))}                </div>
                 </div>
             )}
         </div>

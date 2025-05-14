@@ -76,45 +76,16 @@ const UserReviewSection = ({ userId, userProfile }) => {
             fetchReviewsAndStats();
             checkIfCanReview();
         }
-    }, [userId, currentUser]);
-
-    const checkIfCanReview = async () => {
+    }, [userId, currentUser]); const checkIfCanReview = async () => {
         if (!currentUser || currentUser.uid === userId) {
             // Users can't review themselves
             setCanReview(false);
             return;
         }
 
-        try {
-            // Check if there have been completed transactions between the two users
-            const ordersRef = collection(db, 'orders');
-
-            // Check if current user has bought from this user
-            const q1 = query(ordersRef,
-                where('customerId', '==', currentUser.uid),
-                where('designerId', '==', userId),
-                where('status', '==', 'completed')
-            );
-
-            // Check if current user has sold to this user
-            const q2 = query(ordersRef,
-                where('customerId', '==', userId),
-                where('designerId', '==', currentUser.uid),
-                where('status', '==', 'completed')
-            );
-
-            const [snap1, snap2] = await Promise.all([
-                getDocs(q1),
-                getDocs(q2)
-            ]);
-
-            // If there's at least one completed transaction between the users, allow review
-            setCanReview(!snap1.empty || !snap2.empty);
-
-        } catch (err) {
-            console.error('Error checking review eligibility:', err);
-            setCanReview(false);
-        }
+        // Allow any logged in user to review other users
+        // No longer require completed transactions between users
+        setCanReview(true);
     };
 
     const fetchUserStatistics = async () => {
@@ -176,9 +147,7 @@ const UserReviewSection = ({ userId, userProfile }) => {
             ...prev,
             [name]: name === 'rating' ? parseInt(value, 10) : value
         }));
-    };
-
-    const submitReview = async (e) => {
+    }; const submitReview = async (e) => {
         e.preventDefault();
 
         if (!currentUser) {
@@ -200,6 +169,8 @@ const UserReviewSection = ({ userId, userProfile }) => {
             setError('You have already reviewed this user');
             return;
         }
+
+        // Continue with review submission - no transaction check required
 
         setSubmitting(true);
         setError(null);
@@ -320,12 +291,10 @@ const UserReviewSection = ({ userId, userProfile }) => {
                                 </div>
                             </>
                         )}
-                    </div>
-
-                    {currentUser && currentUser.uid !== userId && (
+                    </div>                    {currentUser && currentUser.uid !== userId && (
                         <div className="review-form-container">
                             <h4>Write a Review</h4>
-                            {canReview && !hasReviewedBefore ? (
+                            {currentUser && !hasReviewedBefore ? (
                                 <form onSubmit={submitReview} className="review-form">
                                     <div className="rating-selector">
                                         <span>Rating: </span>
@@ -360,13 +329,12 @@ const UserReviewSection = ({ userId, userProfile }) => {
                                     >
                                         {submitting ? 'Submitting...' : 'Submit Review'}
                                     </button>
-                                </form>
-                            ) : (
+                                </form>) : (
                                 <div className="review-notice">
                                     {hasReviewedBefore
                                         ? "You've already reviewed this user."
                                         : canReview === false
-                                            ? "You can only review users after completing a transaction with them."
+                                            ? "You need to be logged in to review this user."
                                             : "You cannot review this user at this time."}
                                 </div>
                             )}

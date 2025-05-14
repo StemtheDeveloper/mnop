@@ -3,7 +3,7 @@ import ToastNotification from '../components/ToastNotification';
 import { createPortal } from 'react-dom';
 
 // Create the context with default values to avoid 'undefined' errors
-const ToastContext = createContext({
+export const ToastContext = createContext({
     showToast: () => { },
     hideToast: () => { },
     success: () => { },

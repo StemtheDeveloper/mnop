@@ -470,17 +470,17 @@
   margin-top: 15px;
 }
 
-.add-to-cart-button {
+.pdp-add-to-cart-button {
   width: 100%;
 }
 
-.add-to-cart-button.disabled {
+.pdp-add-to-cart-button.disabled {
   background-color: #e0e0e0;
   color: #666;
   cursor: not-allowed;
 }
 
-.add-to-cart-button.disabled:hover {
+.pdp-add-to-cart-button.disabled:hover {
   background-color: #e0e0e0;
 }
 

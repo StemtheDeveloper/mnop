@@ -58,16 +58,6 @@
   font-family: Arial, sans-serif;
 }
 
-button {
-  cursor: pointer;
-  background-color: var(--primary-color);
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
-  transition: background-color 0.3s ease;
-}
-
 /* Handle text overflow */
 p,
 h1,

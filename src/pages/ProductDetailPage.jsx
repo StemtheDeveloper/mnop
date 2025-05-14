@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { doc, getDoc, onSnapshot, updateDoc, runTransaction, increment, arrayUnion, collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import { useToast } from '../contexts/ToastContext'; // Fixed import path with 's' in contexts
+import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import InvestmentModal from '../components/InvestmentModal';
 import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal'; // Add import for new component
@@ -1428,7 +1428,7 @@ const ProductDetailPage = () => {
                         {/* Add to Cart Button - enabled if product is direct sell or fully funded */}
                         <h4>Add to cart?</h4>
                         <button
-                            className={`btn-primary add-to-cart-button ${(!isFullyFunded && product.isCrowdfunded !== false) ? 'disabled' : ''} ${buttonAnimation}`}
+                            className={`btn-primary pdp-add-to-cart-button ${(!isFullyFunded && product.isCrowdfunded !== false) ? 'disabled' : ''} ${buttonAnimation}`}
                             disabled={(product.isCrowdfunded !== false && !isFullyFunded) || isAddingToCart}
                             onClick={handleAddToCart}
                         >
