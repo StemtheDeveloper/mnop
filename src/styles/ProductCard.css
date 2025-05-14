@@ -4,7 +4,7 @@
   color: #ff385c;
 }
 
-.add-to-cart-button.disabled {
+.add-to-cart-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -64,16 +64,14 @@
 }
 
 /* Funding progress bar */
-.product-funding {
-  margin: 10px 0;
-}
 
 .funding-progress-bar {
-  height: 6px;
+  height: 10px;
   background-color: #e0e0e0;
-  border-radius: 3px;
+  border-radius: 5px;
   overflow: hidden;
-  margin-bottom: 5px;
+  margin-bottom: 10px;
+  background: linear-gradient(to right, #ef3c23, #ff8158);
 }
 
 .funding-progress-bar .progress {
@@ -136,10 +134,6 @@
 }
 
 @media (max-width: 768px) {
-  .product-image {
-    height: 180px;
-  }
-
   .product-info h3 {
     font-size: 16px;
   }
@@ -178,7 +172,7 @@
 .product-image {
   position: relative;
   width: 100%;
-  height: 220px;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -261,13 +255,13 @@
   background-color: #e6264d;
 }
 
-.add-to-cart-button.disabled {
-  background-color: rgba(0, 0, 0, 0.3);
+.add-to-cart-button disabled {
+  background-color: rgba(0, 0, 0, 0.09);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.add-to-cart-button.disabled:hover {
+.add-to-cart-button disabled:hover {
   transform: none;
   background-color: rgba(0, 0, 0, 0.3);
 }
@@ -314,20 +308,11 @@
 }
 
 .product-funding {
-  margin-bottom: 12px;
-}
-
-.funding-progress-bar {
-  height: 6px;
-  background-color: #eee;
-  border-radius: 3px;
-  overflow: hidden;
-  margin-bottom: 5px;
-}
-
-.funding-progress-bar .progress {
-  height: 100%;
-  background-color: #4caf50;
+  margin: 25px 0;
+  padding: 20px;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .funding-text {
@@ -435,10 +420,6 @@
 
 /* Responsive styles */
 @media (max-width: 768px) {
-  .product-image {
-    height: 180px;
-  }
-
   .product-actions {
     opacity: 1;
     transform: translateY(0);

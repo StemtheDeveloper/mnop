@@ -20,9 +20,9 @@ const UserProfilePage = () => {
     const [userProducts, setUserProducts] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [activeTab, setActiveTab] = useState('about');
-    const [error, setError] = useState(null);
-    const [sendingMessage, setSendingMessage] = useState(false);
-
+    const [error, setError] = useState(null);    const [sendingMessage, setSendingMessage] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
+    
     // Fetch user data
     useEffect(() => {
         const fetchUserProfile = async () => {
@@ -57,6 +57,15 @@ const UserProfilePage = () => {
 
         fetchUserProfile();
     }, [userId]);
+    
+    // Check if current user is an admin
+    useEffect(() => {
+        if (currentUser && hasRole) {
+            const adminStatus = hasRole('admin');
+            console.log("Current user is admin:", adminStatus);
+            setIsAdmin(adminStatus);
+        }
+    }, [currentUser, hasRole]);
 
     // Fetch user's products if they are a designer
     useEffect(() => {
@@ -102,8 +111,7 @@ const UserProfilePage = () => {
             }
         };
 
-        fetchUserProducts();
-    }, [userProfile, userId, currentUser]);
+        fetchUserProducts();    }, [userProfile, userId, currentUser]);
 
     // Check if field should be displayed based on privacy settings
     const shouldShowField = (fieldName) => {
@@ -249,7 +257,7 @@ const UserProfilePage = () => {
                         </button>
 
                         {/* Admin verification controls */}
-                        {currentUser && hasRole('admin') && (userId !== currentUser.uid) && (
+                        {currentUser && isAdmin && (userId !== currentUser.uid) && (
                             <div className="admin-controls">
                                 <h4>Admin Controls</h4>
                                 {userProfile.roles?.includes('manufacturer') && (
@@ -272,9 +280,7 @@ const UserProfilePage = () => {
                             </div>
                         )}
                     </div>
-                </div>
-
-                <div className="profile-right">
+                </div>                <div className="profile-right">
                     <div className="profile-tabs">
                         <div
                             className={`profile-tab ${activeTab === 'about' ? 'active' : ''}`}

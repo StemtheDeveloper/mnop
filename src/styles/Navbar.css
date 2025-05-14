@@ -31,7 +31,7 @@ a {
   margin: 0 auto;
   max-width: 1400px;
   box-sizing: border-box;
-  flex-wrap: wrap; /* Allow wrapping for mobile layout */
+  flex-wrap: wrap;
   position: relative; /* For positioning child elements */
   overflow: visible;
 }

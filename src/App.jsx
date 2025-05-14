@@ -14,7 +14,6 @@ import NotificationToastContainer from './components/NotificationToastContainer'
 import { NotificationRefresher } from './components/notifications';
 import WrappedAdminProductNotifier from './components/admin/WrappedAdminProductNotifier';
 import DebugComponent from './components/admin/DebugComponent';
-import TestComponent from './components/TestComponent';
 import PolicyNotificationBanner from './components/PolicyNotificationBanner';
 import CookieConsentBanner from './components/CookieConsentBanner';
 import FeedbackBar from './components/FeedbackBar';
@@ -38,7 +37,7 @@ function App() {
                   <FeedbackProvider>
                     <ScrollToTop /> {/* Add ScrollToTop component here */}
                     <div className="app">
-                      <br /><br /><br /><br /><br />                      <TestComponent />
+                      <br /><br /><br /><br /><br />
                       <Nav />
                       <NotificationToastContainer />
                       <NotificationRefresher />

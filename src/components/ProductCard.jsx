@@ -274,17 +274,17 @@ const ProductCard = ({
   }, [currentUser, id, isLiked]);
 
   // Handle image cycling on hover
-  useEffect(() => {
-    if (isHovering && allImages.length > 1) {
-      imageInterval.current = setInterval(() => {
-        setCurrentImageIndex(prevIndex => (prevIndex + 1) % allImages.length);
-      }, 2000); // Change image every 2 seconds
-    } else {
-      clearInterval(imageInterval.current);
-    }
+  // useEffect(() => {
+  //   if (isHovering && allImages.length > 1) {
+  //     imageInterval.current = setInterval(() => {
+  //       setCurrentImageIndex(prevIndex => (prevIndex + 1) % allImages.length);
+  //     }, 2000); // Change image every 2 seconds
+  //   } else {
+  //     clearInterval(imageInterval.current);
+  //   }
 
-    return () => clearInterval(imageInterval.current);
-  }, [isHovering, allImages.length]);
+  //   return () => clearInterval(imageInterval.current);
+  // }, [isHovering, allImages.length]);
 
   return (
     <div className="product-card" onClick={onClick}>
@@ -294,11 +294,11 @@ const ProductCard = ({
 
       <div
         className="product-image"
-        onMouseEnter={() => setIsHovering(true)}
-        onMouseLeave={() => {
-          setIsHovering(false);
-          setCurrentImageIndex(0); // Reset to first image when mouse leaves
-        }}
+      // onMouseEnter={() => setIsHovering(true)}
+      // onMouseLeave={() => {
+      //   setIsHovering(false);
+      //   setCurrentImageIndex(0); // Reset to first image when mouse leaves
+      // }}
       >
         <img src={allImages[currentImageIndex]} alt={title} />
 

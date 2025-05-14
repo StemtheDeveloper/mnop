@@ -181,6 +181,27 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+.panel-content h4 {
+  padding: 20px;
+}
+
+.admin-edited-badge {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: linear-gradient(to right, #ef3c23, #ff8158);
+  width: 80px;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 5px 5px 13px 5px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .products-table-container {
   overflow-x: auto;
   margin-bottom: 20px;

@@ -57,18 +57,18 @@
 }
 
 /* Product Info Section */
-.product-info {
+.pdp-product-info {
   display: flex;
   flex-direction: column;
 }
 
-.product-info h1 {
+.pdp-product-info h1 {
   font-size: 2rem;
   color: #333;
   margin: 0 0 10px;
 }
 
-.product-price {
+.pdp-product-price {
   font-size: 1.5rem;
   font-weight: 600;
   color: #ef3c23;
@@ -170,7 +170,7 @@
   text-align: center;
 }
 
-.product-actions {
+.pdp-product-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -297,7 +297,7 @@
 }
 
 /* Funding section */
-.product-funding {
+.pdp-product-funding {
   margin: 25px 0;
   padding: 20px;
   border-radius: 8px;
@@ -1643,7 +1643,7 @@
 }
 
 /* Product actions with quantity control */
-.product-actions {
+.pdp-product-actions {
   display: flex;
   align-items: center;
   margin-top: 30px;
@@ -1847,7 +1847,7 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .product-actions {
+  .pdp-product-actions {
     flex-direction: column;
     align-items: stretch;
   }
@@ -1897,7 +1897,7 @@
 }
 
 @media (max-width: 768px) {
-  .product-actions {
+  .pdp-product-actions {
     flex-direction: column;
   }
 

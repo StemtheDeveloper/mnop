@@ -271,48 +271,48 @@ const ProductApprovalPanel = () => {
                         <p>No pending products to approve</p>
                     </div>
                 ) : (
-                    <div className="pending-products-list">
+                    <div className="admin-pending-products-list">
                         {pendingProducts.map(product => (
-                            <div key={product.id} className="pending-product-card">
+                            <div key={product.id} className="admin-pending-product-card">
                                 <div className="admin-product-image">
                                     <img
                                         src={getProductImage(product)}
                                         alt={product.name}
-                                        className="product-thumbnail"
+                                        className="admin-product-thumbnail"
                                     />
                                     {product.wasEdited && (
-                                        <div className="edited-badge">
+                                        <div className="admin-edited-badge">
                                             Edited
                                         </div>
                                     )}
                                 </div>
-                                <div className="product-details">
+                                <div className="admin-product-details">
                                     <h4>{product.name}</h4>
-                                    <p className="product-description">{product.description}</p>
-                                    <div className="product-meta">
-                                        <span className="product-price">{formatPrice(product.price)}</span>
-                                        <span className="product-category">{product.category}</span>
-                                        <span className="product-date">
+                                    <p className="admin-product-description">{product.description}</p>
+                                    <div className="admin-product-meta">
+                                        <span className="admin-product-price">{formatPrice(product.price)}</span>
+                                        <span className="admin-product-category">{product.category}</span>
+                                        <span className="admin-product-date">
                                             {product.wasEdited ? (
                                                 <>Edited: {formatDate(product.lastEditedAt?.toDate() || product.updatedAt?.toDate() || new Date())}</>
                                             ) : (
                                                 <>Submitted: {formatDate(product.createdAt)}</>
                                             )}
                                         </span>
-                                        <span className="product-designer">
+                                        <span className="admin-product-designer">
                                             By: {product.designerName || 'Unknown Designer'}
                                         </span>
                                     </div>
                                 </div>
-                                <div className="product-actions">
+                                <div className="admin-product-actions">
                                     <button
-                                        className="approve-button"
+                                        className="admin-approve-button"
                                         onClick={() => approveProduct(product.id)}
                                     >
                                         Approve
                                     </button>
                                     <button
-                                        className="reject-button"
+                                        className="admin-reject-button"
                                         onClick={() => rejectProduct(product.id)}
                                     >
                                         Reject

@@ -849,9 +849,9 @@ const ProductDetailPage = () => {
                     )}
                 </div>
 
-                <div className="product-info">
-                    <h1 className="product-title">{product.name}</h1>
-                    <p className="product-price">{formatPrice(product.price || 0)}</p>
+                <div className="pdp-product-info">
+                    <h1 className="pdp-product-title">{product.name}</h1>
+                    <p className="pdp-product-price">{formatPrice(product.price || 0)}</p>
 
                     {/* Product Type Badge */}
                     <div className="product-type-badge">
@@ -1350,7 +1350,7 @@ const ProductDetailPage = () => {
 
                     {/* Funding information for crowdfunded products only */}
                     {product.fundingGoal > 0 && product.isCrowdfunded !== false && (
-                        <div className="product-funding">
+                        <div className="pdp-product-funding">
                             <h3>Funding Progress</h3>
                             <div className="funding-stats">
                                 <span>{formatPrice(product.currentFunding || 0)} raised</span>
@@ -1424,7 +1424,7 @@ const ProductDetailPage = () => {
                         </div>
                     )}
 
-                    <div className="product-actions">
+                    <div className="pdp-product-actions">
                         {/* Add to Cart Button - enabled if product is direct sell or fully funded */}
                         <h4>Add to cart?</h4>
                         <button

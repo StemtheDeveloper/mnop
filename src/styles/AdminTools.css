@@ -605,13 +605,13 @@ input:checked + .switch-slider:before {
   font-size: 0.9rem;
 }
 
-.pending-products-list {
+.admin-pending-products-list {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.pending-product-card {
+.admin-pending-product-card {
   display: flex;
   background-color: white;
   border-radius: 8px;
@@ -650,17 +650,17 @@ input:checked + .switch-slider:before {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.product-details {
+.admin-product-details {
   flex-grow: 1;
   overflow: hidden;
 }
 
-.product-details h4 {
+.admin-product-details h4 {
   margin: 0 0 10px;
   font-size: 1.2rem;
 }
 
-.product-description {
+.admin-product-description {
   margin: 0 0 15px;
   color: #555;
   font-size: 0.95rem;
@@ -671,32 +671,32 @@ input:checked + .switch-slider:before {
   text-overflow: ellipsis;
 }
 
-.product-meta {
+.admin-product-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 15px;
   font-size: 0.85rem;
 }
 
-.product-price {
+.admin-product-price {
   font-weight: 600;
   color: #1a1a1a;
 }
 
-.product-category {
+.admin-product-category {
   background-color: #f0f0f0;
   padding: 3px 8px;
   border-radius: 12px;
   color: #555;
 }
 
-.product-date,
-.product-designer {
+.admin-product-date,
+.admin-product-designer {
   color: #777;
 }
 
-.approve-button,
-.reject-button {
+.admin-approve-button,
+.admin-reject-button {
   padding: 8px 15px;
   border: none;
   border-radius: 4px;
@@ -705,21 +705,21 @@ input:checked + .switch-slider:before {
   transition: background-color 0.2s;
 }
 
-.approve-button {
+.admin-approve-button {
   background-color: #4caf50;
   color: white;
 }
 
-.approve-button:hover {
+.admin-approve-button:hover {
   background-color: #45a049;
 }
 
-.reject-button {
+.admin-reject-button {
   background-color: #f44336;
   color: white;
 }
 
-.reject-button:hover {
+.admin-reject-button:hover {
   background-color: #d32f2f;
 }
 
@@ -760,7 +760,7 @@ input:checked + .switch-slider:before {
 
 /* Responsive styles */
 @media (max-width: 768px) {
-  .pending-product-card {
+  .admin-pending-product-card {
     flex-direction: column;
   }
 
@@ -769,8 +769,8 @@ input:checked + .switch-slider:before {
     height: 200px;
   }
 
-  .approve-button,
-  .reject-button {
+  .admin-approve-button,
+  .admin-reject-button {
     flex: 1;
   }
 }
