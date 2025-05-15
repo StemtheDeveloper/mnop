@@ -937,7 +937,7 @@ class WalletService {
           commissionAmount: 0,
           message: "Business commission is disabled",
         };
-      }      // Get settings
+      } // Get settings
       const settings = settingsDoc.data();
       // Ensure commission rate is a number
       const commissionRate = parseFloat(settings.commissionRate) || 2.0; // Default to 2% if not specified or NaN      // Calculate commission (percentage of sale amount, not profit)
