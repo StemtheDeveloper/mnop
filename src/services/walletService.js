@@ -937,25 +937,17 @@ class WalletService {
           commissionAmount: 0,
           message: "Business commission is disabled",
         };
-      }
-
-      // Get settings
+      }      // Get settings
       const settings = settingsDoc.data();
       // Ensure commission rate is a number
-      const commissionRate = parseFloat(settings.commissionRate) || 2.0; // Default to 2% if not specified or NaN
-
-      // Calculate commission (percentage of sale amount, not profit)
+      const commissionRate = parseFloat(settings.commissionRate) || 2.0; // Default to 2% if not specified or NaN      // Calculate commission (percentage of sale amount, not profit)
       // This ensures the commission is properly calculated as per business requirements
       const commission = saleAmount * (commissionRate / 100);
-      const roundedCommission = Math.round(commission * 100) / 100; // Round to 2 decimal places
 
-      if (roundedCommission <= 0) {
-        return {
-          success: true,
-          commissionAmount: 0,
-          message: "No commission taken (zero or negative calculation)",
-        };
-      }
+      // Allow for fractional commissions without enforcing a minimum amount
+      // This ensures the commission is always proportional to the sale amount
+      const calculatedCommission = commission;
+      const roundedCommission = Math.round(calculatedCommission * 100) / 100; // Round to 2 decimal places
 
       // Update business wallet balance
       const businessWalletRef = doc(db, "wallets", "business");
@@ -974,9 +966,7 @@ class WalletService {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-      }
-
-      // Record transaction for business account
+      } // Record transaction for business account
       await this.recordTransaction("business", {
         amount: roundedCommission,
         type: "commission",
@@ -984,7 +974,7 @@ class WalletService {
         productId,
         orderId, // Add orderId reference for refund tracking
         commissionRate: settings.commissionRate,
-        saleAmount,
+        saleAmount: Math.abs(saleAmount), // Ensure sale amount is always positive for reporting
         status: "completed",
       });
 
@@ -1279,10 +1269,11 @@ class WalletService {
         };
       }
 
-      // Calculate the product sale amount excluding shipping for commission/investor calculations
-      const productSaleAmount = validatedSaleAmount - validatedShippingCost;
+      // The validatedSaleAmount already represents the subtotal (excluding shipping)
+      // so we use it directly for commission/investor calculations
+      const productSaleAmount = validatedSaleAmount;
 
-      // First, process business commission on the product amount only (not shipping)
+      // First, process business commission on the product subtotal only (not shipping)
       // Always process commission for all products, including direct sell products
       const commissionResult = await this.processBusinessCommission(
         productSaleAmount,

@@ -22,17 +22,16 @@
 
 .achievements-progress-bar {
   height: 10px;
-  background-color: #f0f0f0;
+  background-color: #e9ecef;
   border-radius: 5px;
-  margin-bottom: 40px;
+  margin-bottom: 30px;
   overflow: hidden;
 }
 
 .achievements-progress {
   height: 100%;
-  background: linear-gradient(90deg, #ef3c23, #ff7259);
-  border-radius: 5px;
-  transition: width 0.5s ease;
+  background-color: #4caf50;
+  transition: width 0.5s ease-in-out;
 }
 
 .bulk-actions {
@@ -180,11 +179,12 @@
   align-items: center;
   transition: transform 0.2s, box-shadow 0.2s, border 0.2s;
   position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .achievement-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
 }
 
 .achievement-card.earned {
@@ -335,6 +335,168 @@
 .check-achievements-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* New detailed stats styling */
+.achievements-stats-container {
+  margin: 30px 0;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.stats-heading {
+  font-size: 20px;
+  margin-bottom: 20px;
+  color: #333;
+  text-align: center;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.stats-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.stats-card h4 {
+  margin-bottom: 15px;
+  font-size: 18px;
+  color: #444;
+  text-align: center;
+}
+
+/* Tier progress */
+.tier-bar-container,
+.category-bar-container {
+  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: 80px 1fr 60px;
+  align-items: center;
+  gap: 10px;
+}
+
+.tier-label,
+.category-label {
+  font-size: 14px;
+  color: #555;
+  font-weight: 500;
+}
+
+.tier-bar,
+.category-bar {
+  height: 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tier-bar-fill,
+.category-bar-fill {
+  height: 100%;
+  transition: width 0.5s ease-in-out;
+}
+
+.tier-counts,
+.category-counts {
+  font-size: 13px;
+  color: #777;
+  text-align: right;
+}
+
+/* Tier specific colors */
+.tier-1 {
+  background-color: #5cb85c; /* Green */
+}
+
+.tier-2 {
+  background-color: #5bc0de; /* Blue */
+}
+
+.tier-3 {
+  background-color: #f0ad4e; /* Orange */
+}
+
+.tier-4 {
+  background-color: #d9534f; /* Red */
+}
+
+.tier-5 {
+  background-color: #9c27b0; /* Purple */
+}
+
+.category-bar-fill {
+  background-color: #3f51b5; /* Indigo for all categories */
+}
+
+/* Achievement cards progress styling */
+.achievement-progress-indicator {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progress-bar-small {
+  height: 6px;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #6c757d;
+}
+
+.progress-text {
+  font-size: 13px;
+  color: #555;
+  display: flex;
+  justify-content: space-between;
+}
+
+.progress-percentage {
+  font-size: 12px;
+  color: #777;
+  font-style: italic;
+  margin-left: 5px;
+}
+
+/* For completed achievements */
+.achievement-progress-complete {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.achievement-complete-icon {
+  color: #4caf50;
+  font-size: 15px;
+}
+
+.achievement-complete-text {
+  color: #4caf50;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.locked .progress-fill {
+  background-color: #17a2b8;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #6c757d;
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {

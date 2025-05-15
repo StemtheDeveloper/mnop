@@ -150,6 +150,11 @@ const AppRoutes = () => {
                         <AchievementsPage />
                     </AuthGuard>
                 } />
+                <Route path="/profile/:userId/achievements" element={
+                    <AuthGuard>
+                        <AchievementsPage />
+                    </AuthGuard>
+                } />
                 <Route path="/achievements/badges" element={
                     <AuthGuard>
                         <AchievementsBadgesPage />
