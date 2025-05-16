@@ -1,7 +1,7 @@
 // FIXED: ImageCropper.js (updates aspect ratio support and sizing)
 import React, { useState, useRef, useEffect } from 'react';
 import ReactCrop from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
+
 
 
 const ImageCropper = ({

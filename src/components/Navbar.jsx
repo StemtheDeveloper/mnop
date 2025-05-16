@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import "../styles/Navbar.css";
 import LogoBlack from "../assets/logos/Logo full black_1.svg";
 import LogoWhite from "../assets/logos/Logo full white.svg";
 import { auth } from "../config/firebase.js";
