@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   orderBy,
   limit,
+  updateDoc,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../config/firebase";
@@ -211,6 +212,46 @@ class InterestService {
       };
     } catch (error) {
       console.error("Error updating interest rates:", error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update interest rates based on market rates
+   * @param {boolean} useMarketRate - Whether to use market rates or manual configuration
+   * @param {number} manualRateOffset - Offset to apply to market rate (in percentage points)
+   * @returns {Promise<Object>} Result with success status and updated configuration
+   */
+  async updateInterestRatesFromMarket(useMarketRate, manualRateOffset) {
+    try {
+      // Get existing configuration
+      const configDoc = await getDoc(doc(db, "systemConfig", "interestRates"));
+      const existingConfig = configDoc.exists() ? configDoc.data() : {};
+
+      // Create updated config
+      const updatedConfig = {
+        ...existingConfig,
+        useMarketRate,
+        manualRateOffset,
+        updatedAt: serverTimestamp(),
+      };
+
+      // If using market rate, we might want to fetch the latest market rate
+      // and calculate the interest rate based on that plus the offset
+      if (useMarketRate) {
+        // This could be based on external API data that's stored elsewhere
+        // For now we'll just update the configuration
+      }
+
+      // Update the interest rate configuration
+      await updateDoc(doc(db, "systemConfig", "interestRates"), updatedConfig);
+
+      return {
+        success: true,
+        data: updatedConfig,
+      };
+    } catch (error) {
+      console.error("Error updating interest rates from market:", error);
       return { success: false, error: error.message };
     }
   }

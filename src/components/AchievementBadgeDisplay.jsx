@@ -98,20 +98,19 @@ const AchievementBadgeDisplay = ({ userId, showTitle = true, limit = null, showA
     <div className="achievement-badges-container">
       {showTitle && <h3 className="achievements-title">Achievements</h3>}
 
-      <div className="achievement-badges">
-        {displayedAchievements.map(achievement => (
-          <div
-            key={achievement.id}
-            className={`achievement-badge tier-${achievement.tier || 1}`}
-            title={`${achievement.name}: ${achievement.description}`}
-          >
-            {achievement.icon ? (
-              <span className="achievement-icon">{achievement.icon}</span>
-            ) : (
-              <span className="achievement-icon-fallback">{achievement.name.charAt(0)}</span>
-            )}
-          </div>
-        ))}
+      <div className="achievement-badges">        {displayedAchievements.map((achievement, index) => (
+        <div
+          key={`${achievement.id}-${index}`}
+          className={`achievement-badge tier-${achievement.tier || 1}`}
+          title={`${achievement.name}: ${achievement.description}`}
+        >
+          {achievement.icon ? (
+            <span className="achievement-icon">{achievement.icon}</span>
+          ) : (
+            <span className="achievement-icon-fallback">{achievement.name.charAt(0)}</span>
+          )}
+        </div>
+      ))}
 
         {hasMoreAchievements && (
           <Link

@@ -16,14 +16,12 @@ const MarketRatesPanel = () => {
 
     useEffect(() => {
         loadData();
-    }, []);
-
-    const loadData = async () => {
+    }, []); const loadData = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const configResult = await interestService.getInterestRateConfig();
+            const configResult = await interestService.getInterestRates();
             if (configResult.success) {
                 setCurrentConfig(configResult.data);
 
