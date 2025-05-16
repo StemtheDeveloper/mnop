@@ -129,6 +129,13 @@
   white-space: nowrap;
 }
 
+/* Disable ripple effect */
+.earnings-tabs .tab-button:after,
+.earnings-tabs .tab-button:focus:not(:active):after {
+  display: none;
+  animation: none;
+}
+
 .earnings-tabs .tab-button:hover {
   color: #ef3c23;
 }

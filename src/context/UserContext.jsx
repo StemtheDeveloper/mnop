@@ -181,9 +181,7 @@ export const UserProvider = ({ children }) => {
             console.error("Error funding product:", error);
             throw error;
         }
-    };
-
-    // Add user role function
+    };    // Add user role function - ensures roles are properly preserved
     const addUserRole = async (roleId, userId = null) => {
         try {
             const targetUserId = userId || currentUser?.uid;
@@ -210,12 +208,18 @@ export const UserProvider = ({ children }) => {
             // Add the new role
             currentRoles.push(roleId);
 
-            // Update document with new roles
-            await updateDoc(userRef, {
+            // Update document with new roles - preserve existing role field for backward compatibility
+            const updateData = {
                 roles: currentRoles,
                 updatedAt: new Date()
-                // No longer updating the legacy role field
-            });
+            };
+
+            // Keep legacy role field updated with primary role if it exists
+            if (userData.role !== undefined) {
+                updateData.role = currentRoles[0]; // Set the primary role
+            }
+
+            await updateDoc(userRef, updateData);
 
             // If this is the current user, update local state
             if (targetUserId === currentUser?.uid) {

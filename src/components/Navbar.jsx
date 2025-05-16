@@ -269,16 +269,19 @@ const Navbar = () => {
           </div>
 
           <ul className="quick-links-mobile">
+
+            <li className="nav-item navbar-icons">
+              <Link to="/wishlist">
+                <img id="wish-list-icon" src={WishlistIcon} alt="Wishlist icon" />
+              </Link>
+            </li>
+
             <li className="nav-item navbar-icons">
               <Link to="/messages">
                 <img src={MessageIcon} alt="Message icon" />
               </Link>
             </li>
-            <li className="nav-item navbar-icons">
-              <Link to="/wishlist">
-                <img src={WishlistIcon} alt="Wishlist icon" />
-              </Link>
-            </li>
+
             <li className="nav-item navbar-icons">
               <div className="icon-container" onClick={handleNotificationClick}>
                 <img src={NotificationsIcon} alt="Notifications icon" />
@@ -299,6 +302,19 @@ const Navbar = () => {
 
           <div className="search-container">
             <EnhancedSearchInput />
+            <div className="auth-actions">
+              {user ? (
+                <li className="nav-item">
+                  <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
+                </li>
+              ) : (
+                <li className="nav-item">
+                  <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
+                </li>
+              )}
+              <CurrencySelector compact={true} />
+              <ThemeToggle />
+            </div>
           </div>
 
           <div className="desktop-nav">
@@ -344,21 +360,9 @@ const Navbar = () => {
                   </Link>
                 </li>
               </ul>
-              <div className="c-h-r"></div>
-              <div className="auth-actions">
-                {user ? (
-                  <li className="nav-item">
-                    <button onClick={handleSignOut} className="sign-out-btn">Sign Out</button>
-                  </li>
-                ) : (
-                  <li className="nav-item">
-                    <Link to="/signin" className={isActive('/signin') ? 'active' : ''}>Sign In</Link>
-                  </li>
-                )}
-                <CurrencySelector compact={true} />
-                <ThemeToggle />
-              </div>
+
             </div>
+
           </div>
         </div>
       </nav>

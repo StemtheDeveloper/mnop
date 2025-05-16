@@ -142,9 +142,7 @@ const RoleRegistrationPage = () => {
         });
 
         return isValid;
-    };
-
-    const handleSubmit = async (e) => {
+    }; const handleSubmit = async (e) => {
         e.preventDefault();
 
         if (!validateForm()) {
@@ -156,7 +154,8 @@ const RoleRegistrationPage = () => {
         setError(null);
 
         try {
-            // Add the role to the user
+            // Add the role to the user - the addUserRole function properly handles 
+            // checking if the role exists and adds it to the array
             const success = await addUserRole(role);
 
             if (!success) {

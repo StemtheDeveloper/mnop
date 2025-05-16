@@ -67,8 +67,18 @@ const ProductEditPage = () => {
         expressShippingCost: '',
         freeShipping: false,
         freeShippingThreshold: '',
+        freeExpressShipping: false,
         shippingProvider: 'standard',
-        customProviderName: ''
+        customProviderName: '',
+        // Add dimensions and weight
+        weight: '',
+        weightUnit: 'lb',
+        dimensions: {
+            length: '',
+            width: '',
+            height: '',
+            unit: 'inches'
+        }
     };
 
     // Categories state
@@ -147,8 +157,22 @@ const ProductEditPage = () => {
                     expressShippingCost: productData.expressShippingCost ? productData.expressShippingCost.toString() : '',
                     freeShipping: productData.freeShipping || false,
                     freeShippingThreshold: productData.freeShippingThreshold ? productData.freeShippingThreshold.toString() : '',
+                    freeExpressShipping: productData.freeExpressShipping || false,
                     shippingProvider: productData.shippingProvider || 'standard',
-                    customProviderName: productData.customProviderName || ''
+                    customProviderName: productData.customProviderName || '',
+                    weight: productData.weight ? productData.weight.toString() : '',
+                    weightUnit: productData.weightUnit || 'lb',
+                    dimensions: productData.dimensions ? {
+                        length: productData.dimensions.length ? productData.dimensions.length.toString() : '',
+                        width: productData.dimensions.width ? productData.dimensions.width.toString() : '',
+                        height: productData.dimensions.height ? productData.dimensions.height.toString() : '',
+                        unit: productData.dimensions.unit || 'inches'
+                    } : {
+                        length: '',
+                        width: '',
+                        height: '',
+                        unit: 'inches'
+                    }
                 };
                 setOriginalProductData(originalData);
 
@@ -511,59 +535,55 @@ const ProductEditPage = () => {
                 isCrowdfunded: formData.isCrowdfunded, // Store whether product is crowdfunded
                 isDirectSell: !formData.isCrowdfunded, // Flag for direct selling products
                 // For direct selling products, set currentFunding equal to price (mark as ready to purchase)
-                currentFunding: formData.isCrowdfunded ? product.currentFunding || 0 : parseFloat(formData.price)
+                currentFunding: formData.isCrowdfunded ? product.currentFunding || 0 : parseFloat(formData.price),
+                weight: formData.weight ? parseFloat(formData.weight) : null,
+                weightUnit: formData.weightUnit || 'lb',
+                dimensions: {
+                    length: formData.dimensions.length ? parseFloat(formData.dimensions.length) : 0,
+                    width: formData.dimensions.width ? parseFloat(formData.dimensions.width) : 0,
+                    height: formData.dimensions.height ? parseFloat(formData.dimensions.height) : 0,
+                    unit: formData.dimensions.unit || 'inches'
+                },
+                customShipping: formData.customShipping || false,
+                standardShippingCost: formData.customShipping ? parseFloat(formData.standardShippingCost) || 10 : null,
+                expressShippingCost: formData.customShipping ? parseFloat(formData.expressShippingCost) || 25 : null,
+                freeShipping: formData.customShipping ? formData.freeShipping : false,
+                freeShippingThreshold: formData.customShipping && !formData.freeShipping ? parseFloat(formData.freeShippingThreshold) || 0 : null,
+                freeExpressShipping: formData.customShipping ? formData.freeExpressShipping : false,
+                shippingProvider: formData.customShipping ? formData.shippingProvider : null,
+                customProviderName: formData.customShipping && formData.shippingProvider === 'custom' ? formData.customProviderName : null,
             };
 
             // Add stock management fields if tracking inventory
             if (formData.trackInventory) {
                 productData.stockQuantity = parseInt(formData.stockQuantity) || 0;
                 productData.lowStockThreshold = parseInt(formData.lowStockThreshold) || 5;
-                productData.trackInventory = true;
-            } else {
-                productData.trackInventory = false;
-                // Keep stockQuantity if it exists, but mark as not tracked
             }
 
-            // Add shipping settings to product data if custom shipping is enabled
-            if (formData.customShipping) {
-                productData.customShipping = true;
-                productData.standardShippingCost = parseFloat(formData.standardShippingCost) || 10;
-                productData.expressShippingCost = parseFloat(formData.expressShippingCost) || 25;
-                productData.freeShipping = formData.freeShipping;
-                productData.freeShippingThreshold = parseFloat(formData.freeShippingThreshold) || 0;
-                productData.shippingProvider = formData.shippingProvider;
-
-                if (formData.shippingProvider === 'custom') {
-                    productData.customProviderName = formData.customProviderName;
-                }
-            } else {
-                // If custom shipping is disabled, remove any previously set custom shipping values
-                productData.customShipping = false;
-            }
-
-            // Update the product document
             await updateDoc(doc(db, 'products', productId), productData);
 
-            // 7. Notify admins if the product needs approval
-            if (productStatus === 'pending') {
-                // Get all admin users
-                const usersRef = collection(db, 'users');
-                const adminQuery = query(usersRef, where('roles', 'array-contains', 'admin'));
-                const adminSnapshot = await getDocs(adminQuery);
+            // Notify admins if product status changed to pending
+            if (productStatus === 'pending' && product.status === 'active') {
+                // Try to notify admins about product needing review
+                try {
+                    const q = query(collection(db, 'users'), where('roles.admin', '==', true));
+                    const adminDocs = await getDocs(q);
 
-                // Create notifications for each admin
-                for (const adminDoc of adminSnapshot.docs) {
-                    const adminId = adminDoc.id;
-
-                    await addDoc(collection(db, 'notifications'), {
-                        userId: adminId,
-                        title: 'Product Edit Needs Review',
-                        message: `An edited product "${formData.name}" needs approval before returning to the shop.`,
-                        type: 'product_edit_pending',
-                        productId: productId,
-                        read: false,
-                        createdAt: serverTimestamp()
-                    });
+                    if (!adminDocs.empty) {
+                        const adminId = adminDocs.docs[0].id; // Get first admin's ID
+                        await addDoc(collection(db, 'notifications'), {
+                            userId: adminId,
+                            title: 'Product Edit Needs Review',
+                            message: `An edited product "${formData.name}" needs approval before returning to the shop.`,
+                            type: 'product_edit_pending',
+                            productId: productId,
+                            read: false,
+                            createdAt: serverTimestamp()
+                        });
+                    }
+                } catch (notifyErr) {
+                    console.error('Failed to notify admin:', notifyErr);
+                    // Continue execution even if notification fails
                 }
             }
 

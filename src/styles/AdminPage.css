@@ -108,6 +108,41 @@
   margin-bottom: 0;
 }
 
+/* Reset ripple effect for tab buttons */
+.tab-button:after,
+.tab-button:focus:not(:active):after {
+  display: none;
+  animation: none;
+}
+
+.admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 20px;
+}
+
+.admin-tabs .tab-button {
+  background: none;
+  border: none;
+  padding: 12px 20px;
+  margin-right: 5px;
+  font-size: 15px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px 4px 0 0;
+}
+
+.admin-tabs .tab-button.active {
+  color: white;
+  background-color: #ef3c23;
+}
+
+.admin-tabs .tab-button:hover:not(.active) {
+  background-color: #f0f0f0;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .admin-container {

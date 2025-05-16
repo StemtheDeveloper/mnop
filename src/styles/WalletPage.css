@@ -133,10 +133,6 @@
   color: #ef3c23;
 }
 
-.tab-button.active:after {
-  transform: scaleX(1);
-}
-
 .tab-button:hover {
   color: #ef3c23;
 }
@@ -144,6 +140,13 @@
 .tab-button:focus {
   outline: none;
   color: #ef3c23;
+}
+
+/* Disable ripple effect */
+.tab-button:after,
+.tab-button:focus:not(:active):after {
+  display: none;
+  animation: none;
 }
 
 /* Add a larger hit area for touch devices */
@@ -680,24 +683,24 @@
   transform: translateY(-2px);
 }
 
-.role-pill.customer {
-  background-color: #2196f3;
-}
-
-.role-pill.admin {
-  background-color: #e91e63;
-}
-
 .role-pill.designer {
-  background-color: #9c27b0;
+  background-color: #ef3c23;
 }
 
 .role-pill.manufacturer {
-  background-color: #ff9800;
+  background-color: #3498db;
 }
 
 .role-pill.investor {
-  background-color: #4caf50;
+  background-color: #f39c12;
+}
+
+.role-pill.customer {
+  background-color: #2ecc71;
+}
+
+.role-pill.admin {
+  background-color: #9b59b6;
 }
 
 .role-pill.moderator {

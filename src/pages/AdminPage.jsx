@@ -36,18 +36,18 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
     const [operation, setOperation] = useState('');
     const [conversationIndexStatus, setConversationIndexStatus] = useState({ loading: false, message: '', type: '' });
 
-    const { currentUser, userRole, loading: userLoading, authInitialized } = useUser();
+    const { currentUser, userRoles, loading: userLoading, authInitialized } = useUser();
     const userContext = useUser();
 
     // Debug authentication state
     useEffect(() => {
         console.log("Authentication state in AdminPage:", {
             currentUser: currentUser ? { uid: currentUser.uid, email: currentUser.email } : null,
-            userRole,
+            userRoles,
             loading: userLoading,
             authInitialized
         });
-    }, [currentUser, userRole, userLoading, authInitialized]);
+    }, [currentUser, userRoles, userLoading, authInitialized]);
 
     const [activeTab, setActiveTab] = useState(initialActiveTab || 'users');
 
@@ -71,14 +71,14 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
     const USERS_PER_PAGE = 20;
 
     useEffect(() => {
-        if (userRole) {
-            if (Array.isArray(userRole)) {
-                setAdminRoles([...userRole]);
+        if (userRoles) {
+            if (Array.isArray(userRoles)) {
+                setAdminRoles([...userRoles]);
             } else {
-                setAdminRoles([userRole]);
+                setAdminRoles([userRoles]);
             }
         }
-    }, [userRole]);
+    }, [userRoles]);
 
     const addRoleDirectly = async (userId, roleId) => {
         try {

@@ -108,25 +108,53 @@ const RegisterInvestorPage = () => {
         setSubmitting(true);
 
         try {
-            const userRef = doc(db, 'users', currentUser.uid);
+            const userRef = doc(db, 'users', currentUser.uid);            // Get existing roles from the user's profile
+            const userDoc = await getDoc(userRef);
+            const userData = userDoc.data();
+            // Get current roles array, whether it's in roles or role field
+            const currentRoles = userData.roles && Array.isArray(userData.roles)
+                ? userData.roles
+                : userData.role
+                    ? [userData.role]
+                    : [];
 
-            // Add the investor role and save form data
-            await updateDoc(userRef, {
-                roles: [...(currentUser.roles || []), 'investor'],
-                investorProfile: {
-                    fullName: formData.fullName,
-                    address: formData.address,
-                    city: formData.city,
-                    state: formData.state,
-                    zipCode: formData.zipCode,
-                    country: formData.country,
-                    phone: formData.phone,
-                    investmentExperience: formData.investmentExperience,
-                    preferredInvestmentAmount: formData.preferredInvestmentAmount,
-                    investmentInterests: formData.investmentInterests,
-                    registeredAt: new Date()
-                }
-            });
+            // Check if the investor role already exists
+            if (!currentRoles.includes('investor')) {
+                // Add the investor role and save form data
+                await updateDoc(userRef, {
+                    roles: [...currentRoles, 'investor'],
+                    investorProfile: {
+                        fullName: formData.fullName,
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        country: formData.country,
+                        phone: formData.phone,
+                        investmentExperience: formData.investmentExperience,
+                        preferredInvestmentAmount: formData.preferredInvestmentAmount,
+                        investmentInterests: formData.investmentInterests,
+                        registeredAt: new Date()
+                    }
+                });
+            } else {
+                // Just update profile info without modifying roles
+                await updateDoc(userRef, {
+                    investorProfile: {
+                        fullName: formData.fullName,
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        country: formData.country,
+                        phone: formData.phone,
+                        investmentExperience: formData.investmentExperience,
+                        preferredInvestmentAmount: formData.preferredInvestmentAmount,
+                        investmentInterests: formData.investmentInterests,
+                        registeredAt: new Date()
+                    }
+                });
+            }
 
             // Refresh the user profile to update roles
             await refreshUserData();

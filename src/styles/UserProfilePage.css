@@ -8,6 +8,13 @@
   overflow-x: hidden;
 }
 
+/* Override the ripple effect inherited from Buttons.css for profile tabs */
+.user-profile-page .profile-tab:after,
+.user-profile-page .profile-tab:focus:not(:active):after {
+  display: none;
+  animation: none;
+}
+
 .user-profile-page .error-container,
 .user-profile-page .loading-container {
   display: flex;

@@ -106,19 +106,23 @@
 }
 
 .role-pill.designer {
-  background: #ef3c23;
+  background-color: #ef3c23;
 }
+
 .role-pill.manufacturer {
-  background: #3498db;
+  background-color: #3498db;
 }
+
 .role-pill.investor {
-  background: #f39c12;
+  background-color: #f39c12;
 }
+
 .role-pill.customer {
-  background: #2ecc71;
+  background-color: #2ecc71;
 }
+
 .role-pill.admin {
-  background: #9b59b6;
+  background-color: #9b59b6;
 }
 
 .designer-form {
@@ -576,6 +580,13 @@
   background-color: #ef3c23;
   color: white;
   border-color: #ef3c23;
+}
+
+/* Override the ripple effect inherited from Buttons.css */
+.profile-tab:after,
+.profile-tab:focus:not(:active):after {
+  display: none;
+  animation: none;
 }
 
 .profile-tab:hover:not(.active) {
@@ -1887,6 +1898,57 @@
   border-radius: 4px;
   font-size: 0.9em;
   font-weight: bold;
+}
+
+/* Product dimensions and weight styling */
+.product-dimensions {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.input-with-unit {
+  display: flex;
+  align-items: center;
+}
+
+.input-with-unit input {
+  flex-grow: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.input-with-unit select {
+  width: auto;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+  padding: 10px;
+  border: 1px solid #ddd;
+}
+
+.dimensions-group {
+  margin-top: 15px;
+}
+
+.dimension-unit {
+  max-width: 100px;
+}
+
+/* Free shipping options styling */
+.free-shipping-options {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+/* Fields toggled by checkbox */
+.conditional-field {
+  margin-top: 10px;
+  padding-left: 15px;
+  border-left: 3px solid #eee;
+  margin-bottom: 15px;
 }
 
 /* Security settings styles */

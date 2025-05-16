@@ -68,10 +68,14 @@ const ProductUploadPage = () => {
         expressShippingCost: '',
         freeShipping: false,
         freeShippingThreshold: '',
+        freeExpressShipping: false, // New field for free express shipping
         shippingProvider: 'standard',
         customProviderName: '',
         trackInventory: false,
-        lowStockThreshold: '5'
+        lowStockThreshold: '5',
+        weight: '', // New field for weight
+        weightUnit: 'lb', // New field for weight unit
+        dimensions: { length: '', width: '', height: '', unit: 'inches' } // New field for dimensions
     });
 
     // Component products state
@@ -721,6 +725,24 @@ const ProductUploadPage = () => {
                 trackInventory: formData.isComposite ? true : formData.trackInventory,
                 stockQuantity: formData.isComposite ? null : (formData.trackInventory ? parseInt(formData.stockQuantity) || 0 : null),
                 lowStockThreshold: formData.isComposite ? 5 : (formData.trackInventory ? parseInt(formData.lowStockThreshold) || 5 : null),
+                // Add shipping dimensions and weight
+                weight: formData.weight ? parseFloat(formData.weight) : null,
+                weightUnit: formData.weightUnit || 'lb',
+                dimensions: formData.dimensions ? {
+                    length: parseFloat(formData.dimensions.length) || 0,
+                    width: parseFloat(formData.dimensions.width) || 0,
+                    height: parseFloat(formData.dimensions.height) || 0,
+                    unit: formData.dimensions.unit || 'inches'
+                } : null,
+                // Add shipping settings
+                customShipping: formData.customShipping,
+                standardShippingCost: formData.customShipping ? parseFloat(formData.standardShippingCost) || 10 : null,
+                expressShippingCost: formData.customShipping ? parseFloat(formData.expressShippingCost) || 25 : null,
+                freeShipping: formData.customShipping ? formData.freeShipping : false,
+                freeShippingThreshold: formData.customShipping && !formData.freeShipping ? parseFloat(formData.freeShippingThreshold) || 0 : null,
+                freeExpressShipping: formData.customShipping ? formData.freeExpressShipping : false,
+                shippingProvider: formData.customShipping ? formData.shippingProvider : null,
+                customProviderName: formData.customShipping && formData.shippingProvider === 'custom' ? formData.customProviderName : null,
             };
 
             // Add bundle discount information for composite products
@@ -813,8 +835,12 @@ const ProductUploadPage = () => {
                 expressShippingCost: '',
                 freeShipping: false,
                 freeShippingThreshold: '',
+                freeExpressShipping: false, // Reset to default
                 shippingProvider: 'standard',
-                customProviderName: ''
+                customProviderName: '',
+                weight: '', // Reset to default
+                weightUnit: 'lb', // Reset to default
+                dimensions: { length: '', width: '', height: '', unit: 'inches' } // Reset to default
             });
             setProductImages([]);
             setImagePreviewUrls([]);
@@ -1554,16 +1580,182 @@ const ProductUploadPage = () => {
                                                         ...formData,
                                                         freeShippingThreshold: e.target.value
                                                     })}
-                                                    placeholder="50.00"
+                                                    placeholder="0.00"
                                                     min="0"
                                                     step="0.01"
                                                     disabled={loading}
                                                 />
                                                 <p className="form-hint">
                                                     Orders that include this product will receive free shipping if the total order amount exceeds this threshold.
+                                                    Set to 0 to disable free shipping threshold.
+                                                </p>
+
+                                                <div className="form-group checkbox">
+                                                    <label>
+                                                        <input
+                                                            type="checkbox"
+                                                            name="freeExpressShipping"
+                                                            checked={formData.freeExpressShipping}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                freeExpressShipping: e.target.checked
+                                                            })}
+                                                            disabled={loading}
+                                                        />
+                                                        Include express shipping in free shipping threshold
+                                                    </label>
+                                                    <p className="form-hint">
+                                                        If enabled, customers will get both standard and express shipping free when the threshold is met.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {formData.freeShipping && (
+                                            <div className="form-group checkbox">
+                                                <label>
+                                                    <input
+                                                        type="checkbox"
+                                                        name="freeExpressShipping"
+                                                        checked={formData.freeExpressShipping}
+                                                        onChange={(e) => setFormData({
+                                                            ...formData,
+                                                            freeExpressShipping: e.target.checked
+                                                        })}
+                                                        disabled={loading}
+                                                    />
+                                                    Include express shipping in free shipping offer
+                                                </label>
+                                                <p className="form-hint">
+                                                    If enabled, both standard and express shipping will be free for this product.
                                                 </p>
                                             </div>
                                         )}
+
+                                        <div className="product-dimensions">
+                                            <h4>Product Dimensions and Weight</h4>
+                                            <p className="form-hint">
+                                                These details help calculate accurate shipping costs for large or heavy items.
+                                            </p>
+
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label htmlFor="weight">Weight</label>
+                                                    <div className="input-with-unit">
+                                                        <input
+                                                            type="number"
+                                                            id="weight"
+                                                            name="weight"
+                                                            value={formData.weight}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                weight: e.target.value
+                                                            })}
+                                                            placeholder="0.0"
+                                                            min="0"
+                                                            step="0.1"
+                                                            disabled={loading}
+                                                        />
+                                                        <select
+                                                            name="weightUnit"
+                                                            value={formData.weightUnit}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                weightUnit: e.target.value
+                                                            })}
+                                                            disabled={loading}
+                                                        >
+                                                            <option value="lb">lb</option>
+                                                            <option value="kg">kg</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="dimensions-group">
+                                                <label>Dimensions</label>
+                                                <div className="form-row">
+                                                    <div className="form-group">
+                                                        <label htmlFor="length">Length</label>
+                                                        <input
+                                                            type="number"
+                                                            id="length"
+                                                            name="length"
+                                                            value={formData.dimensions?.length || ''}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                dimensions: {
+                                                                    ...formData.dimensions || {},
+                                                                    length: e.target.value
+                                                                }
+                                                            })}
+                                                            placeholder="0.0"
+                                                            min="0"
+                                                            step="0.1"
+                                                            disabled={loading}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group">
+                                                        <label htmlFor="width">Width</label>
+                                                        <input
+                                                            type="number"
+                                                            id="width"
+                                                            name="width"
+                                                            value={formData.dimensions?.width || ''}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                dimensions: {
+                                                                    ...formData.dimensions || {},
+                                                                    width: e.target.value
+                                                                }
+                                                            })}
+                                                            placeholder="0.0"
+                                                            min="0"
+                                                            step="0.1"
+                                                            disabled={loading}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group">
+                                                        <label htmlFor="height">Height</label>
+                                                        <input
+                                                            type="number"
+                                                            id="height"
+                                                            name="height"
+                                                            value={formData.dimensions?.height || ''}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                dimensions: {
+                                                                    ...formData.dimensions || {},
+                                                                    height: e.target.value
+                                                                }
+                                                            })}
+                                                            placeholder="0.0"
+                                                            min="0"
+                                                            step="0.1"
+                                                            disabled={loading}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group dimension-unit">
+                                                        <label>Unit</label>
+                                                        <select
+                                                            name="dimensionUnit"
+                                                            value={formData.dimensions?.unit || 'inches'}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                dimensions: {
+                                                                    ...formData.dimensions || {},
+                                                                    unit: e.target.value
+                                                                }
+                                                            })}
+                                                            disabled={loading}
+                                                        >
+                                                            <option value="inches">inches</option>
+                                                            <option value="cm">cm</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
                                         <div className="form-group">
                                             <label htmlFor="shippingProvider">Shipping Provider</label>

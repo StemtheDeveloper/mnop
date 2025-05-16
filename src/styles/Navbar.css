@@ -24,6 +24,7 @@ a {
 
 .navbar-container {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem;
@@ -51,6 +52,9 @@ ul {
 }
 
 .logo {
+  position: absolute;
+  top: 20px;
+  left: 20px;
   display: flex;
   align-items: center;
   flex-shrink: 1; /* Allow logo to shrink if needed */
@@ -336,11 +340,16 @@ li {
 #burger-icon,
 #close-burger-icon {
   display: none;
+  position: fixed;
+  top: 18px;
+  right: 5px;
 }
 
 /* Sign out button */
 .sign-out-btn {
   background-color: var(--primary-color);
+  min-width: 100px;
+  text-align: center;
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -391,11 +400,26 @@ li {
   height: auto;
 }
 
+.search-container {
+  display: flex;
+  flex-basis: auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.5rem 0;
+  width: 100vw;
+  gap: 10px;
+}
+
 /* Media Query for Responsive Design */
 @media (max-width: 912px) {
   /* Hide desktop navigation */
   .desktop-nav {
     display: none;
+  }
+
+  #wish-list-icon {
+    display: none; /* Hide wishlist icon on mobile */
   }
 
   /* Show mobile navigation */
@@ -467,11 +491,19 @@ li {
   }
 
   .search-container {
-    flex-basis: 100%;
-    order: 3;
+    display: flex;
+    flex-basis: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
     margin: 0.5rem 0;
     width: 100%;
     max-width: 100%;
+    gap: 10px;
+  }
+
+  .search-container .auth-actions {
+    display: none;
   }
 
   .quick-links-mobile {

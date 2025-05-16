@@ -495,6 +495,9 @@ const CheckoutPage = () => {
             let standardCost = 10;
             let expressCost = 25;
 
+            // Track whether express shipping should be offered for free
+            let freeExpressShipping = false;
+
             // Track whether the cart contains any large items that require special shipping
             let hasLargeItems = false;
             let hasOverweightItems = false;
@@ -573,13 +576,23 @@ const CheckoutPage = () => {
                                 // Only consider free shipping if it's not a large or overweight item
                                 if (!hasLargeItems && !hasOverweightItems) {
                                     hasFreeShippingItem = true;
+                                    // If free shipping includes express shipping
+                                    if (productData.freeExpressShipping) {
+                                        freeExpressShipping = true;
+                                    }
                                 }
                             }
 
                             // Update lowest free shipping threshold if product has one
-                            if (!productData.freeShipping && productData.freeShippingThreshold &&
+                            if (!productData.freeShipping &&
+                                productData.freeShippingThreshold &&
+                                productData.freeShippingThreshold > 0 &&
                                 productData.freeShippingThreshold < lowestFreeShippingThreshold) {
                                 lowestFreeShippingThreshold = productData.freeShippingThreshold;
+                                // Check if free threshold includes express shipping
+                                if (productData.freeExpressShippingThreshold) {
+                                    freeExpressShipping = true;
+                                }
                             }
 
                             // Track product's shipping costs
@@ -605,7 +618,8 @@ const CheckoutPage = () => {
                                         standardShippingCost: designerSettings.standardShippingCost !== undefined ? designerSettings.standardShippingCost : 10,
                                         expressShippingCost: designerSettings.expressShippingCost !== undefined ? designerSettings.expressShippingCost : 25,
                                         offerFreeShipping: designerSettings.offerFreeShipping || false,
-                                        freeShippingThreshold: designerSettings.freeShippingThreshold || 50
+                                        freeShippingThreshold: designerSettings.freeShippingThreshold || 0,
+                                        freeExpressShipping: designerSettings.freeExpressShipping || false
                                     };
 
                                     // Update shipping costs with designer settings
@@ -614,8 +628,14 @@ const CheckoutPage = () => {
 
                                     // Update free shipping threshold
                                     if (designerSettings.offerFreeShipping &&
+                                        designerSettings.freeShippingThreshold > 0 &&
                                         designerSettings.freeShippingThreshold < lowestFreeShippingThreshold) {
                                         lowestFreeShippingThreshold = designerSettings.freeShippingThreshold;
+
+                                        // Check if free shipping includes express
+                                        if (designerSettings.freeExpressShipping) {
+                                            freeExpressShipping = true;
+                                        }
                                     }
                                 }
                             }
@@ -664,7 +684,7 @@ const CheckoutPage = () => {
                 standardShippingCost: Math.round(standardCost * 100) / 100,
                 expressShippingCost: Math.round(expressCost * 100) / 100,
                 hasFreeShippingItem: allowFreeShipping && hasFreeShippingItem,
-                freeShippingThreshold: lowestFreeShippingThreshold === Infinity ? 50 : lowestFreeShippingThreshold,
+                freeShippingThreshold: lowestFreeShippingThreshold === Infinity ? 0 : lowestFreeShippingThreshold,
                 hasLargeItems,
                 hasOverweightItems,
                 largeItems,
@@ -672,7 +692,8 @@ const CheckoutPage = () => {
                 shippingWeight: Math.round(shippingWeight * 10) / 10,
                 volumetricWeight: Math.round(totalVolumetricWeight * 10) / 10,
                 actualWeight: Math.round(totalActualWeight * 10) / 10,
-                allowFreeShipping
+                allowFreeShipping,
+                freeExpressShipping
             };
         } catch (error) {
             console.error('Error fetching shipping costs:', error);
@@ -681,7 +702,7 @@ const CheckoutPage = () => {
                 standardShippingCost: 10,
                 expressShippingCost: 25,
                 hasFreeShippingItem: false,
-                freeShippingThreshold: 50,
+                freeShippingThreshold: 0,
                 hasLargeItems: false,
                 hasOverweightItems: false,
                 largeItems: [],
@@ -689,7 +710,8 @@ const CheckoutPage = () => {
                 shippingWeight: 0,
                 volumetricWeight: 0,
                 actualWeight: 0,
-                allowFreeShipping: true
+                allowFreeShipping: true,
+                freeExpressShipping: false
             };
         }
     };
@@ -722,8 +744,19 @@ const CheckoutPage = () => {
                     // Determine final shipping cost
                     let finalShippingCost = shippingCost;
                     if (shippingInfo.hasFreeShippingItem ||
-                        (itemsTotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
+                        (shippingInfo.freeShippingThreshold > 0 &&
+                            itemsTotal >= shippingInfo.freeShippingThreshold &&
+                            shippingInfo.allowFreeShipping)) {
                         finalShippingCost = 0;
+
+                        // If free shipping is available and express shipping is included,
+                        // automatically select express shipping
+                        if (shippingInfo.freeExpressShipping && currentMethod !== 'express') {
+                            setFormData(prev => ({
+                                ...prev,
+                                shippingMethod: 'express'
+                            }));
+                        }
                     }
 
                     // Set shipping cost
@@ -779,8 +812,19 @@ const CheckoutPage = () => {
                     // Determine final shipping cost
                     let finalShippingCost = shippingCost;
                     if (shippingInfo.hasFreeShippingItem ||
-                        (itemsTotal >= shippingInfo.freeShippingThreshold && shippingInfo.freeShippingThreshold > 0 && shippingInfo.allowFreeShipping)) {
+                        (shippingInfo.freeShippingThreshold > 0 &&
+                            itemsTotal >= shippingInfo.freeShippingThreshold &&
+                            shippingInfo.allowFreeShipping)) {
                         finalShippingCost = 0;
+
+                        // If free shipping is available and express shipping is included,
+                        // automatically select express shipping
+                        if (shippingInfo.freeExpressShipping && currentMethod !== 'express') {
+                            setFormData(prev => ({
+                                ...prev,
+                                shippingMethod: 'express'
+                            }));
+                        }
                     }
 
                     // Set shipping cost
@@ -1444,31 +1488,35 @@ const CheckoutPage = () => {
                                     <div className="form-group shipping-methods">
                                         <label>Shipping Method*</label>
                                         <div className="shipping-options">
-                                            <div className="shipping-option">
-                                                <input
-                                                    type="radio"
-                                                    id="standard"
-                                                    name="shippingMethod"
-                                                    value="standard"
-                                                    checked={formData.shippingMethod === 'standard'}
-                                                    onChange={handleChange}
-                                                />
-                                                <label htmlFor="standard">
-                                                    <div className="option-name">Standard Shipping</div>
-                                                    <div className="option-price">
-                                                        {shipping === 0 && (
-                                                            <span className="free-shipping">FREE</span>
-                                                        )}
-                                                        {shipping !== 0 && formData.shippingMethod === 'standard' && (
-                                                            <span>${shipping.toFixed(2)}</span>
-                                                        )}
-                                                        {shipping !== 0 && formData.shippingMethod !== 'standard' && (
-                                                            <span>$10.00</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="option-duration">5-7 business days</div>
-                                                </label>
-                                            </div>
+                                            {/* Only show standard shipping if express shipping isn't free OR both are free */}
+                                            {(!shippingDetails?.freeExpressShipping || shipping === 0) && (
+                                                <div className="shipping-option">
+                                                    <input
+                                                        type="radio"
+                                                        id="standard"
+                                                        name="shippingMethod"
+                                                        value="standard"
+                                                        checked={formData.shippingMethod === 'standard'}
+                                                        onChange={handleChange}
+                                                    />
+                                                    <label htmlFor="standard">
+                                                        <div className="option-name">Standard Shipping</div>
+                                                        <div className="option-price">
+                                                            {shipping === 0 && (
+                                                                <span className="free-shipping">FREE</span>
+                                                            )}
+                                                            {shipping !== 0 && formData.shippingMethod === 'standard' && (
+                                                                <span>${shipping.toFixed(2)}</span>
+                                                            )}
+                                                            {shipping !== 0 && formData.shippingMethod !== 'standard' && (
+                                                                <span>${shippingDetails?.standardShippingCost?.toFixed(2) || '10.00'}</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="option-duration">5-7 business days</div>
+                                                    </label>
+                                                </div>
+                                            )}
+
                                             <div className="shipping-option">
                                                 <input
                                                     type="radio"
@@ -1488,7 +1536,7 @@ const CheckoutPage = () => {
                                                             <span>${shipping.toFixed(2)}</span>
                                                         )}
                                                         {shipping !== 0 && formData.shippingMethod !== 'express' && (
-                                                            <span>$25.00</span>
+                                                            <span>${shippingDetails?.expressShippingCost?.toFixed(2) || '25.00'}</span>
                                                         )}
                                                     </div>
                                                     <div className="option-duration">2-3 business days</div>
@@ -1498,25 +1546,19 @@ const CheckoutPage = () => {
                                     </div>
                                 </div>
 
-                                {/* Designer delivery responsibility notice */}
-                                <div className="designer-responsibility-notice">
-                                    <div className="responsibility-content">
-                                        <h4>Important Delivery Information</h4>
-                                        <p>Please note that the designers of the products in your cart are solely responsible for delivering or arranging delivery of these products.</p>
-                                    </div>
-                                </div>
-
-                                {shippingDetails && (shippingDetails.hasLargeItems || shippingDetails.hasOverweightItems) && (
+                                {/* Special shipping notices */}
+                                {shippingDetails && shippingDetails.hasLargeItems && (
                                     <div className="shipping-surcharge-notification">
                                         <p>
-                                            <strong>Special Shipping Notice:</strong> Your cart contains {shippingDetails.hasLargeItems && shippingDetails.hasOverweightItems ? 'large and overweight' :
-                                                shippingDetails.hasLargeItems ? 'large' : 'overweight'} items that require additional shipping costs.
+                                            <strong>Special Shipping Notice:</strong> Your cart contains
+                                            {shippingDetails.hasLargeItems && shippingDetails.hasOverweightItems ? ' large and overweight' :
+                                                shippingDetails.hasLargeItems ? ' large' : ' overweight'} items that require additional shipping costs.
                                         </p>
                                         <div className="surcharge-details">
                                             <p>These items are not eligible for free shipping regardless of order total:</p>
 
                                             {shippingDetails.hasLargeItems && shippingDetails.largeItems && shippingDetails.largeItems.length > 0 && (
-                                                <>
+                                                <div>
                                                     <p><strong>Large items</strong> (any dimension exceeding 30 inches):</p>
                                                     <ul>
                                                         {shippingDetails.largeItems.map((item, index) => (
@@ -1526,11 +1568,11 @@ const CheckoutPage = () => {
                                                         ))}
                                                     </ul>
                                                     <p>Large item surcharge: $15 for standard shipping or $25 for express shipping</p>
-                                                </>
+                                                </div>
                                             )}
 
                                             {shippingDetails.hasOverweightItems && shippingDetails.overweightItems && shippingDetails.overweightItems.length > 0 && (
-                                                <>
+                                                <div>
                                                     <p><strong>Overweight items</strong> (exceeding 20 pounds):</p>
                                                     <ul>
                                                         {shippingDetails.overweightItems.map((item, index) => (
@@ -1540,7 +1582,7 @@ const CheckoutPage = () => {
                                                         ))}
                                                     </ul>
                                                     <p>Overweight item surcharge: $10 for standard shipping or $15 for express shipping</p>
-                                                </>
+                                                </div>
                                             )}
 
                                             {shippingDetails.shippingWeight > 50 && (
