@@ -3,7 +3,7 @@ import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firest
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
 import walletService from '../../services/walletService';
-import '../../styles/AdminTools.css';
+
 
 const BusinessAccountPanel = () => {
     const [loading, setLoading] = useState(true);

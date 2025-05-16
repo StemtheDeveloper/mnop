@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import twoFactorAuthService from '../services/twoFactorAuthService';
 import LoadingSpinner from './LoadingSpinner';
-import '../styles/MfaVerification.css';
+
 
 const MfaVerification = ({ error, onSuccess, onCancel }) => {
     const [step, setStep] = useState('select-factor');

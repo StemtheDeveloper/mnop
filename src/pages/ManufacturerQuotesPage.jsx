@@ -6,7 +6,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
-import '../styles/ManufacturerQuotesPage.css';
+
 
 const ManufacturerQuotesPage = () => {
     const { currentUser, userRole, userProfile } = useUser();

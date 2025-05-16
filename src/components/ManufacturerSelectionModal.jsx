@@ -4,7 +4,7 @@ import walletService from '../services/walletService';
 import verificationService from '../services/verificationService';
 import Modal from './Modal';
 import LoadingSpinner from './LoadingSpinner';
-import '../styles/ManufacturerSelectionModal.css';
+
 
 /**
  * Custom confirmation modal component

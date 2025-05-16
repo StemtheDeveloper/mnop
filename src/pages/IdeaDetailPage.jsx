@@ -6,7 +6,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDistanceToNow } from 'date-fns';
-import '../styles/IdeaDetailPage.css';
+
 
 const IdeaDetailPage = () => {
     const { ideaId } = useParams();

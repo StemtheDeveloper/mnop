@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, orderBy, limit, startAt, endAt } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import '../styles/EnhancedSearchInput.css';
+
 
 const EnhancedSearchInput = ({
     placeholder = "Search products...",

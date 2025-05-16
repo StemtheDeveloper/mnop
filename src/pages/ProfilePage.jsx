@@ -4,9 +4,9 @@ import { updateProfile, signOut, deleteUser } from 'firebase/auth'; // Import si
 import { doc, updateDoc, collection, query, where, getDocs, deleteDoc, getDoc, addDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // Import deleteDoc, getDoc, addDoc, setDoc, serverTimestamp
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
-import '../styles/ProfilePage.css';
-import '../styles/ImageCropper.css';
-import '../styles/SalesTab.css'; // Import the new SalesTab styles
+
+
+// Import the new SalesTab styles
 import ImageCropper from '../components/ImageCropper';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';

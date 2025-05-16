@@ -10,7 +10,7 @@ import notificationService from '../services/notificationService';
 import cartRecoveryService from '../services/cartRecoveryService';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import taxRates from '../config/taxRates';
-import '../styles/CheckoutPage.css';
+
 
 // CrossSellingSuggestions Component
 const CrossSellingSuggestions = ({

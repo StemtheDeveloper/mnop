@@ -19,7 +19,7 @@ import AdminInvestmentSettings from '../components/admin/AdminInvestmentSettings
 import RefundManagementPanel from '../components/admin/RefundManagementPanel';
 import CurrencyManagementPanel from '../components/admin/CurrencyManagementPanel';
 import VerificationRequestsPanel from '../components/admin/VerificationRequestsPanel';
-import '../styles/AdminTools.css';
+
 
 // Available roles in the system
 const AVAILABLE_ROLES = [

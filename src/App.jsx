@@ -19,8 +19,8 @@ import CookieConsentBanner from './components/CookieConsentBanner';
 import FeedbackBar from './components/FeedbackBar';
 import ScrollToTop from './components/ScrollToTop'; // Import ScrollToTop component
 import { ErrorBoundary } from './components/error';
-import './styles/App.css';
-import './styles/Buttons.css'; // Importing common button styles
+
+// Importing common button styles
 
 function App() {
   const location = useLocation();

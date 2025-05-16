@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getUserNopCollection } from '../services/nopService';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from './LoadingSpinner';
-import './NopCollection.css';
+
 
 const NopCollection = ({ userId }) => {
     const [nops, setNops] = useState([]);

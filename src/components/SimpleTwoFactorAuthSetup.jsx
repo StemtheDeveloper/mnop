@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import twoFactorAuthService from '../services/twoFactorAuthService';
 import { auth } from '../config/firebase';
 import LoadingSpinner from './LoadingSpinner';
-import '../styles/MfaSetup.css';
+
 
 export default function SimpleTwoFactorAuthSetup() {
     const [phone, setPhone] = useState('');

@@ -3,7 +3,7 @@ import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
-import '../../styles/NopsManagement.css';
+
 
 const NopsManagementPanel = () => {
     const [nops, setNops] = useState([]);

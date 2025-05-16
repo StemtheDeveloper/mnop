@@ -4,7 +4,7 @@ import { useUser } from '../../context/UserContext';
 import { useToast } from '../../contexts/ToastContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import reviewService from '../../services/reviewService';
-import '../../styles/components/admin/ReviewModerationPanel.css';
+
 
 const ReviewModerationPanel = () => {
     const { currentUser, hasRole } = useUser();

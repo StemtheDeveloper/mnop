@@ -7,7 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
-import '../styles/BulkProductUploader.css';
+
 
 const BulkProductUploaderPage = () => {
     const { userProfile, userRole, hasRole } = useUser();

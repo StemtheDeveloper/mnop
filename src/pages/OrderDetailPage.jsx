@@ -6,7 +6,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import refundService from '../services/refundService';
-import '../styles/OrderDetailPage.css';
+
 
 const OrderDetailPage = () => {
     const { orderId } = useParams();

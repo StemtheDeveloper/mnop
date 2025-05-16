@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import '../../styles/admin/TrendingProductsPanel.css';
+
 
 const TrendingProductsPanel = () => {
     const [trendingProducts, setTrendingProducts] = useState([]);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaLock, FaPlus, FaSearch, FaArrowLeft, FaPaperPlane, FaUser } from 'react-icons/fa';
-import '../styles/MessagesPage.css';
+
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
 import LoadingSpinner from '../components/LoadingSpinner';

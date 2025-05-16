@@ -5,7 +5,7 @@ import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import '../styles/ManufacturerQuoteDetailPage.css';
+
 
 const ManufacturerQuoteDetailPage = () => {
     const { quoteId } = useParams();

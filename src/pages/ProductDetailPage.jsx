@@ -10,7 +10,7 @@ import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal
 import TrendingExtensionButton from '../components/TrendingExtensionButton';
 import productTrendingService from '../services/productTrendingService';
 import reviewService from '../services/reviewService'; // Import the review service
-import '../styles/ProductDetailPage.css';
+
 import { serverTimestamp } from 'firebase/firestore';
 import DOMPurify from 'dompurify'; // Add this import for safely rendering HTML
 

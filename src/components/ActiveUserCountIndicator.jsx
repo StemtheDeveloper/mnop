@@ -1,5 +1,5 @@
 import React from 'react';
-import './ActiveUserCountIndicator.css';
+
 
 const ActiveUserCountIndicator = ({ count }) => {
   return (

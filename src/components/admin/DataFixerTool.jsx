@@ -3,7 +3,7 @@ import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, where, writ
 import { db } from '../../config/firebase';
 import ProductsExcelView from './ProductsExcelView';
 import usePerformanceMonitoring from '../../hooks/usePerformanceMonitoring';
-import '../../styles/AdminTools.css';
+
 
 // Split into smaller components
 const SchemaManager = ({

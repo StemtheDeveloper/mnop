@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import './ErrorBoundary.css';
+
 // We'll use inline fallback since importing ErrorFallback was causing issues
 
 class ErrorBoundary extends Component {

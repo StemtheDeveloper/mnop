@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useUser } from '../../context/UserContext';
-import '../../styles/UserReviewSection.css';
+
 import LoadingSpinner from '../LoadingSpinner';
 
 const UserReviewSection = ({ userId, userProfile }) => {

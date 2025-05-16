@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import '../styles/responsive.css'; // Import the CSS file with our button styles
+// Import the CSS file with our button styles
 
 /**
  * Standardized Button component

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import InvestmentWithdrawalModal from './InvestmentWithdrawalModal';
 import investmentService from '../services/investmentService';
-import '../styles/WithdrawInvestmentButton.css';
+
 
 const WithdrawInvestmentButton = ({ investment, onWithdrawalStatusChange }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);

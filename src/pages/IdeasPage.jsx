@@ -8,7 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal';
 import IdeaCard from '../components/IdeaCard';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
-import '../styles/IdeasPage.css';
+
 
 const IdeasPage = () => {
     const { currentUser, userProfile, userRole } = useUser();

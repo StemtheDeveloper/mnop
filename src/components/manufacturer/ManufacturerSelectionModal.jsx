@@ -3,7 +3,7 @@ import { doc, getDoc, updateDoc, collection, getDocs, query, where } from 'fireb
 import { db } from '../../config/firebase';
 import { useUser } from '../../context/UserContext';
 import LoadingSpinner from '../LoadingSpinner';
-import '../../styles/ManufacturerModal.css';
+
 
 const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSelection }) => {
     const [loading, setLoading] = useState(false);

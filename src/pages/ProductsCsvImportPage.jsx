@@ -7,9 +7,9 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, doc, getDoc, updateDoc, getDocs } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
-import '../styles/BulkProductUploader.css';
-import '../styles/UnifiedProductManager.css';
-import '../styles/ColumnHighlight.css';
+
+
+
 import ImageCropper from '../components/ImageCropper';
 import { unsanitizeString } from '../utils/unsanitizer';
 

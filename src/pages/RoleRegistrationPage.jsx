@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import FormInput from '../components/FormInput';
 import { validators } from '../utils/FormValidation';
-import '../styles/RoleRegistrationPage.css';
+
 
 const RoleRegistrationPage = () => {
     const { role } = useParams();

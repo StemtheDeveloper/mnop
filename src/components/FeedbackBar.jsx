@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useFeedback } from '../context/FeedbackContext'; // Updated path from contexts to context
-import '../styles/FeedbackBar.css';
+
 import LoadingSpinner from './LoadingSpinner';
 
 const FeedbackBar = () => {

@@ -4,7 +4,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../components/notifications';
 import { useToast } from '../context/ToastContext';
-import './NotificationsPage.css';
+
 
 const NotificationsPage = () => {
     const { currentUser } = useAuth();

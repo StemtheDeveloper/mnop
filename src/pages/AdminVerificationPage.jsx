@@ -5,7 +5,7 @@ import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import verificationService from '../services/verificationService';
-import '../styles/AdminVerificationPage.css';
+
 
 const AdminVerificationPage = () => {
     const { userId, role } = useParams();

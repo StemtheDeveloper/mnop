@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import productArchiveService from '../../services/productArchiveService';
-import '../../styles/admin/ProductArchivePanel.css';
+
 
 const ProductArchivePanel = () => {
     const [loading, setLoading] = useState(false);

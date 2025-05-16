@@ -5,7 +5,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import EnhancedSearchInput from '../components/EnhancedSearchInput';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import '../styles/SearchPage.css';
+
 
 const SearchPage = () => {
     const [searchParams] = useSearchParams();

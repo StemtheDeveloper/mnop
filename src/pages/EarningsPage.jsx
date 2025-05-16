@@ -6,7 +6,7 @@ import walletService from '../services/walletService';
 import investmentService from '../services/investmentService';
 import interestService from '../services/interestService';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import '../styles/EarningsPage.css';
+
 
 const EarningsPage = () => {
     const { currentUser, userWallet, hasRole } = useUser();

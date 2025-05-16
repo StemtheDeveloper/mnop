@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useUser } from '../context/UserContext';
 import { collection, doc, onSnapshot, setDoc, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import '../styles/LiveCursorOverlay.css';
+
 
 /**
  * LiveCursorOverlay component shows real-time cursors of other users viewing the same page

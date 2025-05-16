@@ -4,7 +4,7 @@ import { useUser } from '../../context/UserContext';
 import { useToast } from '../../contexts/ToastContext';
 import verificationService from '../../services/verificationService';
 import LoadingSpinner from '../LoadingSpinner';
-import '../../styles/admin/VerificationRequestsPanel.css';
+
 
 const VerificationRequestsPanel = () => {
     const navigate = useNavigate();

@@ -6,7 +6,7 @@ import wishlistService from '../services/wishlistService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProductCard from '../components/ProductCard';
 import { FaTimes } from 'react-icons/fa';
-import '../styles/WishlistPage.css';
+
 
 const WishlistPage = () => {
     const { user } = useUser();

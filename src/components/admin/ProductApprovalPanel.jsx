@@ -3,7 +3,7 @@ import { collection, query, where, getDocs, doc, updateDoc, getDoc, setDoc } fro
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
 import notificationService from '../../services/notificationService';
-import '../../styles/AdminTools.css';
+
 
 const ProductApprovalPanel = () => {
     const [pendingProducts, setPendingProducts] = useState([]);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 import productTrendingService from '../services/productTrendingService';
-import '../styles/TrendingExtensionButton.css';
+
 
 const TrendingExtensionButton = ({ product }) => {
     const { currentUser, hasRole } = useUser();

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
-import '../../styles/AdminTools.css';
+
 
 const PaymentSettingsPanel = () => {
     const [settings, setSettings] = useState({

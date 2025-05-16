@@ -3,7 +3,7 @@ import { collection, getDocs, query, orderBy, deleteDoc, doc, getDoc } from 'fir
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import '../styles/FeedbackAdmin.css';
+
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const FeedbackAdminPage = () => {

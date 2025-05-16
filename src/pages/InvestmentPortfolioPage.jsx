@@ -3,7 +3,7 @@ import { useUser } from '../context/UserContext';
 import { Link } from 'react-router-dom';
 import investmentService from '../services/investmentService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import '../styles/InvestmentPortfolioPage.css';
+
 
 const InvestmentPortfolioPage = () => {
     const { currentUser, walletBalance, hasRole } = useUser();

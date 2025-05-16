@@ -1,5 +1,5 @@
 import React, { useEffect, useState, memo } from 'react';
-import './LoadingSpinner.css';
+
 
 // Create a global tracking mechanism to prevent multiple spinners
 const spinnerInstances = new Map();

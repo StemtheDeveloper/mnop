@@ -6,7 +6,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import cartRecoveryService from '../services/cartRecoveryService';
-import '../styles/CartPage.css';
+
 
 const CartPage = () => {
     const [cartItems, setCartItems] = useState([]);

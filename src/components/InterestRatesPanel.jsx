@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 import interestService from '../services/interestService';
 import LoadingSpinner from './LoadingSpinner';
-import '../styles/InterestRatesPanel.css';
+
 
 const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {

@@ -6,7 +6,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { useCurrency } from '../context/CurrencyContext';
 import DOMPurify from 'dompurify'; // Import DOMPurify for HTML sanitization
-import '../styles/ProductCard.css';
+
 
 // Define a comparison function for React.memo
 const arePropsEqual = (prevProps, nextProps) => {

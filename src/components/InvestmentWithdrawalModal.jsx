@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import investmentService from '../services/investmentService';
 import LoadingSpinner from './LoadingSpinner';
-import '../styles/InvestmentWithdrawalModal.css';
+
 
 const InvestmentWithdrawalModal = ({ investment, onClose, onWithdrawalRequested }) => {
     const [reason, setReason] = useState('');

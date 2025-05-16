@@ -4,7 +4,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { db, storage } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
 import achievementsData from '../../data/achievementsData';
-import '../../styles/AchievementsManagement.css';
+
 
 const AchievementsManagementPanel = () => {
     const [achievements, setAchievements] = useState([]);

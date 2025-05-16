@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import interestService from '../../services/interestService';
 import externalApiService from '../../services/externalApiService';
-import '../../styles/admin/MarketRatesPanel.css';
+
 
 const MarketRatesPanel = () => {
     const [loading, setLoading] = useState(false);

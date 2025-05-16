@@ -8,7 +8,7 @@ import InterestRatesPanel from '../components/InterestRatesPanel'; // Import Int
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { doc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';  // Import for real-time updates
 import { db } from '../config/firebase';  // Import Firestore db
-import '../styles/WalletPage.css';
+
 
 const WalletPage = () => {
     const { currentUser, userWallet, userRoles, hasRole } = useUser();

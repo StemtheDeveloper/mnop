@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import walletService from '../services/walletService';
-import '../styles/WalletFundingModal.css';
+
 
 const WalletFundingModal = ({ isOpen, onClose }) => {
     const [amount, setAmount] = useState('');

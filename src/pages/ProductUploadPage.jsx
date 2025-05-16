@@ -8,7 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import ImageCropper from '../components/ImageCropper';
 import { useToast } from '../context/ToastContext';
 import { sanitizeString } from '../utils/sanitizer';
-import '../styles/ProductUpload.css';
+
 
 // Default categories in case Firestore fetch fails
 const DEFAULT_CATEGORIES = [

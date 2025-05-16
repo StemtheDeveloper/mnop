@@ -19,7 +19,7 @@ import { db } from '../../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../LoadingSpinner';
 import notificationService from '../../services/notificationService';
-import '../../styles/admin/AllProductsPanel.css';
+
 import Papa from 'papaparse'; // For CSV parsing
 
 const AllProductsPanel = () => {

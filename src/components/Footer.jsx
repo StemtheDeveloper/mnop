@@ -8,7 +8,7 @@ import {
   FaLinkedinIn,
   FaCommentAlt
 } from 'react-icons/fa';
-import './Footer.css';
+
 import DailyNop from './DailyNop';
 import { useFeedback } from '../context/FeedbackContext';
 

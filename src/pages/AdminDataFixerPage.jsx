@@ -1,7 +1,7 @@
 import React from 'react';
 import { useUser } from '../context/UserContext';
 import DataFixerTool from '../components/admin/DataFixerTool';
-import '../styles/AdminTools.css';
+
 
 const AdminDataFixerPage = () => {
     const { userRole, hasRole } = useUser();

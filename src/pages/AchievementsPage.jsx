@@ -4,7 +4,7 @@ import { useUser } from '../context/UserContext';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayRemove } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useToast } from '../context/ToastContext';
-import '../styles/AchievementsPage.css';
+
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 

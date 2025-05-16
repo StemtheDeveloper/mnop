@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
-import '../../styles/AdminTools.css';
-import '../../styles/ProductsExcelView.css';
+
+
 
 const ProductsExcelView = () => {
     const [products, setProducts] = useState([]);

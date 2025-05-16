@@ -4,7 +4,7 @@ import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import verificationService from '../services/verificationService';
-import '../styles/VerificationRequestPage.css';
+
 
 const VerificationRequestPage = () => {
     const { role } = useParams();

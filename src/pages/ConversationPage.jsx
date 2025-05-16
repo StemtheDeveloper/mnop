@@ -23,7 +23,7 @@ import {
     FaPlay,
     FaEye
 } from 'react-icons/fa';
-import '../styles/MessagesPage.css';
+
 import { useUser } from '../context/UserContext';
 import messagingService from '../services/messagingService';
 import encryptionService from '../services/encryptionService';

@@ -9,7 +9,7 @@ import ImageCropper from '../components/ImageCropper';
 import { useToast } from '../context/ToastContext';
 import { sanitizeString, sanitizeFormData } from '../utils/sanitizer';
 import useLocalStorageForm from '../hooks/useLocalStorageForm'; // Import the new hook
-import '../styles/ProductUpload.css';
+
 
 // Default categories in case Firestore fetch fails
 const DEFAULT_CATEGORIES = [

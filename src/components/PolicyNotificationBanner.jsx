@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import PolicyService from '../services/policyService';
-import '../styles/PolicyPages.css';
+
 
 const PolicyNotificationBanner = () => {
     const { currentUser, userProfile } = useUser();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import '../styles/CookieManagementPage.css';
+
 
 const CookieManagementPage = () => {
     const [preferences, setPreferences] = useState({

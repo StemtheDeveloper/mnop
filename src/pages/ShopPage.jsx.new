@@ -7,7 +7,7 @@ import ProductCard from '../components/ProductCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EnhancedSearchInput from '../components/EnhancedSearchInput';
 import { useNavigate } from 'react-router-dom';
-import '../styles/ShopPage.css';
+
 
 const ShopPage = () => {
     const navigate = useNavigate();

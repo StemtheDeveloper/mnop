@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 import { Link } from 'react-router-dom';
 import LoadingSpinner from './LoadingSpinner';
-import '../styles/InvestmentModal.css';
+
 
 /**
  * Modal component for making investments in products

@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../LoadingSpinner';
-import '../../styles/admin/InventoryAlertsPanel.css';
+
 
 const InventoryAlertsPanel = () => {
     // State variables

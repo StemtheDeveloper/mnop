@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useCurrency } from '../../context/CurrencyContext';
 import currencyService from '../../services/currencyService';
 import LoadingSpinner from '../LoadingSpinner';
-import '../../styles/admin/CurrencyManagementPanel.css';
+
 
 const CurrencyManagementPanel = () => {
     const { availableCurrencies, exchangeRates, updateRates } = useCurrency();

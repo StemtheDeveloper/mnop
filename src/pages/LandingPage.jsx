@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, orderBy, limit } from 'firebase/fire
 import { db } from '../config/firebase';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProductCard from '../components/ProductCard';
-import '../styles/LandingPage.css';
+
 
 function LandingPage() {
   const [featuredProduct, setFeaturedProduct] = useState(null);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import '../../styles/AdminTools.css';
+
 
 /**
  * Component for helping admins create necessary Firestore indexes

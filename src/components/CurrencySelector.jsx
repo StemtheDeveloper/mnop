@@ -1,7 +1,7 @@
 // src/components/CurrencySelector.jsx
 import React, { useState, memo } from 'react';
 import { useCurrency } from '../context/CurrencyContext';
-import '../styles/CurrencySelector.css';
+
 
 const CurrencySelector = ({ compact = false }) => {
     const {

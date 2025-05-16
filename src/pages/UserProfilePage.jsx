@@ -3,8 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
-import '../styles/ProfilePage.css';
-import '../styles/UserProfilePage.css';
+
+
 import LoadingSpinner from '../components/LoadingSpinner';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 import UserReviewSection from '../components/reviews/UserReviewSection';
@@ -20,9 +20,9 @@ const UserProfilePage = () => {
     const [userProducts, setUserProducts] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [activeTab, setActiveTab] = useState('about');
-    const [error, setError] = useState(null);    const [sendingMessage, setSendingMessage] = useState(false);
+    const [error, setError] = useState(null); const [sendingMessage, setSendingMessage] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
-    
+
     // Fetch user data
     useEffect(() => {
         const fetchUserProfile = async () => {
@@ -57,7 +57,7 @@ const UserProfilePage = () => {
 
         fetchUserProfile();
     }, [userId]);
-    
+
     // Check if current user is an admin
     useEffect(() => {
         if (currentUser && hasRole) {
@@ -111,7 +111,8 @@ const UserProfilePage = () => {
             }
         };
 
-        fetchUserProducts();    }, [userProfile, userId, currentUser]);
+        fetchUserProducts();
+    }, [userProfile, userId, currentUser]);
 
     // Check if field should be displayed based on privacy settings
     const shouldShowField = (fieldName) => {

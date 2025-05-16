@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import wishlistService from '../services/wishlistService';
 import { useToast } from '../context/ToastContext';
-import './WishlistButton.css';
+
 import HeartIcon from '../assets/Heart.svg';
 import UnheartIcon from '../assets/Unheart.svg';
 

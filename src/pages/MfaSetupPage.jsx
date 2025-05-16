@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import twoFactorAuthService from '../services/twoFactorAuthService';
 import LoadingSpinner from '../components/LoadingSpinner';
-import '../styles/MfaSetupPage.css';
+
 
 const MfaSetupPage = () => {
     const { currentUser } = useUser();

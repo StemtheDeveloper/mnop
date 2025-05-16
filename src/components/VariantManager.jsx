@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createVariant, formatVariantName } from '../models/ProductVariant';
-import '../styles/VariantManager.css';
+
 
 /**
  * VariantManager Component

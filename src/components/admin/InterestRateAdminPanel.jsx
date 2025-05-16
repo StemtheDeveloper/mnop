@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import interestService from '../../services/interestService';
 import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import '../../styles/admin/InterestRateAdminPanel.css';
+
 
 const InterestRateAdminPanel = () => {
     const [loading, setLoading] = useState(true);
