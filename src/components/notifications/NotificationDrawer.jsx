@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
-import './NotificationDrawer.css'; // Will be created next
+import '../../styles/components/NotificationDrawer.css'; // Will be created next
 
 /**
  * NotificationDrawer component that shows a slide-in drawer with user notifications

@@ -1,0 +1,38 @@
+/* Specific fix for admin tab button ripple effect */
+.admin-page .admin-tabs .tab-button {
+  position: relative;
+  overflow: visible !important;
+}
+
+/* Completely override all possible ripple effects for admin tab buttons */
+.admin-page .admin-tabs .tab-button:after,
+.admin-page .admin-tabs .tab-button:before,
+.admin-page .admin-tabs .tab-button:focus:not(:active):after,
+.admin-page .admin-tabs .tab-button:focus:not(:active):before {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  transform: none !important;
+  position: static !important;
+}
+
+/* Override the ripple animation for admin tab buttons */
+.admin-page .admin-tabs .tab-button:focus:not(:active):after {
+  animation: admin-tab-no-ripple 0s forwards !important;
+}
+
+/* Custom empty animation to override the default ripple */
+@keyframes admin-tab-no-ripple {
+  0%,
+  100% {
+    transform: scale(0);
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+}

@@ -1,55 +1,64 @@
 #Requires AutoHotkey v2.0
-; move-css-into-app.ahk
-; ────────────────────────────────────────────────────────────────
-; • Reads every *.css (except src\App.css)
-; • Appends its content to src\App.css with banner "// ./relative/path"
-; • Deletes the original file (i.e. CUT not copy)
-; ────────────────────────────────────────────────────────────────
+; consolidate-css.ahk
+; ----------------------------------------------------------
+; Cut the contents of every *.css (except   src\App.css)
+; Append them to src\App.css with a proper banner comment
+; Leave the originals in place but truncated to a 1-line stub
+; ----------------------------------------------------------
 
-destCssRel := "src\App.css"                               ; consolidated file
-ignoreDirs := StrSplit("node_modules|dist|.git|.firebase", "|")
-encoding   := "UTF-8"
+destRel   := "src\App.css"                                 ; master stylesheet
+ignoreDir := StrSplit("node_modules|dist|.git|.firebase", "|")
+encoding  := "UTF-8"
 
-repoRoot     := A_ScriptDir
-destCssFull  := repoRoot . "\" . destCssRel
+root      := A_ScriptDir
+destFull  := root "\" destRel
+SplitPath destFull, , &destDir
+DirCreate destDir                                           ; make sure path exists
 
-; ensure destination folder exists
-SplitPath destCssFull, , &destDir
-DirCreate destDir
-
-; open destination once (append mode, no BOM)
-destFile := FileOpen(destCssFull, "a", encoding . "-RAW")
-if !destFile {
-    MsgBox "Cannot open " destCssRel " for writing.", "Error", "48"
-    ExitApp
+; --- 1) read existing App.css and normalise its ending
+base := ""
+if FileExist(destFull) {
+    base := FileRead(destFull, encoding)
+    base := RTrim(base, "`r`n ") . "`r`n`r`n"              ; exactly 1 blank line
 }
 
-Loop Files repoRoot "\*.css", "R" {
-    full := A_LoopFilePath
-    if (full = destCssFull)
-        continue                        ; never re-append App.css itself
+; --- 2) sweep every other .css file
+blocks := ""
+Loop Files root "\*.css", "R" {
+    f := A_LoopFilePath
+    if (f = destFull)
+        continue
 
-    ; ── skip ignored directories ──
     skip := false
-    for _, dir in ignoreDirs
-        if InStr(full, "\" dir "\") {
+    for _, d in ignoreDir
+        if InStr(f, "\" d "\") {
             skip := true
             break
         }
     if skip
         continue
 
-    css := FileRead(full, encoding)
-    if (css = "")
+    txt := FileRead(f, encoding)
+    if txt = ""
         continue
 
-    rel := "." . SubStr(full, StrLen(repoRoot) + 1)   ; "./path/to/file"
-    banner := "// " . rel . "`r`n`r`n"
+    rel := "." . StrReplace(SubStr(f, StrLen(root) + 1), "\", "/")
+    banner := "/* " rel " */`r`n`r`n"
+    blocks .= banner . RTrim(txt, "`r`n ") . "`r`n`r`n"
 
-    destFile.Write(banner . css . "`r`n`r`n")         ; append block
-    FileDelete full                                   ; delete source file
+    ; leave a stub so the file still exists in source control
+    FileOpen(f, "w", encoding . "-RAW").Write("/* moved to App.css */`r`n")
 }
 
-destFile.Close()
-MsgBox "✅  All CSS files have been moved into " destCssRel "`r`n(originals deleted)."
+if (blocks = "") {
+    MsgBox "No CSS files found to consolidate.", "Nothing to do"
+    ExitApp
+}
+
+; --- 3) final write
+FileDelete destFull
+FileAppend base . blocks, destFull, encoding . "-RAW"
+
+MsgBox "✅  Consolidated styles into " . destRel . "`r`n"
+     . "(source files emptied, not deleted).", "Done"
 ExitApp

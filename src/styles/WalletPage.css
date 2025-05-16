@@ -18,6 +18,19 @@
   font-size: 32px;
 }
 
+.refresh-transactions-button {
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
 /* Balance Card */
 .balance-card {
   background: linear-gradient(135deg, #ef3c23 0%, #d43418 100%);

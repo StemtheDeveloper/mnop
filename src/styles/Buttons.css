@@ -298,7 +298,7 @@ button:after,
   transform-origin: 50% 50%;
 }
 
-button:focus:not(:active):after,
+button:not(.tab-button):focus:not(:active):after,
 .btn-primary:focus:not(:active):after,
 .btn-secondary:focus:not(:active):after,
 .btn-edit:focus:not(:active):after,

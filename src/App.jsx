@@ -21,6 +21,7 @@ import ScrollToTop from './components/ScrollToTop'; // Import ScrollToTop compon
 import { ErrorBoundary } from './components/error';
 import './styles/App.css';
 import './styles/Buttons.css'; // Importing common button styles
+import './styles/TabButtons.css'; // Importing tab button styles to disable ripple effect
 
 function App() {
   const location = useLocation();

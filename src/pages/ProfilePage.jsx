@@ -2916,7 +2916,8 @@ const ProfilePage = () => {
                                                                 <th>Revenue</th>
                                                                 <th>Status</th>
                                                             </tr>
-                                                        </thead>                                                        <tbody>
+                                                        </thead>
+                                                        <tbody>
                                                             {designerSales.map(sale => (
                                                                 <React.Fragment key={sale.id}>
                                                                     <tr className="sales-row">

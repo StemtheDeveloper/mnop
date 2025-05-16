@@ -20,6 +20,7 @@ import RefundManagementPanel from '../components/admin/RefundManagementPanel';
 import CurrencyManagementPanel from '../components/admin/CurrencyManagementPanel';
 import VerificationRequestsPanel from '../components/admin/VerificationRequestsPanel';
 import '../styles/AdminTools.css';
+import '../styles/AdminTabFix.css';
 
 // Available roles in the system
 const AVAILABLE_ROLES = [
@@ -50,6 +51,16 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
     }, [currentUser, userRoles, userLoading, authInitialized]);
 
     const [activeTab, setActiveTab] = useState(initialActiveTab || 'users');
+
+    // Add ripple prevention function
+    const handleTabClick = (tabName, e) => {
+        // Stop any possible event propagation
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        setActiveTab(tabName);
+    };
 
     const [adminRoles, setAdminRoles] = useState([]);
     const [selfRoleLoading, setSelfRoleLoading] = useState(false);
@@ -663,55 +674,55 @@ const AdminPage = ({ activeTab: initialActiveTab }) => {
                     <div className="admin-tabs">
                         <button
                             className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('users')}
+                            onClick={(e) => handleTabClick('users', e)}
                         >
                             User Management
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'products' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('products')}
+                            onClick={(e) => handleTabClick('products', e)}
                         >
                             Products
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'reviews' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('reviews')}
+                            onClick={(e) => handleTabClick('reviews', e)}
                         >
                             Reviews
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'verifications' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('verifications')}
+                            onClick={(e) => handleTabClick('verifications', e)}
                         >
                             Verifications
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'achievements' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('achievements')}
+                            onClick={(e) => handleTabClick('achievements', e)}
                         >
                             Achievements
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'collectibles' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('collectibles')}
+                            onClick={(e) => handleTabClick('collectibles', e)}
                         >
                             Collectibles
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'finance' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('finance')}
+                            onClick={(e) => handleTabClick('finance', e)}
                         >
                             Finance
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'settings' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('settings')}
+                            onClick={(e) => handleTabClick('settings', e)}
                         >
                             Settings
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'database' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('database')}
+                            onClick={(e) => handleTabClick('database', e)}
                         >
                             Database
                         </button>

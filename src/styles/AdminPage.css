@@ -109,10 +109,27 @@
 }
 
 /* Reset ripple effect for tab buttons */
-.tab-button:after,
-.tab-button:focus:not(:active):after {
-  display: none;
-  animation: none;
+.admin-page .admin-tabs .tab-button,
+.admin-page .tab-button {
+  position: relative;
+  overflow: visible;
+}
+
+.admin-page .admin-tabs .tab-button:after,
+.admin-page .admin-tabs .tab-button:before,
+.admin-page .admin-tabs .tab-button:focus:not(:active):after,
+.admin-page .tab-button:after,
+.admin-page .tab-button:before,
+.admin-page .tab-button:focus:not(:active):after,
+.admin-page button.tab-button:after,
+.admin-page button.tab-button:before {
+  display: none !important;
+  content: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .admin-tabs {
@@ -141,6 +158,19 @@
 
 .admin-tabs .tab-button:hover:not(.active) {
   background-color: #f0f0f0;
+}
+
+/* Override ripple animation specifically for admin buttons */
+@keyframes admin-tab-ripple {
+  0%,
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+
+.admin-page .admin-tabs .tab-button:focus:not(:active):after {
+  animation: admin-tab-ripple 0s forwards !important;
 }
 
 /* Responsive adjustments */

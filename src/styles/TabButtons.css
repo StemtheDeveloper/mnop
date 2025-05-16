@@ -1,0 +1,37 @@
+/* Global Tab Button Styles */
+.tab-button {
+  position: relative;
+  overflow: visible !important;
+}
+
+/* Disable ripple effect for all tab buttons across the application */
+.tab-button:after,
+.tab-button:before,
+.tab-button:focus:not(:active):after,
+.tab-button:focus:not(:active):before,
+button.tab-button:after,
+button.tab-button:before,
+button.tab-button:focus:not(:active):after,
+button.tab-button:focus:not(:active):before,
+.admin-tabs .tab-button:after,
+.admin-tabs .tab-button:before,
+.admin-tabs .tab-button:focus:not(:active):after,
+.admin-tabs .tab-button:focus:not(:active):before {
+  display: none !important;
+  content: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Replace the ripple animation with an empty one */
+@keyframes ripple {
+  0%,
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
