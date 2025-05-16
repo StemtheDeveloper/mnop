@@ -155,6 +155,24 @@ const ProfilePage = () => {
 
     const [loadingShippingSettings, setLoadingShippingSettings] = useState(false);
 
+    // Define shipping providers options
+    const shippingProviders = [
+        { id: 'standard', name: 'Standard Shipping' },
+        { id: 'ups', name: 'UPS' },
+        { id: 'fedex', name: 'FedEx' },
+        { id: 'usps', name: 'USPS' },
+        { id: 'dhl', name: 'DHL' },
+        { id: 'custom', name: 'Custom Provider' }
+    ];
+
+    // State for manufacturer settings
+    const [manufacturerSettings, setManufacturerSettings] = useState({});
+    const [manufacturers, setManufacturers] = useState([]);
+    const [loadingManufacturers, setLoadingManufacturers] = useState(false);
+    const [showManufacturerModal, setShowManufacturerModal] = useState(false);
+    const [selectedProductId, setSelectedProductId] = useState(null);
+    const [autoTransferFunds, setAutoTransferFunds] = useState(false);
+
     // Load user data into form
     useEffect(() => {
         if (userProfile) {
