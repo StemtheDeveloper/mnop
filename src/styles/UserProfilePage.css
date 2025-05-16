@@ -154,6 +154,8 @@
 .admin-btn {
   display: block;
   width: 100%;
+  min-width: 200px;
+  height: auto;
   padding: 8px 12px;
   margin-bottom: 8px;
   border: none;

@@ -34,21 +34,24 @@
 .form-control {
   display: block;
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 16px 18px;
   font-size: 16px;
   line-height: 1.5;
   color: #333;
   background-color: #fff;
   background-clip: padding-box;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  transition: border-color 0.3s ease;
+  border: 1.5px solid #e1e1e1;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.04);
 }
 
 .form-control:focus {
   border-color: #ef3c23;
   outline: 0;
-  box-shadow: 0 0 0 2px rgba(239, 60, 35, 0.1);
+  box-shadow: 0 0 0 3px rgba(239, 60, 35, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 3px rgba(239, 60, 35, 0.1);
 }
 
 .form-control::placeholder {

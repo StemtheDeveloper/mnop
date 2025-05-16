@@ -133,6 +133,7 @@ const NotificationsPage = () => {
             case 'LOW_STOCK_ALERT': return '⚠️';
             case 'cart_reminder': return '🛒';
             case 'product_archived': return '🗄️';
+            case 'achievement_earned': return '🏆';
             default: return '🔔';
         }
     };
@@ -219,17 +220,25 @@ const NotificationsPage = () => {
                         {displayedNotifications.map(notification => {
                             const time = formatNotificationTime(notification.createdAt);
 
+                            // Use the achievement icon if it's an achievement notification and has a custom icon
+                            const notificationIcon = notification.type === 'achievement_earned' && notification.achievementIcon
+                                ? notification.achievementIcon
+                                : getNotificationIcon(notification.type);
+
                             return (
                                 <div
                                     key={notification.id}
-                                    className={`notification-card ${!notification.read ? 'unread' : ''}`}
+                                    className={`notification-card ${!notification.read ? 'unread' : ''} ${notification.type === 'achievement_earned' ? 'achievement-notification' : ''}`}
                                 >
-                                    <div className="notification-icon">
-                                        {getNotificationIcon(notification.type)}
+                                    <div className={`notification-icon ${notification.type === 'achievement_earned' ? `tier-${notification.achievementTier || 1}` : ''}`}>
+                                        {notificationIcon}
                                     </div>
                                     <div className="notification-details">
                                         <h3>{notification.title}</h3>
                                         <p>{notification.message}</p>
+                                        {notification.type === 'achievement_earned' && notification.achievementPoints > 0 && (
+                                            <p className="achievement-points">+{notification.achievementPoints} points</p>
+                                        )}
                                         <div className="notification-meta">
                                             <span className="notification-time" title={time.exact}>
                                                 {time.relative}

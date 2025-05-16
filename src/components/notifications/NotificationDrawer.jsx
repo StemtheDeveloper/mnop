@@ -106,6 +106,7 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
             case 'LOW_STOCK_ALERT': return '⚠️';
             case 'cart_reminder': return '🛒';
             case 'product_archived': return '🗄️';
+            case 'achievement_earned': return '🏆';
             default: return '🔔';
         }
     };
@@ -253,53 +254,63 @@ const NotificationDrawer = ({ isOpen, onClose }) => {
                         <div className="notification-empty">No notifications</div>
                     ) : (
                         <div className="notification-list">
-                            {notificationsList.map(notification => (
-                                <div
-                                    key={notification.id}
-                                    className={`notification-item ${!notification.read ? 'unread' : ''}`}
-                                    onClick={() => handleNotificationClick(notification)}
-                                >
-                                    <div className="notification-icon">
-                                        {getNotificationIcon(notification.type)}
-                                    </div>
-                                    <div className="notification-content">
-                                        <div className="notification-title">{notification.title}</div>
-                                        <div className="notification-message">{notification.message}</div>
-                                        <div className="notification-time">
-                                            {formatNotificationTime(notification.createdAt)}
+                            {notificationsList.map(notification => {
+                                // Use the achievement icon if it's an achievement notification and has a custom icon
+                                const notificationIcon = notification.type === 'achievement_earned' && notification.achievementIcon
+                                    ? notification.achievementIcon
+                                    : getNotificationIcon(notification.type);
+
+                                return (
+                                    <div
+                                        key={notification.id}
+                                        className={`notification-item ${!notification.read ? 'unread' : ''} ${notification.type === 'achievement_earned' ? 'achievement-notification' : ''}`}
+                                        onClick={() => handleNotificationClick(notification)}
+                                    >
+                                        <div className={`notification-icon ${notification.type === 'achievement_earned' ? `tier-${notification.achievementTier || 1}` : ''}`}>
+                                            {notificationIcon}
                                         </div>
-                                        {notification.link && (
-                                            <Link
-                                                to={notification.link}
-                                                className="notification-link"
-                                                onClick={handleClose}
-                                            >
-                                                View details
-                                            </Link>
-                                        )}
-                                    </div>
-                                    <div className="notification-actions">
-                                        {!notification.read && (
+                                        <div className="notification-content">
+                                            <div className="notification-title">{notification.title}</div>
+                                            <div className="notification-message">{notification.message}</div>
+                                            {notification.type === 'achievement_earned' && notification.achievementPoints > 0 && (
+                                                <div className="achievement-points">+{notification.achievementPoints} points</div>
+                                            )}
+                                            <div className="notification-time">
+                                                {formatNotificationTime(notification.createdAt)}
+                                            </div>
+                                            {notification.link && (
+                                                <Link
+                                                    to={notification.link}
+                                                    className="notification-link"
+                                                    onClick={handleClose}
+                                                >
+                                                    View details
+                                                </Link>
+                                            )}
+                                        </div>
+                                        <div className="notification-actions">
+                                            {!notification.read && (
+                                                <button
+                                                    onClick={(e) => handleMarkAsRead(notification.id, e)}
+                                                    className="read-btn"
+                                                    aria-label="Mark as read"
+                                                    title="Mark as read"
+                                                >
+                                                    ✓
+                                                </button>
+                                            )}
                                             <button
-                                                onClick={(e) => handleMarkAsRead(notification.id, e)}
-                                                className="read-btn"
-                                                aria-label="Mark as read"
-                                                title="Mark as read"
+                                                onClick={(e) => handleDeleteNotification(notification.id, e)}
+                                                className="delete-btn"
+                                                aria-label="Delete notification"
+                                                title="Delete notification"
                                             >
-                                                ✓
+                                                ×
                                             </button>
-                                        )}
-                                        <button
-                                            onClick={(e) => handleDeleteNotification(notification.id, e)}
-                                            className="delete-btn"
-                                            aria-label="Delete notification"
-                                            title="Delete notification"
-                                        >
-                                            ×
-                                        </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>

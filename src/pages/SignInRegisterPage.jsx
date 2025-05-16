@@ -444,11 +444,9 @@ const SignInRegisterPage = () => {
       </div>
     );
   }
-
   // Main signin/register form
   return (
     <div className="signin-register-container">
-      <br /><br /><br /><br /><br />
       <h1>{isRegisterMode ? 'Create an Account' : 'Sign In to Your Account'}</h1>
 
       {redirectMessage && (

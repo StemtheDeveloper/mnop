@@ -511,6 +511,31 @@ class NotificationService {
 
     return await this.createNotification(notificationData);
   }
+
+  /**
+   * Send achievement earned notification
+   * @param {string} userId - User ID receiving the notification
+   * @param {Object} achievement - Achievement that was earned
+   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   */
+  async sendAchievementNotification(userId, achievement) {
+    const notificationData = {
+      userId,
+      type: "achievement_earned",
+      title: "Achievement Unlocked!",
+      message: `You've earned the "${achievement.name}" achievement: ${achievement.description}`,
+      link: "/profile/achievements",
+      achievementId: achievement.id,
+      achievementName: achievement.name,
+      achievementIcon: achievement.icon || "🏆",
+      achievementTier: achievement.tier || 1,
+      achievementPoints: achievement.points || 0,
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+
+    return await this.createNotification(notificationData);
+  }
 }
 
 const notificationService = new NotificationService();

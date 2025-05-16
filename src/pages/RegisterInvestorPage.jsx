@@ -8,7 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import '../styles/RegisterInvestorPage.css';
 
 const RegisterInvestorPage = () => {
-    const { currentUser, refreshUserProfile } = useUser();
+    const { currentUser, refreshUserData } = useUser();
     const navigate = useNavigate();
     const { success: showSuccess, error: showError } = useToast();
     const [loading, setLoading] = useState(false);
@@ -129,10 +129,10 @@ const RegisterInvestorPage = () => {
             });
 
             // Refresh the user profile to update roles
-            await refreshUserProfile();
+            await refreshUserData();
 
             showSuccess('Successfully registered as an investor!');
-            navigate('/investor-dashboard');
+            navigate('/portfolio');
         } catch (err) {
             console.error('Error registering as investor:', err);
             showError('Failed to register as an investor. Please try again later.');

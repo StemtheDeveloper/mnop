@@ -1004,6 +1004,16 @@
   color: #333;
 }
 
+.reviewer-name-link {
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.2s;
+}
+
+.reviewer-name-link:hover {
+  color: #ef3c23;
+}
+
 .review-date {
   color: #888;
   font-size: 14px;
@@ -1843,6 +1853,92 @@
 /* Tooltip position adjustment for product page */
 .product-social-share .social-share-buttons .tooltip {
   bottom: -30px;
+}
+
+/* Role Registration Prompt */
+.role-registration-prompt {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 15px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.role-registration-prompt h4 {
+  margin-top: 0;
+  color: #2d3748;
+  font-size: 18px;
+}
+
+.role-registration-prompt p {
+  margin: 10px 0;
+  color: #4a5568;
+  font-size: 14px;
+}
+
+.register-investor-button {
+  display: inline-block;
+  background-color: #4299e1;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 500;
+  margin-top: 10px;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.register-investor-button:hover {
+  background-color: #3182ce;
+  transform: translateY(-2px);
+}
+
+.register-investor-button:active {
+  transform: translateY(0);
+}
+
+/* Login Prompt */
+.login-prompt {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 15px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.login-prompt h4 {
+  margin-top: 0;
+  color: #2d3748;
+  font-size: 18px;
+}
+
+.login-prompt p {
+  margin: 10px 0;
+  color: #4a5568;
+  font-size: 14px;
+}
+
+.signin-button {
+  display: inline-block;
+  background-color: #38b2ac;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 500;
+  margin-top: 10px;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.signin-button:hover {
+  background-color: #319795;
+  transform: translateY(-2px);
+}
+
+.signin-button:active {
+  transform: translateY(0);
 }
 
 /* Responsive adjustments */

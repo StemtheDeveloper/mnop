@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
+import { Link } from 'react-router-dom';
 import LoadingSpinner from './LoadingSpinner';
 import '../styles/InvestmentModal.css';
 
@@ -114,6 +115,9 @@ const InvestmentModal = ({ isOpen, onClose, product, onSuccess }) => {
         }
     };
 
+    // Check if user has investor role
+    const isInvestor = hasRole('investor');
+
     return (
         <div className="investment-modal-overlay">
             <div className="investment-modal">
@@ -139,51 +143,87 @@ const InvestmentModal = ({ isOpen, onClose, product, onSuccess }) => {
                     )}
                 </div>
 
-                <div className="wallet-balance">
-                    <p>Your Wallet Balance: <strong>${walletBalance?.toLocaleString() || '0'}</strong></p>
-                </div>
+                {/* If user is not an investor, show registration prompt */}
+                {currentUser && !isInvestor ? (
+                    <div className="investor-registration-prompt">
+                        <h3>Become an Investor</h3>
+                        <p>You need to be registered as an investor to fund this product.</p>
+                        <p>As an investor, you can support innovative products and participate in their success.</p>
 
-                {error && <div className="error-message">{error}</div>}
-                {success && <div className="success-message">{success}</div>}
-
-                {loading ? (
-                    <div className="investment-processing">
-                        <LoadingSpinner />
-                        <p>{investmentProgress.message}</p>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group">
-                            <label htmlFor="investment-amount">Investment Amount ($)</label>
-                            <input
-                                id="investment-amount"
-                                type="text"
-                                value={amount}
-                                onChange={handleAmountChange}
-                                placeholder="Enter amount to invest"
-                                disabled={loading}
-                                autoFocus
-                            />
-                        </div>
-
-                        <div className="investment-benefits">
-                            <h3>Benefits of Investing</h3>
+                        <div className="investor-benefits">
+                            <h4>Benefits of becoming an investor:</h4>
                             <ul>
+                                <li>Support innovative products</li>
                                 <li>Early access to product releases</li>
                                 <li>Share in product revenues</li>
                                 <li>Influence product development</li>
-                                <li>Exclusive investor community access</li>
                             </ul>
                         </div>
 
-                        <button
-                            type="submit"
-                            className="invest-button"
-                            disabled={loading || !amount}
-                        >
-                            {loading ? 'Processing...' : 'Confirm Investment'}
-                        </button>
-                    </form>
+                        <Link to="/investor-registration" className="register-investor-link">
+                            Register as an Investor
+                        </Link>
+                    </div>
+                ) : (
+                    <>
+                        <div className="wallet-balance">
+                            <p>Your Wallet Balance: <strong>${walletBalance?.toLocaleString() || '0'}</strong></p>
+                        </div>
+
+                        {error && <div className="error-message">{error}</div>}
+                        {success && <div className="success-message">{success}</div>}
+
+                        {loading ? (
+                            <div className="investment-processing">
+                                <LoadingSpinner />
+                                <p>{investmentProgress.message}</p>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleSubmit}>
+                                <div className="form-group">
+                                    <label htmlFor="investment-amount">Investment Amount ($)</label>
+                                    <input
+                                        id="investment-amount"
+                                        type="text"
+                                        value={amount}
+                                        onChange={handleAmountChange}
+                                        placeholder="Enter amount to invest"
+                                        disabled={loading}
+                                        autoFocus
+                                    />
+                                </div>
+
+                                <div className="investment-benefits">
+                                    <h3>Benefits of Investing</h3>
+                                    <ul>
+                                        <li>Early access to product releases</li>
+                                        <li>Share in product revenues</li>
+                                        <li>Influence product development</li>
+                                        <li>Exclusive investor community access</li>
+                                    </ul>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    className="invest-button"
+                                    disabled={loading || !amount}
+                                >
+                                    {loading ? 'Processing...' : 'Confirm Investment'}
+                                </button>
+                            </form>
+                        )}
+                    </>
+                )}
+
+                {/* Prompt for non-logged in users */}
+                {!currentUser && (
+                    <div className="login-prompt">
+                        <h3>Sign in to Invest</h3>
+                        <p>You need to sign in to invest in this product.</p>
+                        <Link to="/signin" className="signin-link">
+                            Sign In
+                        </Link>
+                    </div>
                 )}
             </div>
         </div>

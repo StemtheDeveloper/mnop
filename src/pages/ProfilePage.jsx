@@ -13,6 +13,7 @@ import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NopCollection from '../components/NopCollection';
 import ManufacturerSelectionModal from '../components/ManufacturerSelectionModal';
+import UserReviewSection from '../components/reviews/UserReviewSection'; // Import UserReviewSection
 import refundService from '../services/refundService'; // Import refundService
 import userDataExportService from '../services/userDataExportService'; // Import userDataExportService
 
@@ -1346,6 +1347,7 @@ const ProfilePage = () => {
             { id: 'account', label: 'Account Settings', roles: ['all'] },
             { id: 'preferences', label: 'Preferences', roles: ['all'] },
             { id: 'privacy', label: 'Privacy Settings', roles: ['all'] },
+            { id: 'reviews', label: 'Reviews', roles: ['all'] },
             { id: 'collectibles', label: 'Collectibles', roles: ['all'] } // Add Collectibles tab for all users
         ];
 
@@ -1915,9 +1917,7 @@ const ProfilePage = () => {
                                             value={formData.website}
                                             onChange={handleChange}
                                             placeholder="https://yourwebsite.com" />
-                                    </div>
-
-                                    <div className="form-group">
+                                    </div>                                    <div className="form-group">
                                         <label>Account Type</label>
                                         <div className="account-roles">
                                             <p>Your account has the following roles:</p>
@@ -1927,6 +1927,23 @@ const ProfilePage = () => {
                                             <p className="roles-info">
                                                 Settings for all your roles are accessible through the tabs above.
                                             </p>
+                                            <div className="role-registration-buttons">
+                                                {!hasRole('designer') && (
+                                                    <Link to="/register-designer" className="btn-role-registration">
+                                                        Register as Designer
+                                                    </Link>
+                                                )}
+                                                {!hasRole('manufacturer') && (
+                                                    <Link to="/register-manufacturer" className="btn-role-registration">
+                                                        Register as Manufacturer
+                                                    </Link>
+                                                )}
+                                                {!hasRole('investor') && (
+                                                    <Link to="/register-investor" className="btn-role-registration">
+                                                        Register as Investor
+                                                    </Link>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -3181,6 +3198,15 @@ const ProfilePage = () => {
                                             </div>
                                         </form>
                                     )}
+                                </div>
+                            )}
+
+                            {activeTab === 'reviews' && (
+                                <div className="settings-section reviews-section">
+                                    <h3>User Reviews</h3>
+                                    <p>See what others have to say about {isOwnProfile ? 'you' : userProfile?.displayName || 'this user'}.</p>
+
+                                    <UserReviewSection userId={userId} userProfile={userProfile} />
                                 </div>
                             )}
 

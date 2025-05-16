@@ -56,7 +56,10 @@ const CookieManagementPage = lazy(() => import('../pages/CookieManagementPage'))
 const WishlistPage = lazy(() => import('../pages/WishlistPage')); // Import WishlistPage
 const MfaSetupPage = lazy(() => import('../pages/MfaSetupPage')); // Import MFA Setup Page
 const RegisterInvestorPage = lazy(() => import('../pages/RegisterInvestorPage')); // Import RegisterInvestorPage
+const RegisterDesignerPage = lazy(() => import('../pages/RegisterDesignerPage')); // Import RegisterDesignerPage
+const RegisterManufacturerPage = lazy(() => import('../pages/RegisterManufacturerPage')); // Import RegisterManufacturerPage
 const VerificationRequestPage = lazy(() => import('../pages/VerificationRequestPage')); // Import VerificationRequestPage
+const RoleRegistrationPage = lazy(() => import('../pages/RoleRegistrationPage')); // Import RoleRegistrationPage
 
 // Loading fallback
 const LoadingFallback = () => (
@@ -194,6 +197,26 @@ const AppRoutes = () => {
                 <Route path="/register-investor" element={
                     <AuthGuard>
                         <RegisterInvestorPage />
+                    </AuthGuard>
+                } />
+                <Route path="/investor-registration" element={
+                    <AuthGuard>
+                        <RegisterInvestorPage />
+                    </AuthGuard>
+                } />
+                <Route path="/register-designer" element={
+                    <AuthGuard>
+                        <RegisterDesignerPage />
+                    </AuthGuard>
+                } />
+                <Route path="/register-manufacturer" element={
+                    <AuthGuard>
+                        <RegisterManufacturerPage />
+                    </AuthGuard>
+                } />
+                <Route path="/role-registration/:role" element={
+                    <AuthGuard>
+                        <RoleRegistrationPage />
                     </AuthGuard>
                 } />
                 <Route path="/verification-request/:role" element={

@@ -115,12 +115,95 @@
   background-color: #e5f1ff;
 }
 
+.notification-card.achievement-notification {
+  background-color: #f8f5ff;
+  border-radius: 8px;
+  margin: 8px 0;
+  border-left: 4px solid #9c27b0;
+}
+
+.notification-card.achievement-notification:hover {
+  background-color: #f0ebff;
+}
+
+.notification-card.achievement-notification.unread {
+  background-color: #f0e5ff;
+}
+
+.notification-card.achievement-notification.unread:hover {
+  background-color: #e8dcff;
+}
+
+.notification-card .achievement-points {
+  font-weight: 600;
+  color: #9c27b0;
+  margin: 5px 0 10px;
+  font-size: 15px;
+}
+
 .notification-icon {
   font-size: 24px;
   margin-right: 15px;
   min-width: 30px;
   display: flex;
   justify-content: center;
+}
+
+.notification-icon.tier-1 {
+  background: linear-gradient(135deg, #b7b7b7, #e0e0e0);
+  border: 2px solid #b7b7b7;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-icon.tier-2 {
+  background: linear-gradient(135deg, #cd7f32, #e9be89);
+  border: 2px solid #cd7f32;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-icon.tier-3 {
+  background: linear-gradient(135deg, #c0c0c0, #e6e6e6);
+  border: 2px solid #c0c0c0;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-icon.tier-4 {
+  background: linear-gradient(135deg, #ffd700, #ffe967);
+  border: 2px solid #ffd700;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5c4b00;
+}
+
+.notification-icon.tier-5 {
+  background: linear-gradient(135deg, #b9f2ff, #e3fbff);
+  border: 2px solid #4bd5ed;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #00769c;
 }
 
 .notification-details {

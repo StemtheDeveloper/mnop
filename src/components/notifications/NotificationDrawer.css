@@ -175,11 +175,97 @@
   background-color: #e5f1ff;
 }
 
+.notification-item.achievement-notification {
+  background-color: #f8f5ff;
+  border-bottom: 1px solid #e9e1ff;
+}
+
+.notification-item.achievement-notification:hover {
+  background-color: #f0ebff;
+}
+
+.notification-item.achievement-notification.unread {
+  background-color: #f0e5ff;
+}
+
+.notification-item.achievement-notification.unread:hover {
+  background-color: #e8dcff;
+}
+
+.notification-item .achievement-points {
+  font-weight: 600;
+  color: #9c27b0;
+  margin: 5px 0 8px;
+  font-size: 14px;
+}
+
 .notification-icon {
   margin-right: 12px;
   font-size: 20px;
   display: flex;
   align-items: flex-start;
+}
+
+.notification-icon.tier-1 {
+  background: linear-gradient(135deg, #b7b7b7, #e0e0e0);
+  border: 2px solid #b7b7b7;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+}
+
+.notification-icon.tier-2 {
+  background: linear-gradient(135deg, #cd7f32, #e9be89);
+  border: 2px solid #cd7f32;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+}
+
+.notification-icon.tier-3 {
+  background: linear-gradient(135deg, #c0c0c0, #e6e6e6);
+  border: 2px solid #c0c0c0;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+}
+
+.notification-icon.tier-4 {
+  background: linear-gradient(135deg, #ffd700, #ffe967);
+  border: 2px solid #ffd700;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5c4b00;
+  margin-right: 12px;
+}
+
+.notification-icon.tier-5 {
+  background: linear-gradient(135deg, #b9f2ff, #e3fbff);
+  border: 2px solid #4bd5ed;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #00769c;
+  margin-right: 12px;
 }
 
 .notification-content {

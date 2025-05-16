@@ -499,6 +499,13 @@ const ProductDetailPage = () => {
             return;
         }
 
+        // Check if user has investor role
+        if (!hasRole('investor')) {
+            showError("You need to be registered as an investor to fund products");
+            setShowInvestModal(true);
+            return;
+        }
+
         const amount = parseFloat(fundAmount);
 
         if (isNaN(amount) || amount <= 0) {
@@ -559,10 +566,8 @@ const ProductDetailPage = () => {
         if (!currentUser) {
             showError("Please sign in to add items to cart");
             return;
-        }
-
-        // Check if product is fully funded
-        if (product.fundingGoal && !isFullyFunded) {
+        }        // Check if product is crowdfunded and not fully funded
+        if (product.isCrowdfunded && !isFullyFunded) {
             showError("This product needs to be fully funded before purchase");
             return;
         }
@@ -1068,8 +1073,9 @@ const ProductDetailPage = () => {
                                                     <div className="reviewer-avatar default-avatar">
                                                         {review.userName?.charAt(0).toUpperCase() || 'A'}
                                                     </div>
-                                                )}
-                                                <span className="reviewer-name">{review.userName || 'Anonymous'}</span>
+                                                )}                                                <Link to={`/profile/${review.userId}`} className="reviewer-name-link">
+                                                    <span className="reviewer-name">{review.userName || 'Anonymous'}</span>
+                                                </Link>
 
                                                 {/* If this user is the product designer */}
                                                 {review.userId === product.designerId && (
@@ -1236,8 +1242,9 @@ const ProductDetailPage = () => {
                                                                             <div className="replier-avatar default-avatar">
                                                                                 {reply.userName?.charAt(0).toUpperCase() || 'A'}
                                                                             </div>
-                                                                        )}
-                                                                        <span className="replier-name">{reply.userName || 'Anonymous'}</span>
+                                                                        )}                                                        <Link to={`/profile/${reply.userId}`} className="replier-name-link">
+                                                                            <span className="replier-name">{reply.userName || 'Anonymous'}</span>
+                                                                        </Link>
 
                                                                         {reply.isDesigner && (
                                                                             <span className="replier-badge designer">Designer</span>
@@ -1362,7 +1369,7 @@ const ProductDetailPage = () => {
                             <div className="funding-percentage">{Math.round(fundingPercentage)}% funded</div>
 
                             {/* Funding Form - only show for crowdfunded products that aren't fully funded */}
-                            {!isFullyFunded && currentUser && (
+                            {!isFullyFunded && currentUser && hasRole('investor') && (
                                 <div className="funding-form">
                                     <h4>Help fund this product</h4>
                                     <div className="funding-input-group">
@@ -1387,6 +1394,28 @@ const ProductDetailPage = () => {
                                     <div className="funding-wallet-balance">
                                         Your wallet balance: {formatPrice(userWallet?.balance || 0)}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Show role registration option for users who are not investors */}
+                            {!isFullyFunded && currentUser && !hasRole('investor') && (
+                                <div className="role-registration-prompt">
+                                    <h4>Want to invest in this product?</h4>
+                                    <p>You need to register as an investor to fund this product.</p>
+                                    <Link to="/investor-registration" className="register-investor-button">
+                                        Register as an Investor
+                                    </Link>
+                                </div>
+                            )}
+
+                            {/* Login prompt for non-logged in users */}
+                            {!isFullyFunded && !currentUser && (
+                                <div className="login-prompt">
+                                    <h4>Want to fund this product?</h4>
+                                    <p>Sign in to invest in this innovative product.</p>
+                                    <Link to="/signin" className="signin-button">
+                                        Sign In to Invest
+                                    </Link>
                                 </div>
                             )}
 
@@ -1427,13 +1456,12 @@ const ProductDetailPage = () => {
                     <div className="pdp-product-actions">
                         {/* Add to Cart Button - enabled if product is direct sell or fully funded */}
                         <h4>Add to cart?</h4>
-                        <button
-                            className={`btn-primary pdp-add-to-cart-button ${(!isFullyFunded && product.isCrowdfunded !== false) ? 'disabled' : ''} ${buttonAnimation}`}
-                            disabled={(product.isCrowdfunded !== false && !isFullyFunded) || isAddingToCart}
+                        <button className={`btn-primary pdp-add-to-cart-button ${(product.isCrowdfunded && !isFullyFunded) ? 'disabled' : ''} ${buttonAnimation}`}
+                            disabled={(product.isCrowdfunded && !isFullyFunded) || isAddingToCart}
                             onClick={handleAddToCart}
                         >
                             {isAddingToCart ? 'Adding...' :
-                                (product.isCrowdfunded === false || isFullyFunded) ?
+                                (!product.isCrowdfunded || isFullyFunded) ?
                                     'Add to Cart' : 'Funding Required'}
                         </button>
 

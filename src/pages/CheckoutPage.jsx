@@ -98,16 +98,32 @@ const CrossSellingSuggestions = ({
 
                 const suggestionsSnapshot = await getDocs(suggestionsQuery);
 
-                // Filter out products that are already in the cart
-                const suggestedProducts = suggestionsSnapshot.docs
+                // Get only the first 4 products
+                const eligibleSuggestions = suggestionsSnapshot.docs
                     .map(doc => ({
                         id: doc.id,
                         ...doc.data()
                     }))
-                    .filter(product => !cartProductIds.includes(product.id));
+                    .filter(product => {
+                        // Filter out products that are already in the cart
+                        if (cartProductIds.includes(product.id)) {
+                            return false;
+                        }
 
-                // Get only the first 4 products
-                setSuggestions(suggestedProducts.slice(0, 4));
+                        // Check if product is direct sell or fully funded crowdfunded
+                        if (product.isDirectSell) {
+                            return true; // Direct sell products are always eligible
+                        } else if (product.isCrowdfunded) {
+                            // Only show crowdfunded products if they're fully funded
+                            return product.currentFunding >= product.fundingGoal;
+                        }
+
+                        // Default case: don't show the product
+                        return false;
+                    })
+                    .slice(0, 4); // Get only first 4 eligible products
+
+                setSuggestions(eligibleSuggestions);
 
             } catch (error) {
                 console.error('Error fetching product suggestions:', error);

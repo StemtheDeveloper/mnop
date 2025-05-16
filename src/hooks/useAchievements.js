@@ -2,6 +2,7 @@ import { useEffect, useCallback } from "react";
 import { useUser } from "../context/UserContext";
 import AchievementService from "../services/achievementService";
 import { useToast } from "../context/ToastContext";
+import notificationService from "../services/notificationService";
 
 /**
  * Hook to check and award achievements
@@ -30,9 +31,7 @@ const useAchievements = () => {
         currentUser.uid
       );
       const accountResults =
-        await AchievementService.checkAccountAgeAchievements(currentUser.uid);
-
-      // Combine all earned achievements
+        await AchievementService.checkAccountAgeAchievements(currentUser.uid); // Combine all earned achievements
       const allEarnedIds = [
         ...productResults.earnedIds,
         ...investmentResults.earnedIds,
@@ -41,14 +40,35 @@ const useAchievements = () => {
         ...accountResults.earnedIds,
       ];
 
-      // If any achievements were earned, show a notification
+      // If any achievements were earned, show notifications
       if (allEarnedIds.length > 0) {
         const message =
           allEarnedIds.length === 1
             ? "You earned a new achievement!"
             : `You earned ${allEarnedIds.length} new achievements!`;
 
+        // Show toast notification
         showSuccess(message);
+
+        // Get achievement details and send rich notifications for each
+        for (const achievementId of allEarnedIds) {
+          try {
+            const achievement = await AchievementService.getAchievementById(
+              achievementId
+            );
+            if (achievement) {
+              await notificationService.sendAchievementNotification(
+                currentUser.uid,
+                achievement
+              );
+            }
+          } catch (error) {
+            console.error(
+              `Error creating notification for achievement ${achievementId}:`,
+              error
+            );
+          }
+        }
       }
 
       return { earnedIds: allEarnedIds };
@@ -63,13 +83,32 @@ const useAchievements = () => {
    */
   const checkProductAchievements = useCallback(async () => {
     if (!currentUser) return { earnedIds: [] };
-
     const results = await AchievementService.checkProductAchievements(
       currentUser.uid
     );
 
     if (results.earnedIds.length > 0) {
       showSuccess("You earned a product achievement!");
+
+      // Send individual achievement notifications
+      for (const achievementId of results.earnedIds) {
+        try {
+          const achievement = await AchievementService.getAchievementById(
+            achievementId
+          );
+          if (achievement) {
+            await notificationService.sendAchievementNotification(
+              currentUser.uid,
+              achievement
+            );
+          }
+        } catch (error) {
+          console.error(
+            `Error creating notification for achievement ${achievementId}:`,
+            error
+          );
+        }
+      }
     }
 
     return results;
@@ -80,13 +119,32 @@ const useAchievements = () => {
    */
   const checkInvestmentAchievements = useCallback(async () => {
     if (!currentUser) return { earnedIds: [] };
-
     const results = await AchievementService.checkInvestmentAchievements(
       currentUser.uid
     );
 
     if (results.earnedIds.length > 0) {
       showSuccess("You earned an investment achievement!");
+
+      // Send individual achievement notifications
+      for (const achievementId of results.earnedIds) {
+        try {
+          const achievement = await AchievementService.getAchievementById(
+            achievementId
+          );
+          if (achievement) {
+            await notificationService.sendAchievementNotification(
+              currentUser.uid,
+              achievement
+            );
+          }
+        } catch (error) {
+          console.error(
+            `Error creating notification for achievement ${achievementId}:`,
+            error
+          );
+        }
+      }
     }
 
     return results;
@@ -97,13 +155,32 @@ const useAchievements = () => {
    */
   const checkQuoteAchievements = useCallback(async () => {
     if (!currentUser) return { earnedIds: [] };
-
     const results = await AchievementService.checkQuoteAchievements(
       currentUser.uid
     );
 
     if (results.earnedIds.length > 0) {
       showSuccess("You earned a manufacturing achievement!");
+
+      // Send individual achievement notifications
+      for (const achievementId of results.earnedIds) {
+        try {
+          const achievement = await AchievementService.getAchievementById(
+            achievementId
+          );
+          if (achievement) {
+            await notificationService.sendAchievementNotification(
+              currentUser.uid,
+              achievement
+            );
+          }
+        } catch (error) {
+          console.error(
+            `Error creating notification for achievement ${achievementId}:`,
+            error
+          );
+        }
+      }
     }
 
     return results;
@@ -114,13 +191,32 @@ const useAchievements = () => {
    */
   const checkReviewAchievements = useCallback(async () => {
     if (!currentUser) return { earnedIds: [] };
-
     const results = await AchievementService.checkReviewAchievements(
       currentUser.uid
     );
 
     if (results.earnedIds.length > 0) {
       showSuccess("You earned a reviewer achievement!");
+
+      // Send individual achievement notifications
+      for (const achievementId of results.earnedIds) {
+        try {
+          const achievement = await AchievementService.getAchievementById(
+            achievementId
+          );
+          if (achievement) {
+            await notificationService.sendAchievementNotification(
+              currentUser.uid,
+              achievement
+            );
+          }
+        } catch (error) {
+          console.error(
+            `Error creating notification for achievement ${achievementId}:`,
+            error
+          );
+        }
+      }
     }
 
     return results;
