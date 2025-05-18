@@ -458,6 +458,8 @@ button:disabled {
 }
 
 .template-notes ul {
+  display: flex;
+  flex-direction: column;
   padding-left: 20px;
   margin-bottom: 15px;
 }

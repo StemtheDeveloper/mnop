@@ -4644,6 +4644,9 @@ img {
 }
 
 .admin-nav ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 20px 0 0 0;
@@ -4751,6 +4754,9 @@ img {
   }
 
   .admin-nav ul {
+
+display: flex;
+flex-direction: column;
     display: flex;
     overflow-x: auto;
     margin: 10px 0;
@@ -7009,6 +7015,9 @@ input:checked + .toggle-slider:before {
 }
 
 .multi-collection-summary ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 10px 0;
@@ -10804,6 +10813,9 @@ button:disabled {
 .export-instructions ol,
 .import-instructions ol,
 .important-note ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
 }
 
@@ -11431,6 +11443,9 @@ div {
 }
 
 .attachments ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -12693,12 +12708,18 @@ div {
 }
 
 .suggestion-section ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
 .popular-products ul {
+
+display: flex;
+flex-direction: column;
   display: flex;
   flex-direction: column;
 }
@@ -14978,6 +14999,9 @@ table {
 }
 
 .interest-terms ul {
+
+display: flex;
+flex-direction: column;
   margin: 0.5rem 0;
   padding-left: 1.25rem;
   color: #666;
@@ -15399,6 +15423,9 @@ table {
 }
 
 .investment-benefits ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -15471,6 +15498,9 @@ table {
 }
 
 .investor-benefits ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -17584,6 +17614,9 @@ table {
 }
 
 .attachments ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -18002,6 +18035,9 @@ table {
 }
 
 .manufacturer-info ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
   margin-bottom: 0;
 }
@@ -21176,6 +21212,9 @@ a {
 }
 
 ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   display: flex;
   align-items: center;
@@ -21418,6 +21457,9 @@ li {
 }
 
 .quick-links ul {
+
+display: flex;
+flex-direction: column;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -24438,6 +24480,9 @@ li {
 }
 
 .tab-content ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
   margin-bottom: 20px;
 }
@@ -27019,6 +27064,9 @@ button:disabled {
 }
 
 .template-notes ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
   margin-bottom: 15px;
 }
@@ -29338,6 +29386,9 @@ button:disabled {
 }
 
 .shipping-settings-info ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -33796,6 +33847,9 @@ button:disabled {
 }
 
 .trend-details ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin-bottom: 15px;
@@ -36747,6 +36801,9 @@ button:disabled {
 }
 
 .cancellation-explanation-body ul {
+
+display: flex;
+flex-direction: column;
   margin-bottom: 15px;
   padding-left: 20px;
 }
@@ -38564,6 +38621,9 @@ button:disabled {
 }
 
 .rates-info-box ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -38794,6 +38854,9 @@ button:disabled {
 }
 
 .admin-info-box ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -39242,6 +39305,9 @@ button:disabled {
 }
 
 .inventory-alerts-panel .inventory-docs ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
   margin-bottom: 15px;
 }
@@ -39564,6 +39630,9 @@ button:disabled {
 }
 
 .market-rates-info-box ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -45622,6 +45691,9 @@ img {
 }
 
 .admin-nav ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 20px 0 0 0;
@@ -45745,6 +45817,9 @@ img {
   }
 
   .admin-nav ul {
+
+display: flex;
+flex-direction: column;
     display: flex;
     overflow-x: auto;
     margin: 10px 0;
@@ -48002,6 +48077,9 @@ input:checked + .toggle-slider:before {
 }
 
 .multi-collection-summary ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 10px 0;
@@ -51785,6 +51863,9 @@ button:disabled {
 .export-instructions ol,
 .import-instructions ol,
 .important-note ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
 }
 
@@ -52409,6 +52490,9 @@ div {
 }
 
 .attachments ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -53668,12 +53752,18 @@ div {
 }
 
 .suggestion-section ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
 .popular-products ul {
+
+display: flex;
+flex-direction: column;
   display: flex;
   flex-direction: column;
 }
@@ -55943,6 +56033,9 @@ table {
 }
 
 .interest-terms ul {
+
+display: flex;
+flex-direction: column;
   margin: 0.5rem 0;
   padding-left: 1.25rem;
   color: #666;
@@ -56363,6 +56456,9 @@ table {
 }
 
 .investment-benefits ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -56435,6 +56531,9 @@ table {
 }
 
 .investor-benefits ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -58554,6 +58653,9 @@ table {
 }
 
 .attachments ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -58971,6 +59073,9 @@ table {
 }
 
 .manufacturer-info ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
   margin-bottom: 0;
 }
@@ -62139,6 +62244,9 @@ a {
 }
 
 ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   display: flex;
   align-items: center;
@@ -62381,6 +62489,9 @@ li {
 }
 
 .quick-links ul {
+
+display: flex;
+flex-direction: column;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -65395,6 +65506,9 @@ li {
 }
 
 .tab-content ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
   margin-bottom: 20px;
 }
@@ -67974,6 +68088,9 @@ button:disabled {
 }
 
 .template-notes ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
   margin-bottom: 15px;
 }
@@ -70292,6 +70409,9 @@ button:disabled {
 }
 
 .shipping-settings-info ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -74739,6 +74859,9 @@ button:disabled {
 }
 
 .trend-details ul {
+
+display: flex;
+flex-direction: column;
   list-style: none;
   padding: 0;
   margin-bottom: 15px;
@@ -77690,6 +77813,9 @@ button:disabled {
 }
 
 .cancellation-explanation-body ul {
+
+display: flex;
+flex-direction: column;
   margin-bottom: 15px;
   padding-left: 20px;
 }
@@ -79503,6 +79629,9 @@ button:disabled {
 }
 
 .rates-info-box ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -79732,6 +79861,9 @@ button:disabled {
 }
 
 .admin-info-box ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }
@@ -80179,6 +80311,9 @@ button:disabled {
 }
 
 .inventory-alerts-panel .inventory-docs ul {
+
+display: flex;
+flex-direction: column;
   padding-left: 20px;
   margin-bottom: 15px;
 }
@@ -80500,6 +80635,9 @@ button:disabled {
 }
 
 .market-rates-info-box ul {
+
+display: flex;
+flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }

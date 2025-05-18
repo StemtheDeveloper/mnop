@@ -252,6 +252,8 @@
 }
 
 .interest-terms ul {
+  display: flex;
+  flex-direction: column;
   margin: 0.5rem 0;
   padding-left: 1.25rem;
   color: #666;

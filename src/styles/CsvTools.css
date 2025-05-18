@@ -207,6 +207,8 @@ button:disabled {
 .export-instructions ol,
 .import-instructions ol,
 .important-note ul {
+  display: flex;
+  flex-direction: column;
   padding-left: 20px;
 }
 

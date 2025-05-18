@@ -954,6 +954,8 @@
 }
 
 .cancellation-explanation-body ul {
+  display: flex;
+  flex-direction: column;
   margin-bottom: 15px;
   padding-left: 20px;
 }

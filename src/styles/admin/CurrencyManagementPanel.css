@@ -260,6 +260,8 @@
 }
 
 .rates-info-box ul {
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding-left: 20px;
 }

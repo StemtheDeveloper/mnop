@@ -66,6 +66,13 @@
   counter-reset: item;
 }
 
+section ul {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
 .toc-list li {
   margin-bottom: 12px;
   padding-left: 5px;

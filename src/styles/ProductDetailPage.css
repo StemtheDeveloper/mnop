@@ -269,6 +269,8 @@
 }
 
 .tab-content ul {
+  display: flex;
+  flex-direction: column;
   padding-left: 20px;
   margin-bottom: 20px;
 }

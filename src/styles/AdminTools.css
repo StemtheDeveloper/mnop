@@ -2232,6 +2232,8 @@ input:checked + .toggle-slider:before {
 }
 
 .multi-collection-summary ul {
+  display: flex;
+  flex-direction: column;
   list-style: none;
   padding: 0;
   margin: 10px 0;
