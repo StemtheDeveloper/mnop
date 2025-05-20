@@ -1684,19 +1684,23 @@ class WalletService {
       };
     }
   }
-
   /**
    * Check and auto-transfer funds to pre-selected manufacturer when a product is fully funded
    * @param {string} productId - Product ID to check
    * @returns {Promise<Object>} Result of auto-transfer
    */
   async checkAndAutoTransferFunds(productId) {
+    console.log(
+      `[WalletService] Checking auto-transfer for product ${productId}`
+    );
+
     try {
       // 1. Get the product data
       const productRef = doc(db, "products", productId);
       const productDoc = await getDoc(productRef);
 
       if (!productDoc.exists()) {
+        console.log(`[WalletService] Product ${productId} not found`);
         return {
           success: false,
           error: "Product not found",
@@ -1707,6 +1711,7 @@ class WalletService {
       const designerId = productData.designerId;
 
       if (!designerId) {
+        console.log(`[WalletService] Product ${productId} has no designer ID`);
         return {
           success: false,
           error: "Product has no designer ID",
@@ -1718,7 +1723,18 @@ class WalletService {
       const fundingGoal = productData.fundingGoal || 0;
       const businessHeldFunds = productData.businessHeldFunds || 0;
 
+      console.log(`[WalletService] Product funding status:`, {
+        productId,
+        currentFunding,
+        fundingGoal,
+        businessHeldFunds,
+        isFullyFunded: currentFunding >= fundingGoal,
+      });
+
       if (currentFunding < fundingGoal || businessHeldFunds <= 0) {
+        console.log(
+          `[WalletService] Product ${productId} is not fully funded or has no business-held funds`
+        );
         return {
           success: false,
           error: "Product is not fully funded or has no business-held funds",
@@ -1730,6 +1746,9 @@ class WalletService {
       const designerSettingsDoc = await getDoc(designerSettingsRef);
 
       if (!designerSettingsDoc.exists()) {
+        console.log(
+          `[WalletService] Designer settings not found for ${designerId}`
+        );
         return {
           success: false,
           error: "Designer settings not found",
@@ -1737,14 +1756,27 @@ class WalletService {
       }
 
       const designerSettings = designerSettingsDoc.data();
+      console.log(`[WalletService] Designer settings found:`, {
+        designerId,
+        autoTransferFunds: designerSettings.autoTransferFunds,
+        hasManufacturerSettings: !!designerSettings.manufacturerSettings,
+      });
 
       // 4. Check if auto-transfer is enabled and there's a pre-selected manufacturer
       const manufacturerSettings = designerSettings.manufacturerSettings || {};
-      const autoTransferEnabled =
-        manufacturerSettings.autoTransferEnabled || false;
+      const autoTransferEnabled = designerSettings.autoTransferFunds || false;
       const preSelectedManufacturerId = manufacturerSettings[productId];
 
+      console.log(`[WalletService] Auto-transfer check:`, {
+        autoTransferEnabled,
+        preSelectedManufacturerId,
+        productId,
+      });
+
       if (!autoTransferEnabled || !preSelectedManufacturerId) {
+        console.log(
+          `[WalletService] Auto-transfer not enabled or no pre-selected manufacturer`
+        );
         return {
           success: false,
           error: "Auto-transfer not enabled or no pre-selected manufacturer",
@@ -1756,6 +1788,9 @@ class WalletService {
       const manufacturerDoc = await getDoc(manufacturerRef);
 
       if (!manufacturerDoc.exists()) {
+        console.log(
+          `[WalletService] Pre-selected manufacturer ${preSelectedManufacturerId} not found`
+        );
         return {
           success: false,
           error: "Pre-selected manufacturer not found",
@@ -1763,14 +1798,23 @@ class WalletService {
       }
 
       const manufacturerEmail = manufacturerDoc.data().email;
+      console.log(
+        `[WalletService] Found manufacturer email: ${manufacturerEmail}`
+      );
 
       // 6. Transfer funds to manufacturer
-      return await this.transferProductFundsToManufacturer(
+      console.log(
+        `[WalletService] Initiating fund transfer to manufacturer for product ${productId}`
+      );
+      const result = await this.transferProductFundsToManufacturer(
         designerId,
         productId,
         manufacturerEmail,
         "Auto-transferred funds for manufacturing"
       );
+
+      console.log(`[WalletService] Auto-transfer result:`, result);
+      return result;
     } catch (error) {
       console.error("Error in auto-transfer funds process:", error);
       return {

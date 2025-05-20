@@ -164,7 +164,7 @@
   animation: fadeIn 0.3s ease-out;
 }
 
-/* Products Grid */
+/* Products Grid - Masonry Layout */
 .products-grid {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
@@ -173,20 +173,30 @@
 
 @media (min-width: 600px) {
   .products-grid {
-    grid-template-columns: repeat(2, 1fr);
+    columns: 2;
+    column-gap: 2rem;
+    display: block;
   }
 }
 
 @media (min-width: 900px) {
   .products-grid {
-    grid-template-columns: repeat(3, 1fr);
+    columns: 3;
   }
 }
 
 @media (min-width: 1200px) {
   .products-grid {
-    grid-template-columns: repeat(4, 1fr);
+    columns: 4;
   }
+}
+
+/* Masonry item styling */
+.product-link {
+  break-inside: avoid;
+  margin-bottom: 2rem;
+  display: inline-block;
+  width: 100%;
 }
 
 .product-link {

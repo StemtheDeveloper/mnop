@@ -1478,16 +1478,17 @@ const ProfilePage = () => {
                     ...manufacturerData,
                     createdAt: serverTimestamp()
                 });
-            }
-
-            // If auto-transfer is enabled, check if any products are already fully funded
+            }            // If auto-transfer is enabled, check if any products are already fully funded
             if (autoTransferFunds) {
+                console.log("Auto-transfer funds is enabled, checking for fully funded products...");
                 const fullyFundedProducts = designerProducts.filter(
                     product => product.currentFunding >= product.fundingGoal &&
                         manufacturerSettings[product.id] &&
                         !product.manufacturerId &&
                         !product.fundsSentToManufacturer
                 );
+
+                console.log(`Found ${fullyFundedProducts.length} fully funded products ready for auto-transfer`);
 
                 if (fullyFundedProducts.length > 0) {
                     // Transfer funds for fully funded products with selected manufacturers
@@ -1498,20 +1499,28 @@ const ProfilePage = () => {
                         const manufacturer = manufacturers.find(m => m.id === manufacturerId);
 
                         if (manufacturer) {
-                            await walletService.transferProductFundsToManufacturer(
+                            console.log(`Auto-transferring funds for product ${product.id} to manufacturer ${manufacturer.email}`);
+                            const result = await walletService.transferProductFundsToManufacturer(
                                 userId,
                                 product.id,
                                 manufacturer.email,
                                 "Auto-transferred funds for fully funded product"
                             );
+
+                            console.log("Auto-transfer result:", result);
+                        } else {
+                            console.error(`Manufacturer not found for product ${product.id}`);
                         }
                     }
 
                     // Refresh products list after transfers
                     if (designerProducts.length > 0) {
+                        console.log("Refreshing designer products after fund transfers");
                         fetchDesignerProducts();
                     }
                 }
+            } else {
+                console.log("Auto-transfer funds is disabled");
             }
 
             setMessage({
@@ -3263,9 +3272,11 @@ const ProfilePage = () => {
                                                     id="autoTransferFunds"
                                                     checked={autoTransferFunds}
                                                     onChange={(e) => setAutoTransferFunds(e.target.checked)}
-                                                />
-                                                <label htmlFor="autoTransferFunds">Automatically transfer funds to selected manufacturer when a product is fully funded</label>
-                                                <p className="field-description">When enabled, funds will be automatically sent to your pre-selected manufacturer as soon as a product reaches its funding goal</p>
+                                                />                                                <label htmlFor="autoTransferFunds">Automatically transfer funds to selected manufacturer when a product is fully funded</label>
+                                                <p className="field-description">
+                                                    When enabled, funds will be automatically sent to your pre-selected manufacturer as soon as a product reaches its funding goal.
+                                                    This setting applies to all your products that have a manufacturer selected below.
+                                                </p>
                                             </div>
 
                                             <div className="manufacturer-product-section">
@@ -3357,10 +3368,15 @@ const ProfilePage = () => {
                                                                             </div>
                                                                         ) : (
                                                                             <div className="status-pending">
-                                                                                Will be assigned when fully funded
-                                                                                {autoTransferFunds && manufacturerSettings[product.id] && (
-                                                                                    <span className="auto-transfer-badge">
+                                                                                Will be assigned when fully funded                                                                                {autoTransferFunds && manufacturerSettings[product.id] && (
+                                                                                    <span className="auto-transfer-badge" title="Funds will be automatically transferred to this manufacturer when the product is fully funded">
                                                                                         Auto-transfer enabled
+                                                                                    </span>
+                                                                                )}
+
+                                                                                {!autoTransferFunds && manufacturerSettings[product.id] && (
+                                                                                    <span className="manual-transfer-badge" title="Enable auto-transfer above to automatically send funds to this manufacturer">
+                                                                                        Manual transfer required
                                                                                     </span>
                                                                                 )}
                                                                             </div>
