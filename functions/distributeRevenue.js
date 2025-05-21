@@ -33,11 +33,16 @@ exports.distributeInvestorRevenue = functions.https.onCall(
           "invalid-argument",
           "Invalid revenue distribution parameters"
         );
-      }
-
-      // Calculate profit from the sale
-      const totalManufacturingCost = manufacturingCost * quantity;
-      const profit = Math.max(0, saleAmount - totalManufacturingCost);
+      } // Calculate profit from the sale
+      // Use cents for precision
+      const saleAmountCents = Math.floor(saleAmount * 100);
+      const manufacturingCostCents = Math.floor(manufacturingCost * 100);
+      const totalManufacturingCostCents = manufacturingCostCents * quantity;
+      const profitCents = Math.max(
+        0,
+        saleAmountCents - totalManufacturingCostCents
+      );
+      const profit = profitCents / 100;
 
       // If no profit, no distribution needed
       if (profit <= 0) {
@@ -67,11 +72,14 @@ exports.distributeInvestorRevenue = functions.https.onCall(
           distributedAmount: 0,
           investorCount: 0,
         };
-      }
-
-      // Set revenue share percentage - configure as needed
+      } // Set revenue share percentage - configure as needed
       const REVENUE_SHARE_PERCENTAGE = 25; // 25% of profit goes to investors
-      const totalRevenueShare = profit * (REVENUE_SHARE_PERCENTAGE / 100);
+
+      // Calculate revenue share with precision using the profitCents already calculated
+      const totalRevenueShareCents = Math.floor(
+        (profitCents * REVENUE_SHARE_PERCENTAGE) / 100
+      );
+      const totalRevenueShare = totalRevenueShareCents / 100;
 
       // Get all investments for this product
       const investmentsRef = db.collection("investments");
@@ -95,9 +103,7 @@ exports.distributeInvestorRevenue = functions.https.onCall(
       const totalInvestment = productData.currentFunding;
       const batch = db.batch();
       let totalDistributed = 0;
-      let investorCount = 0;
-
-      // Loop through all investments for this product
+      let investorCount = 0; // Loop through all investments for this product
       const distributions = [];
       for (const doc of investmentsSnapshot.docs) {
         const investment = doc.data();
@@ -111,10 +117,19 @@ exports.distributeInvestorRevenue = functions.https.onCall(
 
         // Calculate this investor's percentage and share
         const investmentPercentage = investmentAmount / totalInvestment;
-        const revenueShare = totalRevenueShare * investmentPercentage;
 
-        // Round to 2 decimal places for currency
-        const roundedShare = Math.round(revenueShare * 100) / 100;
+        // To ensure precise decimal calculations, convert to cents (integer math)
+        // This avoids floating point errors in JavaScript
+        const totalRevenueShareCents = Math.floor(totalRevenueShare * 100);
+        const investmentPercentageBasis = Math.floor(
+          investmentPercentage * 10000
+        ); // Use basis points (0.01%)
+        const revenueShareCents = Math.floor(
+          (totalRevenueShareCents * investmentPercentageBasis) / 10000
+        );
+
+        // Convert cents back to dollars
+        const roundedShare = revenueShareCents / 100;
 
         if (roundedShare <= 0) {
           continue; // Skip if share is too small
@@ -222,8 +237,15 @@ exports.distributeRevenue = async (
 ) => {
   try {
     // Calculate profit
-    const totalManufacturingCost = manufacturingCost * quantity;
-    const profit = Math.max(0, saleAmount - totalManufacturingCost);
+    // Use cents for precision
+    const saleAmountCents = Math.floor(saleAmount * 100);
+    const manufacturingCostCents = Math.floor(manufacturingCost * 100);
+    const totalManufacturingCostCents = manufacturingCostCents * quantity;
+    const profitCents = Math.max(
+      0,
+      saleAmountCents - totalManufacturingCostCents
+    );
+    const profit = profitCents / 100;
 
     if (profit <= 0) {
       return {
@@ -250,11 +272,13 @@ exports.distributeRevenue = async (
         message: "Product has no investors",
         distributedAmount: 0,
       };
-    }
-
-    // Set revenue share percentage
+    } // Set revenue share percentage
     const REVENUE_SHARE_PERCENTAGE = 25; // 25% of profit goes to investors
-    const totalRevenueShare = profit * (REVENUE_SHARE_PERCENTAGE / 100);
+    // Calculate revenue share with precision using cents
+    const totalRevenueShareCents = Math.floor(
+      (profitCents * REVENUE_SHARE_PERCENTAGE) / 100
+    );
+    const totalRevenueShare = totalRevenueShareCents / 100;
 
     // Get all investments for this product
     const investmentsRef = db.collection("investments");
@@ -284,14 +308,21 @@ exports.distributeRevenue = async (
       // Skip invalid investments
       if (!investorId || !investmentAmount || investmentAmount <= 0) {
         continue;
-      }
-
-      // Calculate this investor's percentage and share
+      } // Calculate this investor's percentage and share
       const investmentPercentage = investmentAmount / totalInvestment;
-      const revenueShare = totalRevenueShare * investmentPercentage;
 
-      // Round to 2 decimal places for currency
-      const roundedShare = Math.round(revenueShare * 100) / 100;
+      // To ensure precise decimal calculations, convert to cents (integer math)
+      // This avoids floating point errors in JavaScript
+      const totalRevenueShareCents = Math.floor(totalRevenueShare * 100);
+      const investmentPercentageBasis = Math.floor(
+        investmentPercentage * 10000
+      ); // Use basis points (0.01%)
+      const revenueShareCents = Math.floor(
+        (totalRevenueShareCents * investmentPercentageBasis) / 10000
+      );
+
+      // Convert cents back to dollars
+      const roundedShare = revenueShareCents / 100;
 
       if (roundedShare <= 0) {
         continue; // Skip if share is too small

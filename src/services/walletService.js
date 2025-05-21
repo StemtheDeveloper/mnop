@@ -942,12 +942,15 @@ class WalletService {
       // Ensure commission rate is a number
       const commissionRate = parseFloat(settings.commissionRate) || 2.0; // Default to 2% if not specified or NaN      // Calculate commission (percentage of sale amount, not profit)
       // This ensures the commission is properly calculated as per business requirements
-      const commission = saleAmount * (commissionRate / 100);
 
-      // Allow for fractional commissions without enforcing a minimum amount
-      // This ensures the commission is always proportional to the sale amount
-      const calculatedCommission = commission;
-      const roundedCommission = Math.round(calculatedCommission * 100) / 100; // Round to 2 decimal places
+      // To ensure exact decimal calculations, convert to cents first (integer math)
+      const saleAmountCents = Math.floor(saleAmount * 100);
+      const commissionCents = Math.floor(
+        (saleAmountCents * commissionRate) / 100
+      );
+
+      // Convert back to dollars
+      const roundedCommission = commissionCents / 100;
 
       // Update business wallet balance
       const businessWalletRef = doc(db, "wallets", "business");
@@ -1170,7 +1173,8 @@ class WalletService {
     manufacturingCost,
     quantity = 1,
     orderId,
-    shippingCost = 0
+    shippingCost = 0,
+    taxAmount = 0
   ) {
     try {
       // Log all parameters for debugging
@@ -1182,6 +1186,7 @@ class WalletService {
         quantity,
         orderId,
         shippingCost,
+        taxAmount,
       });
 
       // Ensure numeric values are actually numbers
@@ -1197,6 +1202,8 @@ class WalletService {
         typeof shippingCost === "string"
           ? parseFloat(shippingCost)
           : shippingCost;
+      const validatedTaxAmount =
+        typeof taxAmount === "string" ? parseFloat(taxAmount) : taxAmount || 0;
 
       // Validate all required parameters
       if (!productId || typeof productId !== "string") {
@@ -1269,11 +1276,11 @@ class WalletService {
         };
       }
 
-      // The validatedSaleAmount already represents the subtotal (excluding shipping)
+      // The validatedSaleAmount already represents the subtotal (excluding shipping and tax)
       // so we use it directly for commission/investor calculations
       const productSaleAmount = validatedSaleAmount;
 
-      // First, process business commission on the product subtotal only (not shipping)
+      // First, process business commission on the product subtotal only (not shipping or tax)
       // Always process commission for all products, including direct sell products
       const commissionResult = await this.processBusinessCommission(
         productSaleAmount,
@@ -1289,7 +1296,7 @@ class WalletService {
         ? commissionResult.commissionAmount || 0
         : 0;
 
-      // Next, distribute revenue to investors (exclude shipping from this calculation)
+      // Next, distribute revenue to investors (exclude shipping and tax from this calculation)
       // Only for crowdfunded products (not direct sell)
       let distributionResult = {
         success: true,
@@ -1308,17 +1315,23 @@ class WalletService {
       // Get total distributed to investors (default to 0 if there was an error)
       const investorDistribution = distributionResult.success
         ? distributionResult.data?.distributedAmount || 0
-        : 0;
+        : 0; // Calculate designer's share: product sale amount minus commission minus investor distribution
+      // (shipping and tax will be handled separately)
+      // We need to ensure exact decimal calculation to avoid floating point issues
+      // Convert to cents (integers), do the calculation, then convert back to dollars
+      const saleAmountCents = Math.floor(productSaleAmount * 100);
+      const commissionAmountCents = Math.floor(commissionAmount * 100);
+      const investorDistributionCents = Math.floor(investorDistribution * 100);
+      const designerShareCents =
+        saleAmountCents - commissionAmountCents - investorDistributionCents;
+      const designerShare = designerShareCents / 100;
 
-      // Calculate designer's share: product sale amount minus commission minus investor distribution, plus shipping
-      const designerShare =
-        productSaleAmount -
-        commissionAmount -
-        investorDistribution +
-        shippingCost;
-
-      // Only process designer payment if there's anything to pay
+      // Process payments to the designer
       let designerPaymentResult = null;
+      let shippingPaymentResult = null;
+      let taxPaymentResult = null;
+
+      // Process base payment if there's anything to pay
       if (designerShare > 0) {
         designerPaymentResult = await this.payDesigner(
           designerId,
@@ -1327,7 +1340,31 @@ class WalletService {
           productName,
           orderId
         );
-      } // Create a clean result object without circular references
+      }
+
+      // Process shipping payment as a separate transaction if applicable
+      if (validatedShippingCost > 0) {
+        shippingPaymentResult = await this.payDesignerShipping(
+          designerId,
+          validatedShippingCost,
+          productId,
+          productName,
+          orderId
+        );
+      }
+
+      // Process tax payment as a separate transaction if applicable
+      if (validatedTaxAmount > 0) {
+        taxPaymentResult = await this.payDesignerTax(
+          designerId,
+          validatedTaxAmount,
+          productId,
+          productName,
+          orderId
+        );
+      }
+
+      // Create clean result objects without circular references
       const safeCommissionResult = commissionResult.success
         ? {
             success: commissionResult.success,
@@ -1351,11 +1388,27 @@ class WalletService {
           }
         : null;
 
+      const safeShippingResult = shippingPaymentResult
+        ? {
+            success: shippingPaymentResult.success,
+            amount: shippingPaymentResult.amount || 0,
+          }
+        : null;
+
+      const safeTaxResult = taxPaymentResult
+        ? {
+            success: taxPaymentResult.success,
+            amount: taxPaymentResult.amount || 0,
+          }
+        : null;
+
       return {
         success: true,
         commissionResult: safeCommissionResult,
         distributionResult: safeDistributionResult,
         designerPaymentResult: safeDesignerResult,
+        shippingPaymentResult: safeShippingResult,
+        taxPaymentResult: safeTaxResult,
         message: "Sale processed successfully",
         isDirectSell: isDirectSell,
       };
@@ -1376,8 +1429,7 @@ class WalletService {
    * @param {string} productName - The product name
    * @param {string} orderId - The order ID
    * @returns {Promise<Object>} Result with success status
-   */
-  async payDesigner(designerId, amount, productId, productName, orderId) {
+   */ async payDesigner(designerId, amount, productId, productName, orderId) {
     try {
       // Validate the amount
       if (amount <= 0) {
@@ -1387,8 +1439,10 @@ class WalletService {
         };
       }
 
-      // Round to 2 decimal places for currency
-      const roundedAmount = Math.round(amount * 100) / 100;
+      // To avoid floating point errors, convert to cents (integer math) then back to dollars
+      // This ensures we get exact amounts without weird fractions
+      const amountCents = Math.floor(amount * 100);
+      const roundedAmount = amountCents / 100;
 
       // Get designer's wallet
       const walletRef = doc(db, "wallets", designerId);
@@ -1452,6 +1506,216 @@ class WalletService {
       return {
         success: false,
         error: error.message || "Failed to process designer payment",
+      };
+    }
+  }
+
+  /**
+   * Pay a designer for shipping costs
+   * @param {string} designerId - The ID of the designer
+   * @param {number} amount - The shipping amount to pay
+   * @param {string} productId - The product ID
+   * @param {string} productName - The product name
+   * @param {string} orderId - The order ID
+   * @returns {Promise<Object>} Result with success status
+   */ async payDesignerShipping(
+    designerId,
+    amount,
+    productId,
+    productName,
+    orderId
+  ) {
+    try {
+      // Validate the amount
+      if (amount <= 0) {
+        return {
+          success: false,
+          error: "Shipping payment amount must be greater than 0",
+        };
+      }
+
+      // To avoid floating point errors, convert to cents (integer math) then back to dollars
+      // This ensures we get exact amounts without weird fractions
+      const amountCents = Math.floor(amount * 100);
+      const roundedAmount = amountCents / 100;
+
+      // Get designer's wallet
+      const walletRef = doc(db, "wallets", designerId);
+      const walletDoc = await getDoc(walletRef);
+
+      // Create batch for transaction
+      const batch = writeBatch(db);
+
+      if (walletDoc.exists()) {
+        // Update existing wallet
+        batch.update(walletRef, {
+          balance: increment(roundedAmount),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create wallet if it doesn't exist
+        batch.set(walletRef, {
+          balance: roundedAmount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } // Record payment transaction specifically for shipping
+      // Check if this is a consolidated shipping payment
+      const description =
+        productId === "consolidated"
+          ? productName // For consolidated payments, use the provided name (e.g. "Order Shipping")
+          : `Shipping payment for ${productName || "product"}`; // For individual product shipping
+
+      await this.recordTransaction(designerId, {
+        amount: roundedAmount,
+        type: "shipping_payment",
+        description,
+        productId,
+        orderId,
+        status: "completed",
+      });
+
+      // Commit the batch
+      await batch.commit();
+
+      // Send notification to designer about the shipping payment
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      ); // Check if this is a consolidated shipping payment for better notification message
+      const notificationMessage =
+        productId === "consolidated"
+          ? `You received $${roundedAmount.toFixed(
+              2
+            )} for shipping costs (Order #${orderId.slice(-6)}).`
+          : `You received $${roundedAmount.toFixed(2)} for shipping of ${
+              productName || "your product"
+            }.`;
+
+      await notificationService.createNotification(
+        designerId,
+        "payment",
+        "Shipping Payment",
+        notificationMessage,
+        `/orders`
+      );
+
+      return {
+        success: true,
+        amount: roundedAmount,
+        message: `Successfully paid designer $${roundedAmount.toFixed(
+          2
+        )} for shipping payment`,
+      };
+    } catch (error) {
+      console.error("Error paying designer for shipping:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to process shipping payment",
+      };
+    }
+  }
+
+  /**
+   * Pay a designer for tax collected
+   * @param {string} designerId - The ID of the designer
+   * @param {number} amount - The tax amount to pay
+   * @param {string} productId - The product ID
+   * @param {string} productName - The product name
+   * @param {string} orderId - The order ID
+   * @returns {Promise<Object>} Result with success status
+   */ async payDesignerTax(
+    designerId,
+    amount,
+    productId,
+    productName,
+    orderId
+  ) {
+    try {
+      // Validate the amount
+      if (amount <= 0) {
+        return {
+          success: false,
+          error: "Tax payment amount must be greater than 0",
+        };
+      }
+
+      // To avoid floating point errors, convert to cents (integer math) then back to dollars
+      // This ensures we get exact amounts without weird fractions
+      const amountCents = Math.floor(amount * 100);
+      const roundedAmount = amountCents / 100;
+
+      // Get designer's wallet
+      const walletRef = doc(db, "wallets", designerId);
+      const walletDoc = await getDoc(walletRef);
+
+      // Create batch for transaction
+      const batch = writeBatch(db);
+
+      if (walletDoc.exists()) {
+        // Update existing wallet
+        batch.update(walletRef, {
+          balance: increment(roundedAmount),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        // Create wallet if it doesn't exist
+        batch.set(walletRef, {
+          balance: roundedAmount,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } // Record payment transaction specifically for tax
+      // Check if this is a consolidated tax payment
+      const description =
+        productId === "consolidated"
+          ? productName // For consolidated payments, use the provided name (e.g. "Order Tax")
+          : `Tax payment for ${productName || "product"}`; // For individual product tax
+
+      await this.recordTransaction(designerId, {
+        amount: roundedAmount,
+        type: "tax_payment",
+        description,
+        productId,
+        orderId,
+        status: "completed",
+      });
+
+      // Commit the batch
+      await batch.commit();
+
+      // Send notification to designer about the tax payment
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      ); // Check if this is a consolidated tax payment for better notification message
+      const notificationMessage =
+        productId === "consolidated"
+          ? `You received $${roundedAmount.toFixed(
+              2
+            )} for tax collected (Order #${orderId.slice(-6)}).`
+          : `You received $${roundedAmount.toFixed(2)} for tax on ${
+              productName || "your product"
+            }.`;
+
+      await notificationService.createNotification(
+        designerId,
+        "payment",
+        "Tax Payment",
+        notificationMessage,
+        `/orders`
+      );
+
+      return {
+        success: true,
+        amount: roundedAmount,
+        message: `Successfully paid designer $${roundedAmount.toFixed(
+          2
+        )} for tax payment`,
+      };
+    } catch (error) {
+      console.error("Error paying designer for tax:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to process tax payment",
       };
     }
   }

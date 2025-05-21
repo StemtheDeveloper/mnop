@@ -429,9 +429,7 @@ class RefundService {
         orderId,
         status: "completed",
         processedBy: adminId,
-      });
-
-      // 3. Process refunds for all stakeholders
+      }); // 3. Process refunds for all stakeholders
       for (const item of itemsToRefund) {
         // Reverse investor revenue if applicable
         await this.reverseInvestorRevenue(
@@ -453,6 +451,25 @@ class RefundService {
           item.price * item.quantity,
           orderId
         );
+      }
+
+      // Handle consolidated shipping and tax refunds if all items are being refunded
+      if (refundAll) {
+        // Reverse consolidated shipping payment
+        await this.reverseShippingPayment("consolidated", orderId);
+
+        // Reverse consolidated tax payment
+        await this.reverseTaxPayment("consolidated", orderId);
+      } else {
+        // For partial refunds, try to reverse individual item shipping/tax
+        // but this will likely not find anything since we've moved to consolidated payments
+        for (const item of itemsToRefund) {
+          // Reverse shipping payment if applicable
+          await this.reverseShippingPayment(item.id, orderId);
+
+          // Reverse tax payment if applicable
+          await this.reverseTaxPayment(item.id, orderId);
+        }
       }
 
       // 4. Update the order status
@@ -763,6 +780,256 @@ class RefundService {
       return {
         success: false,
         error: error.message || "Failed to reverse business commission",
+      };
+    }
+  }
+  /**
+   * Reverse shipping payment for a refunded product
+   * @param {string} productId - Product ID
+   * @param {string} orderId - Order ID for reference
+   * @returns {Promise<Object>} Result of shipping payment reversal
+   */
+  async reverseShippingPayment(productId, orderId) {
+    try {
+      let designerId;
+
+      // Handle special case for consolidated shipping payments
+      if (productId === "consolidated") {
+        // For consolidated payments, we need to find the transaction first
+        // to determine which designer received the payment
+        const transactionsRef = collection(db, "transactions");
+        const q = query(
+          transactionsRef,
+          where("type", "==", "shipping_payment"),
+          where("productId", "==", "consolidated"),
+          where("orderId", "==", orderId)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          return {
+            success: true,
+            message: "No consolidated shipping payment to reverse",
+          };
+        }
+
+        // Get the designerId from the first matching transaction
+        designerId = snapshot.docs[0].data().userId;
+      } else {
+        // Normal case - get the designer from the product
+        const productRef = doc(db, "products", productId);
+        const productDoc = await getDoc(productRef);
+
+        if (!productDoc.exists()) {
+          return {
+            success: false,
+            error: "Product not found",
+          };
+        }
+
+        const productData = productDoc.data();
+        designerId = productData.designerId;
+      }
+
+      if (!designerId) {
+        return { success: true, message: "No designer found for this payment" };
+      } // 2. Check if there was a shipping payment transaction for this order
+      const transactionsRef = collection(db, "transactions");
+      // productId could be 'consolidated' or a regular product ID
+      const q = query(
+        transactionsRef,
+        where("type", "==", "shipping_payment"),
+        where("productId", "==", productId),
+        where("orderId", "==", orderId)
+      );
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        // No shipping payment to reverse
+        return { success: true, message: "No shipping payment to reverse" };
+      }
+
+      // For each shipping transaction, create a reversal
+      for (const doc of snapshot.docs) {
+        const transaction = doc.data();
+        const amount = transaction.amount;
+
+        // 1. Deduct from designer's wallet
+        const deductionResult = await walletService.deductFunds(
+          designerId,
+          amount,
+          `Reversal of shipping payment for refunded order #${orderId.slice(
+            -6
+          )}`
+        );
+
+        if (!deductionResult.success) {
+          console.error(
+            `Failed to deduct shipping funds from designer ${designerId}:`,
+            deductionResult.error
+          );
+          continue; // Skip if deduction fails
+        }
+
+        // 2. Record the reversal transaction
+        await walletService.recordTransaction(designerId, {
+          type: "shipping_payment_reversal",
+          amount: -amount,
+          description: `Reversal of shipping payment for refunded product (Order #${orderId.slice(
+            -6
+          )})`,
+          productId,
+          orderId,
+          referencedTransactionId: doc.id,
+          status: "completed", // Mark as completed immediately
+        });
+
+        // 3. Notify the designer
+        await notificationService.createNotification(
+          designerId,
+          "payment_reversal",
+          "Shipping Payment Reversed",
+          `Due to a refund, ${amount.toFixed(
+            2
+          )} credits of shipping payment from order #${orderId.slice(
+            -6
+          )} has been reversed.`,
+          `/dashboard`
+        );
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error reversing shipping payment:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to reverse shipping payment",
+      };
+    }
+  }
+  /**
+   * Reverse tax payment for a refunded product
+   * @param {string} productId - Product ID
+   * @param {string} orderId - Order ID for reference
+   * @returns {Promise<Object>} Result of tax payment reversal
+   */
+  async reverseTaxPayment(productId, orderId) {
+    try {
+      let designerId;
+
+      // Handle special case for consolidated tax payments
+      if (productId === "consolidated") {
+        // For consolidated payments, we need to find the transaction first
+        // to determine which designer received the payment
+        const transactionsRef = collection(db, "transactions");
+        const q = query(
+          transactionsRef,
+          where("type", "==", "tax_payment"),
+          where("productId", "==", "consolidated"),
+          where("orderId", "==", orderId)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          return {
+            success: true,
+            message: "No consolidated tax payment to reverse",
+          };
+        }
+
+        // Get the designerId from the first matching transaction
+        designerId = snapshot.docs[0].data().userId;
+      } else {
+        // Normal case - get the designer from the product
+        const productRef = doc(db, "products", productId);
+        const productDoc = await getDoc(productRef);
+
+        if (!productDoc.exists()) {
+          return {
+            success: false,
+            error: "Product not found",
+          };
+        }
+
+        const productData = productDoc.data();
+        designerId = productData.designerId;
+      }
+
+      if (!designerId) {
+        return { success: true, message: "No designer found for this payment" };
+      } // 2. Check if there was a tax payment transaction for this order
+      const transactionsRef = collection(db, "transactions");
+      // productId could be 'consolidated' or a regular product ID
+      const q = query(
+        transactionsRef,
+        where("type", "==", "tax_payment"),
+        where("productId", "==", productId),
+        where("orderId", "==", orderId)
+      );
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        // No tax payment to reverse
+        return { success: true, message: "No tax payment to reverse" };
+      }
+
+      // For each tax transaction, create a reversal
+      for (const doc of snapshot.docs) {
+        const transaction = doc.data();
+        const amount = transaction.amount;
+
+        // 1. Deduct from designer's wallet
+        const deductionResult = await walletService.deductFunds(
+          designerId,
+          amount,
+          `Reversal of tax payment for refunded order #${orderId.slice(-6)}`
+        );
+
+        if (!deductionResult.success) {
+          console.error(
+            `Failed to deduct tax funds from designer ${designerId}:`,
+            deductionResult.error
+          );
+          continue; // Skip if deduction fails
+        }
+
+        // 2. Record the reversal transaction
+        await walletService.recordTransaction(designerId, {
+          type: "tax_payment_reversal",
+          amount: -amount,
+          description: `Reversal of tax payment for refunded product (Order #${orderId.slice(
+            -6
+          )})`,
+          productId,
+          orderId,
+          referencedTransactionId: doc.id,
+          status: "completed", // Mark as completed immediately
+        });
+
+        // 3. Notify the designer
+        await notificationService.createNotification(
+          designerId,
+          "payment_reversal",
+          "Tax Payment Reversed",
+          `Due to a refund, ${amount.toFixed(
+            2
+          )} credits of tax payment from order #${orderId.slice(
+            -6
+          )} has been reversed.`,
+          `/dashboard`
+        );
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error reversing tax payment:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to reverse tax payment",
       };
     }
   }

@@ -1062,9 +1062,7 @@ const CheckoutPage = () => {
             };
 
             const orderRef = await addDoc(collection(db, 'orders'), orderData);
-            setOrderId(orderRef.id);
-
-            // Mark cart as recovered for analytics purposes
+            setOrderId(orderRef.id);            // Mark cart as recovered for analytics purposes
             if (currentUser && cartId) {
                 try {
                     await cartRecoveryService.markCartAsRecovered(cartId);
@@ -1072,6 +1070,20 @@ const CheckoutPage = () => {
                 } catch (err) {
                     // Don't block the order process if this fails
                     console.error('Error marking cart as recovered:', err);
+                }
+            }
+
+            // Store the main designer for shipping and tax payments
+            // We'll use the first item's designer as the recipient for shipping and tax
+            let primaryDesignerId = null;
+            let firstProductName = '';
+            if (cartItems.length > 0) {
+                const firstItemRef = doc(db, 'products', cartItems[0].id);
+                const firstItemDoc = await getDoc(firstItemRef);
+                if (firstItemDoc.exists()) {
+                    const firstProductData = firstItemDoc.data();
+                    primaryDesignerId = firstProductData.designerId;
+                    firstProductName = cartItems[0].name || firstProductData.name;
                 }
             }
 
@@ -1085,36 +1097,45 @@ const CheckoutPage = () => {
                     if (productDoc.exists()) {
                         const productData = productDoc.data();                        // Calculate sale amount
                         const manufacturingCost = productData.manufacturingCost || 0;
-                        const saleAmount = item.price * item.quantity;
-
-                        // Calculate proportional shipping based on item price relative to total order value
-                        // This ensures more expensive items get proportionally more shipping revenue
-                        const itemPriceTotal = item.price * item.quantity;
-                        const orderSubtotal = cartItems.reduce((sum, cartItem) => sum + (cartItem.price * cartItem.quantity), 0);
-                        const itemShippingShare = shipping * (itemPriceTotal / orderSubtotal);
+                        const saleAmount = item.price * item.quantity;                        // We should not distribute shipping and tax proportionally
+                        // The shipping and tax should be handled as separate consolidated transactions
+                        // Set shipping and tax to 0 for each individual product sale
+                        const itemShippingShare = 0;
+                        const itemTaxShare = 0;
 
                         // Use the comprehensive method that handles business commission, 
-                        // investor revenue, AND designer payments in one call                        // Ensure numeric values are properly converted
+                        // investor revenue, AND designer payments in one call                        
+                        // Ensure numeric values are properly converted
                         const validatedSaleAmount = typeof saleAmount === 'string' ? parseFloat(saleAmount) : saleAmount;
                         const validatedManufacturingCost = typeof manufacturingCost === 'string' ? parseFloat(manufacturingCost) : manufacturingCost;
-                        const validatedQuantity = typeof item.quantity === 'string' ? parseInt(item.quantity, 10) : item.quantity;
-                        const validatedShippingShare = typeof itemShippingShare === 'string' ? parseFloat(itemShippingShare) : itemShippingShare;
+                        const validatedQuantity = typeof item.quantity === 'string' ? parseInt(item.quantity, 10) : item.quantity; const validatedShippingShare = typeof itemShippingShare === 'string' ? parseFloat(itemShippingShare) : itemShippingShare;
+                        const validatedTaxShare = typeof itemTaxShare === 'string' ? parseFloat(itemTaxShare) : itemTaxShare;                        // Convert to cents (integers) first to avoid floating point errors
+                        // Then convert back to dollars to get exact decimal amounts
+                        const saleAmountCents = Math.floor(validatedSaleAmount * 100);
+                        const shippingShareCents = Math.floor(validatedShippingShare * 100);
+                        const taxShareCents = Math.floor(validatedTaxShare * 100);
+
+                        const roundedSaleAmount = saleAmountCents / 100;
+                        const roundedShippingShare = shippingShareCents / 100;
+                        const roundedTaxShare = taxShareCents / 100;
 
                         console.log(`Processing sale for ${item.id} with values:`, {
-                            saleAmount: validatedSaleAmount,
+                            saleAmount: roundedSaleAmount,
                             manufacturingCost: validatedManufacturingCost,
                             quantity: validatedQuantity,
-                            shippingShare: validatedShippingShare
+                            shippingShare: roundedShippingShare,
+                            taxShare: roundedTaxShare
                         });
 
                         const saleResult = await walletService.processProductSale(
                             item.id,
                             item.name || productData.name,
-                            validatedSaleAmount,
+                            roundedSaleAmount,
                             validatedManufacturingCost,
                             validatedQuantity,
                             orderRef.id,
-                            validatedShippingShare // Distribute shipping cost proportionally based on item price
+                            roundedShippingShare, // Distribute shipping cost proportionally based on item price
+                            roundedTaxShare // Distribute tax proportionally based on item price
                         ); if (saleResult.success) {
                             try {
                                 // Use safe JSON serialization to avoid circular references
@@ -1135,8 +1156,68 @@ const CheckoutPage = () => {
                         }
                     }
                 } catch (err) {
-                    console.error(`Error processing revenue for product ${item.id}:`, err);
-                    // Continue with order processing even if revenue processing fails
+                    console.error(`Error processing revenue for product ${item.id}:`, err);                    // Continue with order processing even if revenue processing fails
+                }
+            }
+            // Now process shipping and tax payments as separate single transactions
+            // This way they're not split across multiple items
+            if (primaryDesignerId && shipping > 0) {
+                try {
+                    // Use integer math to avoid floating point errors
+                    const shippingCents = Math.floor(shipping * 100);
+                    const roundedShipping = shippingCents / 100;
+
+                    console.log(`Processing consolidated shipping payment of $${roundedShipping} to designer ${primaryDesignerId}`);
+
+                    const shippingResult = await walletService.payDesignerShipping(
+                        primaryDesignerId,
+                        roundedShipping,
+                        'consolidated', // special product ID for consolidated shipping
+                        `Order Shipping (${orderRef.id})`,
+                        orderRef.id
+                    );
+
+                    if (shippingResult.success) {
+                        console.log('Consolidated shipping payment processed successfully:', {
+                            amount: roundedShipping,
+                            designerId: primaryDesignerId,
+                            orderId: orderRef.id
+                        });
+                    } else {
+                        console.error('Error processing shipping payment:', shippingResult.error);
+                    }
+                } catch (err) {
+                    console.error('Error processing consolidated shipping payment:', err);
+                }
+            }
+
+            if (primaryDesignerId && tax > 0) {
+                try {
+                    // Use integer math to avoid floating point errors
+                    const taxCents = Math.floor(tax * 100);
+                    const roundedTax = taxCents / 100;
+
+                    console.log(`Processing consolidated tax payment of $${roundedTax} to designer ${primaryDesignerId}`);
+
+                    const taxResult = await walletService.payDesignerTax(
+                        primaryDesignerId,
+                        roundedTax,
+                        'consolidated', // special product ID for consolidated tax
+                        `Order Tax (${orderRef.id})`,
+                        orderRef.id
+                    );
+
+                    if (taxResult.success) {
+                        console.log('Consolidated tax payment processed successfully:', {
+                            amount: roundedTax,
+                            designerId: primaryDesignerId,
+                            orderId: orderRef.id
+                        });
+                    } else {
+                        console.error('Error processing tax payment:', taxResult.error);
+                    }
+                } catch (err) {
+                    console.error('Error processing consolidated tax payment:', err);
                 }
             }
 
