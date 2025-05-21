@@ -180,7 +180,7 @@ const UserProfilePage = () => {
             navigate(`/messages/${conversation.id}`);
         } catch (err) {
             console.error('Error creating conversation:', err);
-            
+
             // Check if error is related to blocking
             if (err.message && err.message.includes('blocked')) {
                 // Show an error toast if available
@@ -190,7 +190,7 @@ const UserProfilePage = () => {
                     alert("Cannot send messages: One of you has blocked the other user");
                 }
             }
-            
+
             // If there's an error, fall back to the messages page
             navigate('/messages');
         } finally {
@@ -231,7 +231,7 @@ const UserProfilePage = () => {
                 </div>
             </div>
         );
-    }    return (
+    } return (
         <div className="user-profile-page">
             <div className={`profile-header ${isBlocked ? 'blocked-user' : ''}`} style={{
                 backgroundImage: userProfile.headerPhotoURL ? `url(${userProfile.headerPhotoURL})` : 'none',
@@ -245,18 +245,18 @@ const UserProfilePage = () => {
                         className="profile-photo"
                     />
                 </div>
-                
+
                 {isBlocked && (
                     <div className="blocked-user-warning">
                         <div className="blocked-warning-icon">⚠️</div>
                         <div className="blocked-warning-message">
                             <h3>You have blocked this user</h3>
                             <p>
-                                {blocksContent 
-                                    ? "This user's content will be hidden across the platform." 
+                                {blocksContent
+                                    ? "This user's content will be hidden across the platform."
                                     : "You have blocked this user but their content will still be visible."}
                             </p>
-                            <button 
+                            <button
                                 className="unblock-button"
                                 onClick={async () => {
                                     await unblockUser(userId);
@@ -296,11 +296,11 @@ const UserProfilePage = () => {
                                 {sendingMessage ? 'Opening chat...' : 'Message User'}
                             </button>
                         )}
-                        
+
                         {/* Block user button */}
                         {currentUser && userId !== currentUser.uid && (
-                            <BlockUserButton 
-                                userId={userId} 
+                            <BlockUserButton
+                                userId={userId}
                                 buttonStyle="outline"
                                 onBlock={(blockContent) => {
                                     window.location.reload();
@@ -368,143 +368,143 @@ const UserProfilePage = () => {
                             </div>
 
                             <div className="profile-content">
-                        {activeTab === 'about' && (
-                            <div className="settings-section">
-                                <h3>About {userProfile.displayName || 'User'}</h3>
+                                {activeTab === 'about' && (
+                                    <div className="settings-section">
+                                        <h3>About {userProfile.displayName || 'User'}</h3>
 
-                                <div className="profile-view-only">
-                                    {shouldShowField('showBio') && userProfile.bio && (
-                                        <div className="profile-info-item">
-                                            <h4>Bio</h4>
-                                            <p>{userProfile.bio}</p>
-                                        </div>
-                                    )}
+                                        <div className="profile-view-only">
+                                            {shouldShowField('showBio') && userProfile.bio && (
+                                                <div className="profile-info-item">
+                                                    <h4>Bio</h4>
+                                                    <p>{userProfile.bio}</p>
+                                                </div>
+                                            )}
 
-                                    {shouldShowField('showLocation') && userProfile.location && (
-                                        <div className="profile-info-item">
-                                            <h4>Location</h4>
-                                            <p>{userProfile.location}</p>
-                                        </div>
-                                    )}
+                                            {shouldShowField('showLocation') && userProfile.location && (
+                                                <div className="profile-info-item">
+                                                    <h4>Location</h4>
+                                                    <p>{userProfile.location}</p>
+                                                </div>
+                                            )}
 
-                                    {shouldShowField('showWebsite') && userProfile.website && (
-                                        <div className="profile-info-item">
-                                            <h4>Website</h4>
-                                            <p><a href={userProfile.website} target="_blank" rel="noopener noreferrer">{userProfile.website}</a></p>
-                                        </div>
-                                    )}
+                                            {shouldShowField('showWebsite') && userProfile.website && (
+                                                <div className="profile-info-item">
+                                                    <h4>Website</h4>
+                                                    <p><a href={userProfile.website} target="_blank" rel="noopener noreferrer">{userProfile.website}</a></p>
+                                                </div>
+                                            )}
 
-                                    {shouldShowField('showBirthday') && userProfile.birthday && (
-                                        <div className="profile-info-item">
-                                            <h4>Birthday</h4>
-                                            <p>{new Date(userProfile.birthday).toLocaleDateString()}</p>
-                                        </div>
-                                    )}
+                                            {shouldShowField('showBirthday') && userProfile.birthday && (
+                                                <div className="profile-info-item">
+                                                    <h4>Birthday</h4>
+                                                    <p>{new Date(userProfile.birthday).toLocaleDateString()}</p>
+                                                </div>
+                                            )}
 
-                                    {/* Display verification status */}
-                                    {userProfile.manufacturerVerified && (
-                                        <div className="profile-info-item verification-info">
-                                            <h4>Verification Status</h4>
-                                            <p className="verification-status">
-                                                <span className="verification-icon">✓</span>
-                                                Verified Manufacturer
-                                            </p>
-                                        </div>
-                                    )}
+                                            {/* Display verification status */}
+                                            {userProfile.manufacturerVerified && (
+                                                <div className="profile-info-item verification-info">
+                                                    <h4>Verification Status</h4>
+                                                    <p className="verification-status">
+                                                        <span className="verification-icon">✓</span>
+                                                        Verified Manufacturer
+                                                    </p>
+                                                </div>
+                                            )}
 
-                                    {userProfile.designerVerified && (
-                                        <div className="profile-info-item verification-info">
-                                            <h4>Verification Status</h4>
-                                            <p className="verification-status">
-                                                <span className="verification-icon">✓</span>
-                                                Verified Designer
-                                            </p>
-                                        </div>
-                                    )}
+                                            {userProfile.designerVerified && (
+                                                <div className="profile-info-item verification-info">
+                                                    <h4>Verification Status</h4>
+                                                    <p className="verification-status">
+                                                        <span className="verification-icon">✓</span>
+                                                        Verified Designer
+                                                    </p>
+                                                </div>
+                                            )}
 
-                                    {!userProfile.bio && !userProfile.location && !userProfile.website && !userProfile.birthday &&
-                                        !userProfile.manufacturerVerified && !userProfile.designerVerified && (
-                                            <div className="profile-info-item">
-                                                <p className="empty-info">This user hasn't added any information to their profile yet.</p>
-                                            </div>
-                                        )}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'products' && shouldShowField('showProducts') && (
-                            <div className="settings-section products-section">
-                                <h3>{userProfile.displayName}'s Products</h3>
-
-                                {loadingProducts ? (
-                                    <div className="loading-container">
-                                        <LoadingSpinner />
-                                        <p>Loading products...</p>
-                                    </div>
-                                ) : userProducts.length === 0 ? (
-                                    <div className="empty-state">
-                                        <p>This user hasn't uploaded any products yet.</p>
-                                    </div>
-                                ) : (
-                                    <div className="product-grid visitor-view">
-                                        {userProducts.map(product => (
-                                            <div key={product.id} className="product-card">
-                                                <Link to={`/product/${product.id}`} className="product-link">
-                                                    <div className="product-image">
-                                                        <img
-                                                            src={Array.isArray(product.imageUrls) && product.imageUrls.length > 0
-                                                                ? product.imageUrls[0]
-                                                                : product.imageUrl || '/placeholder-product.jpg'}
-                                                            alt={product.name}
-                                                        />
+                                            {!userProfile.bio && !userProfile.location && !userProfile.website && !userProfile.birthday &&
+                                                !userProfile.manufacturerVerified && !userProfile.designerVerified && (
+                                                    <div className="profile-info-item">
+                                                        <p className="empty-info">This user hasn't added any information to their profile yet.</p>
                                                     </div>
-                                                    <div className="product-info">
-                                                        <h3>{product.name}</h3>
-                                                        <div className="product-price">{formatPrice(product.price)}</div>
-                                                    </div>
-                                                </Link>
-                                            </div>
-                                        ))}
+                                                )}
+                                        </div>
                                     </div>
                                 )}
+
+                                {activeTab === 'products' && shouldShowField('showProducts') && (
+                                    <div className="settings-section products-section">
+                                        <h3>{userProfile.displayName}'s Products</h3>
+
+                                        {loadingProducts ? (
+                                            <div className="loading-container">
+                                                <LoadingSpinner />
+                                                <p>Loading products...</p>
+                                            </div>
+                                        ) : userProducts.length === 0 ? (
+                                            <div className="empty-state">
+                                                <p>This user hasn't uploaded any products yet.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="product-grid visitor-view">
+                                                {userProducts.map(product => (
+                                                    <div key={product.id} className="product-card">
+                                                        <Link to={`/product/${product.id}`} className="product-link">
+                                                            <div className="product-image">
+                                                                <img
+                                                                    src={Array.isArray(product.imageUrls) && product.imageUrls.length > 0
+                                                                        ? product.imageUrls[0]
+                                                                        : product.imageUrl || '/placeholder-product.jpg'}
+                                                                    alt={product.name}
+                                                                />
+                                                            </div>
+                                                            <div className="product-info">
+                                                                <h3>{product.name}</h3>
+                                                                <div className="product-price">{formatPrice(product.price)}</div>
+                                                            </div>
+                                                        </Link>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {activeTab === 'reviews' && (
+                                    <UserReviewSection userId={userId} userProfile={userProfile} />
+                                )}
+
+                                {activeTab === 'achievements' && (
+                                    <div className="achievements-section">
+                                        <h3>Achievements</h3>
+                                        <AchievementBadgeDisplay
+                                            userId={userId}
+                                            showTitle={false}
+                                            limit={12}
+                                        />
+                                        <div className="view-all-achievements">
+                                            <Link to={`/profile/${userId}/achievements`} className="view-all-link">
+                                                View All Achievements
+                                            </Link>
+                                        </div>                            </div>
+                                )}
                             </div>
-                        )}
-
-                        {activeTab === 'reviews' && (
-                            <UserReviewSection userId={userId} userProfile={userProfile} />
-                        )}
-
-                        {activeTab === 'achievements' && (
-                            <div className="achievements-section">
-                                <h3>Achievements</h3>
-                                <AchievementBadgeDisplay
-                                    userId={userId}
-                                    showTitle={false}
-                                    limit={12}
-                                />
-                                <div className="view-all-achievements">
-                                    <Link to={`/profile/${userId}/achievements`} className="view-all-link">
-                                        View All Achievements
-                                    </Link>
-                                </div>                            </div>
-                        )}
-                    </div>
-                </>
-                ) : (
-                    <div className="blocked-content-message">
-                        <h3>Content from this user is hidden</h3>
-                        <p>You have chosen to block content from this user.</p>
-                        <button 
-                            className="view-content-button" 
-                            onClick={async () => {
-                                await blockUser(userId, false);
-                                window.location.reload();
-                            }}
-                        >
-                            Show User Content
-                        </button>
-                    </div>
-                )}
+                        </>
+                    ) : (
+                        <div className="blocked-content-message">
+                            <h3>Content from this user is hidden</h3>
+                            <p>You have chosen to block content from this user.</p>
+                            <button
+                                className="view-content-button"
+                                onClick={async () => {
+                                    await blockUser(userId, false);
+                                    window.location.reload();
+                                }}
+                            >
+                                Show User Content
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

@@ -43,17 +43,23 @@ class MessagingService {
 
       const user1Data = user1Doc.data();
       const user2Data = user2Doc.data();
-      
+
       // Check if user1 is blocked by user2
       const user2BlockedUsers = user2Data.blockedUsers || [];
-      const user1IsBlockedByUser2 = user2BlockedUsers.some(block => block.userId === user1Id);
-      
+      const user1IsBlockedByUser2 = user2BlockedUsers.some(
+        (block) => block.userId === user1Id
+      );
+
       // Check if user2 is blocked by user1
       const user1BlockedUsers = user1Data.blockedUsers || [];
-      const user2IsBlockedByUser1 = user1BlockedUsers.some(block => block.userId === user2Id);
-      
+      const user2IsBlockedByUser1 = user1BlockedUsers.some(
+        (block) => block.userId === user2Id
+      );
+
       if (user1IsBlockedByUser2 || user2IsBlockedByUser1) {
-        throw new Error("Unable to create conversation: one of the users has blocked the other");
+        throw new Error(
+          "Unable to create conversation: one of the users has blocked the other"
+        );
       }
 
       // Check if a conversation already exists between these users
@@ -128,17 +134,23 @@ class MessagingService {
 
       const senderData = senderDoc.data();
       const recipientData = recipientDoc.data();
-      
+
       // Check if sender is blocked by recipient
       const recipientBlockedUsers = recipientData.blockedUsers || [];
-      const senderIsBlockedByRecipient = recipientBlockedUsers.some(block => block.userId === senderId);
-      
+      const senderIsBlockedByRecipient = recipientBlockedUsers.some(
+        (block) => block.userId === senderId
+      );
+
       // Check if recipient is blocked by sender
       const senderBlockedUsers = senderData.blockedUsers || [];
-      const recipientIsBlockedBySender = senderBlockedUsers.some(block => block.userId === recipientId);
-      
+      const recipientIsBlockedBySender = senderBlockedUsers.some(
+        (block) => block.userId === recipientId
+      );
+
       if (senderIsBlockedByRecipient || recipientIsBlockedBySender) {
-        throw new Error("Unable to send message: one of the users has blocked the other");
+        throw new Error(
+          "Unable to send message: one of the users has blocked the other"
+        );
       }
 
       // Generate encryption key for this conversation
