@@ -21,6 +21,7 @@ const WalletPage = () => {
     const [loading, setLoading] = useState(true);
     const [transactionLoading, setTransactionLoading] = useState(false); // Initial value false
     const [transactionError, setTransactionError] = useState(null);
+    const [transactionLimit, setTransactionLimit] = useState(200); // Default limit of 200 transactions
 
     // UI state
     const [activeTab, setActiveTab] = useState('summary');
@@ -128,12 +129,11 @@ const WalletPage = () => {
         if (currentUser) {
             try {
                 console.log('[WalletPage] Setting up real-time transaction listener');
-                const transactionsRef = collection(db, "transactions");
-                const q = query(
+                const transactionsRef = collection(db, "transactions");                const q = query(
                     transactionsRef,
                     where("userId", "==", currentUser.uid),
                     orderBy("createdAt", "desc"),
-                    limit(100)
+                    limit(transactionLimit)
                 );
 
                 unsubscribe = onSnapshot(
@@ -171,11 +171,10 @@ const WalletPage = () => {
                 console.error("[WalletPage] Failed to set up transaction listener:", error);
                 // If listener setup fails, fall back to manual fetch
                 fetchTransactions(true);
-            }
-        }
+            }        }
 
         return () => unsubscribe();
-    }, [currentUser]);
+    }, [currentUser, transactionLimit]);
 
     // Update transactions when they fall outside the cancellation period
     const updateTransactionStatuses = useCallback(async () => {
@@ -217,9 +216,8 @@ const WalletPage = () => {
         setTransactionLoading(true);
         setTransactionError(null);
 
-        try {
-            console.log('[WalletPage] Manual fetching of transactions...');
-            const txData = await walletService.getTransactionHistory(currentUser.uid, 200); // Increased limit to 200
+        try {            console.log('[WalletPage] Manual fetching of transactions...');
+            const txData = await walletService.getTransactionHistory(currentUser.uid, transactionLimit);
             console.log(`[WalletPage] Manually fetched ${txData.length} transactions`);
 
             if (txData.length > 0) {
@@ -243,7 +241,7 @@ const WalletPage = () => {
         } finally {
             setTransactionLoading(false);
         }
-    }, [currentUser, hasRole]);
+    }, [currentUser, hasRole, transactionLimit]);
 
     // Only run initial transaction fetch when needed (fallback or when real-time listener isn't available)
     useEffect(() => {
@@ -449,14 +447,12 @@ const WalletPage = () => {
             ...prev,
             [monthId]: !prev[monthId]
         }));
-    };
-
-    // Check if month is expanded
+    };    // Check if month is expanded
     const isMonthExpanded = (monthId) => {
-        // If it's undefined (not set yet), default to true for first month, false for others
+        // If it's undefined (not set yet), default to true for all months to show full history
         return expandedMonths[monthId] !== undefined
             ? expandedMonths[monthId]
-            : monthId === Object.keys(groupTransactionsByMonth(filteredAndSearchedTransactions()))[0];
+            : true; // Default to expanded for all months
     };
 
     // Calculate time remaining in the cancellation period
@@ -674,7 +670,23 @@ const WalletPage = () => {
                                     >
                                         Purchases
                                     </button>
+                                </div>                                {/* Transaction limit selector */}
+                                <div className="transaction-limit-selector">
+                                    <label htmlFor="transactionLimit">Show transactions: </label>
+                                    <select 
+                                        id="transactionLimit"
+                                        value={transactionLimit}
+                                        onChange={(e) => setTransactionLimit(Number(e.target.value))}
+                                        className="transaction-limit-select"
+                                    >
+                                        <option value="50">Last 50</option>
+                                        <option value="100">Last 100</option>
+                                        <option value="200">Last 200</option>
+                                        <option value="500">Last 500</option>
+                                        <option value="1000">Last 1000</option>
+                                    </select>
                                 </div>
+                                
                                 {/* Add refresh button to manually reload transactions */}
                                 <div className="refresh-transactions">
                                     <button
