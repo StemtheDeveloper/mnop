@@ -129,7 +129,7 @@ const WalletPage = () => {
         if (currentUser) {
             try {
                 console.log('[WalletPage] Setting up real-time transaction listener');
-                const transactionsRef = collection(db, "transactions");                const q = query(
+                const transactionsRef = collection(db, "transactions"); const q = query(
                     transactionsRef,
                     where("userId", "==", currentUser.uid),
                     orderBy("createdAt", "desc"),
@@ -171,7 +171,8 @@ const WalletPage = () => {
                 console.error("[WalletPage] Failed to set up transaction listener:", error);
                 // If listener setup fails, fall back to manual fetch
                 fetchTransactions(true);
-            }        }
+            }
+        }
 
         return () => unsubscribe();
     }, [currentUser, transactionLimit]);
@@ -216,7 +217,8 @@ const WalletPage = () => {
         setTransactionLoading(true);
         setTransactionError(null);
 
-        try {            console.log('[WalletPage] Manual fetching of transactions...');
+        try {
+            console.log('[WalletPage] Manual fetching of transactions...');
             const txData = await walletService.getTransactionHistory(currentUser.uid, transactionLimit);
             console.log(`[WalletPage] Manually fetched ${txData.length} transactions`);
 
@@ -673,7 +675,7 @@ const WalletPage = () => {
                                 </div>                                {/* Transaction limit selector */}
                                 <div className="transaction-limit-selector">
                                     <label htmlFor="transactionLimit">Show transactions: </label>
-                                    <select 
+                                    <select
                                         id="transactionLimit"
                                         value={transactionLimit}
                                         onChange={(e) => setTransactionLimit(Number(e.target.value))}
@@ -684,9 +686,11 @@ const WalletPage = () => {
                                         <option value="200">Last 200</option>
                                         <option value="500">Last 500</option>
                                         <option value="1000">Last 1000</option>
+                                        <option value="1000">Last 5000</option>
+                                        <option value="1000">Last 10000</option>
                                     </select>
                                 </div>
-                                
+
                                 {/* Add refresh button to manually reload transactions */}
                                 <div className="refresh-transactions">
                                     <button
