@@ -2194,6 +2194,15 @@ const ProfilePage = () => {
                                 </div>
                             )}
 
+                            {activeTab === 'blocked' && isOwnProfile && (
+                                <div className="settings-section blocked-users-settings-section">
+                                    <h3>Blocked Users</h3>
+                                    <p>Manage users you've blocked and content blocking settings</p>
+
+                                    <BlockedUsersSection />
+                                </div>
+                            )}
+
                             {activeTab === 'privacy' && isOwnProfile && (
                                 <div className="settings-section privacy-settings-section">
                                     <h3>Privacy Settings</h3>

@@ -1,0 +1,95 @@
+/* Blocked content indicator styles */
+.blocked-content-indicator {
+  display: flex;
+  align-items: center;
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 10px 0;
+  box-shadow: 0 2px 8px rgba(239, 60, 35, 0.08);
+}
+
+.blocked-content-icon {
+  margin-right: 15px;
+  color: #ef3c23;
+  font-size: 24px;
+}
+
+.blocked-content-message {
+  flex: 1;
+}
+
+.blocked-content-message p {
+  margin: 0 0 10px;
+  color: #555;
+  font-size: 14px;
+}
+
+.blocked-content-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.blocked-action-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.blocked-action-btn.show-btn {
+  background-color: #f5f5f5;
+  color: #666;
+}
+
+.blocked-action-btn.show-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.blocked-action-btn.unblock-btn {
+  background-color: #ef3c23;
+  color: white;
+}
+
+.blocked-action-btn.unblock-btn:hover {
+  background-color: #d43418;
+}
+
+/* Special styling for different content types */
+.blocked-message {
+  border-left: 3px solid #ef3c23;
+}
+
+.blocked-review {
+  background-color: #fff8e1;
+  border-left: 3px solid #ffc107;
+}
+
+.blocked-comment {
+  background-color: #e8eaf6;
+  border-left: 3px solid #3f51b5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+  .blocked-content-indicator {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .blocked-content-icon {
+    margin-bottom: 10px;
+  }
+
+  .blocked-content-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .blocked-action-btn {
+    width: 100%;
+  }
+}

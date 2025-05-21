@@ -1,0 +1,158 @@
+/* BlockUserButton.css */
+.block-user-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Base button styles */
+.block-user-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  height: 36px;
+}
+
+/* Default style (solid) */
+.block-user-button.style-default {
+  background-color: transparent;
+  border: 1px solid #777;
+  color: #777;
+}
+
+.block-user-button.style-default:hover {
+  background-color: #f3f3f3;
+}
+
+.block-user-button.style-default.blocked {
+  background-color: #f0f0f0;
+  border-color: #ef3c23;
+  color: #ef3c23;
+}
+
+.block-user-button.style-default.blocked:hover {
+  background-color: #ffebee;
+}
+
+/* Outline style */
+.block-user-button.style-outline {
+  background-color: transparent;
+  border: 1px solid #ef3c23;
+  color: #ef3c23;
+}
+
+.block-user-button.style-outline:hover {
+  background-color: rgba(239, 60, 35, 0.05);
+}
+
+.block-user-button.style-outline.blocked {
+  background-color: transparent;
+  border-color: #ef3c23;
+  color: #ef3c23;
+}
+
+/* Text style */
+.block-user-button.style-text {
+  background-color: transparent;
+  border: none;
+  color: #ef3c23;
+  padding: 4px 8px;
+}
+
+.block-user-button.style-text:hover {
+  background-color: rgba(239, 60, 35, 0.05);
+  text-decoration: underline;
+}
+
+.block-user-button.style-text.blocked {
+  color: #ef3c23;
+}
+
+/* Disabled state */
+.block-user-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Block options popup */
+.block-options {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background-color: white;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 8px;
+  z-index: 100;
+  width: 220px;
+  border: 1px solid #eee;
+}
+
+.block-options-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  color: #333;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #eee;
+}
+
+.block-option-button {
+  background-color: transparent;
+  border: none;
+  padding: 12px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.block-option-button:hover {
+  background-color: #f9f9f9;
+}
+
+.block-option-button.block-with-content {
+  color: #ef3c23;
+  font-weight: 500;
+}
+
+.block-option-button.block-with-content:hover {
+  background-color: rgba(239, 60, 35, 0.05);
+}
+
+.block-option-button.unblock {
+  color: #4caf50;
+}
+
+.block-option-button.unblock:hover {
+  background-color: rgba(76, 175, 80, 0.05);
+}
+
+.block-option-button.cancel {
+  color: #777;
+}
+
+.block-option-button:last-child {
+  border-bottom: none;
+}
+
+/* Icon styles */
+.block-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.block-text {
+  line-height: 1;
+}

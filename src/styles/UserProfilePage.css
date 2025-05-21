@@ -6,6 +6,8 @@
   background-color: #f5f5f5;
   min-height: 100vh;
   overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
 }
 
 /* Override the ripple effect inherited from Buttons.css for profile tabs */
@@ -190,6 +192,132 @@
   background-color: #d32f2f;
 }
 
+/* Blocked user styling */
+.profile-header.blocked-user {
+  position: relative;
+  border: 1px solid #ffcdd2;
+  background-color: #fff8f8;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(239, 60, 35, 0.08);
+}
+
+.blocked-user-warning {
+  display: flex;
+  align-items: center;
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 20px;
+  box-shadow: 0 2px 8px rgba(239, 60, 35, 0.1);
+}
+
+.blocked-warning-icon {
+  font-size: 28px;
+  margin-right: 20px;
+  color: #ef3c23;
+}
+
+.blocked-warning-message {
+  flex: 1;
+}
+
+.blocked-warning-message h3 {
+  margin: 0 0 8px;
+  color: #ef3c23;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.blocked-warning-message p {
+  margin: 0 0 12px;
+  color: #333;
+}
+
+.unblock-button,
+.view-content-button {
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin-top: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.unblock-button:hover,
+.view-content-button:hover {
+  background-color: #d43418;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.unblock-button:active,
+.view-content-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.blocked-content-message {
+  text-align: center;
+  padding: 60px 20px;
+  background-color: #ffebee;
+  border-radius: 8px;
+  margin: 20px;
+  border: 1px solid #ffcdd2;
+}
+
+.blocked-content-message h3 {
+  margin: 0 0 10px;
+  color: #ef3c23;
+}
+
+.blocked-content-message p {
+  margin: 0 0 20px;
+  color: #666;
+}
+
+/* Update profile action buttons */
+.profile-action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.message-button,
+.admin-action-button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.message-button {
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+}
+
+.message-button:hover {
+  background-color: #d43418;
+}
+
+.admin-action-button {
+  background-color: #5c6bc0;
+  color: white;
+  border: none;
+}
+
+.admin-action-button:hover {
+  background-color: #3f51b5;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .user-profile-page {
@@ -199,5 +327,26 @@
   .user-profile-page .profile-tab {
     padding: 10px 15px;
     font-size: 14px;
+  }
+
+  .profile-action-buttons {
+    flex-wrap: wrap;
+  }
+
+  .blocked-user-warning {
+    flex-direction: column;
+    text-align: center;
+    margin: 15px 10px;
+    padding: 15px;
+  }
+
+  .blocked-warning-icon {
+    margin: 0 0 10px;
+    font-size: 32px;
+  }
+
+  .blocked-content-message {
+    margin: 15px 10px;
+    padding: 40px 15px;
   }
 }

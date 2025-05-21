@@ -5,13 +5,17 @@ import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import '../styles/ProfilePage.css';
 import '../styles/UserProfilePage.css';
+import '../styles/UserProfilePage-BlockUserButton.css';
+import '../styles/UserProfilePage-Tabs.css';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AchievementBadgeDisplay from '../components/AchievementBadgeDisplay';
 import UserReviewSection from '../components/reviews/UserReviewSection';
 import messagingService from '../services/messagingService';
+import BlockUserButton from '../components/BlockUserButton';
+import BlockStatusBadge from '../components/BlockStatusBadge';
 
 const UserProfilePage = () => {
-    const { currentUser, hasRole } = useUser();
+    const { currentUser, hasRole, isUserBlocked, shouldBlockContent, blockUser, unblockUser } = useUser();
     const { userId } = useParams();
     const navigate = useNavigate();
 
@@ -20,9 +24,14 @@ const UserProfilePage = () => {
     const [userProducts, setUserProducts] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [activeTab, setActiveTab] = useState('about');
-    const [error, setError] = useState(null);    const [sendingMessage, setSendingMessage] = useState(false);
+    const [error, setError] = useState(null);
+    const [sendingMessage, setSendingMessage] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
-    
+
+    // Check if this user is blocked
+    const isBlocked = isUserBlocked && userId ? isUserBlocked(userId) : false;
+    const blocksContent = shouldBlockContent && userId ? shouldBlockContent(userId) : false;
+
     // Fetch user data
     useEffect(() => {
         const fetchUserProfile = async () => {
@@ -57,7 +66,7 @@ const UserProfilePage = () => {
 
         fetchUserProfile();
     }, [userId]);
-    
+
     // Check if current user is an admin
     useEffect(() => {
         if (currentUser && hasRole) {
@@ -111,7 +120,8 @@ const UserProfilePage = () => {
             }
         };
 
-        fetchUserProducts();    }, [userProfile, userId, currentUser]);
+        fetchUserProducts();
+    }, [userProfile, userId, currentUser]);
 
     // Check if field should be displayed based on privacy settings
     const shouldShowField = (fieldName) => {
@@ -150,9 +160,7 @@ const UserProfilePage = () => {
                 )} */}
             </div>
         ));
-    };
-
-    // Handle clicking the message button
+    };    // Handle clicking the message button
     const handleMessageUser = async () => {
         if (!currentUser) {
             navigate('/signin', { state: { from: window.location.pathname } });
@@ -172,6 +180,17 @@ const UserProfilePage = () => {
             navigate(`/messages/${conversation.id}`);
         } catch (err) {
             console.error('Error creating conversation:', err);
+            
+            // Check if error is related to blocking
+            if (err.message && err.message.includes('blocked')) {
+                // Show an error toast if available
+                if (window.toast && window.toast.error) {
+                    window.toast.error("Cannot send messages: One of you has blocked the other user");
+                } else {
+                    alert("Cannot send messages: One of you has blocked the other user");
+                }
+            }
+            
             // If there's an error, fall back to the messages page
             navigate('/messages');
         } finally {
@@ -212,11 +231,9 @@ const UserProfilePage = () => {
                 </div>
             </div>
         );
-    }
-
-    return (
+    }    return (
         <div className="user-profile-page">
-            <div className="profile-header" style={{
+            <div className={`profile-header ${isBlocked ? 'blocked-user' : ''}`} style={{
                 backgroundImage: userProfile.headerPhotoURL ? `url(${userProfile.headerPhotoURL})` : 'none',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
@@ -228,6 +245,29 @@ const UserProfilePage = () => {
                         className="profile-photo"
                     />
                 </div>
+                
+                {isBlocked && (
+                    <div className="blocked-user-warning">
+                        <div className="blocked-warning-icon">⚠️</div>
+                        <div className="blocked-warning-message">
+                            <h3>You have blocked this user</h3>
+                            <p>
+                                {blocksContent 
+                                    ? "This user's content will be hidden across the platform." 
+                                    : "You have blocked this user but their content will still be visible."}
+                            </p>
+                            <button 
+                                className="unblock-button"
+                                onClick={async () => {
+                                    await unblockUser(userId);
+                                    window.location.reload();
+                                }}
+                            >
+                                Unblock User
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="profile-wrapper">
@@ -245,16 +285,31 @@ const UserProfilePage = () => {
                                 {renderRolePills()}
                             </div>
                         )}
-                    </div>
-
-                    <div className="action-buttons">
-                        <button
-                            className="pill-btn message-button"
-                            onClick={handleMessageUser}
-                            disabled={sendingMessage}
-                        >
-                            {sendingMessage ? 'Opening chat...' : 'Message User'}
-                        </button>
+                    </div>                    <div className="action-buttons">
+                        {/* Only show message button if not blocked */}
+                        {currentUser && userId !== currentUser.uid && !isBlocked && (
+                            <button
+                                className="pill-btn message-button"
+                                onClick={handleMessageUser}
+                                disabled={sendingMessage}
+                            >
+                                {sendingMessage ? 'Opening chat...' : 'Message User'}
+                            </button>
+                        )}
+                        
+                        {/* Block user button */}
+                        {currentUser && userId !== currentUser.uid && (
+                            <BlockUserButton 
+                                userId={userId} 
+                                buttonStyle="outline"
+                                onBlock={(blockContent) => {
+                                    window.location.reload();
+                                }}
+                                onUnblock={() => {
+                                    window.location.reload();
+                                }}
+                            />
+                        )}
 
                         {/* Admin verification controls */}
                         {currentUser && isAdmin && (userId !== currentUser.uid) && (
@@ -281,36 +336,38 @@ const UserProfilePage = () => {
                         )}
                     </div>
                 </div>                <div className="profile-right">
-                    <div className="profile-tabs">
-                        <div
-                            className={`profile-tab ${activeTab === 'about' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('about')}
-                        >
-                            About
-                        </div>
-                        {userProducts.length > 0 && shouldShowField('showProducts') && (
-                            <div
-                                className={`profile-tab ${activeTab === 'products' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('products')}
-                            >
-                                Products
+                    {(!isBlocked || !blocksContent) ? (
+                        <>
+                            <div className="profile-tabs">
+                                <div
+                                    className={`profile-tab ${activeTab === 'about' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('about')}
+                                >
+                                    About
+                                </div>
+                                {userProducts.length > 0 && shouldShowField('showProducts') && (
+                                    <div
+                                        className={`profile-tab ${activeTab === 'products' ? 'active' : ''}`}
+                                        onClick={() => setActiveTab('products')}
+                                    >
+                                        Products
+                                    </div>
+                                )}
+                                <div
+                                    className={`profile-tab ${activeTab === 'reviews' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('reviews')}
+                                >
+                                    Reviews
+                                </div>
+                                <div
+                                    className={`profile-tab ${activeTab === 'achievements' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('achievements')}
+                                >
+                                    Achievements
+                                </div>
                             </div>
-                        )}
-                        <div
-                            className={`profile-tab ${activeTab === 'reviews' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('reviews')}
-                        >
-                            Reviews
-                        </div>
-                        <div
-                            className={`profile-tab ${activeTab === 'achievements' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('achievements')}
-                        >
-                            Achievements
-                        </div>
-                    </div>
 
-                    <div className="profile-content">
+                            <div className="profile-content">
                         {activeTab === 'about' && (
                             <div className="settings-section">
                                 <h3>About {userProfile.displayName || 'User'}</h3>
@@ -429,10 +486,25 @@ const UserProfilePage = () => {
                                     <Link to={`/profile/${userId}/achievements`} className="view-all-link">
                                         View All Achievements
                                     </Link>
-                                </div>
-                            </div>
+                                </div>                            </div>
                         )}
                     </div>
+                </>
+                ) : (
+                    <div className="blocked-content-message">
+                        <h3>Content from this user is hidden</h3>
+                        <p>You have chosen to block content from this user.</p>
+                        <button 
+                            className="view-content-button" 
+                            onClick={async () => {
+                                await blockUser(userId, false);
+                                window.location.reload();
+                            }}
+                        >
+                            Show User Content
+                        </button>
+                    </div>
+                )}
                 </div>
             </div>
         </div>

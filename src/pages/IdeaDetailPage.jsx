@@ -7,6 +7,8 @@ import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDistanceToNow } from 'date-fns';
 import '../styles/IdeaDetailPage.css';
+import BlockedContentIndicator from '../components/BlockedContentIndicator';
+import { useBlockedContentFilter } from '../components/BlockedContentFilter';
 
 const IdeaDetailPage = () => {
     const { ideaId } = useParams();
@@ -16,9 +18,38 @@ const IdeaDetailPage = () => {
 
     const [idea, setIdea] = useState(null);
     const [comments, setComments] = useState([]);
+    const [allComments, setAllComments] = useState([]);
+    const [hiddenCommentIds, setHiddenCommentIds] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [commentText, setCommentText] = useState('');
+
+    // Function to toggle visibility of a blocked comment
+    const handleToggleBlockedComment = (commentId) => {
+        if (hiddenCommentIds.includes(commentId)) {
+            setHiddenCommentIds(prev => prev.filter(id => id !== commentId));
+        } else {
+            setHiddenCommentIds(prev => [...prev, commentId]);
+        }
+    };
+
+    // Filter comments using the blocked content filter hook
+    const filteredComments = useBlockedContentFilter(allComments, 'userId');
+
+    // Effect to update comments based on filtered results and hidden state
+    useEffect(() => {
+        let commentsToDisplay = [...filteredComments];
+
+        if (allComments.length > filteredComments.length) {
+            const blockedComments = allComments.filter(comment => {
+                return !filteredComments.some(fc => fc.id === comment.id) &&
+                    !hiddenCommentIds.includes(comment.id);
+            });
+            commentsToDisplay = [...commentsToDisplay, ...blockedComments];
+        }
+
+        setComments(commentsToDisplay);
+    }, [filteredComments, allComments, hiddenCommentIds]);
 
     // Fetch idea and comments
     useEffect(() => {
@@ -93,7 +124,7 @@ const IdeaDetailPage = () => {
                     })
                 );
 
-                setComments(commentsData);
+                setAllComments(commentsData);
             } catch (error) {
                 console.error("Error fetching idea details:", error);
                 showError("Failed to load idea details");
@@ -202,7 +233,7 @@ const IdeaDetailPage = () => {
                 }
             };
 
-            setComments([...comments, newComment]);
+            setAllComments([...allComments, newComment]);
             setIdea({
                 ...idea,
                 comments: (idea.comments || 0) + 1
@@ -386,37 +417,52 @@ const IdeaDetailPage = () => {
                     )}
 
                     <div className="comments-list">
-                        {comments.map(comment => (
-                            <div key={comment.id} className="comment-item">
-                                <div className="comment-avatar">
-                                    {comment.user?.photoURL || comment.userPhotoURL ? (
-                                        <img
-                                            src={comment.user?.photoURL || comment.userPhotoURL}
-                                            alt={comment.user?.displayName || comment.userName}
-                                        />
-                                    ) : (
-                                        <div className="default-avatar">
-                                            {(comment.user?.displayName || comment.userName || 'A').charAt(0).toUpperCase()}
+                        {comments.map(comment => {
+                            const isBlocked = isUserBlocked && isUserBlocked(comment.userId);
+
+                            if (isBlocked && !hiddenCommentIds.includes(comment.id)) {
+                                return (
+                                    <BlockedContentIndicator
+                                        key={comment.id}
+                                        userId={comment.userId}
+                                        contentType="comment"
+                                        onShowContent={() => handleToggleBlockedComment(comment.id)}
+                                    />
+                                );
+                            }
+
+                            return (
+                                <div key={comment.id} className="comment-item">
+                                    <div className="comment-avatar">
+                                        {comment.user?.photoURL || comment.userPhotoURL ? (
+                                            <img
+                                                src={comment.user?.photoURL || comment.userPhotoURL}
+                                                alt={comment.user?.displayName || comment.userName}
+                                            />
+                                        ) : (
+                                            <div className="default-avatar">
+                                                {(comment.user?.displayName || comment.userName || 'A').charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="comment-content">
+                                        <div className="comment-header">
+                                            <span className="comment-author">
+                                                {comment.user?.displayName || comment.userName || 'Anonymous'}
+                                            </span>
+                                            <span className="comment-time">
+                                                {formatDate(comment.createdAt)}
+                                            </span>
                                         </div>
-                                    )}
-                                </div>
 
-                                <div className="comment-content">
-                                    <div className="comment-header">
-                                        <span className="comment-author">
-                                            {comment.user?.displayName || comment.userName || 'Anonymous'}
-                                        </span>
-                                        <span className="comment-time">
-                                            {formatDate(comment.createdAt)}
-                                        </span>
-                                    </div>
-
-                                    <div className="comment-text">
-                                        {comment.text}
+                                        <div className="comment-text">
+                                            {comment.text}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 

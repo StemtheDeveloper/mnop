@@ -33,6 +33,29 @@ class MessagingService {
    */
   async findOrCreateConversation(user1Id, user2Id) {
     try {
+      // Check if either user has blocked the other
+      const user1Doc = await getDoc(doc(db, "users", user1Id));
+      const user2Doc = await getDoc(doc(db, "users", user2Id));
+
+      if (!user1Doc.exists() || !user2Doc.exists()) {
+        throw new Error("One or both users not found");
+      }
+
+      const user1Data = user1Doc.data();
+      const user2Data = user2Doc.data();
+      
+      // Check if user1 is blocked by user2
+      const user2BlockedUsers = user2Data.blockedUsers || [];
+      const user1IsBlockedByUser2 = user2BlockedUsers.some(block => block.userId === user1Id);
+      
+      // Check if user2 is blocked by user1
+      const user1BlockedUsers = user1Data.blockedUsers || [];
+      const user2IsBlockedByUser1 = user1BlockedUsers.some(block => block.userId === user2Id);
+      
+      if (user1IsBlockedByUser2 || user2IsBlockedByUser1) {
+        throw new Error("Unable to create conversation: one of the users has blocked the other");
+      }
+
       // Check if a conversation already exists between these users
       const conversationsRef = collection(db, "conversations");
 
@@ -95,6 +118,29 @@ class MessagingService {
     attachment = null
   ) {
     try {
+      // Check if either user has blocked the other before sending a message
+      const senderDoc = await getDoc(doc(db, "users", senderId));
+      const recipientDoc = await getDoc(doc(db, "users", recipientId));
+
+      if (!senderDoc.exists() || !recipientDoc.exists()) {
+        throw new Error("One or both users not found");
+      }
+
+      const senderData = senderDoc.data();
+      const recipientData = recipientDoc.data();
+      
+      // Check if sender is blocked by recipient
+      const recipientBlockedUsers = recipientData.blockedUsers || [];
+      const senderIsBlockedByRecipient = recipientBlockedUsers.some(block => block.userId === senderId);
+      
+      // Check if recipient is blocked by sender
+      const senderBlockedUsers = senderData.blockedUsers || [];
+      const recipientIsBlockedBySender = senderBlockedUsers.some(block => block.userId === recipientId);
+      
+      if (senderIsBlockedByRecipient || recipientIsBlockedBySender) {
+        throw new Error("Unable to send message: one of the users has blocked the other");
+      }
+
       // Generate encryption key for this conversation
       const encryptionKey = encryptionService.generateConversationKey(
         senderId,

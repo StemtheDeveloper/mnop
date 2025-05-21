@@ -1,0 +1,179 @@
+/* UserProfilePage tabs styling */
+.user-profile-page .profile-content {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 0;
+  margin-top: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.user-profile-page .profile-tabs {
+  display: flex;
+  border-bottom: 1px solid #eee;
+  background-color: #fff;
+  padding: 0;
+  margin: 0;
+}
+
+.user-profile-page .profile-tab {
+  padding: 16px 24px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  font-weight: 500;
+  color: #666;
+  position: relative;
+  border-bottom: 2px solid transparent;
+}
+
+.user-profile-page .profile-tab.active {
+  background-color: #ef3c23;
+  color: white;
+  border-bottom-color: #ef3c23;
+}
+
+.user-profile-page .profile-tab:hover:not(.active) {
+  background-color: #f8f8f8;
+  color: #333;
+}
+
+.user-profile-page .profile-tab-content {
+  padding: 20px;
+}
+
+/* Verification status styling */
+.verification-info {
+  background-color: #f5f9ff;
+  border: 1px solid #e3f2fd;
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.verification-status {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: #0d47a1;
+}
+
+.verification-icon {
+  margin-right: 8px;
+  color: #2196f3;
+  font-weight: bold;
+  background-color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Admin controls styling */
+.admin-controls {
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.admin-controls h4 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #333;
+  font-weight: 600;
+}
+
+.admin-btn {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  border: none;
+  transition: all 0.2s;
+}
+
+.verify-btn {
+  background-color: #4caf50;
+  color: white;
+}
+
+.verify-btn:hover {
+  background-color: #388e3c;
+}
+
+.revoke-btn {
+  background-color: #ef3c23;
+  color: white;
+}
+
+.revoke-btn:hover {
+  background-color: #d32f2f;
+}
+
+/* Roles pills styling */
+.user-profile-page .role-pill {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-right: 6px;
+  margin-bottom: 6px;
+}
+
+.user-profile-page .role-pill.investor {
+  background-color: #ffa000;
+  color: white;
+}
+
+.user-profile-page .role-pill.designer {
+  background-color: #e91e63;
+  color: white;
+}
+
+.user-profile-page .role-pill.manufacturer {
+  background-color: #2196f3;
+  color: white;
+}
+
+.user-profile-page .role-pill.admin {
+  background-color: #9c27b0;
+  color: white;
+}
+
+.user-profile-page .role-pill.customer {
+  background-color: #4caf50;
+  color: white;
+}
+
+/* Message button styling */
+.user-profile-page .message-button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-profile-page .message-button:hover {
+  background-color: #2980b9;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .user-profile-page .profile-tab {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+}

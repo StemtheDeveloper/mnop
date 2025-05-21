@@ -1,0 +1,59 @@
+/* BlockedUsersFilter styles */
+.blocked-users-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 10px 0 20px;
+}
+
+.filter-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-icon {
+  font-size: 18px;
+  color: #616161;
+}
+
+.filter-message {
+  font-size: 14px;
+  color: #616161;
+}
+
+.show-all-button {
+  background-color: #ef3c23;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.show-all-button:hover {
+  background-color: #d43418;
+}
+
+@media (max-width: 576px) {
+  .blocked-users-filter {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .filter-info {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .show-all-button {
+    width: 100%;
+  }
+}

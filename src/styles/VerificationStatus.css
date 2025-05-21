@@ -1,0 +1,89 @@
+/* Verification status styling matching the screenshot */
+.settings-section {
+  margin-bottom: 30px;
+}
+
+.settings-section h3 {
+  font-size: 18px;
+  margin-bottom: 15px;
+  font-weight: 600;
+  color: #333;
+}
+
+.verification-status-section {
+  background-color: #f5f9ff;
+  border: 1px solid #e3f2fd;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.verification-status-section h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.verification-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.verification-check {
+  color: #4caf50;
+  margin-right: 8px;
+}
+
+.verification-text {
+  color: #0d47a1;
+  font-weight: 500;
+}
+
+/* Admin controls styling */
+.admin-controls {
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.admin-controls h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #333;
+  font-weight: 600;
+}
+
+.verify-btn {
+  background-color: #4caf50;
+  color: white;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: background-color 0.2s;
+}
+
+.verify-btn:hover {
+  background-color: #388e3c;
+}
+
+.revoke-btn {
+  background-color: #ef3c23;
+  color: white;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.revoke-btn:hover {
+  background-color: #d32f2f;
+}

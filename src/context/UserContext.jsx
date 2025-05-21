@@ -3,6 +3,8 @@ import { auth, db } from '../config/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import walletService from '../services/walletService';
+import blockService from '../services/blockService';
+import { useToast } from '../contexts/ToastContext';
 
 const UserContext = createContext();
 
@@ -26,6 +28,10 @@ export const UserProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [authInitialized, setAuthInitialized] = useState(false);
     const [transactions, setTransactions] = useState([]);
+    const [blockedUsers, setBlockedUsers] = useState([]);
+    const [tempUnblockedContent, setTempUnblockedContent] = useState([]);
+
+    const toast = useContext(useToast ? useToast() : { success: () => { }, error: () => { } });
 
     // Function to fetch user profile and data from Firestore
     const fetchUserData = async (uid) => {
@@ -36,6 +42,10 @@ export const UserProvider = ({ children }) => {
             if (docSnap.exists()) {
                 const userData = docSnap.data();
                 setUserProfile(userData);
+
+                // Get the blocked users array from user profile
+                const userBlockedUsers = userData.blockedUsers || [];
+                setBlockedUsers(userBlockedUsers);
 
                 // Standardize roles to always be an array
                 let rolesArray = [];
@@ -157,6 +167,106 @@ export const UserProvider = ({ children }) => {
         }
     };
 
+    // Check if a user is blocked by the current user
+    const isUserBlocked = (userId) => {
+        if (!blockedUsers || blockedUsers.length === 0) return false;
+        return blockedUsers.some(block => block.userId === userId);
+    };
+
+    // Check if content from a user should be blocked
+    const shouldBlockContent = (userId) => {
+        if (!blockedUsers || blockedUsers.length === 0) return false;
+
+        // Check if content is temporarily unblocked
+        if (tempUnblockedContent.includes(userId)) return false;
+
+        const block = blockedUsers.find(block => block.userId === userId);
+        return block ? block.blockContent === true : false;
+    };
+
+    // Block a user with the current user
+    const blockUser = async (userId, blockContent = true) => {
+        if (!currentUser) return { success: false, error: "You must be logged in to block users" };
+
+        try {
+            const result = await blockService.blockUser(currentUser.uid, userId, blockContent);
+
+            if (result.success) {
+                // Update local state
+                await refreshUserData();
+
+                // Show success toast if available
+                if (toast && toast.success) {
+                    toast.success("User blocked successfully");
+                }
+            } else if (toast && toast.error) {
+                toast.error(result.error || "Failed to block user");
+            }
+
+            return result;
+        } catch (error) {
+            console.error("Error blocking user:", error);
+
+            if (toast && toast.error) {
+                toast.error("An error occurred while blocking the user");
+            }
+
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    };
+
+    // Unblock a user
+    const unblockUser = async (userId) => {
+        if (!currentUser) return { success: false, error: "You must be logged in to unblock users" };
+
+        try {
+            const result = await blockService.unblockUser(currentUser.uid, userId);
+
+            if (result.success) {
+                // Update local state
+                await refreshUserData();
+
+                // Also remove from temporary unblocked content
+                setTempUnblockedContent(prev => prev.filter(id => id !== userId));
+
+                // Show success toast if available
+                if (toast && toast.success) {
+                    toast.success("User unblocked successfully");
+                }
+            } else if (toast && toast.error) {
+                toast.error(result.error || "Failed to unblock user");
+            }
+
+            return result;
+        } catch (error) {
+            console.error("Error unblocking user:", error);
+
+            if (toast && toast.error) {
+                toast.error("An error occurred while unblocking the user");
+            }
+
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    };
+
+    // Temporarily unblock content from a user (for this session only)
+    const temporarilyUnblockContent = (userId) => {
+        if (!userId) return false;
+
+        // Add to temp unblocked list if not already there
+        if (!tempUnblockedContent.includes(userId)) {
+            setTempUnblockedContent(prev => [...prev, userId]);
+        }
+
+        return true;
+    };
+
     // Fund a product
     const fundProduct = async (productId, productName, amount) => {
         if (!currentUser) throw new Error("User not authenticated");
@@ -181,7 +291,9 @@ export const UserProvider = ({ children }) => {
             console.error("Error funding product:", error);
             throw error;
         }
-    };    // Add user role function - ensures roles are properly preserved
+    };
+
+    // Add user role function - ensures roles are properly preserved
     const addUserRole = async (roleId, userId = null) => {
         try {
             const targetUserId = userId || currentUser?.uid;
@@ -412,6 +524,7 @@ export const UserProvider = ({ children }) => {
         userProfile,
         // No longer exposing the legacy userRole field
         userRoles, // Using only the standardized array format
+        blockedUsers, // Expose the blocked users array
         userWallet,
         transactions,
         loading,
@@ -426,6 +539,11 @@ export const UserProvider = ({ children }) => {
         signOut: userSignOut,
         refreshUserData,
         addUserRole,
+        isUserBlocked,
+        shouldBlockContent,
+        blockUser,
+        unblockUser,
+        temporarilyUnblockContent,
         removeUserRole,
         setPrimaryRole
     };

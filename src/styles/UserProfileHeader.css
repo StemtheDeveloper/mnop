@@ -1,0 +1,161 @@
+/* User profile header styling */
+.profile-header {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.profile-banner {
+  height: 180px;
+  background-color: #e0e0e0;
+  background-image: linear-gradient(to right, #f5f5f5, #e0e0e0);
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-info {
+  padding: 20px;
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+}
+
+.profile-avatar {
+  margin-right: 20px;
+  flex-shrink: 0;
+}
+
+.user-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.default-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background-color: #ef3c23;
+  color: white;
+  font-size: 40px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.profile-details {
+  flex: 1;
+}
+
+.profile-name-section {
+  margin-bottom: 10px;
+}
+
+.profile-name {
+  font-size: 24px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-right: 6px;
+  font-size: 12px;
+  color: #666;
+}
+
+.role-badge.designer {
+  background-color: #fce4ec;
+  color: #e91e63;
+}
+
+.role-badge.manufacturer {
+  background-color: #e3f2fd;
+  color: #2196f3;
+}
+
+.role-badge.admin {
+  background-color: #f3e5f5;
+  color: #9c27b0;
+}
+
+.verified-badge {
+  display: inline-flex;
+  align-items: center;
+  background-color: #e8f5e9;
+  border-radius: 4px;
+  padding: 2px 8px;
+  color: #4caf50;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.verified-badge svg {
+  margin-right: 4px;
+}
+
+/* Profile action buttons */
+.profile-action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.message-button,
+.admin-action-button {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message-button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+}
+
+.message-button:hover {
+  background-color: #2980b9;
+}
+
+.admin-action-button {
+  background-color: #5c6bc0;
+  color: white;
+  border: none;
+}
+
+.admin-action-button:hover {
+  background-color: #3f51b5;
+}

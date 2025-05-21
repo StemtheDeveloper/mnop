@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaLock, FaPlus, FaSearch, FaArrowLeft, FaPaperPlane, FaUser } from 'react-icons/fa';
 import '../styles/MessagesPage.css';
@@ -7,9 +7,10 @@ import messagingService from '../services/messagingService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../context/ToastContext';
 import { errorToToast, handleErrorWithToast } from '../utils/errorToToast';
+import BlockedContentIndicator from '../components/BlockedContentIndicator';
 
 const MessagesPage = () => {
-    const { user, userProfile, loading: userLoading } = useUser();
+    const { user, userProfile, loading: userLoading, isUserBlocked, shouldBlockContent } = useUser();
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -20,8 +21,12 @@ const MessagesPage = () => {
     const [selectedUser, setSelectedUser] = useState(null);
     const [message, setMessage] = useState('');
     const [sendingMessage, setSendingMessage] = useState(false);
+    const [allMessages, setAllMessages] = useState([]);
+    const [hiddenMessageIds, setHiddenMessageIds] = useState([]);
     const navigate = useNavigate();
-    const { success: showSuccess, error: showError } = useToast(); useEffect(() => {
+    const { success: showSuccess, error: showError } = useToast();
+
+    useEffect(() => {
         const loadConversations = async () => {
             if (!user?.uid) return;
             try {
@@ -30,7 +35,6 @@ const MessagesPage = () => {
                 setConversations(userConversations);
             } catch (err) {
                 console.error('Error loading conversations:', err);
-                // Use handleErrorWithToast to handle the error and show toast
                 const errorMsg = handleErrorWithToast(err, showError, 'Failed to load conversations. Please try again.');
                 setError(errorMsg);
             } finally {
@@ -41,16 +45,14 @@ const MessagesPage = () => {
         loadConversations();
     }, [user]);
 
-    // Debounced search function that runs when searchTerm changes
     useEffect(() => {
-        // Don't search if user isn't composing a new message
         if (!composing || !user?.uid) return;
 
-        // Don't search if searchTerm is empty
         if (!searchTerm.trim()) {
             setSearchResults([]);
             return;
-        }        // Set a timer to delay the search (debounce)
+        }
+
         const timer = setTimeout(async () => {
             try {
                 setSearching(true);
@@ -58,14 +60,12 @@ const MessagesPage = () => {
                 setSearchResults(results);
             } catch (err) {
                 console.error('Error searching for users:', err);
-                // Use handleErrorWithToast to show toast notification
                 handleErrorWithToast(err, showError, 'Error searching for users. Please try again.');
             } finally {
                 setSearching(false);
             }
-        }, 300); // 300ms debounce time
+        }, 300);
 
-        // Clear the timer if searchTerm changes before the timeout
         return () => clearTimeout(timer);
     }, [searchTerm, user, composing]);
 
@@ -80,7 +80,9 @@ const MessagesPage = () => {
     const handleBackToList = () => {
         setComposing(false);
         setSelectedUser(null);
-    }; const handleUserSearch = async (e) => {
+    };
+
+    const handleUserSearch = async (e) => {
         e.preventDefault();
         if (!searchTerm.trim() || !user?.uid) return;
 
@@ -90,7 +92,6 @@ const MessagesPage = () => {
             setSearchResults(results);
         } catch (err) {
             console.error('Error searching for users:', err);
-            // Use handleErrorWithToast to show toast notification
             handleErrorWithToast(err, showError, 'Error searching for users. Please try again.');
         } finally {
             setSearching(false);
@@ -101,19 +102,19 @@ const MessagesPage = () => {
         setSelectedUser(selectedUser);
         setSearchResults([]);
         setSearchTerm('');
-    }; const handleSendMessage = async () => {
+    };
+
+    const handleSendMessage = async () => {
         if (!message.trim() || !user?.uid || !selectedUser?.id) return;
 
         try {
             setSendingMessage(true);
 
-            // Find or create a conversation between these users
             const conversation = await messagingService.findOrCreateConversation(
                 user.uid,
                 selectedUser.id
             );
 
-            // Send the message
             await messagingService.sendMessage(
                 conversation.id,
                 user.uid,
@@ -121,16 +122,61 @@ const MessagesPage = () => {
                 message
             );
 
-            // Navigate to the conversation
             navigate(`/messages/${conversation.id}`);
         } catch (err) {
             console.error('Error sending message:', err);
-            // Use handleErrorWithToast to handle the error and show toast
             const errorMsg = handleErrorWithToast(err, showError, 'Failed to send message. Please try again.');
             setError(errorMsg);
         } finally {
             setSendingMessage(false);
         }
+    };
+
+    const handleToggleBlockedMessage = (messageId) => {
+        if (hiddenMessageIds.includes(messageId)) {
+            setHiddenMessageIds(prev => prev.filter(id => id !== messageId));
+        } else {
+            setHiddenMessageIds(prev => [...prev, messageId]);
+        }
+    };
+
+    useEffect(() => {
+        if (!allMessages.length || !isUserBlocked) return;
+
+        const filteredMessages = allMessages.filter(message => {
+            if (message.senderId === user?.uid) return true;
+
+            if (isUserBlocked(message.senderId) && hiddenMessageIds.includes(message.id)) {
+                return true;
+            }
+
+            return !isUserBlocked(message.senderId) || !shouldBlockContent(message.senderId);
+        });
+
+        setConversations(filteredMessages);
+    }, [allMessages, isUserBlocked, shouldBlockContent, user?.uid, hiddenMessageIds]);
+
+    const renderMessage = (message) => {
+        const isBlocked = message.senderId !== user?.uid && isUserBlocked && isUserBlocked(message.senderId);
+        const shouldShow = hiddenMessageIds.includes(message.id);
+
+        if (isBlocked && !shouldShow) {
+            return (
+                <div key={message.id} className="message received blocked">
+                    <BlockedContentIndicator
+                        userId={message.senderId}
+                        contentType="message"
+                        onShowContent={() => handleToggleBlockedMessage(message.id)}
+                    />
+                </div>
+            );
+        }
+
+        return (
+            <div key={message.id} className="message">
+                <p>{message.content}</p>
+            </div>
+        );
     };
 
     if (userLoading) {
@@ -188,7 +234,6 @@ const MessagesPage = () => {
                                 {searching ? (
                                     <div className="searching-indicator">
                                         <LoadingSpinner size="small" />
-
                                     </div>
                                 ) : searchResults.length > 0 ? (
                                     searchResults.map((user) => (
@@ -274,12 +319,10 @@ const MessagesPage = () => {
                                         {sendingMessage ? (
                                             <div className="sending-indicator">
                                                 <LoadingSpinner size="small" />
-
                                             </div>
                                         ) : (
                                             <div className="send-icon">
                                                 <FaPaperPlane />
-
                                             </div>
                                         )}
                                     </button>
@@ -303,10 +346,11 @@ const MessagesPage = () => {
                     </button>
                 </div>
 
-                {loading ? (<div className="loading-container">
-                    <LoadingSpinner />
-                    <p>Loading conversations...</p>
-                </div>
+                {loading ? (
+                    <div className="loading-container">
+                        <LoadingSpinner />
+                        <p>Loading conversations...</p>
+                    </div>
                 ) : error ? (
                     <div>
                         {errorToToast(error, showError)}
@@ -315,7 +359,6 @@ const MessagesPage = () => {
                     <div className="no-messages">
                         <h2>No messages yet</h2>
                         <p>Start a new conversation to message other users</p>
-
                     </div>
                 ) : (
                     <div className="conversations-list">
