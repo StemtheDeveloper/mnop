@@ -686,8 +686,8 @@ const WalletPage = () => {
                                         <option value="200">Last 200</option>
                                         <option value="500">Last 500</option>
                                         <option value="1000">Last 1000</option>
-                                        <option value="1000">Last 5000</option>
-                                        <option value="1000">Last 10000</option>
+                                        <option value="5000">Last 5000</option>
+                                        <option value="10000">Last 10000 👍</option>
                                     </select>
                                 </div>
 
