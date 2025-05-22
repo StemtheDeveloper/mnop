@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useUser } from '../../context/UserContext';
+import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../LoadingSpinner';
 import '../../styles/ManufacturerRequests.css';
 
@@ -9,17 +10,20 @@ import '../../styles/ManufacturerRequests.css';
  * Component to display and manage incoming manufacturer requests
  */
 const ManufacturerRequestsList = () => {
-    const { currentUser } = useUser();
+    const { currentUser, hasRole } = useUser();
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [requests, setRequests] = useState([]);
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [processingId, setProcessingId] = useState(null);
-    const [message, setMessage] = useState({ type: '', text: '' });
-
-    // Fetch all pending manufacturer requests for this manufacturer
+    const [message, setMessage] = useState({ type: '', text: '' });    // Fetch all pending manufacturer requests for this manufacturer
     useEffect(() => {
         const fetchRequests = async () => {
-            if (!currentUser?.uid) return;
+            if (!currentUser?.uid || !hasRole('manufacturer')) {
+                setLoading(false);
+                setMessage({ type: 'warning', text: 'You must have manufacturer permissions to view requests.' });
+                return;
+            }
 
             setLoading(true);
             try {
@@ -34,9 +38,7 @@ const ManufacturerRequestsList = () => {
                 const requestsData = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
-                }));
-
-                // Fetch product details for each request
+                }));                // Fetch product details for each request
                 const enhancedRequests = await Promise.all(
                     requestsData.map(async (request) => {
                         try {
@@ -44,11 +46,14 @@ const ManufacturerRequestsList = () => {
                             const productSnap = await getDoc(productRef);
 
                             if (productSnap.exists()) {
+                                const productData = productSnap.data();
                                 return {
                                     ...request,
+                                    budget: request.budget || productData.fundingGoal || 0,
+                                    designerName: request.designerName || productData.designerName || 'Unknown Designer',
                                     product: {
                                         id: productSnap.id,
-                                        ...productSnap.data()
+                                        ...productData
                                     }
                                 };
                             }
@@ -237,9 +242,8 @@ const ManufacturerRequestsList = () => {
                             <div className="request-header">
                                 <h4>{request.productName || 'Unnamed Product'}</h4>
                                 <span className="request-date">{formatDate(request.createdAt)}</span>
-                            </div>
-                            <div className="request-designer">
-                                From: {request.designerEmail}
+                            </div>                            <div className="request-designer">
+                                From: {request.designerName || request.product?.designerName || request.designerEmail || 'Unknown Designer'}
                             </div>
                             {request.isFullyFunded && (
                                 <div className="funding-status fully-funded">
@@ -265,11 +269,8 @@ const ManufacturerRequestsList = () => {
                                         />
                                     </div>
                                 )}
-                            </div>
-
-                            <div className="request-info-item">
-                                <label>Designer:</label>
-                                <div>{selectedRequest.designerEmail}</div>
+                            </div>                            <div className="request-info-item">                                <label>Designer:</label>
+                                <div>{selectedRequest.designerName || selectedRequest.product?.designerName || selectedRequest.designerEmail || 'Unknown Designer'}</div>
                             </div>
 
                             <div className="request-info-item">
@@ -277,10 +278,10 @@ const ManufacturerRequestsList = () => {
                                 <div>{formatDate(selectedRequest.createdAt)}</div>
                             </div>
 
-                            {selectedRequest.isFullyFunded && (
+                            {(selectedRequest.budget || selectedRequest.fundingAmount) && (
                                 <div className="request-info-item">
-                                    <label>Funding Amount:</label>
-                                    <div className="funding-amount">{formatCurrency(selectedRequest.fundingAmount)}</div>
+                                    <label>Budget/Funding Amount:</label>
+                                    <div className="funding-amount">{formatCurrency(selectedRequest.budget || selectedRequest.fundingAmount)}</div>
                                 </div>
                             )}
 
@@ -289,9 +290,7 @@ const ManufacturerRequestsList = () => {
                                     <label>Product Description:</label>
                                     <div className="product-description">{selectedRequest.product.description}</div>
                                 </div>
-                            )}
-
-                            <div className="request-actions">
+                            )}                            <div className="request-actions">
                                 <button
                                     className="reject-button"
                                     onClick={() => handleRejectRequest(selectedRequest.id)}
@@ -305,6 +304,12 @@ const ManufacturerRequestsList = () => {
                                     disabled={processingId === selectedRequest.id}
                                 >
                                     {processingId === selectedRequest.id ? 'Processing...' : 'Approve Request'}
+                                </button>
+                                <button
+                                    className="view-details-button"
+                                    onClick={() => navigate(`/manufacturer/requests/${selectedRequest.id}`)}
+                                >
+                                    View Full Details
                                 </button>
                             </div>
                         </div>

@@ -141,8 +141,8 @@ function LandingPage() {
         <h1>Welcome to M'NOP</h1>
         <p>Connecting designers, manufacturers, and investors to bring innovative products to market.</p>
         <div className="hero-buttons">
-          <Link to="/shop" className="btn-primary">Browse Products</Link>
-          <Link to="/register" className="btn-secondary">Join Our Community</Link>
+          <Link to="/shop" className="landing-btn-primary">Browse Products</Link>
+          <Link to="/register" className="landing-btn-secondary">Join Our Community</Link>
         </div>
       </div>
 

@@ -15,6 +15,7 @@ const UserProfilePage = lazy(() => import('../pages/UserProfilePage')); // Impor
 const WalletPage = lazy(() => import('../pages/WalletPage'));
 const EarningsPage = lazy(() => import('../pages/EarningsPage')); // Import EarningsPage
 const ManufacturerDashboardPage = lazy(() => import('../pages/ManufacturerDashboardPage')); // Import ManufacturerDashboardPage
+const ManufacturerRequestDetailPage = lazy(() => import('../pages/ManufacturerRequestDetailPage')); // Import ManufacturerRequestDetailPage
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const AdminDataFixerPage = lazy(() => import('../pages/AdminDataFixerPage'));
 const AdminVerificationPage = lazy(() => import('../pages/AdminVerificationPage')); // Import verification page
@@ -236,8 +237,7 @@ const AppRoutes = () => {
                     <AuthGuard allowedRoles={["designer"]}>
                         <DesignerQuoteDetailPage />
                     </AuthGuard>
-                } />
-                <Route path="/manufacturer/dashboard" element={
+                } />                <Route path="/manufacturer/dashboard" element={
                     <AuthGuard allowedRoles={["manufacturer"]}>
                         <ManufacturerDashboardPage />
                     </AuthGuard>
@@ -250,6 +250,11 @@ const AppRoutes = () => {
                 <Route path="/manufacturer/quote/:quoteId" element={
                     <AuthGuard allowedRoles={["manufacturer"]}>
                         <ManufacturerQuoteDetailPage />
+                    </AuthGuard>
+                } />
+                <Route path="/manufacturer/requests/:requestId" element={
+                    <AuthGuard allowedRoles={["manufacturer"]}>
+                        <ManufacturerRequestDetailPage />
                     </AuthGuard>
                 } />
                 <Route path="/manufacturing/quotes" element={

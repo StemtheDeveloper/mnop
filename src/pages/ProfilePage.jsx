@@ -1539,8 +1539,7 @@ const ProfilePage = () => {
                         <div className="profile-action-buttons">
                             {isOwnProfile && hasRole('designer') && (
                                 <Link to="/product-upload" className="pill-btn">Upload New Design</Link>
-                            )}
-                            {isOwnProfile && hasRole('investor') && (
+                            )}                            {isOwnProfile && hasRole('investor') && (
                                 <Link to="/portfolio" className="pill-btn">View Investment Portfolio</Link>
                             )}
                             {isOwnProfile && (
@@ -1548,6 +1547,9 @@ const ProfilePage = () => {
                             )}
                             {isOwnProfile && hasRole('designer') && (
                                 <Link to="/earnings" className="pill-btn earnings">My Earnings</Link>
+                            )}
+                            {isOwnProfile && hasRole('manufacturer') && (
+                                <Link to="/manufacturer/dashboard" className="pill-btn">Manufacturer Dashboard</Link>
                             )}
                         </div>
                     </div>                    <div className="profile-right">
@@ -1610,6 +1612,10 @@ const ProfilePage = () => {
 
                             {activeTab === 'sales' && (
                                 <MySalesTab />
+                            )}
+
+                            {activeTab === 'quotes' && hasRole('manufacturer') && (
+                                <MyQuotesTab />
                             )}
 
                             {activeTab === 'shipping' && hasRole('designer') && (

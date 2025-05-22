@@ -1,0 +1,369 @@
+/* ManufacturerRequestDetail.css */
+.manufacturer-request-detail {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.back-button {
+    padding: 8px 16px;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.back-button:hover {
+    background-color: #e0e0e0;
+}
+
+.detail-card,
+.request-status-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    padding: 20px;
+}
+
+.request-status-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.status-badge.large {
+    font-size: 1.2rem;
+    padding: 8px 16px;
+    margin: 10px 0 20px;
+}
+
+/* Product images carousel */
+.product-images-container {
+    margin: 20px 0;
+}
+
+.image-carousel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.main-image-container {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    height: 300px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f8f8f8;
+    border: 1px solid #eaeaea;
+}
+
+.main-product-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.image-nav-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(255, 255, 255, 0.7);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    z-index: 2;
+}
+
+.image-nav-button:hover {
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+.image-nav-button.prev {
+    left: 10px;
+}
+
+.image-nav-button.next {
+    right: 10px;
+}
+
+.image-thumbnails {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 500px;
+}
+
+.image-thumbnail {
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.image-thumbnail.active {
+    border-color: #4CAF50;
+}
+
+.image-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Cost estimate section */
+.cost-estimate-section {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #eaeaea;
+}
+
+.estimate-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.form-group small {
+    color: #666;
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.submit-estimate-button,
+.update-estimate-button {
+    padding: 10px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    margin-top: 10px;
+    align-self: flex-start;
+}
+
+.submit-estimate-button:hover,
+.update-estimate-button:hover {
+    background-color: #388E3C;
+}
+
+.submit-estimate-button:disabled {
+    background-color: #9E9E9E;
+    cursor: not-allowed;
+}
+
+.current-estimate {
+    background-color: #f0f7ff;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+}
+
+.estimate-message {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #ccc;
+}
+
+.status-pending {
+    background-color: #fff8e1;
+    color: #f57c00;
+    border: 1px solid #ffcc80;
+}
+
+.status-approved {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
+}
+
+.status-rejected,
+.status-cancelled {
+    background-color: #ffebee;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+}
+
+.status-completed {
+    background-color: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #90caf9;
+}
+
+.status-in-progress {
+    background-color: #e0f7fa;
+    color: #00838f;
+    border: 1px solid #80deea;
+}
+
+.request-actions {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.approve-button,
+.reject-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.approve-button {
+    background-color: #4caf50;
+    color: white;
+}
+
+.approve-button:hover {
+    background-color: #388e3c;
+}
+
+.reject-button {
+    background-color: #f44336;
+    color: white;
+}
+
+.reject-button:hover {
+    background-color: #d32f2f;
+}
+
+.approve-button:disabled,
+.reject-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.info-row {
+    display: flex;
+    margin-bottom: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 12px;
+}
+
+.info-row .label {
+    font-weight: 600;
+    min-width: 200px;
+    color: #555;
+}
+
+.info-row .value {
+    flex: 1;
+}
+
+.request-message {
+    background-color: #f9f9f9;
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 8px;
+    white-space: pre-line;
+}
+
+.product-images {
+    margin: 20px 0;
+}
+
+.image-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.product-image {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.urgent-badge {
+    background-color: #ff5252;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
+
+.loading-container,
+.error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .info-row {
+        flex-direction: column;
+    }
+
+    .info-row .label {
+        margin-bottom: 4px;
+    }
+
+    .request-actions {
+        flex-direction: column;
+    }
+
+    .page-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+}

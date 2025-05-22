@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import '../../styles/ManufacturerQuotes.css';
+import '../../styles/ProfileTabs.css';
 
 const MyQuotesTab = () => {
-  const { currentUser, userProfile } = useUser();
+  const { currentUser, userProfile, hasRole } = useUser();
   const { userId: urlUserId } = useParams();
   const userId = urlUserId || currentUser?.uid;
   const isOwnProfile = currentUser && userId === currentUser.uid;
@@ -19,7 +20,7 @@ const MyQuotesTab = () => {
   const [activeTab, setActiveTab] = useState('all');
 
   // Check if user has manufacturer role
-  const isManufacturer = userProfile?.roles?.includes('manufacturer');
+  const isManufacturer = hasRole('manufacturer');
 
   useEffect(() => {
     // Only fetch if this is the user's own profile and they're a manufacturer
@@ -47,26 +48,79 @@ const MyQuotesTab = () => {
           return;
         }
 
-        // Process the request data and include extra info for display
-        const requests = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate() || new Date(),
-            updatedAt: data.updatedAt?.toDate() || new Date(),
-            deadline: data.deadline?.toDate() || null,
-            fundsTransferredAt: data.fundsTransferredAt?.toDate() || null,
-            // Add default values for potentially missing fields
-            productName: data.productName || 'Unnamed Product',
-            designerName: data.designerName || 'Unknown Designer',
-            designerEmail: data.designerEmail || 'Unknown',
-            status: data.status || 'pending',
-            isUrgent: data.isUrgent || false
-          };
-        });
+        // Get basic request data
+        const requestsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
 
-        setManufacturerRequests(requests);
+        // Enhanced requests with product data
+        const enhancedRequests = await Promise.all(
+          requestsData.map(async request => {
+            try {
+              // If there's a product ID, fetch the product details
+              if (request.productId) {
+                const productRef = doc(db, 'products', request.productId);
+                const productSnap = await getDoc(productRef);
+
+                if (productSnap.exists()) {
+                  const productData = productSnap.data();
+
+                  return {
+                    ...request,
+                    createdAt: request.createdAt?.toDate() || new Date(),
+                    updatedAt: request.updatedAt?.toDate() || new Date(),
+                    deadline: request.deadline?.toDate() || null,
+                    fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
+                    // Use product data for missing fields
+                    productName: request.productName || productData.name || 'Unnamed Product',
+                    designerName: request.designerName || productData.designerName || 'Unknown Designer',
+                    designerEmail: request.designerEmail || productData.designerEmail || 'Unknown',
+                    budget: request.budget || request.fundingAmount || productData.fundingGoal || 0,
+                    status: request.status || 'pending',
+                    isUrgent: request.isUrgent || false,
+                    product: {
+                      id: productSnap.id,
+                      ...productData
+                    }
+                  };
+                }
+              }
+
+              // If no product or product fetch failed
+              return {
+                ...request,
+                createdAt: request.createdAt?.toDate() || new Date(),
+                updatedAt: request.updatedAt?.toDate() || new Date(),
+                deadline: request.deadline?.toDate() || null,
+                fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
+                productName: request.productName || 'Unnamed Product',
+                designerName: request.designerName || 'Unknown Designer',
+                designerEmail: request.designerEmail || 'Unknown',
+                budget: request.budget || request.fundingAmount || 0,
+                status: request.status || 'pending',
+                isUrgent: request.isUrgent || false
+              };
+            } catch (error) {
+              console.error(`Error fetching product details for request ${request.id}:`, error);
+              return {
+                ...request,
+                createdAt: request.createdAt?.toDate() || new Date(),
+                updatedAt: request.updatedAt?.toDate() || new Date(),
+                deadline: request.deadline?.toDate() || null,
+                fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
+                productName: request.productName || 'Unnamed Product',
+                designerName: request.designerName || 'Unknown Designer',
+                designerEmail: request.designerEmail || 'Unknown',
+                budget: request.budget || request.fundingAmount || 0,
+                status: request.status || 'pending',
+                isUrgent: request.isUrgent || false
+              };
+            }
+          })
+        );
+
+        setManufacturerRequests(enhancedRequests);
       } catch (err) {
         console.error('Error fetching manufacturer requests:', err);
         setError('Failed to load your manufacturing requests. Please try again later.');
@@ -121,7 +175,13 @@ const MyQuotesTab = () => {
 
   // Navigate to request details
   const viewRequestDetails = (requestId) => {
-    navigate(`/manufacturer/requests/${requestId}`);
+    // Double-check role before navigating
+    if (hasRole('manufacturer')) {
+      navigate(`/manufacturer/requests/${requestId}`);
+    } else {
+      // If user somehow lost manufacturer role
+      setError('You must have manufacturer permissions to view request details.');
+    }
   };
 
   // Filter requests based on active tab
@@ -253,6 +313,7 @@ const MyQuotesTab = () => {
                         <button
                           className="btn-small view-details-btn"
                           onClick={() => viewRequestDetails(request.id)}
+                          title="View details of this manufacturing request"
                         >
                           View Details
                         </button>
