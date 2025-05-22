@@ -245,38 +245,45 @@
   margin: 0 auto;
   background-color: #f5f5f5;
   min-height: 100vh;
-  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-x: hidden;
+  /* Prevent horizontal scroll */
 }
 
 /* Profile header with cover photo */
 .profile-header {
   position: relative;
-  background-color: #e0e0e0; /* Fallback color if no image */
+  background-color: #e0e0e0;
+  /* Fallback color if no image */
   background-size: cover;
   background-position: center;
   height: 200px;
   border-radius: 8px 8px 0 0;
-  margin-bottom: 70px; /* Space for the profile photo that overflows */
-  overflow: visible; /* Allow profile photo to overflow */
+  margin-bottom: 70px;
+  /* Space for the profile photo that overflows */
+  overflow: visible;
+  /* Allow profile photo to overflow */
   z-index: 1;
 }
 
 /* Position the profile photo container to overlap the header */
 .profile-photo-container {
   position: absolute;
-  bottom: -50px; /* Negative value to make it overlap */
+  bottom: -50px;
+  /* Negative value to make it overlap */
   left: 30px;
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background-color: #f0f0f0; /* Fallback if no image */
+  background-color: #f0f0f0;
+  /* Fallback if no image */
   border: 4px solid white;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10; /* Higher z-index to ensure it's above everything */
+  z-index: 10;
+  /* Higher z-index to ensure it's above everything */
   transition: all 0.3s ease;
 }
 
@@ -338,7 +345,8 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   padding: 25px;
   margin-bottom: 20px;
-  overflow: visible; /* Ensure content is visible */
+  overflow: visible;
+  /* Ensure content is visible */
 }
 
 .settings-section {
@@ -620,7 +628,8 @@
     transform: translateX(-50%);
     width: 100px;
     height: 100px;
-    z-index: 2; /* Maintain higher z-index on mobile too */
+    z-index: 2;
+    /* Maintain higher z-index on mobile too */
   }
 
   .profile-content {
@@ -1609,13 +1618,15 @@
 .refund-requests-section {
   margin-bottom: 30px;
   padding: 20px;
-  background-color: #fff9ef; /* Light warm yellow background */
+  background-color: #fff9ef;
+  /* Light warm yellow background */
   border-radius: 8px;
   border: 1px solid #ffeed4;
 }
 
 .refund-requests-section .section-title {
-  color: #d97706; /* Amber/orange color */
+  color: #d97706;
+  /* Amber/orange color */
   margin-bottom: 5px;
 }
 
@@ -1741,7 +1752,8 @@
 
 .refund-request-card .btn-approve-refund {
   padding: 8px 16px;
-  background-color: #10b981; /* Green */
+  background-color: #10b981;
+  /* Green */
   color: white;
   border: none;
   border-radius: 6px;
@@ -1756,7 +1768,8 @@
 
 .refund-request-card .btn-deny-refund {
   padding: 8px 16px;
-  background-color: #ef4444; /* Red */
+  background-color: #ef4444;
+  /* Red */
   color: white;
   border: none;
   border-radius: 6px;
@@ -2099,7 +2112,7 @@
   flex: 2;
 }
 
-.manufacturer-product-card .product-image {
+/* .manufacturer-product-card .product-image {
   width: 80px;
   height: 80px;
   border-radius: 6px;
@@ -2111,7 +2124,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
+} */
 
 .manufacturer-product-card .product-details {
   flex: 1;
@@ -2310,6 +2323,7 @@
 }
 
 @media (max-width: 768px) {
+
   .export-format-options,
   .export-options-grid {
     flex-direction: column;

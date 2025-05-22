@@ -483,15 +483,15 @@ const ManufacturerSettingsTab = () => {
                   .filter(product => product.status === 'active') // Only show active products
                   .map(product => (
                     <div key={product.id} className="manufacturer-product-card">
-                      <div className="product-info">
-                        <div className="product-image">
+                      <div className="mst-product-info">
+                        <div className="mst-product-image">
                           <img
                             src={Array.isArray(product.imageUrls) && product.imageUrls.length > 0
                               ? product.imageUrls[0]
                               : product.imageUrl || '/placeholder-product.jpg'}
                             alt={product.name} />
                         </div>
-                        <div className="product-details">
+                        <div className="mst-product-details">
                           <h3>{product.name}</h3>
                           {product.fundingGoal > 0 && (
                             <div className="product-funding">

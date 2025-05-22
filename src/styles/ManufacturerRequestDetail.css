@@ -12,9 +12,9 @@
     margin-bottom: 20px;
 }
 
-.back-button {
+.mrdp-back-button {
     padding: 8px 16px;
-    background-color: #f0f0f0;
+    background-color: #505050;
     border: 1px solid #ccc;
     border-radius: 4px;
     cursor: pointer;
@@ -311,7 +311,7 @@
     white-space: pre-line;
 }
 
-.product-images {
+.mrdp-product-images {
     margin: 20px 0;
 }
 
@@ -322,7 +322,7 @@
     margin-top: 10px;
 }
 
-.product-image {
+.mrdp-product-image {
     width: 150px;
     height: 150px;
     object-fit: cover;

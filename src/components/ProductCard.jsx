@@ -6,6 +6,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
 import { useCurrency } from '../context/CurrencyContext';
 import DOMPurify from 'dompurify'; // Import DOMPurify for HTML sanitization
+import { decodeHtmlEntities } from '../utils/sanitizer'; // Import the decode function
 import '../styles/ProductCard.css';
 
 // Define a comparison function for React.memo
@@ -407,11 +408,10 @@ const ProductCard = ({
       </div>
 
       <div className="product-info">
-        <h3 className="product-title">{title}</h3>
-        <div
+        <h3 className="product-title">{title}</h3>        <div
           className="product-description"
           dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(description || '', {
+            __html: DOMPurify.sanitize(decodeHtmlEntities(description || ''), {
               USE_PROFILES: { html: true }
             })
           }}

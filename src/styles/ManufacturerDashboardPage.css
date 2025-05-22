@@ -213,13 +213,16 @@
 }
 
 @keyframes dots {
+
   0%,
   20% {
     content: ".";
   }
+
   40% {
     content: "..";
   }
+
   60%,
   100% {
     content: "...";

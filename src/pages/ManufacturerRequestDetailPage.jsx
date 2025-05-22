@@ -340,7 +340,7 @@ const ManufacturerRequestDetailPage = () => {
                 <p>The request you're looking for doesn't exist or you don't have permission to view it.</p>
                 <button
                     onClick={() => navigate('/manufacturer/dashboard')}
-                    className="back-button"
+                    className="mrdp-back-button"
                 >
                     Back to Dashboard
                 </button>
@@ -354,7 +354,7 @@ const ManufacturerRequestDetailPage = () => {
                 <h1>Manufacturing Request Details</h1>
                 <button
                     onClick={() => navigate('/manufacturer/dashboard')}
-                    className="back-button"
+                    className="mrdp-back-button"
                 >
                     Back to Dashboard
                 </button>

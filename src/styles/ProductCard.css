@@ -41,22 +41,34 @@
     transform: scale(1);
     background-color: rgba(0, 0, 0, 0.6);
   }
+
   25% {
     transform: scale(1.2);
     background-color: #3498db;
   }
+
   50% {
     transform: scale(0.95);
     background-color: #3498db;
   }
+
   75% {
     transform: scale(1.05);
     background-color: #3498db;
   }
+
   100% {
     transform: scale(1);
     background-color: rgba(0, 0, 0, 0.6);
   }
+}
+
+.mst-product-info {
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
+  max-width: 200px;
+  height: auto;
 }
 
 /* Product info section */
@@ -184,7 +196,8 @@
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
   height: 100%;
-  width: 100%; /* Ensure full width for masonry layout */
+  width: 100%;
+  /* Ensure full width for masonry layout */
 }
 
 .product-card:hover {
@@ -195,7 +208,8 @@
 .product-image {
   position: relative;
   width: 100%;
-  padding-top: 100%; /* Creates a 1:1 aspect ratio */
+  padding-top: 100%;
+  /* Creates a 1:1 aspect ratio */
   overflow: hidden;
 }
 
@@ -229,11 +243,14 @@
 .product-actions {
   position: absolute;
   top: 10px;
-  left: 10px; /* Changed from left to right for better visibility */
+  left: 10px;
+  /* Changed from left to right for better visibility */
   display: flex;
   gap: 8px;
-  z-index: 5; /* Increased z-index to ensure buttons appear above other elements */
-  opacity: 1; /* Always visible now */
+  z-index: 5;
+  /* Increased z-index to ensure buttons appear above other elements */
+  opacity: 1;
+  /* Always visible now */
   transition: transform 0.2s ease;
 }
 
@@ -250,12 +267,11 @@
   height: 36px;
   border-radius: 50%;
   border: none;
-  background-color: rgba(
-    0,
-    0,
-    0,
-    0.6
-  ); /* Darker background for better visibility */
+  background-color: rgba(0,
+      0,
+      0,
+      0.6);
+  /* Darker background for better visibility */
   color: white;
   cursor: pointer;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
@@ -397,10 +413,12 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 10; /* Increased z-index to ensure buttons appear above other elements */
+  z-index: 10;
+  /* Increased z-index to ensure buttons appear above other elements */
   opacity: 0;
   transition: opacity 0.2s ease, background-color 0.2s ease;
-  pointer-events: auto; /* Ensure clicks are captured */
+  pointer-events: auto;
+  /* Ensure clicks are captured */
 }
 
 .product-card:hover .image-nav-button,
@@ -425,22 +443,24 @@
 }
 
 /* Stop auto-cycling when manually navigating */
-.product-image:hover .image-nav-button:hover + .image-indicators {
+.product-image:hover .image-nav-button:hover+.image-indicators {
   animation-play-state: paused;
 }
 
 /* Responsive adjustments for mobile */
 @media (max-width: 768px) {
   .image-nav-button {
-    opacity: 1; /* Always show on mobile */
-    width: 36px; /* Increased from 28px to make touch target larger */
-    height: 36px; /* Increased from 28px to make touch target larger */
-    background-color: rgba(
-      255,
-      255,
-      255,
-      0.8
-    ); /* Slightly more opaque for visibility */
+    opacity: 1;
+    /* Always show on mobile */
+    width: 36px;
+    /* Increased from 28px to make touch target larger */
+    height: 36px;
+    /* Increased from 28px to make touch target larger */
+    background-color: rgba(255,
+        255,
+        255,
+        0.8);
+    /* Slightly more opaque for visibility */
   }
 }
 

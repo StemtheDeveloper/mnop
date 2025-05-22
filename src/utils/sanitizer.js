@@ -21,6 +21,21 @@ export const sanitizeString = (unsafeText) => {
 };
 
 /**
+ * Decodes HTML entities in a string
+ * @param {string} encodedText - Text with HTML entities to decode
+ * @returns {string} The decoded text
+ */
+export const decodeHtmlEntities = (encodedText) => {
+  if (typeof encodedText !== "string") {
+    return encodedText;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = encodedText;
+  return textarea.value;
+};
+
+/**
  * Sanitizes an object's string properties recursively
  * @param {object} obj - The object containing string properties to sanitize
  * @returns {object} A new object with sanitized string properties

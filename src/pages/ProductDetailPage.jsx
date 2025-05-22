@@ -13,6 +13,7 @@ import reviewService from '../services/reviewService'; // Import the review serv
 import '../styles/ProductDetailPage.css';
 import { serverTimestamp } from 'firebase/firestore';
 import DOMPurify from 'dompurify'; // Add this import for safely rendering HTML
+import { decodeHtmlEntities } from '../utils/sanitizer'; // Import the decode function
 
 const ProductDetailPage = () => {
     const { productId } = useParams();
@@ -896,12 +897,10 @@ const ProductDetailPage = () => {
                                 <span className="designer-name">{designer.displayName || product.designerName || 'Unknown Designer'}</span>
                             </Link>
                         </div>
-                    )}
-
-                    <div className="product-description">
+                    )}                    <div className="product-description">
                         <h3>Description</h3>
                         <p dangerouslySetInnerHTML={{
-                            __html: DOMPurify.sanitize(product.description || '', {
+                            __html: DOMPurify.sanitize(decodeHtmlEntities(product.description || ''), {
                                 USE_PROFILES: { html: true }
                             })
                         }}></p>

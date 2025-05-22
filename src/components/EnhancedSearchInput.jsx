@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, orderBy, limit, startAt, endAt } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { decodeHtmlEntities } from '../utils/sanitizer';
 import '../styles/EnhancedSearchInput.css';
 
 const EnhancedSearchInput = ({
@@ -320,11 +321,9 @@ const EnhancedSearchInput = ({
             items.push(...popularProducts);
         }
         return items;
-    };
-
-    // Render item with highlighted text
+    };    // Render item with highlighted text
     const renderHighlightedText = (html) => {
-        return { __html: html };
+        return { __html: decodeHtmlEntities(html) };
     };
 
     return (
