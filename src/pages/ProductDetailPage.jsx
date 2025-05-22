@@ -75,12 +75,13 @@ const ProductDetailPage = () => {
         }
     };
 
-    const filteredReviews = useBlockedContentFilter(allReviews, 'userId');
+    const { filteredContent: filteredReviews, isUserBlocked } = useBlockedContentFilter(allReviews, 'userId');
 
     useEffect(() => {
-        let reviewsToDisplay = [...filteredReviews];
+        // Make sure filteredReviews is an array before trying to spread it
+        let reviewsToDisplay = filteredReviews ? [...filteredReviews] : [];
 
-        if (allReviews.length > filteredReviews.length) {
+        if (allReviews.length > 0 && filteredReviews && allReviews.length > filteredReviews.length) {
             const blockedReviews = allReviews.filter(review => {
                 return !filteredReviews.some(fr => fr.id === review.id) &&
                     !hiddenReviewIds.includes(review.id);
@@ -110,7 +111,7 @@ const ProductDetailPage = () => {
         });
 
         setReviews(reviewsToDisplay);
-    }, [filteredReviews, allReviews, hiddenReviewIds, hiddenReplyIds]);
+    }, [filteredReviews, allReviews, hiddenReviewIds, hiddenReplyIds, isUserBlocked]);
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -264,16 +265,23 @@ const ProductDetailPage = () => {
 
     return (
         <div className="product-detail-page">
-            <div className="product-detail-container">
+            {loading ? (
+                <LoadingSpinner />
+            ) : error ? (
+                <div className="error-message">{error}</div>
+            ) : product && (<div className="product-detail-container">
                 <div className="product-images">
                     <div className="main-image">
-                        <img src={product.imageUrls?.[selectedImageIndex] || 'https://placehold.co/600x400?text=Product+Image'} alt={product.name} />
+                        <img
+                            src={product?.imageUrls?.[selectedImageIndex] || 'https://placehold.co/600x400?text=Product+Image'}
+                            alt={product?.name || 'Product'}
+                        />
                     </div>
                 </div>
 
                 <div className="pdp-product-info">
-                    <h1 className="pdp-product-title">{product.name}</h1>
-                    <p className="pdp-product-price">{product.price}</p>
+                    <h1 className="pdp-product-title">{product?.name}</h1>
+                    <p className="pdp-product-price">{product?.price}</p>
 
                     <div className="product-reviews">
                         <h3>Ratings & Reviews</h3>
@@ -325,6 +333,7 @@ const ProductDetailPage = () => {
                     </div>
                 </div>
             </div>
+            )}
         </div>
     );
 };

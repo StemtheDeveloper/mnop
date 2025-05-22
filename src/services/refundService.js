@@ -1073,18 +1073,21 @@ class RefundService {
    * Get refund requests for a designer's products
    * @param {string} designerId - Designer's user ID
    * @returns {Promise<Object>} List of refund requests or error
-   */
-  async getRefundRequestsForDesigner(designerId) {
+   */ async getRefundRequestsForDesigner(designerId) {
     try {
+      console.log("Fetching refund requests for designer:", designerId);
+
       // First, get the designer's products
       const productsRef = collection(db, "products");
       const productsQuery = query(
         productsRef,
-        where("designerId", "==", designerId),
-        where("status", "==", "approved")
+        where("designerId", "==", designerId)
+        // Removed the status filter to include all product statuses
       );
 
       const productsSnapshot = await getDocs(productsQuery);
+
+      console.log("Designer products found:", productsSnapshot.size);
 
       if (productsSnapshot.empty) {
         return {
@@ -1096,6 +1099,7 @@ class RefundService {
 
       // Get product IDs
       const productIds = productsSnapshot.docs.map((doc) => doc.id);
+      console.log("Product IDs for this designer:", productIds);
 
       // Get orders with refund requests containing these products
       const ordersRef = collection(db, "orders");
@@ -1106,6 +1110,11 @@ class RefundService {
       );
 
       const ordersSnapshot = await getDocs(ordersQuery);
+
+      console.log(
+        "Refund requests found in orders collection:",
+        ordersSnapshot.size
+      );
 
       if (ordersSnapshot.empty) {
         return {
@@ -1122,21 +1131,39 @@ class RefundService {
         const orderData = doc.data();
         const items = orderData.items || [];
 
+        console.log("Processing order:", doc.id, "with items:", items.length);
+
         // Check if any item in the order is from this designer
-        const hasDesignerProduct = items.some((item) =>
+        const designerItems = items.filter((item) =>
           productIds.includes(item.id)
+        );
+        const hasDesignerProduct = designerItems.length > 0;
+
+        console.log(
+          "Order",
+          doc.id,
+          "has designer products:",
+          hasDesignerProduct,
+          "Designer items:",
+          designerItems.length
         );
 
         if (hasDesignerProduct) {
           refundRequests.push({
             id: doc.id,
             ...orderData,
+            designerItems: designerItems, // Add designer items for clarity
             refundRequestDate:
               orderData.refundRequestDate?.toDate() || new Date(),
             createdAt: orderData.createdAt?.toDate() || new Date(),
           });
         }
       });
+
+      console.log(
+        "Filtered refund requests for designer:",
+        refundRequests.length
+      );
 
       return {
         success: true,

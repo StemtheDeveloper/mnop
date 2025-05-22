@@ -14,6 +14,7 @@ import {
   arrayUnion,
   increment,
 } from "firebase/firestore";
+import notificationService from "./notificationService";
 
 /**
  * Service for managing achievements, including CRUD operations and condition evaluation
@@ -121,7 +122,6 @@ export const achievementService = {
       throw error;
     }
   },
-
   /**
    * Award an achievement to a user
    */
@@ -160,6 +160,21 @@ export const achievementService = {
 
       // Update user's total achievement points
       await this.updateUserAchievementPoints(userId, achievement.points || 0);
+
+      // Send notification to user
+      await notificationService.createNotification({
+        userId,
+        type: "achievement_earned",
+        title: "Achievement Unlocked! 🏆",
+        message: `You've earned the "${achievement.name}" achievement! ${
+          achievement.points ? `+${achievement.points} points` : ""
+        }`,
+        achievementId,
+        achievementName: achievement.name,
+        achievementImageUrl: achievement.imageUrl,
+        read: false,
+        createdAt: serverTimestamp(),
+      });
 
       return true;
     } catch (error) {

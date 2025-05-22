@@ -24,6 +24,7 @@ const arePropsEqual = (prevProps, nextProps) => {
     prevProps.currentFunding === nextProps.currentFunding &&
     prevProps.status === nextProps.status &&
     prevProps.image === nextProps.image &&
+    prevProps.readyForPurchase === nextProps.readyForPurchase && // Add readyForPurchase to comparison
     // For arrays, we need to compare length as a basic check
     (Array.isArray(prevProps.images) && Array.isArray(nextProps.images) &&
       prevProps.images.length === nextProps.images.length)
@@ -45,6 +46,7 @@ const ProductCard = ({
   currentFunding = 0,
   status,
   designerId,
+  readyForPurchase = false, // Flag to indicate if a product is ready for purchase
   onClick
 }) => {
   const { currentUser } = useUser();
@@ -73,10 +75,14 @@ const ProductCard = ({
   // Calculate funding percentage
   const fundingPercentage = sanitizedFundingGoal > 0
     ? Math.min((sanitizedCurrentFunding / sanitizedFundingGoal) * 100, 100)
-    : fundingProgress;
-
-  // Determine if product is fully funded
+    : fundingProgress;  // Determine if product is fully funded
   const isFullyFunded = fundingPercentage >= 100;
+
+  // For purchasability, check if a product can be purchased (direct sell or properly funded AND ready)
+  const isPurchasable = status === 'active' && (
+    !sanitizedFundingGoal || // Direct sell products (no funding goal)
+    (isFullyFunded && readyForPurchase) // Crowdfunded products need to be fully funded AND marked ready for purchase
+  );
 
   // Check if the current user is the designer of this product
   const isProductDesigner = currentUser && designerId === currentUser.uid;
@@ -165,9 +171,13 @@ const ProductCard = ({
     if (!currentUser) {
       showError("Please sign in to add items to cart");
       return;
-    }    // Check if product is fully funded (for crowdfunded products)
-    if (status === 'active' && sanitizedFundingGoal > 0 && !isFullyFunded) {
-      showError("This product needs to be fully funded before purchase");
+    }    // Check if product is purchasable (for crowdfunded products)
+    if (status === 'active' && sanitizedFundingGoal > 0 && !isPurchasable) {
+      if (!isFullyFunded) {
+        showError("This product needs to be fully funded before purchase");
+      } else {
+        showError("This product is not yet ready for purchase");
+      }
       return;
     }
 
@@ -379,10 +389,12 @@ const ProductCard = ({
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={isLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
             </svg>
-          </button>          <button className={`add-to-cart-button ${(isLoading || (status === 'active' && sanitizedFundingGoal > 0 && !isFullyFunded)) ? 'disabled' : ''} ${buttonAnimation}`}
+          </button>          <button className={`add-to-cart-button ${(isLoading || (status === 'active' && sanitizedFundingGoal > 0 && !isPurchasable)) ? 'disabled' : ''} ${buttonAnimation}`}
             onClick={handleAddToCart}
-            disabled={isLoading || (status === 'active' && sanitizedFundingGoal > 0 && !isFullyFunded)}
-            title={(status === 'active' && sanitizedFundingGoal > 0 && !isFullyFunded) ? "Product needs to be fully funded" : "Add to cart"}
+            disabled={isLoading || (status === 'active' && sanitizedFundingGoal > 0 && !isPurchasable)}
+            title={(status === 'active' && sanitizedFundingGoal > 0 && !isPurchasable) ?
+              (!isFullyFunded ? "Product needs to be fully funded" : "Product not yet ready for purchase")
+              : "Add to cart"}
             aria-label="Add to cart"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

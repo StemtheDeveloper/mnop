@@ -534,16 +534,15 @@ const ProductEditPage = () => {
                 lastEditedAt: serverTimestamp(),
                 isCrowdfunded: formData.isCrowdfunded, // Store whether product is crowdfunded
                 isDirectSell: !formData.isCrowdfunded, // Flag for direct selling products
-                // For direct selling products, set currentFunding equal to price (mark as ready to purchase)
-                currentFunding: formData.isCrowdfunded ? product.currentFunding || 0 : parseFloat(formData.price),
-                weight: formData.weight ? parseFloat(formData.weight) : null,
-                weightUnit: formData.weightUnit || 'lb',
+                // For direct selling products, set currentFunding equal to price (mark as ready to purchase)                currentFunding: formData.isCrowdfunded ? product.currentFunding || 0 : parseFloat(formData.price),
                 dimensions: {
                     length: formData.dimensions.length ? parseFloat(formData.dimensions.length) : 0,
                     width: formData.dimensions.width ? parseFloat(formData.dimensions.width) : 0,
                     height: formData.dimensions.height ? parseFloat(formData.dimensions.height) : 0,
                     unit: formData.dimensions.unit || 'inches'
                 },
+                weight: parseFloat(formData.weight) || 0,
+                weightUnit: formData.weightUnit || 'lb',
                 customShipping: formData.customShipping || false,
                 standardShippingCost: formData.customShipping ? parseFloat(formData.standardShippingCost) || 10 : null,
                 expressShippingCost: formData.customShipping ? parseFloat(formData.expressShippingCost) || 25 : null,
@@ -722,6 +721,8 @@ const ProductEditPage = () => {
                                 <label>Product Type*</label>
                                 <div className="product-type-toggle">
                                     <label htmlFor="productTypeCrowdfunded">
+
+
                                         <input
                                             type="radio"
                                             id="productTypeCrowdfunded"
@@ -731,9 +732,12 @@ const ProductEditPage = () => {
                                             onChange={handleProductTypeToggle}
                                             disabled={saving}
                                         />
+
                                         Crowdfunded Product
                                     </label>
                                     <label htmlFor="productTypeDirect">
+
+
                                         <input
                                             type="radio"
                                             id="productTypeDirect"
@@ -743,6 +747,7 @@ const ProductEditPage = () => {
                                             onChange={handleProductTypeToggle}
                                             disabled={saving}
                                         />
+
                                         Direct Selling (Existing Product)
                                     </label>
                                 </div>
@@ -1025,6 +1030,137 @@ const ProductEditPage = () => {
                                                 />
                                             </div>
                                         )}
+
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label htmlFor="weight">Product Weight</label>
+                                                <div className="input-with-select">
+                                                    <input
+                                                        type="number"
+                                                        id="weight"
+                                                        name="weight"
+                                                        value={formData.weight}
+                                                        onChange={(e) => setFormData({
+                                                            ...formData,
+                                                            weight: e.target.value
+                                                        })}
+                                                        placeholder="0.00"
+                                                        min="0"
+                                                        step="0.01"
+                                                        disabled={saving}
+                                                    />
+                                                    <select
+                                                        name="weightUnit"
+                                                        value={formData.weightUnit}
+                                                        onChange={(e) => setFormData({
+                                                            ...formData,
+                                                            weightUnit: e.target.value
+                                                        })}
+                                                        disabled={saving}
+                                                    >
+                                                        <option value="lb">lb</option>
+                                                        <option value="kg">kg</option>
+                                                        <option value="oz">oz</option>
+                                                        <option value="g">g</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label>Product Dimensions</label>
+                                            <div className="dimensions-container">
+                                                <div className="form-row">
+                                                    <div className="form-group">
+                                                        <label htmlFor="length">Length</label>
+                                                        <input
+                                                            type="number"
+                                                            id="length"
+                                                            name="dimensions.length"
+                                                            value={formData.dimensions.length}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                dimensions: {
+                                                                    ...formData.dimensions,
+                                                                    length: e.target.value
+                                                                }
+                                                            })}
+                                                            placeholder="0.00"
+                                                            min="0"
+                                                            step="0.01"
+                                                            disabled={saving}
+                                                        />
+                                                    </div>
+
+                                                    <div className="form-group">
+                                                        <label htmlFor="width">Width</label>
+                                                        <input
+                                                            type="number"
+                                                            id="width"
+                                                            name="dimensions.width"
+                                                            value={formData.dimensions.width}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                dimensions: {
+                                                                    ...formData.dimensions,
+                                                                    width: e.target.value
+                                                                }
+                                                            })}
+                                                            placeholder="0.00"
+                                                            min="0"
+                                                            step="0.01"
+                                                            disabled={saving}
+                                                        />
+                                                    </div>
+
+                                                    <div className="form-group">
+                                                        <label htmlFor="height">Height</label>
+                                                        <input
+                                                            type="number"
+                                                            id="height"
+                                                            name="dimensions.height"
+                                                            value={formData.dimensions.height}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                dimensions: {
+                                                                    ...formData.dimensions,
+                                                                    height: e.target.value
+                                                                }
+                                                            })}
+                                                            placeholder="0.00"
+                                                            min="0"
+                                                            step="0.01"
+                                                            disabled={saving}
+                                                        />
+                                                    </div>
+
+                                                    <div className="form-group">
+                                                        <label htmlFor="dimensionUnit">Unit</label>
+                                                        <select
+                                                            id="dimensionUnit"
+                                                            name="dimensions.unit"
+                                                            value={formData.dimensions.unit}
+                                                            onChange={(e) => setFormData({
+                                                                ...formData,
+                                                                dimensions: {
+                                                                    ...formData.dimensions,
+                                                                    unit: e.target.value
+                                                                }
+                                                            })}
+                                                            disabled={saving}
+                                                        >
+                                                            <option value="inches">inches</option>
+                                                            <option value="cm">cm</option>
+                                                            <option value="m">m</option>
+                                                            <option value="ft">ft</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="form-hint">
+                                                Weight and dimensions help calculate accurate shipping costs for larger or heavier items.
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
                             </div>

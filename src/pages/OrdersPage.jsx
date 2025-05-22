@@ -356,10 +356,8 @@ const OrdersPage = () => {
                                     <div className="order-info">
                                         <div><strong>Items:</strong> {calculateTotalItems(order.items)}</div>
                                         <div><strong>Total:</strong> {formatPrice(order.total)}</div>
-                                    </div>
-
-                                    <div className="order-actions">
-                                        <Link to={`/orders/${order.id}`} className="view-order-button">
+                                    </div>                                    <div className="order-actions">
+                                        <Link to={`/order/${order.id}`} className="view-order-button">
                                             View Details
                                         </Link>
 

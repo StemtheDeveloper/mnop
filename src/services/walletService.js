@@ -1847,9 +1847,8 @@ class WalletService {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-      }
-
-      // 11. Update product record to mark funds as transferred
+      } // 11. Update product record to mark funds as transferred
+      // but not yet ready for purchase until manufacturer confirms
       batch.update(productRef, {
         businessHeldFunds: 0,
         manufacturerFunded: true,
@@ -1857,6 +1856,7 @@ class WalletService {
         manufacturerId: manufacturerId,
         manufacturerEmail: manufacturerEmail,
         manufacturerTransferAmount: businessHeldFunds,
+        readyForPurchase: false, // Product is not ready for purchase until manufacturer confirms
       });
 
       // 12. Record transaction for the business account (outgoing)
@@ -2084,6 +2084,115 @@ class WalletService {
       return {
         success: false,
         error: error.message || "Failed to auto-transfer funds",
+      };
+    }
+  }
+
+  /**
+   * Mark a product as ready for purchase (manufacturer confirmation)
+   * @param {string} manufacturerId - Manufacturer's user ID
+   * @param {string} productId - Product ID
+   * @returns {Promise<Object>} Result with success status
+   */
+  async markProductReadyForPurchase(manufacturerId, productId) {
+    try {
+      // 1. Verify the product exists and is fully funded
+      const productRef = doc(db, "products", productId);
+      const productDoc = await getDoc(productRef);
+
+      if (!productDoc.exists()) {
+        return {
+          success: false,
+          error: "Product not found",
+        };
+      }
+
+      const productData = productDoc.data();
+
+      // 2. Check if product is fully funded
+      const currentFunding = productData.currentFunding || 0;
+      const fundingGoal = productData.fundingGoal || 0;
+
+      if (currentFunding < fundingGoal) {
+        return {
+          success: false,
+          error:
+            "Product must be fully funded before marking as ready for purchase",
+        };
+      }
+
+      // 3. Verify the manufacturer is assigned to this product
+      if (productData.manufacturerId !== manufacturerId) {
+        return {
+          success: false,
+          error:
+            "Only the assigned manufacturer can mark this product as ready for purchase",
+        };
+      }
+
+      // 4. Verify the product has received manufacturing funds
+      if (!productData.manufacturerFunded) {
+        return {
+          success: false,
+          error: "Product funds must be transferred to manufacturer first",
+        };
+      }
+
+      // 5. Update product record to mark as ready for purchase
+      await updateDoc(productRef, {
+        readyForPurchase: true,
+        readyForPurchaseAt: serverTimestamp(),
+      });
+
+      // 6. Get designer ID to send notification
+      const designerId = productData.designerId;
+
+      // 7. Send notifications to all parties
+      const notificationService = await import("./notificationService").then(
+        (module) => module.default
+      );
+
+      // Notify the designer
+      if (designerId) {
+        await notificationService.createNotification(
+          designerId,
+          "product_ready",
+          "Product Ready for Purchase",
+          `${
+            productData.name || "Your product"
+          } is now ready for purchase in the shop.`,
+          `/product/${productId}`
+        );
+      }
+
+      // Notify all investors about the product availability
+      if (
+        Array.isArray(productData.funders) &&
+        productData.funders.length > 0
+      ) {
+        for (const investorId of productData.funders) {
+          await notificationService.createNotification(
+            investorId,
+            "product_ready",
+            "Product Now Available",
+            `A product you invested in (${productData.name || "product"}) 
+            is now ready for purchase in the shop.`,
+            `/product/${productId}`
+          );
+        }
+      }
+
+      return {
+        success: true,
+        message: `Successfully marked ${
+          productData.name || "product"
+        } as ready for purchase`,
+      };
+    } catch (error) {
+      console.error("Error marking product ready for purchase:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to mark product as ready for purchase",
       };
     }
   }

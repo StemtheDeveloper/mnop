@@ -178,7 +178,7 @@ const Navbar = () => {
       <li className="nav-item contact-link">
         <Link to="/contact" className={isActive('/contact') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Contact</Link>
       </li>
-      <li className="nav-item profile-link">
+      <li className="nav-item nav-profile-link">
         <Link to="/profile" className={isActive('/profile') ? 'active' : ''} onClick={() => isMobileMenu && setIsOpen(false)}>Profile</Link>
       </li>
 

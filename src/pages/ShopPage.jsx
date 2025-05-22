@@ -36,10 +36,9 @@ const ShopPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [productType, setProductType] = useState('all'); // 'all', 'crowdfunded', or 'direct'
-
-    // Function to check if any filters are active
+    const [purchaseReady, setPurchaseReady] = useState(false); // Filter for products ready to purchase    // Function to check if any filters are active
     const isFilterActive = () => {
-        return category !== 'all' || sortBy !== 'newest' || searchTerm !== '' || productType !== 'all';
+        return category !== 'all' || sortBy !== 'newest' || searchTerm !== '' || productType !== 'all' || purchaseReady;
     };    // Function to clear all filters
     const handleClearAllFilters = () => {
         setCategory('all');
@@ -48,6 +47,7 @@ const ShopPage = () => {
         setSearchTerm('');
         setDebouncedSearchTerm('');
         setProductType('all');
+        setPurchaseReady(false);
         setAllProductsData([]);  // Clear the products cache
         setCurrentPage(1);       // Reset to first page
     };
@@ -96,9 +96,7 @@ const ShopPage = () => {
         constraints.push(where('status', '==', 'active'));
 
         // Filter by approval status (if needed)
-        // constraints.push(where('approved', '==', true));
-
-        // Filter by category
+        // constraints.push(where('approved', '==', true));        // Filter by category
         if (category !== 'all') {
             constraints.push(where('categories', 'array-contains', category));
         }
@@ -108,6 +106,11 @@ const ShopPage = () => {
             constraints.push(where('isCrowdfunded', '==', true));
         } else if (productType === 'direct') {
             constraints.push(where('isCrowdfunded', '==', false));
+        }
+
+        // Filter by readyForPurchase status if selected
+        if (purchaseReady) {
+            constraints.push(where('readyForPurchase', '==', true));
         }
 
         // Sort by selected option
@@ -134,10 +137,8 @@ const ShopPage = () => {
         constraints.push(sortConstraint);
 
         // Limit the number of products per page
-        constraints.push(limit(productsPerPage));
-
-        return query(productsRef, ...constraints);
-    }, [category, sortBy, productType, productsPerPage]);
+        constraints.push(limit(productsPerPage)); return query(productsRef, ...constraints);
+    }, [category, sortBy, productType, productsPerPage, purchaseReady]);
 
     // Function to count total items
     const countTotalItems = useCallback(async () => {
@@ -158,13 +159,18 @@ const ShopPage = () => {
                 constraints.push(where('isCrowdfunded', '==', false));
             }
 
+            // Filter by readyForPurchase status if selected
+            if (purchaseReady) {
+                constraints.push(where('readyForPurchase', '==', true));
+            }
+
             const countQuery = query(productsRef, ...constraints);
             const snapshot = await getCountFromServer(countQuery);
             setTotalItems(snapshot.data().count);
         } catch (err) {
             console.error("Error counting products:", err);
         }
-    }, [category, productType]);
+    }, [category, productType, purchaseReady]);
 
     // Function to fetch products based on current filters
     const fetchProducts = useCallback(async (isInitialLoad = false) => {
@@ -191,6 +197,11 @@ const ShopPage = () => {
                 constraints.push(where('isCrowdfunded', '==', true));
             } else if (productType === 'direct') {
                 constraints.push(where('isCrowdfunded', '==', false));
+            }
+
+            // Filter by readyForPurchase status if selected
+            if (purchaseReady) {
+                constraints.push(where('readyForPurchase', '==', true));
             }
 
             // Sort by selected option
@@ -487,16 +498,14 @@ const ShopPage = () => {
     };    // Load initial products on mount only
     useEffect(() => {
         fetchProducts(true);
-    }, []); // Removed dependency on fetchProducts to prevent re-runs
-
-    // Reload products when filters change
+    }, []); // Removed dependency on fetchProducts to prevent re-runs    // Reload products when filters change
     useEffect(() => {
         // Reset to page 1 when filters change
         setCurrentPage(1);
         setLastVisible(null);
         setFirstVisible(null);
         fetchProducts(true);
-    }, [category, sortBy, productType]); // Removed fetchProducts dependency
+    }, [category, sortBy, productType, purchaseReady]); // Removed fetchProducts dependency
 
     // Debounce the search term to avoid frequent updates
     useEffect(() => {
@@ -646,9 +655,21 @@ const ShopPage = () => {
                             >
                                 <option value="all">All Products</option>
                                 <option value="crowdfunded">Crowdfunded</option>
-                                <option value="direct">Direct Sell</option>
-                            </select>
+                                <option value="direct">Direct Sell</option>                            </select>
                             {productType !== 'all' && <span className="filter-badge"></span>}
+                        </div>
+
+                        <div className="filter-group">
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={purchaseReady}
+                                    onChange={(e) => setPurchaseReady(e.target.checked)}
+                                    className="filter-checkbox"
+                                />
+                                Ready for Purchase
+                                {purchaseReady && <span className="filter-badge"></span>}
+                            </label>
                         </div>
                     </div>
 
@@ -674,12 +695,12 @@ const ShopPage = () => {
                             ) : category !== 'all' ? (
                                 <> in <span className="highlight">{category}</span> category</>
                             ) : null}
-                            {searchTerm && <> matching "<span className="highlight">{searchTerm}</span>"</>}
-                            {sortBy !== 'newest' && <> sorted by <span className="highlight">
+                            {searchTerm && <> matching "<span className="highlight">{searchTerm}</span>"</>}                            {sortBy !== 'newest' && <> sorted by <span className="highlight">
                                 {sortBy === 'priceAsc' ? 'price (low to high)' :
                                     sortBy === 'priceDesc' ? 'price (high to low)' :
                                         sortBy === 'popular' ? 'popularity' : 'rating'}
                             </span></>}
+                            {purchaseReady && <> that are <span className="highlight">ready for purchase</span></>}
                         </div>
                     )}
                 </div>
@@ -691,8 +712,7 @@ const ShopPage = () => {
                             <div
                                 key={product.id}
                                 className="product-link"
-                            >
-                                <ProductCard
+                            >                                <ProductCard
                                     id={product.id}
                                     image={product.imageUrl || (product.imageUrls && product.imageUrls[0]) || 'https://placehold.co/300x300?text=Product'}
                                     images={Array.isArray(product.imageUrls) ? product.imageUrls : product.imageUrl ? [product.imageUrl] : []}
@@ -707,6 +727,7 @@ const ShopPage = () => {
                                     fundingGoal={typeof product.fundingGoal === 'number' ? product.fundingGoal : 0}
                                     status={product.status || 'active'}
                                     designerId={product.designerId || ''}
+                                    readyForPurchase={product.readyForPurchase || false} // Pass the readyForPurchase flag
                                     onClick={() => handleProductClick(product.id)}
                                 />
                             </div>

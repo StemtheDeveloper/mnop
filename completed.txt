@@ -1,5 +1,27 @@
 # Completed Improvements for mnop-app
 
+- Add shop filter to only show products if they have been fully funded and the manufacturer has marked them as ready for purchase.
+
+- When a user blocks another and chooses to block all the other users content, it should hide all the products the other user has created in the shop.
+
+- Orders in the customer orders tab need to show more detailed information about the sale including shipping about paid and tax. It should also show the order notes
+
+- Fix user reviews ratings star selection. The issue is that when users select a rating (1-5 stars) their selection disappears instantly which is really bad UX. Look and the feedback banner to use the same functionality
+
+- Instead of making a product ready for purchase right after being fully funded, it should remain disabled until the designer has sent the funds to the manufacturer and the manufacturer marks the product as ready for purchase.
+
+- Add a feature where designers can send a request to a manufacturer to develop a product and the manufacturer can respond with a quote to produce the product or reject the request with a reason attached.
+
+- Improve user reviews to filter hateful or inappropriate reviews
+
+- Move save manufacturer settings button to top
+
+- Show notifications for achievements earned
+
+- Don't show standard shipping for free purchases because users are always going to want to use express shipping if it's free
+
+- Enhance the shipping settings so users can set a custom shipping cost for specific products. This is because large or heavy items will cost more to ship
+
 - Optimize LoadingSpinner component by implementing a timeout to automatically hide after a certain period to prevent UI lockout
 
 - Add earnings summary to the /earnings page

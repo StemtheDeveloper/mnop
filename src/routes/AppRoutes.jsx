@@ -14,6 +14,7 @@ const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const UserProfilePage = lazy(() => import('../pages/UserProfilePage')); // Import the new UserProfilePage
 const WalletPage = lazy(() => import('../pages/WalletPage'));
 const EarningsPage = lazy(() => import('../pages/EarningsPage')); // Import EarningsPage
+const ManufacturerDashboardPage = lazy(() => import('../pages/ManufacturerDashboardPage')); // Import ManufacturerDashboardPage
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const AdminDataFixerPage = lazy(() => import('../pages/AdminDataFixerPage'));
 const AdminVerificationPage = lazy(() => import('../pages/AdminVerificationPage')); // Import verification page
@@ -234,6 +235,11 @@ const AppRoutes = () => {
                 <Route path="/designer/quote/:quoteId" element={
                     <AuthGuard allowedRoles={["designer"]}>
                         <DesignerQuoteDetailPage />
+                    </AuthGuard>
+                } />
+                <Route path="/manufacturer/dashboard" element={
+                    <AuthGuard allowedRoles={["manufacturer"]}>
+                        <ManufacturerDashboardPage />
                     </AuthGuard>
                 } />
                 <Route path="/manufacturer/quotes" element={

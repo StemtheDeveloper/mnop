@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useUser } from '../../context/UserContext';
 import LoadingSpinner from '../LoadingSpinner';
@@ -12,6 +12,8 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
     const [error, setError] = useState('');
     const [transferFunds, setTransferFunds] = useState(true);
     const { currentUser } = useUser();
+    const [existingRequest, setExistingRequest] = useState(null);
+    const [showUnverifiedWarning, setShowUnverifiedWarning] = useState(false);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -19,12 +21,11 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
         const loadManufacturers = async () => {
             setLoading(true);
             try {
-                // Query for verified manufacturers
+                // Query for all manufacturers (verified and unverified)
                 const usersRef = collection(db, 'users');
                 const manufacturersQuery = query(
                     usersRef,
-                    where('roles', 'array-contains', 'manufacturer'),
-                    where('manufacturerVerified', '==', true)
+                    where('roles', 'array-contains', 'manufacturer')
                 );
 
                 const manufacturersSnap = await getDocs(manufacturersQuery);
@@ -48,6 +49,9 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
                             setSelectedManufacturerId(settings.manufacturerSettings[product.id]);
                         }
                     }
+
+                    // Check for existing request
+                    await checkExistingRequest(product.id);
                 }
             } catch (err) {
                 console.error('Error loading manufacturers:', err);
@@ -60,6 +64,47 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
         loadManufacturers();
     }, [isOpen, product, currentUser]);
 
+    useEffect(() => {
+        if (!selectedManufacturerId) {
+            setShowUnverifiedWarning(false);
+            return;
+        }
+        const selected = manufacturers.find(m => m.id === selectedManufacturerId);
+        setShowUnverifiedWarning(selected && !selected.manufacturerVerified);
+    }, [selectedManufacturerId, manufacturers]);
+
+    const checkExistingRequest = async (productId) => {
+        try {
+            const requestsRef = collection(db, 'manufacturerRequests');
+            const q = query(
+                requestsRef,
+                where('productId', '==', productId),
+                where('designerId', '==', currentUser.uid)
+            );
+
+            const snapshot = await getDocs(q);
+
+            if (!snapshot.empty) {
+                const requestData = {
+                    id: snapshot.docs[0].id,
+                    ...snapshot.docs[0].data()
+                };
+                setExistingRequest(requestData);
+
+                if (requestData.manufacturerId) {
+                    setSelectedManufacturerId(requestData.manufacturerId);
+                }
+
+                return requestData;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Error checking existing request:', error);
+            return null;
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!selectedManufacturerId) {
@@ -71,33 +116,76 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
         setError('');
 
         try {
-            // Update the product with the selected manufacturer
-            const productRef = doc(db, 'products', product.id);
-            await updateDoc(productRef, {
-                manufacturerId: selectedManufacturerId,
-                manufacturerAssignedAt: new Date()
-            });
+            const selectedManufacturer = manufacturers.find(m => m.id === selectedManufacturerId);
 
-            // If transfer funds is selected, transfer the funds to manufacturer
-            if (transferFunds && product.currentFunding && product.currentFunding >= product.fundingGoal) {
-                const selectedManufacturer = manufacturers.find(m => m.id === selectedManufacturerId);
+            if (!selectedManufacturer) {
+                setError('Selected manufacturer not found');
+                return;
+            }
 
-                if (selectedManufacturer) {
+            // Check if we're dealing with an approved request
+            if (existingRequest && existingRequest.status === 'approved') {
+                // If approved and fully funded, transfer funds
+                if (transferFunds && product.currentFunding >= product.fundingGoal) {
+                    // Update the product with the selected manufacturer
+                    const productRef = doc(db, 'products', product.id);
+                    await updateDoc(productRef, {
+                        manufacturerId: selectedManufacturerId,
+                        manufacturerAssignedAt: new Date()
+                    });
+
+                    // Transfer funds to manufacturer
                     const walletService = await import('../../services/walletService').then(module => module.default);
 
                     await walletService.transferProductFundsToManufacturer(
                         currentUser.uid,
                         product.id,
                         selectedManufacturer.email,
-                        "Designer selected manufacturer for fully funded product"
+                        "Designer sent funds to approved manufacturer for fully funded product"
                     );
+
+                    // Update request status
+                    const requestRef = doc(db, 'manufacturerRequests', existingRequest.id);
+                    await updateDoc(requestRef, {
+                        status: 'completed',
+                        fundsTransferred: true,
+                        fundsTransferredAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                }
+            } else {
+                // Create or update a manufacturer request
+                const requestData = {
+                    productId: product.id,
+                    productName: product.name,
+                    designerId: currentUser.uid,
+                    designerEmail: currentUser.email,
+                    manufacturerId: selectedManufacturerId,
+                    manufacturerEmail: selectedManufacturer.email,
+                    status: 'pending',
+                    fundingAmount: product.currentFunding >= product.fundingGoal ? product.currentFunding : 0,
+                    isFullyFunded: product.currentFunding >= product.fundingGoal,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                };
+
+                if (existingRequest) {
+                    // Update existing request
+                    const requestRef = doc(db, 'manufacturerRequests', existingRequest.id);
+                    await updateDoc(requestRef, {
+                        ...requestData,
+                        createdAt: existingRequest.createdAt // Preserve original creation date
+                    });
+                } else {
+                    // Create new request
+                    await addDoc(collection(db, 'manufacturerRequests'), requestData);
                 }
             }
 
             if (onSuccess) onSuccess();
         } catch (err) {
-            console.error('Error assigning manufacturer:', err);
-            setError('Failed to assign manufacturer: ' + err.message);
+            console.error('Error processing manufacturer request:', err);
+            setError('Failed to process request: ' + err.message);
         } finally {
             setLoading(false);
         }
@@ -130,9 +218,30 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
                                         <p>This product has reached its funding goal and is ready for manufacturing!</p>
                                     </div>
                                 )}
+
+                                {existingRequest && (
+                                    <div className="request-status">
+                                        <p>Request Status: <span className={`status-${existingRequest.status}`}>{existingRequest.status}</span></p>
+                                        {existingRequest.status === 'approved' && (
+                                            <p className="approved-message">This manufacturer has approved your request!</p>
+                                        )}
+                                        {existingRequest.status === 'rejected' && (
+                                            <p className="rejected-message">This manufacturer has declined your request. Please select another manufacturer.</p>
+                                        )}
+                                        {existingRequest.status === 'pending' && (
+                                            <p className="pending-message">Your request is still pending approval from the manufacturer.</p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {error && <div className="error-message">{error}</div>}
+
+                            {showUnverifiedWarning && (
+                                <div className="verification-warning">
+                                    <strong>Warning:</strong> You have selected an <b>unverified</b> manufacturer. This is not recommended. Unverified manufacturers have not been vetted by our team and may pose additional risks.
+                                </div>
+                            )}
 
                             <form onSubmit={handleSubmit}>
                                 <div className="form-group">
@@ -141,17 +250,21 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
                                         id="manufacturer-select"
                                         value={selectedManufacturerId}
                                         onChange={(e) => setSelectedManufacturerId(e.target.value)}
+                                        disabled={existingRequest?.status === 'pending'}
                                     >
                                         <option value="">-- Select a manufacturer --</option>
                                         {manufacturers.map(manufacturer => (
                                             <option key={manufacturer.id} value={manufacturer.id}>
-                                                {manufacturer.displayName} {manufacturer.manufacturerVerified && "✓"}
+                                                {manufacturer.displayName} {manufacturer.manufacturerVerified ? '✓' : '(Unverified)'}
                                             </option>
                                         ))}
                                     </select>
+                                    <p className="verification-note">
+                                        Manufacturers marked with ✓ have been verified by our team. Unverified manufacturers have not been vetted.
+                                    </p>
                                 </div>
 
-                                {product.currentFunding >= product.fundingGoal && (
+                                {product.currentFunding >= product.fundingGoal && existingRequest?.status === 'approved' && (
                                     <div className="form-group checkbox">
                                         <input
                                             type="checkbox"
@@ -172,9 +285,9 @@ const ManufacturerSelectionModal = ({ isOpen, onClose, product, onSuccess, preSe
                                     <button
                                         type="submit"
                                         className="btn-submit"
-                                        disabled={loading || !selectedManufacturerId}
+                                        disabled={loading || !selectedManufacturerId || existingRequest?.status === 'pending'}
                                     >
-                                        {loading ? 'Processing...' : 'Assign Manufacturer'}
+                                        {loading ? 'Processing...' : existingRequest?.status === 'approved' && transferFunds ? 'Transfer Funds' : 'Send Request'}
                                     </button>
                                 </div>
                             </form>

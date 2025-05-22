@@ -1,21 +1,3 @@
 # Improvements for mnop-app
 
-1. Implement responsive design improvements for mobile view in Footer component
-
-3. Fix error handling in distributeRevenue.js - implement more robust error reporting and recovery
-
-4. Update React dependencies to latest stable versions (current: React 19)
-
-5. Improve accessibility by adding ARIA attributes to UI components
-
-6. Implement performance optimization through React.memo and useCallback in frequently re-rendered components
-
-7. Add comprehensive JSDoc documentation to functions and components
-
-8. Create unit tests for key functionality
-
-9. Implement dark mode theming across all components
-
-10. Add input validation to forms to improve user experience and security
-
-
+- Masonry grid layout is making the filter results a bit confusing because the results are ordered from top to bottom instead of left to right. I want to keep the masonry grid but have the filter results layed out from left to right.

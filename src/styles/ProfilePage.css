@@ -46,7 +46,8 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: flex-start;
 }
 
 @media (min-width: 992px) {
@@ -173,7 +174,7 @@
   background: #c5321b;
 }
 
-.action-buttons {
+.profile-action-buttons {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -182,7 +183,7 @@
 }
 
 @media (min-width: 768px) {
-  .action-buttons {
+  .profile-action-buttons {
     margin-top: auto;
   }
 }
@@ -459,6 +460,15 @@
   text-align: center;
   margin-top: 25px;
   padding-top: 15px;
+}
+
+.form-actions.top-actions {
+  margin-top: 0;
+  margin-bottom: 25px;
+  padding-top: 0;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e0e0e0;
+  text-align: right;
 }
 
 .submit-button {
@@ -1607,6 +1617,30 @@
 .refund-requests-section .section-title {
   color: #d97706; /* Amber/orange color */
   margin-bottom: 5px;
+}
+
+.refund-requests-section .section-description {
+  color: #6b7280;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.no-refund-requests {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 10px;
+  border: 1px dashed #d1d5db;
+}
+
+.no-refund-requests p {
+  color: #6b7280;
+  font-size: 0.95rem;
+  text-align: center;
+  margin: 0;
 }
 
 .refund-requests-section .section-description {
