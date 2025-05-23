@@ -689,11 +689,10 @@ const ShopPage = () => {
                             Showing
                             {productType !== 'all' && <> <span className="highlight">
                                 {productType === 'crowdfunded' ? 'crowdfunded' : 'direct sell'}
-                            </span> products</>}
-                            {category !== 'all' && subCategory !== 'all' ? (
-                                <> in <span className="highlight">{subCategory}</span> category of <span className="highlight">{category}</span></>
+                            </span> products</>}                            {category !== 'all' && subCategory !== 'all' ? (
+                                <> in <span className="highlight">{subCategory}</span> category of <span className="highlight">{categories.find(cat => cat.id === category)?.name || category}</span></>
                             ) : category !== 'all' ? (
-                                <> in <span className="highlight">{category}</span> category</>
+                                <> in <span className="highlight">{categories.find(cat => cat.id === category)?.name || category}</span> category</>
                             ) : null}
                             {searchTerm && <> matching "<span className="highlight">{searchTerm}</span>"</>}                            {sortBy !== 'newest' && <> sorted by <span className="highlight">
                                 {sortBy === 'priceAsc' ? 'price (low to high)' :

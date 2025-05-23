@@ -79,10 +79,10 @@ const ProductCard = ({
     : fundingProgress;  // Determine if product is fully funded
   const isFullyFunded = fundingPercentage >= 100;
 
-  // For purchasability, check if a product can be purchased (direct sell or properly funded AND ready)
+  // For purchasability, check if a product can be purchased (direct sell or properly funded)
   const isPurchasable = status === 'active' && (
     !sanitizedFundingGoal || // Direct sell products (no funding goal)
-    (isFullyFunded && readyForPurchase) // Crowdfunded products need to be fully funded AND marked ready for purchase
+    isFullyFunded // Crowdfunded products need to be fully funded
   );
 
   // Check if the current user is the designer of this product
@@ -172,13 +172,10 @@ const ProductCard = ({
     if (!currentUser) {
       showError("Please sign in to add items to cart");
       return;
-    }    // Check if product is purchasable (for crowdfunded products)
-    if (status === 'active' && sanitizedFundingGoal > 0 && !isPurchasable) {
-      if (!isFullyFunded) {
-        showError("This product needs to be fully funded before purchase");
-      } else {
-        showError("This product is not yet ready for purchase");
-      }
+    }
+    // Only block purchase if not fully funded
+    if (status === 'active' && sanitizedFundingGoal > 0 && !isFullyFunded) {
+      showError("This product needs to be fully funded before purchase");
       return;
     }
 

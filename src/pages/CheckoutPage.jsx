@@ -677,6 +677,12 @@ const CheckoutPage = () => {
             standardCost += standardSurcharge;
             expressCost += expressSurcharge;
 
+            // Ensure express is never less than standard for the same cart
+            if (expressCost < standardCost) {
+                // Adjust expressCost to be at least standardCost + (expressSurcharge - standardSurcharge)
+                expressCost = standardCost + (expressSurcharge - standardSurcharge);
+            }
+
             // Prevent free shipping for orders with large or overweight items
             const allowFreeShipping = !hasLargeItems && !hasOverweightItems;
 
@@ -1433,6 +1439,13 @@ const CheckoutPage = () => {
                 )}
 
                 <div className="checkout-content">
+                    {/* Shipping delay disclaimer for crowdfunded prepurchase */}
+                    {cartItems.some(item => item.isCrowdfunded && item.fundingGoal > 0 && item.currentFunding >= item.fundingGoal && !item.readyForPurchase) && (
+                        <div className="checkout-prepurchase-disclaimer">
+                            <strong>Note:</strong> One or more items in your order are fully funded crowdfunded products that are still in manufacturing. Your order will be processed as a pre-purchase and may experience shipping delays.
+                        </div>
+                    )}
+
                     {/* Step 1: Shipping Information */}
                     {step === 1 && (
                         <div className="checkout-form">

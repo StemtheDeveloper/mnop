@@ -223,6 +223,12 @@ const CartPage = () => {
             <div className="cart-container">
                 <h1>Your Shopping Cart</h1>
 
+                {cartItems.some(item => item.isCrowdfunded && item.fundingGoal > 0 && item.currentFunding >= item.fundingGoal && !item.readyForPurchase) && (
+                    <div className="cart-prepurchase-disclaimer">
+                        <strong>Note:</strong> One or more items in your cart are fully funded crowdfunded products that are still in manufacturing. Your order will be processed as a pre-purchase and may experience shipping delays.
+                    </div>
+                )}
+
                 {cartItems.length === 0 ? (
                     <div className="empty-cart">
                         <div className="empty-cart-icon">

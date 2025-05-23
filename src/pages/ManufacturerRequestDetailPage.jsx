@@ -150,6 +150,15 @@ const ManufacturerRequestDetailPage = () => {
                 updatedAt: serverTimestamp()
             });
 
+            // Set readyForPurchase=true on the related product
+            if (request && request.productId) {
+                const productRef = doc(db, 'products', request.productId);
+                await updateDoc(productRef, {
+                    readyForPurchase: true,
+                    updatedAt: serverTimestamp()
+                });
+            }
+
             // Create a notification for the designer
             await addDoc(collection(db, 'notifications'), {
                 userId: request.designerId,

@@ -973,7 +973,7 @@ const ProductUploadPage = () => {
                     {successMessage || "Product created successfully! Redirecting..."}
                 </div>}
 
-                <div className="upload-mode-toggle">
+                {/* <div className="upload-mode-toggle">
                     <button
                         className="mode-toggle-btn active"
                         disabled={loading}
@@ -987,7 +987,7 @@ const ProductUploadPage = () => {
                     >
                         Bulk Upload
                     </button>
-                </div>
+                </div> */}
 
                 {showImageCropper && (
                     <ImageCropper

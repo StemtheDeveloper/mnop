@@ -567,7 +567,7 @@ const ProductDetailPage = () => {
         if (!currentUser) {
             showError("Please sign in to add items to cart");
             return;
-        }        // Check if product is crowdfunded and not fully funded
+        }        // Only block purchase if not fully funded
         if (product.isCrowdfunded && !isFullyFunded) {
             showError("This product needs to be fully funded before purchase");
             return;

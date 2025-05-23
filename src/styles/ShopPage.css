@@ -152,7 +152,7 @@
   background-color: #f9f9f9;
 }
 
-.checkbox-label input:checked ~ .checkbox-label {
+.checkbox-label input:checked~.checkbox-label {
   border-color: #ef3c23;
   background-color: #fff0ee;
 }
@@ -182,6 +182,7 @@
     opacity: 0;
     transform: translateY(-5px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -192,46 +193,75 @@
   animation: fadeIn 0.3s ease-out;
 }
 
-/* Products Grid - Masonry Layout */
+/* Products Grid - Masonry Layout with horizontal flow */
 .products-grid {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
   gap: 2rem;
+  grid-auto-flow: row;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 @media (min-width: 600px) {
   .products-grid {
-    columns: 2;
-    column-gap: 2rem;
-    display: block;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-flow: row;
+    gap: 2rem;
   }
 }
 
 @media (min-width: 900px) {
   .products-grid {
-    columns: 3;
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (min-width: 1200px) {
   .products-grid {
-    columns: 4;
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
-/* Masonry item styling */
+/* Product item styling */
 .product-link {
-  break-inside: avoid;
-  margin-bottom: 2rem;
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
   width: 100%;
+  transition: transform 0.2s ease-in-out;
 }
 
 .product-link {
   text-decoration: none;
   color: inherit;
-  display: block;
+  display: flex;
+  flex-direction: column;
   height: 100%;
+}
+
+/* Product link hover effect */
+.product-link:hover {
+  transform: translateY(-15px);
+}
+
+/* Add some staggered heights for masonry-like effect */
+.product-link:nth-child(odd) {
+  transform: translateY(10px);
+}
+
+.product-link:nth-child(3n+2) {
+  transform: translateY(-10px);
+}
+
+/* Ensure ProductCard components fill their container */
+.product-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Loading and Error states */
