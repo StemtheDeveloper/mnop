@@ -4,6 +4,7 @@ import { useUser } from '../../context/UserContext';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { formatDate } from '../../utils/formatters';
 import '../../styles/ManufacturerQuotes.css';
 import '../../styles/ProfileTabs.css';
 
@@ -18,6 +19,9 @@ const MyQuotesTab = () => {
   const [manufacturerRequests, setManufacturerRequests] = useState([]);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [designerRequests, setDesignerRequests] = useState([]);
+  const [designerLoading, setDesignerLoading] = useState(true);
+  const [designerError, setDesignerError] = useState(null);
 
   // Check if user has manufacturer role
   const isManufacturer = hasRole('manufacturer');
@@ -132,11 +136,88 @@ const MyQuotesTab = () => {
     fetchManufacturerRequests();
   }, [userId, isOwnProfile, isManufacturer]);
 
-  // Format date for display
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString();
-  };
+  // Fetch requests sent by the designer (if user is a designer)
+  useEffect(() => {
+    const fetchDesignerRequests = async () => {
+      if (!isOwnProfile || !hasRole('designer')) {
+        setDesignerLoading(false);
+        return;
+      }
+      setDesignerLoading(true);
+      try {
+        // Get requests sent by this designer
+        const requestsRef = collection(db, 'manufacturerRequests');
+        const requestsQuery = query(
+          requestsRef,
+          where('designerId', '==', userId),
+          orderBy('createdAt', 'desc'),
+          limit(50)
+        );
+        const snapshot = await getDocs(requestsQuery);
+        if (snapshot.empty) {
+          setDesignerRequests([]);
+          setDesignerLoading(false);
+          return;
+        }
+        // Get basic request data
+        const requestsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        // Enhanced requests with product data
+        const enhancedRequests = await Promise.all(
+          requestsData.map(async request => {
+            try {
+              // If there's a product ID, fetch the product details
+              let product = null;
+              if (request.productId) {
+                const productRef = doc(db, 'products', request.productId);
+                const productSnap = await getDoc(productRef);
+                if (productSnap.exists()) {
+                  product = { id: productSnap.id, ...productSnap.data() };
+                }
+              }
+              return {
+                ...request,
+                createdAt: request.createdAt?.toDate() || new Date(),
+                updatedAt: request.updatedAt?.toDate() || new Date(),
+                deadline: request.deadline?.toDate() || null,
+                fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
+                productName: request.productName || product?.name || 'Unnamed Product',
+                manufacturerName: request.manufacturerName || 'Not assigned',
+                status: request.status || 'pending',
+                manufacturingCostEstimate: request.manufacturingCostEstimate,
+                retailPriceSuggestion: request.retailPriceSuggestion,
+                estimateMessage: request.estimateMessage,
+                product
+              };
+            } catch (error) {
+              return {
+                ...request,
+                createdAt: request.createdAt?.toDate() || new Date(),
+                updatedAt: request.updatedAt?.toDate() || new Date(),
+                deadline: request.deadline?.toDate() || null,
+                fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
+                productName: request.productName || 'Unnamed Product',
+                manufacturerName: request.manufacturerName || 'Not assigned',
+                status: request.status || 'pending',
+                manufacturingCostEstimate: request.manufacturingCostEstimate,
+                retailPriceSuggestion: request.retailPriceSuggestion,
+                estimateMessage: request.estimateMessage,
+                product: null
+              };
+            }
+          })
+        );
+        setDesignerRequests(enhancedRequests);
+      } catch (err) {
+        setDesignerError('Failed to load your sent manufacturing requests. Please try again later.');
+      } finally {
+        setDesignerLoading(false);
+      }
+    };
+    fetchDesignerRequests();
+  }, [userId, isOwnProfile, hasRole]);
 
   // Get status badge class based on status
   const getStatusBadgeClass = (status) => {
@@ -325,6 +406,59 @@ const MyQuotesTab = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* Designer's sent requests section */}
+      {isOwnProfile && hasRole('designer') && (
+        <div className="designer-requests-section">
+          <h3>Requests Sent to Manufacturers</h3>
+          <p>Track the status of your manufacturing requests and see manufacturer feedback.</p>
+          {designerLoading ? (
+            <div className="loading-container">
+              <LoadingSpinner />
+              <p>Loading your sent requests...</p>
+            </div>
+          ) : designerError ? (
+            <div className="error-message">{designerError}</div>
+          ) : designerRequests.length === 0 ? (
+            <div className="empty-state">
+              <p>You haven't sent any manufacturing requests yet.</p>
+            </div>
+          ) : (
+            <div className="requests-table-container">
+              <table className="requests-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Manufacturer</th>
+                    <th>Requested On</th>
+                    <th>Status</th>
+                    <th>Cost Estimate</th>
+                    <th>Retail Price</th>
+                    <th>Manufacturer Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {designerRequests.map(request => (
+                    <tr key={request.id}>
+                      <td>{request.productName}</td>
+                      <td>{request.manufacturerName || 'Not assigned'}</td>
+                      <td>{formatDate(request.createdAt)}</td>
+                      <td>
+                        <span className={`status-badge ${getStatusBadgeClass(request.status)}`}>
+                          {getStatusText(request.status)}
+                        </span>
+                      </td>
+                      <td>{request.manufacturingCostEstimate !== undefined && request.manufacturingCostEstimate !== null ? formatCurrency(request.manufacturingCostEstimate) : '—'}</td>
+                      <td>{request.retailPriceSuggestion !== undefined && request.retailPriceSuggestion !== null ? formatCurrency(request.retailPriceSuggestion) : '—'}</td>
+                      <td>{request.estimateMessage ? <span className="manufacturer-message">{request.estimateMessage}</span> : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

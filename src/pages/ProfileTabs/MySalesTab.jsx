@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useUser } from '../../context/UserContext';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { formatDate } from '../../utils/formatters';
 
 const MySalesTab = () => {
   const { currentUser, hasRole } = useUser();
@@ -14,37 +14,6 @@ const MySalesTab = () => {
   const [salesSearchTerm, setSalesSearchTerm] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
-
-  // Format date helper function
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-
-    // Handle Firebase Timestamp
-    if (date && typeof date === 'object' && date.toDate) {
-      date = date.toDate();
-    }
-
-    // Handle timestamp objects with seconds
-    if (date && typeof date === 'object' && date.seconds) {
-      date = new Date(date.seconds * 1000);
-    }
-
-    // If it's a string, try to convert to date
-    if (typeof date === 'string') {
-      date = new Date(date);
-    }
-
-    // Ensure it's a valid date
-    if (!(date instanceof Date) || isNaN(date)) {
-      return 'Invalid date';
-    }
-
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
   // Format price as currency
   const formatPrice = (price) => {

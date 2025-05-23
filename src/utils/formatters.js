@@ -34,9 +34,21 @@ export const formatDate = (date) => {
   if (!date) return "N/A";
 
   // Handle Firebase Timestamp objects
-  const dateObj = date.toDate ? date.toDate() : new Date(date);
+  if (date.toDate) {
+    date = date.toDate();
+  } else if (date.seconds) {
+    // Firestore Timestamp-like object
+    date = new Date(date.seconds * 1000);
+  } else if (typeof date === 'string' || typeof date === 'number') {
+    // String or number
+    date = new Date(date);
+  }
 
-  return dateObj.toLocaleDateString("en-US", {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return "N/A";
+  }
+
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",

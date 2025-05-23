@@ -28,8 +28,7 @@ import ShippingSettingsTab from './ProfileTabs/ShippingSettingsTab';
 import CustomerOrdersTab from './ProfileTabs/CustomerOrdersTab';
 import MyQuotesTab from './ProfileTabs/MyQuotesTab';
 import MyInvestmentsTab from './ProfileTabs/MyInvestmentsTab';
-
-
+import { formatCurrency, formatDate } from '../utils/formatters'; // Import shared formatters
 
 const ProfilePage = () => {
     const navigate = useNavigate();
@@ -49,37 +48,6 @@ const ProfilePage = () => {
         includeReviews: true
     });
     const [dataExportLoading, setDataExportLoading] = useState(false);
-
-    // Add formatDate helper function
-    const formatDate = (date) => {
-        if (!date) return 'N/A';
-
-        // Handle Firebase Timestamp
-        if (date && typeof date === 'object' && date.toDate) {
-            date = date.toDate();
-        }
-
-        // Handle timestamp objects with seconds
-        if (date && typeof date === 'object' && date.seconds) {
-            date = new Date(date.seconds * 1000);
-        }
-
-        // If it's a string, try to convert to date
-        if (typeof date === 'string') {
-            date = new Date(date);
-        }
-
-        // Ensure it's a valid date
-        if (!(date instanceof Date) || isNaN(date)) {
-            return 'Invalid date';
-        }
-
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
 
     const [formData, setFormData] = useState({
         displayName: '',

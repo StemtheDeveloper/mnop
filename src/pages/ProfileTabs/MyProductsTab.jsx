@@ -4,6 +4,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../../config/firebase';
 import { useUser } from '../../context/UserContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { formatDate } from '../../utils/formatters';
 
 const MyProductsTab = () => {
   const navigate = useNavigate();
@@ -56,37 +57,6 @@ const MyProductsTab = () => {
       style: 'currency',
       currency: 'USD'
     }).format(price || 0);
-  };
-
-  // Format date
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-
-    // Handle Firebase Timestamp
-    if (date && typeof date === 'object' && date.toDate) {
-      date = date.toDate();
-    }
-
-    // Handle timestamp objects with seconds
-    if (date && typeof date === 'object' && date.seconds) {
-      date = new Date(date.seconds * 1000);
-    }
-
-    // If it's a string, try to convert to date
-    if (typeof date === 'string') {
-      date = new Date(date);
-    }
-
-    // Ensure it's a valid date
-    if (!(date instanceof Date) || isNaN(date)) {
-      return 'Invalid date';
-    }
-
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   // Calculate funding percentage

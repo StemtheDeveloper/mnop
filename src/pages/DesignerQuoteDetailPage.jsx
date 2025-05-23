@@ -5,6 +5,7 @@ import { db } from '../config/firebase';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { formatCurrency, formatDate } from '../utils/formatters';
 import '../styles/DesignerQuoteDetailPage.css';
 
 const DesignerQuoteDetailPage = () => {
@@ -281,19 +282,6 @@ const DesignerQuoteDetailPage = () => {
         } finally {
             setActionLoading(false);
         }
-    };
-
-    const formatDate = (timestamp) => {
-        if (!timestamp) return 'N/A';
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString();
-    };
-
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount);
     };
 
     const getStatusBadgeClass = (status) => {

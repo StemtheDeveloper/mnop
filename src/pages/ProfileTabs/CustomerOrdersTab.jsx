@@ -4,6 +4,7 @@ import { doc, updateDoc, getDoc, addDoc, collection, query, where, getDocs } fro
 import { db } from '../../config/firebase';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import refundService from '../../services/refundService';
+import { formatDate } from '../../utils/formatters';
 
 const CustomerOrdersTab = () => {
   const { currentUser, hasRole } = useUser();
@@ -36,37 +37,6 @@ const CustomerOrdersTab = () => {
     }).format(price);
   };
 
-  // Add formatDate helper function
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-
-    // Handle Firebase Timestamp
-    if (date && typeof date === 'object' && date.toDate) {
-      date = date.toDate();
-    }
-
-    // Handle timestamp objects with seconds
-    if (date && typeof date === 'object' && date.seconds) {
-      date = new Date(date.seconds * 1000);
-    }
-
-    // If it's a string, try to convert to date
-    if (typeof date === 'string') {
-      date = new Date(date);
-    }
-
-    // Ensure it's a valid date
-    if (!(date instanceof Date) || isNaN(date)) {
-      return 'Invalid date';
-    }
-
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
   // Function to get status badge class for styling
   const getStatusBadgeClass = (status) => {
     switch (status) {
@@ -78,6 +48,41 @@ const CustomerOrdersTab = () => {
         return 'status-cancelled';
       default:
         return 'status-default';
+    }
+  };
+
+  // Function to format date properly to prevent Invalid Date issues
+  const formatDateSafely = (date) => {
+    if (!date) return 'Unknown';
+
+    try {
+      // If it's already a Date object
+      if (date instanceof Date) {
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      }
+
+      // If it's a Firebase timestamp with seconds
+      if (date.seconds) {
+        return new Date(date.seconds * 1000).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      }
+
+      // If it's a string or number
+      return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error, date);
+      return 'Unknown';
     }
   };
 
@@ -874,6 +879,11 @@ const CustomerOrdersTab = () => {
                                 <span className="item-name">{item.name}</span>
                                 <span className="item-quantity">x{item.quantity}</span>
                                 <span className="item-price">{formatPrice(item.price * item.quantity)}</span>
+                                {item.notes && (
+                                  <div className="item-notes">
+                                    <strong>Customer Note:</strong> {item.notes}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -892,6 +902,14 @@ const CustomerOrdersTab = () => {
                           <p><strong>Phone:</strong> {order.shippingInfo?.phone}</p>
                           <p><strong>Email:</strong> {order.shippingInfo?.email}</p>
                         </div>
+
+                        {/* notes */}
+                        {order.notes && (
+                          <div className="order-notes">
+                            <strong>Notes:</strong> {order.notes}
+
+                          </div>
+                        )}
                       </>
                     )}
 
@@ -901,11 +919,7 @@ const CustomerOrdersTab = () => {
                       </div>
                       {order.estimatedDelivery && (
                         <div className="estimated-delivery">
-                          <strong>Est. Delivery:</strong> {new Date(order.estimatedDelivery.seconds * 1000).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
+                          <strong>Est. Delivery:</strong> {formatDateSafely(order.estimatedDelivery)}
                         </div>
                       )}
                     </div>
@@ -1031,6 +1045,11 @@ const CustomerOrdersTab = () => {
                                 <span className="item-name">{item.name}</span>
                                 <span className="item-quantity">x{item.quantity}</span>
                                 <span className="item-price">{formatPrice(item.price * item.quantity)}</span>
+                                {item.notes && (
+                                  <div className="item-notes">
+                                    <strong>Customer Note:</strong> {item.notes}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1057,12 +1076,7 @@ const CustomerOrdersTab = () => {
                         <strong>Shipping:</strong> {order.shippingInfo?.shippingMethod === 'express' ? 'Express' : 'Standard'}
                       </div>
                       <div className="completed-date">
-                        <strong>Completed:</strong> {order.deliveredAt ?
-                          new Date(order.deliveredAt.seconds * 1000).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          }) : 'Unknown'}
+                        <strong>Completed:</strong> {formatDateSafely(order.deliveredAt)}
                       </div>
                     </div>
                   </div>

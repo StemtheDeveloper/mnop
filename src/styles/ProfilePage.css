@@ -1531,6 +1531,14 @@
   font-size: 14px;
 }
 
+.order-notes {
+  background-color: #fff3cd;
+  padding: 15px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  color: #856404;
+}
+
 .order-actions {
   display: flex;
   gap: 10px;
