@@ -143,7 +143,10 @@ const MyQuotesTab = () => {
         setDesignerLoading(false);
         return;
       }
+
+      console.log('Fetching designer requests for userId:', userId);
       setDesignerLoading(true);
+
       try {
         // Get requests sent by this designer
         const requestsRef = collection(db, 'manufacturerRequests');
@@ -153,69 +156,85 @@ const MyQuotesTab = () => {
           orderBy('createdAt', 'desc'),
           limit(50)
         );
+
+        console.log('Executing query for designerId:', userId);
         const snapshot = await getDocs(requestsQuery);
+
         if (snapshot.empty) {
+          console.log('No designer requests found');
           setDesignerRequests([]);
           setDesignerLoading(false);
           return;
         }
+
+        console.log(`Found ${snapshot.docs.length} designer requests`);
+
         // Get basic request data
         const requestsData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
-        // Enhanced requests with product data
-        const enhancedRequests = await Promise.all(
-          requestsData.map(async request => {
-            try {
-              // If there's a product ID, fetch the product details
-              let product = null;
-              if (request.productId) {
-                const productRef = doc(db, 'products', request.productId);
-                const productSnap = await getDoc(productRef);
-                if (productSnap.exists()) {
-                  product = { id: productSnap.id, ...productSnap.data() };
-                }
+
+        // Enhanced requests with product data - process one at a time to avoid Promise.all errors
+        const enhancedRequests = [];
+
+        for (const request of requestsData) {
+          try {
+            // If there's a product ID, fetch the product details
+            let product = null;
+            if (request.productId) {
+              const productRef = doc(db, 'products', request.productId);
+              const productSnap = await getDoc(productRef);
+              if (productSnap.exists()) {
+                product = { id: productSnap.id, ...productSnap.data() };
               }
-              return {
-                ...request,
-                createdAt: request.createdAt?.toDate() || new Date(),
-                updatedAt: request.updatedAt?.toDate() || new Date(),
-                deadline: request.deadline?.toDate() || null,
-                fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
-                productName: request.productName || product?.name || 'Unnamed Product',
-                manufacturerName: request.manufacturerName || 'Not assigned',
-                status: request.status || 'pending',
-                manufacturingCostEstimate: request.manufacturingCostEstimate,
-                retailPriceSuggestion: request.retailPriceSuggestion,
-                estimateMessage: request.estimateMessage,
-                product
-              };
-            } catch (error) {
-              return {
-                ...request,
-                createdAt: request.createdAt?.toDate() || new Date(),
-                updatedAt: request.updatedAt?.toDate() || new Date(),
-                deadline: request.deadline?.toDate() || null,
-                fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
-                productName: request.productName || 'Unnamed Product',
-                manufacturerName: request.manufacturerName || 'Not assigned',
-                status: request.status || 'pending',
-                manufacturingCostEstimate: request.manufacturingCostEstimate,
-                retailPriceSuggestion: request.retailPriceSuggestion,
-                estimateMessage: request.estimateMessage,
-                product: null
-              };
             }
-          })
-        );
+
+            enhancedRequests.push({
+              ...request,
+              createdAt: request.createdAt?.toDate() || new Date(),
+              updatedAt: request.updatedAt?.toDate() || new Date(),
+              deadline: request.deadline?.toDate() || null,
+              fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
+              productName: request.productName || product?.name || 'Unnamed Product',
+              manufacturerName: request.manufacturerName || 'Not assigned',
+              status: request.status || 'pending',
+              manufacturingCostEstimate: request.manufacturingCostEstimate,
+              retailPriceSuggestion: request.retailPriceSuggestion,
+              estimateMessage: request.estimateMessage,
+              product
+            });
+          } catch (error) {
+            console.error(`Error processing request ${request.id}:`, error);
+
+            // Still add the request with basic info even if product fetch failed
+            enhancedRequests.push({
+              ...request,
+              createdAt: request.createdAt?.toDate() || new Date(),
+              updatedAt: request.updatedAt?.toDate() || new Date(),
+              deadline: request.deadline?.toDate() || null,
+              fundsTransferredAt: request.fundsTransferredAt?.toDate() || null,
+              productName: request.productName || 'Unnamed Product',
+              manufacturerName: request.manufacturerName || 'Not assigned',
+              status: request.status || 'pending',
+              manufacturingCostEstimate: request.manufacturingCostEstimate,
+              retailPriceSuggestion: request.retailPriceSuggestion,
+              estimateMessage: request.estimateMessage,
+              product: null
+            });
+          }
+        }
+
+        console.log(`Successfully processed ${enhancedRequests.length} designer requests`);
         setDesignerRequests(enhancedRequests);
       } catch (err) {
+        console.error('Error fetching designer requests:', err);
         setDesignerError('Failed to load your sent manufacturing requests. Please try again later.');
       } finally {
         setDesignerLoading(false);
       }
     };
+
     fetchDesignerRequests();
   }, [userId, isOwnProfile, hasRole]);
 
